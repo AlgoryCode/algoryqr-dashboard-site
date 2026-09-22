@@ -1,0 +1,289 @@
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { ArrowLeft, Check, Sparkles, X } from "lucide-react";
+
+import {
+  PackageComparisonCurrentPlanSkeleton,
+  PackageComparisonSkeleton,
+} from "@/components/dashboard/PackageComparisonSkeleton";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { AnimatedPackagePrice } from "@/components/packages/AnimatedPackagePrice";
+import { Button } from "@/components/ui/button";
+import { FeatureHintByProduct } from "@/components/ui/FeatureHint";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { usePackageCatalog } from "@/hooks/use-package-catalog";
+import type { PlanPackageApiItem } from "@/lib/api";
+import type { BillingPeriod } from "@/lib/commerce";
+import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
+import { DASHBOARD_BACK } from "@/lib/dashboard-surface";
+import {
+  formatDaysUntilExpiry,
+  formatPackageDate,
+  planActionLabel,
+  purchaseTypeLabel,
+  resolvePackagePricing,
+} from "@/lib/package-display";
+import { matchesProductCode } from "@/lib/product-access";
+import { cn } from "@/lib/utils";
+
+function ComparisonCellValue({ value }: { value: string }) {
+  if (value === "Var") {
+    return (
+      <span
+        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-600"
+        aria-label="Var"
+      >
+        <Check className="h-3 w-3 text-white" strokeWidth={3} />
+      </span>
+    );
+  }
+  if (value === "Yok") {
+    return (
+      <span
+        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-600"
+        aria-label="Yok"
+      >
+        <X className="h-3 w-3 text-white" strokeWidth={3} />
+      </span>
+    );
+  }
+  return <span className="text-sm text-muted-foreground">{value}</span>;
+}
+
+function BillingPeriodSwitch({
+  billingPeriod,
+  onChange,
+}: {
+  billingPeriod: BillingPeriod;
+  onChange: (period: BillingPeriod) => void;
+}) {
+  const yearly = billingPeriod === "YEARLY";
+
+  return (
+    <div className="flex items-center justify-center gap-3">
+      <Label
+        htmlFor="billing-period-switch"
+        className={cn(
+          "cursor-pointer text-sm font-medium transition-colors duration-200",
+          !yearly ? "text-foreground" : "text-muted-foreground",
+        )}
+      >
+        Aylık
+      </Label>
+      <Switch
+        id="billing-period-switch"
+        checked={yearly}
+        onCheckedChange={(checked) => onChange(checked ? "YEARLY" : "MONTHLY")}
+        aria-label="Aylık ve yıllık fiyat arasında geçiş yap"
+      />
+      <Label
+        htmlFor="billing-period-switch"
+        className={cn(
+          "cursor-pointer text-sm font-medium transition-colors duration-200",
+          yearly ? "text-foreground" : "text-muted-foreground",
+        )}
+      >
+        Yıllık
+      </Label>
+    </div>
+  );
+}
+
+export default function PackageComparisonView() {
+  const searchParams = useSearchParams();
+  const highlight = searchParams.get("highlight");
+  const { subscription, packages, featureRows, isLoading, isError } =
+    usePackageCatalog();
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("MONTHLY");
+
+  const current = subscription.data?.activePurchase ?? null;
+  const isPaidActive =
+    !!current &&
+    current.usable &&
+    !current.expired &&
+    current.purchaseType === "PAID" &&
+    current.packageCode !== "FREE_PACKAGE";
+
+  const ctaHref = (pkg: PlanPackageApiItem) => {
+    if (pkg.code === "FREE_PACKAGE" && current?.packageId !== pkg.id) {
+      return null;
+    }
+    if (current?.packageId === pkg.id) {
+      if (current.purchaseType === "TRIAL") {
+        return DASHBOARD_ROUTES.accountSubscriptionCheckout(pkg.id);
+      }
+      return null;
+    }
+    if (isPaidActive) return DASHBOARD_ROUTES.accountPlanChange(pkg.id);
+    return DASHBOARD_ROUTES.accountSubscriptionCheckout(pkg.id);
+  };
+
+  const packagesHeader = (
+    <DashboardPageHeader
+      title="Paketler"
+      hint="Tüm planları tek ekranda karşılaştırın ve size uygun paketi seçin."
+      back={
+        <Link
+          href={DASHBOARD_ROUTES.accountSubscription}
+          aria-label="Aboneliğe dön"
+          className={DASHBOARD_BACK}
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Link>
+      }
+      action={
+        <Button variant="outline" size="sm" asChild>
+          <Link href={DASHBOARD_ROUTES.modules}>Modül ekle</Link>
+        </Button>
+      }
+    />
+  );
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        {packagesHeader}
+        <PackageComparisonCurrentPlanSkeleton />
+        <PackageComparisonSkeleton />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      {packagesHeader}
+
+      <div className="smart-feature-panel">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[#e5e7eb] bg-white shadow-none dark:border-border dark:bg-card">
+            <Sparkles className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Şu an bunu kullanıyorsunuz
+            </p>
+            {subscription.isLoading ? (
+              <div className="mt-2 h-10 animate-pulse rounded-md bg-muted" />
+            ) : current ? (
+              <>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <h2 className="text-lg font-semibold text-foreground">{current.packageName}</h2>
+                  <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                    {purchaseTypeLabel(current.purchaseType)}
+                  </span>
+                </div>
+                {current.expiresAt ? (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Bitiş {formatPackageDate(current.expiresAt)} · {formatDaysUntilExpiry(current.daysUntilExpiry)}
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <p className="mt-1 text-sm text-muted-foreground">Aktif paket bilgisi bulunamadı.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {isError ? (
+        <p className="text-sm text-destructive">Paketler yüklenemedi. Lütfen sayfayı yenileyin.</p>
+      ) : packages.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Karşılaştırılacak paket bulunamadı.</p>
+      ) : (
+        <div className="space-y-6">
+          <BillingPeriodSwitch billingPeriod={billingPeriod} onChange={setBillingPeriod} />
+
+          <div
+            className={cn(
+              "grid gap-4",
+              packages.length >= 3 ? "md:grid-cols-2 xl:grid-cols-3" : "md:grid-cols-2",
+            )}
+          >
+            {packages.map((pkg) => {
+              const isCurrent = current?.packageId === pkg.id;
+              const highlightMatch =
+                !!highlight &&
+                pkg.items?.some((item) => matchesProductCode(item.productCode, highlight));
+              const pricing = resolvePackagePricing(pkg, billingPeriod);
+              const label = planActionLabel(
+                current?.packageId,
+                pkg,
+                current?.price,
+                current?.purchaseType,
+              );
+              const href = ctaHref(pkg);
+
+              return (
+                <div
+                  key={pkg.id}
+                  className={cn(
+                    "smart-feature-panel flex h-full flex-col",
+                    isCurrent && "ring-2 ring-primary/25",
+                    highlightMatch && "ring-2 ring-primary/40",
+                  )}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-lg font-semibold text-foreground">{pkg.name}</h3>
+                        {isCurrent ? (
+                          <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
+                            Mevcut
+                          </span>
+                        ) : null}
+                        {highlightMatch ? (
+                          <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300">
+                            Önerilen
+                          </span>
+                        ) : null}
+                      </div>
+                      {pkg.description?.trim() ? (
+                        <p className="mt-1 text-sm text-muted-foreground">{pkg.description.trim()}</p>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <AnimatedPackagePrice pricing={pricing} currency={pkg.currency} />
+
+                  <ul className="mt-5 flex-1 space-y-2.5 border-t border-border pt-4">
+                    {featureRows.map((row) => (
+                      <li key={`${pkg.id}-${row.id}`} className="flex items-start gap-2.5">
+                        <ComparisonCellValue value={row.values[String(pkg.id)] ?? "—"} />
+                        <span className="inline-flex min-w-0 flex-1 items-center gap-1.5 text-sm text-foreground">
+                          <span>{row.label}</span>
+                          {row.productCode ? (
+                            <FeatureHintByProduct productCode={row.productCode} size="sm" />
+                          ) : null}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <div className="mt-5 space-y-2">
+                    {label === "Mevcut plan" ? (
+                      <Button className="w-full" variant="outline" disabled>
+                        Mevcut plan
+                      </Button>
+                    ) : label && href ? (
+                      <Button
+                        className="w-full"
+                        variant={label === "Yükselt" || label === "Satın al" ? "hero" : "outline"}
+                        asChild
+                      >
+                        <Link href={href}>{label}</Link>
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

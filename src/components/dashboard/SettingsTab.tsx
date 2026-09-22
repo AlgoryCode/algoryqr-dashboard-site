@@ -1,0 +1,1085 @@
+"use client";
+
+import { useState, useEffect, useCallback, useRef } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { getSiteSameOriginAxios } from "@/lib/site-same-origin-axios";
+import { useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { invalidateMyProfile, useMyProfile, MY_PROFILE_QUERY_KEY } from "@/hooks/use-my-profile";
+import { useAccessProfile } from "@/hooks/use-access-profile";
+import type { MyProfile } from "@/hooks/use-my-profile";
+import {
+  User, Shield, Bell, ArrowLeft,
+  Check, Camera, Key, Lock, Smartphone, Mail,
+  RefreshCw, LogOut, Timer, Copy, CreditCard,
+  WalletCards, MapPin, History, Monitor, Clock3,
+  UtensilsCrossed,
+} from "lucide-react";
+import { DashboardHubTile } from "@/components/dashboard/DashboardHubTile";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { PrintAgentApiKeySection } from "@/components/dashboard/PrintAgentApiKeySection";
+import { DASHBOARD_BACK, DASHBOARD_HUB_GRID, DASHBOARD_ICON_WELL, DASHBOARD_SURFACE, DASHBOARD_TILE, DASHBOARD_TILE_ROW } from "@/lib/dashboard-surface";
+import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
+import { authService, type TwoFactorSetupPayload } from "@/lib/auth-service";
+import { copyTextToClipboard } from "@/components/dashboard/qr/qr-actions";
+import { ChangePasswordDialog } from "@/components/dashboard/ChangePasswordDialog";
+import { ChangeEmailDialog } from "@/components/dashboard/ChangeEmailDialog";
+import { ApiError } from "@/lib/api";
+import { getStoredUser, setStoredUser } from "@/lib/api/storage";
+import { useUserSessions } from "@/hooks/use-user-sessions";
+import { useSubscription } from "@/hooks/use-subscription";
+import { formatDaysUntilExpiry } from "@/lib/package-display";
+import { hasScope, isGoogleAuthProvider } from "@/lib/auth-user";
+import { isDateUsablePurchase } from "@/lib/product-access";
+import {
+  formatSessionDate,
+  sessionTitle,
+} from "@/lib/user-sessions-display";
+import { cn } from "@/lib/utils";
+
+const NEXT_REFRESH_AT_KEY = "algory_next_refresh_at";
+const REFRESH_BUFFER_SECONDS = 30;
+
+function nextRefreshAtFromAccessExp(accessExpSeconds: number): number {
+  return Math.max(Date.now() + 1000, accessExpSeconds * 1000 - REFRESH_BUFFER_SECONDS * 1000);
+}
+
+type SettingsPage = "main" | "profile" | "notifications" | "session";
+type SettingsView = SettingsPage | "security";
+
+type SettingsMenuKey =
+  | SettingsView
+  | "subscription"
+  | "paymentHistory"
+  | "paymentMethods"
+  | "billingAddresses";
+
+interface SettingsTabProps {
+  onNotify: (type: "info" | "warning" | "danger", message: string) => void;
+}
+
+const PREVIEW_SESSION_LIMIT = 50;
+
+function formatCountdown(expiresAt: number): string {
+  const now = Math.floor(Date.now() / 1000);
+  const sec = Math.max(0, expiresAt - now);
+  if (sec === 0) return "Süre doldu";
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  if (m >= 60) {
+    const h = Math.floor(m / 60);
+    const mm = m % 60;
+    if (h >= 24) {
+      const d = Math.floor(h / 24);
+      const hh = h % 24;
+      return `${d} gün ${hh} sa ${mm} dk ${s} sn`;
+    }
+    return `${h} sa ${mm} dk ${s} sn`;
+  }
+  return `${m} dk ${s} sn`;
+}
+
+function formatRefreshIn(remainingMs: number): string {
+  const sec = Math.max(0, Math.ceil(remainingMs / 1000));
+  if (sec === 0) return "şimdi gönderilecek";
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m} dk ${s} sn sonra`;
+}
+
+function formatMemberSince(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return new Intl.DateTimeFormat("tr-TR", { year: "numeric", month: "long", day: "numeric" }).format(d);
+}
+
+function ComingSoonBadge() {
+  return (
+    <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium shrink-0">
+      Çok yakında
+    </span>
+  );
+}
+
+export default function SettingsTab({ onNotify }: SettingsTabProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const queryClient = useQueryClient();
+  const { data: myProfile, isLoading: myProfileLoading, isError: myProfileError } = useMyProfile();
+  const { data: accessProfile } = useAccessProfile();
+  const subscription = useSubscription();
+  const isGoogleAccount = isGoogleAuthProvider(accessProfile?.provider);
+  const [page, setPage] = useState<SettingsPage>("main");
+  const view: SettingsView =
+    pathname === DASHBOARD_ROUTES.accountSecurity ? "security" : page;
+
+  const [accessTokenExpiresAt, setAccessTokenExpiresAt] = useState<number | null>(null);
+  const [refreshTokenExpiresAt, setRefreshTokenExpiresAt] = useState<number | null>(null);
+  const [countdownLabel, setCountdownLabel] = useState<string>("—");
+  const [refreshCountdownLabel, setRefreshCountdownLabel] = useState<string>("—");
+  const [nextRefreshAt, setNextRefreshAt] = useState<number | null>(null);
+  const [nextRefreshInLabel, setNextRefreshInLabel] = useState<string>("—");
+  const refreshTriggeredRef = useRef(false);
+  const [tokenLoading, setTokenLoading] = useState(false);
+  const [revokeLoading, setRevokeLoading] = useState(false);
+  const [refreshLoading, setRefreshLoading] = useState(false);
+  const [logoutLoading, setLogoutLoading] = useState(false);
+
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const twoFactorEnabled = myProfile?.twoFactorEnabled ?? false;
+  const [twoFactorSetup, setTwoFactorSetup] = useState<TwoFactorSetupPayload | null>(null);
+  const [twoFactorSetupLoading, setTwoFactorSetupLoading] = useState(false);
+  const [twoFactorActivateLoading, setTwoFactorActivateLoading] = useState(false);
+  const [totpCode, setTotpCode] = useState("");
+  const [totpDisableCode, setTotpDisableCode] = useState("");
+  const [twoFactorDisableLoading, setTwoFactorDisableLoading] = useState(false);
+
+  const [emailNotifs, setEmailNotifs] = useState(false);
+  const [weeklyReport, setWeeklyReport] = useState(false);
+  const [marketingEmails, setMarketingEmails] = useState(false);
+  const [notificationsSaving, setNotificationsSaving] = useState(false);
+  const {
+    sessions: previewSessions,
+    loading: sessionsLoading,
+    error: sessionsError,
+  } = useUserSessions(view === "security", { page: 0, size: PREVIEW_SESSION_LIMIT });
+  const currentSession = previewSessions.find((session) => session.current) ?? null;
+
+  const fetchTokenExp = useCallback(() => {
+    setTokenLoading(true);
+    getSiteSameOriginAxios()
+      .get<{ accessTokenExpiresAt: number | null; refreshTokenExpiresAt: number | null }>("/auth/token-exp")
+      .then((res) => {
+        const accessExp = res.data?.accessTokenExpiresAt ?? null;
+        const refreshExp = res.data?.refreshTokenExpiresAt ?? null;
+        setAccessTokenExpiresAt(accessExp);
+        setRefreshTokenExpiresAt(refreshExp);
+        setCountdownLabel(accessExp != null ? formatCountdown(accessExp) : "—");
+        setRefreshCountdownLabel(refreshExp != null ? formatCountdown(refreshExp) : "—");
+        if (accessExp != null) {
+          const stored = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(NEXT_REFRESH_AT_KEY) : null;
+          const storedAt = stored ? parseInt(stored, 10) : NaN;
+          const computedAt = nextRefreshAtFromAccessExp(accessExp);
+          const useStored = !isNaN(storedAt) && storedAt > Date.now() && storedAt <= computedAt;
+          const at = useStored ? storedAt : computedAt;
+          if (!useStored && typeof sessionStorage !== "undefined") sessionStorage.setItem(NEXT_REFRESH_AT_KEY, String(at));
+          setNextRefreshAt(at);
+        }
+      })
+      .catch(() => {
+        setCountdownLabel("—");
+        setRefreshCountdownLabel("—");
+      })
+      .finally(() => setTokenLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (page === "session") fetchTokenExp();
+  }, [page, fetchTokenExp]);
+
+  useEffect(() => {
+    if (page !== "profile" || !myProfile) return;
+    setFirstName(myProfile.firstName ?? "");
+    setLastName(myProfile.lastName ?? "");
+    setEmail(myProfile.email ?? "");
+    setPhone(myProfile.phoneNumber ?? "");
+  }, [page, myProfile]);
+
+  useEffect(() => {
+    if (page !== "notifications" || !myProfile) return;
+    setEmailNotifs(myProfile.notifyEmailImportant);
+    setWeeklyReport(myProfile.notifyWeeklyReport);
+    setMarketingEmails(myProfile.notifyMarketingEmails);
+  }, [page, myProfile]);
+
+  useEffect(() => {
+    if (accessTokenExpiresAt == null || accessTokenExpiresAt <= 0) return;
+    const update = () => setCountdownLabel(formatCountdown(accessTokenExpiresAt));
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [accessTokenExpiresAt]);
+
+  useEffect(() => {
+    if (refreshTokenExpiresAt == null || refreshTokenExpiresAt <= 0) return;
+    const update = () => setRefreshCountdownLabel(formatCountdown(refreshTokenExpiresAt));
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [refreshTokenExpiresAt]);
+
+  useEffect(() => {
+    if (nextRefreshAt == null) {
+      setNextRefreshInLabel("—");
+      return;
+    }
+    const update = () => {
+      const remaining = nextRefreshAt - Date.now();
+      setNextRefreshInLabel(formatRefreshIn(remaining));
+      if (remaining <= 0 && !refreshTriggeredRef.current) {
+        refreshTriggeredRef.current = true;
+        setNextRefreshAt(null);
+        getSiteSameOriginAxios()
+          .post<{ accessTokenExpiresAt?: number }>("/auth/refresh", {})
+          .then((res) => {
+            const exp = res.data?.accessTokenExpiresAt;
+            if (exp != null) setAccessTokenExpiresAt(exp);
+            onNotify("info", "Token otomatik yenilendi.");
+            fetchTokenExp();
+            const nextAt =
+              exp != null ? nextRefreshAtFromAccessExp(exp) : null;
+            setNextRefreshAt(nextAt);
+            if (nextAt != null && typeof sessionStorage !== "undefined") {
+              sessionStorage.setItem(NEXT_REFRESH_AT_KEY, String(nextAt));
+            }
+          })
+          .catch((err: unknown) => {
+            const status = err instanceof ApiError ? err.status : 0;
+            if (status === 401) {
+              onNotify("warning", "Oturum sonlandı. Tekrar giriş yapın.");
+              router.push("/login");
+              router.refresh();
+            }
+          })
+          .finally(() => {
+            refreshTriggeredRef.current = false;
+          });
+      }
+    };
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [nextRefreshAt, onNotify, router, fetchTokenExp]);
+
+  const handleLogout = async () => {
+    setLogoutLoading(true);
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("algory_user");
+      }
+      await getSiteSameOriginAxios().post("/auth/logout", {}).catch(() => undefined);
+      router.push("/login");
+      router.refresh();
+    } finally {
+      setLogoutLoading(false);
+    }
+  };
+
+  const handleRevoke = () => {
+    setRevokeLoading(true);
+    getSiteSameOriginAxios()
+      .post("/auth/revoke", {})
+      .then(() => {
+        onNotify("info", "Refresh token iptal edildi.");
+      })
+      .catch(() => {
+        onNotify("danger", "İptal isteği başarısız.");
+      })
+      .finally(() => setRevokeLoading(false));
+  };
+
+  const handleRefreshAccess = () => {
+    setRefreshLoading(true);
+    getSiteSameOriginAxios()
+      .post<{ accessTokenExpiresAt?: number }>("/auth/refresh", {})
+      .then((res) => {
+        const exp = res.data?.accessTokenExpiresAt;
+        if (exp != null) {
+          setAccessTokenExpiresAt(exp);
+          const nextAt = nextRefreshAtFromAccessExp(exp);
+          setNextRefreshAt(nextAt);
+          if (typeof sessionStorage !== "undefined") {
+            sessionStorage.setItem(NEXT_REFRESH_AT_KEY, String(nextAt));
+          }
+        }
+        onNotify("info", "Access token yenilendi.");
+        fetchTokenExp();
+      })
+      .catch((err: unknown) => {
+        const status = err instanceof ApiError ? err.status : 0;
+        if (status === 401) {
+          onNotify("warning", "Oturum sonlandı. Tekrar giriş yapın.");
+          router.push("/login");
+          router.refresh();
+        } else {
+          onNotify("danger", "Token yenilenemedi.");
+        }
+      })
+      .finally(() => setRefreshLoading(false));
+  };
+
+  const handleSaveProfile = async () => {
+    setProfileSaving(true);
+    try {
+      await getSiteSameOriginAxios().patch("/account/myprofile", {
+        firstName,
+        lastName,
+        phoneNumber: phone,
+      });
+      await invalidateMyProfile(queryClient);
+      onNotify("info", "Profil bilgileriniz güncellendi.");
+    } catch (e) {
+      const msg =
+        e instanceof ApiError
+          ? e.message
+          : (e as { response?: { data?: { message?: string } } }).response?.data?.message;
+      onNotify("danger", msg ?? "Profil kaydedilemedi.");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handleSaveNotifications = async () => {
+    setNotificationsSaving(true);
+    try {
+      await getSiteSameOriginAxios().patch("/account/myprofile", {
+        notifyEmailImportant: emailNotifs,
+        notifyScanAlerts: myProfile?.notifyScanAlerts ?? false,
+        notifyWeeklyReport: weeklyReport,
+        notifyMarketingEmails: marketingEmails,
+        notifyPushBrowser: myProfile?.notifyPushBrowser ?? false,
+      });
+      await invalidateMyProfile(queryClient);
+      onNotify("info", "Bildirim tercihleri kaydedildi.");
+    } catch (e) {
+      const msg =
+        e instanceof ApiError
+          ? e.message
+          : (e as { response?: { data?: { message?: string } } }).response?.data?.message;
+      onNotify("danger", msg ?? "Tercihler kaydedilemedi.");
+    } finally {
+      setNotificationsSaving(false);
+    }
+  };
+
+  const handlePasswordChangeSuccess = async () => {
+    await getSiteSameOriginAxios().post("/auth/logout", {}).catch(() => undefined);
+    router.replace("/login");
+  };
+
+  const handleEmailChangeSuccess = async () => {
+    try {
+      await getSiteSameOriginAxios().post("/auth/refresh", {});
+      const profile = await queryClient.fetchQuery({
+        queryKey: MY_PROFILE_QUERY_KEY,
+        queryFn: async () => {
+          const { data } = await getSiteSameOriginAxios().get<MyProfile>("/account/myprofile");
+          return data;
+        },
+      });
+      if (profile?.email) {
+        setEmail(profile.email);
+        const stored = getStoredUser();
+        if (stored) {
+          setStoredUser({ ...stored, email: profile.email });
+        }
+      }
+      await fetchTokenExp();
+      onNotify("info", "E-posta adresiniz güncellendi. Oturumunuz yeni e-posta ile yenilendi.");
+    } catch {
+      onNotify("warning", "E-posta güncellendi fakat oturum yenilenemedi. Lütfen tekrar giriş yapın.");
+      await getSiteSameOriginAxios().post("/auth/logout", {}).catch(() => undefined);
+      router.replace("/login");
+    }
+  };
+
+  const clearTwoFactorQr = () => {
+    setTwoFactorSetup(null);
+    setTotpCode("");
+  };
+
+  useEffect(() => {
+    if (!isGoogleAccount) return;
+    setTwoFactorSetup(null);
+    setTotpCode("");
+    setTotpDisableCode("");
+  }, [isGoogleAccount]);
+
+  const handleCopyTwoFactorSecret = async () => {
+    if (isGoogleAccount || !twoFactorSetup) return;
+    const ok = await copyTextToClipboard(twoFactorSetup.secret);
+    if (ok) onNotify("info", "Gizli anahtar panoya kopyalandı.");
+    else onNotify("warning", "Kopyalama başarısız.");
+  };
+
+  const handleStartTwoFactorSetup = async () => {
+    if (isGoogleAccount) {
+      onNotify("warning", "Google hesabıyla giriş yapan kullanıcılar için 2FA kullanılamaz.");
+      return;
+    }
+    setTwoFactorSetupLoading(true);
+    try {
+      const payload = await authService.fetchTwoFactorSetup();
+      setTwoFactorSetup(payload);
+      setTotpCode("");
+      onNotify("info", "Kurulum hazır. QR veya gizli anahtar ile uygulamaya ekleyin; sonra kodu girin.");
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : "Kurulum bilgisi alınamadı.";
+      onNotify("danger", msg);
+    } finally {
+      setTwoFactorSetupLoading(false);
+    }
+  };
+
+  const handleDisableTwoFactor = async () => {
+    if (isGoogleAccount) {
+      onNotify("warning", "Google hesabıyla giriş yapan kullanıcılar için 2FA kullanılamaz.");
+      return;
+    }
+    const code = totpDisableCode.trim();
+    if (!/^\d{6}$/.test(code)) {
+      onNotify("warning", "Kapatmak için 6 haneli kodu girin.");
+      return;
+    }
+    setTwoFactorDisableLoading(true);
+    try {
+      await authService.disableTwoFactor(code);
+      setTotpDisableCode("");
+      await invalidateMyProfile(queryClient);
+      onNotify("info", "İki adımlı doğrulama kapatıldı.");
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : "2FA kapatılamadı.";
+      onNotify("danger", msg);
+    } finally {
+      setTwoFactorDisableLoading(false);
+    }
+  };
+
+  const handleConfirmTwoFactor = async () => {
+    if (isGoogleAccount) {
+      onNotify("warning", "Google hesabıyla giriş yapan kullanıcılar için 2FA kullanılamaz.");
+      return;
+    }
+    const code = totpCode.trim();
+    if (!/^\d{6}$/.test(code)) {
+      onNotify("warning", "Authenticator’daki 6 haneli kodu girin.");
+      return;
+    }
+    setTwoFactorActivateLoading(true);
+    try {
+      await authService.activateTwoFactor(code);
+      clearTwoFactorQr();
+      await invalidateMyProfile(queryClient);
+      onNotify("info", "İki adımlı doğrulama etkinleştirildi.");
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : "Kod doğrulanamadı.";
+      onNotify("danger", msg);
+    } finally {
+      setTwoFactorActivateLoading(false);
+    }
+  };
+
+  const goBackToMain = () => {
+    if (pathname === DASHBOARD_ROUTES.accountSecurity) {
+      router.push(DASHBOARD_ROUTES.account);
+      return;
+    }
+    setPage("main");
+  };
+
+  const backButton = (
+    <button
+      onClick={goBackToMain}
+      className={DASHBOARD_BACK}
+    >
+      <ArrowLeft className="h-4 w-4" />
+    </button>
+  );
+
+  if (view === "main") {
+    const active = subscription.data?.activePurchase;
+    const isActiveTrial =
+      !!active &&
+      active.purchaseType === "TRIAL" &&
+      isDateUsablePurchase(active);
+    const trialDays = active?.daysUntilExpiry;
+    const trialUrgent = typeof trialDays === "number" && trialDays <= 3;
+
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <DashboardPageHeader title="Hesabım" hint="Abonelik, güvenlik ve profil ayarları" />
+        {hasScope(accessProfile, "QR_MENU_OWNER") ? (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
+              Entegrasyonlar
+            </p>
+            <Link href={DASHBOARD_ROUTES.integrations} className={DASHBOARD_TILE_ROW}>
+              <span className={`${DASHBOARD_ICON_WELL} h-9 w-9`}>
+                <UtensilsCrossed className="h-4 w-4" strokeWidth={1.75} />
+              </span>
+              <span className="min-w-0 flex-1 text-sm font-medium text-foreground">Entegrasyonlar</span>
+            </Link>
+          </div>
+        ) : null}
+        {isActiveTrial && active ? (
+          <button
+            type="button"
+            className={cn(
+              DASHBOARD_TILE,
+              "flex w-full items-center justify-between gap-3 text-left",
+              trialUrgent ? "border-amber-300/80" : "border-emerald-300/80",
+            )}
+            onClick={() => router.push(DASHBOARD_ROUTES.accountPackages)}
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <Clock3
+                className={cn(
+                  "h-4 w-4 shrink-0",
+                  trialUrgent ? "text-amber-600" : "text-emerald-600",
+                )}
+              />
+              <div className="min-w-0">
+                <h3 className="text-sm font-medium text-foreground">
+                  {active.packageName} denemeniz aktif
+                </h3>
+                <p className="truncate text-xs font-normal text-muted-foreground">
+                  {formatDaysUntilExpiry(trialDays)}
+                  {active.expiresAt
+                    ? ` · ${new Intl.DateTimeFormat("tr-TR", {
+                        day: "numeric",
+                        month: "long",
+                      }).format(new Date(active.expiresAt))} biter`
+                    : ""}
+                </p>
+              </div>
+            </div>
+            <span
+              className={cn(
+                "shrink-0 text-xs font-medium",
+                trialUrgent ? "text-amber-700 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400",
+              )}
+            >
+              Pakete geç
+            </span>
+          </button>
+        ) : null}
+        <div className={DASHBOARD_HUB_GRID}>
+          {([
+            { icon: CreditCard, title: "Abonelik", key: "subscription" },
+            { icon: History, title: "Ödeme geçmişi", key: "paymentHistory" },
+            { icon: WalletCards, title: "Kayıtlı Kartlarım", key: "paymentMethods" },
+            { icon: MapPin, title: "Fatura Adreslerim", key: "billingAddresses" },
+            { icon: Key, title: "Oturum / Token", key: "session" },
+            { icon: User, title: "Profil Bilgileri", key: "profile" },
+            { icon: Shield, title: "Güvenlik", key: "security" },
+            { icon: Bell, title: "Bildirimler", key: "notifications" },
+          ] as const satisfies ReadonlyArray<{ icon: typeof CreditCard; title: string; key: SettingsMenuKey }>).map((item) => (
+            <DashboardHubTile
+              key={item.title}
+              title={item.title}
+              icon={item.icon}
+              onClick={() => {
+                if (item.key === "subscription") {
+                  router.push(DASHBOARD_ROUTES.accountSubscription);
+                  return;
+                }
+                if (item.key === "paymentHistory") {
+                  router.push(DASHBOARD_ROUTES.accountPaymentHistory);
+                  return;
+                }
+                if (item.key === "paymentMethods") {
+                  router.push(DASHBOARD_ROUTES.accountPaymentMethods);
+                  return;
+                }
+                if (item.key === "billingAddresses") {
+                  router.push(DASHBOARD_ROUTES.accountBillingAddresses);
+                  return;
+                }
+                if (item.key === "security") {
+                  router.push(DASHBOARD_ROUTES.accountSecurity);
+                  return;
+                }
+                setPage(item.key as SettingsPage);
+              }}
+            />
+          ))}
+        </div>
+        <div className={`${DASHBOARD_TILE} flex items-center justify-between gap-3`}>
+          <h3 className="text-sm font-medium text-foreground">Çıkış Yap</h3>
+          <Button
+            variant="destructive"
+            size="sm"
+            className="h-8 shrink-0"
+            onClick={() => void handleLogout()}
+            disabled={logoutLoading}
+          >
+            <LogOut className="h-4 w-4 mr-2" />
+            {logoutLoading ? "Çıkış yapılıyor…" : "Çıkış Yap"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (view === "session") {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="flex items-center gap-3">
+          {backButton}
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Oturum / Token</h1>
+            <p className="text-sm text-muted-foreground">Access token kalan süre, yenileme ve revoke (refresh token iptali)</p>
+          </div>
+        </div>
+
+        <Card className={DASHBOARD_SURFACE}>
+          <CardContent className="p-6 space-y-6">
+            <div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                <Timer className="h-4 w-4" />
+                Access token kalan süre
+              </div>
+              <p className="text-2xl font-mono font-semibold tabular-nums">
+                {tokenLoading ? "Yükleniyor…" : countdownLabel}
+              </p>
+            </div>
+            <div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                <Timer className="h-4 w-4" />
+                Refresh token kalan süre
+              </div>
+              <p className="text-2xl font-mono font-semibold tabular-nums">
+                {tokenLoading ? "Yükleniyor…" : refreshCountdownLabel}
+              </p>
+            </div>
+            <div className="rounded-lg bg-muted/50 p-4 border border-border">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                <RefreshCw className="h-4 w-4" />
+                Yenileme isteği (access bitmeden ~30 sn önce)
+              </div>
+              <p className="text-xl font-mono font-semibold tabular-nums text-foreground">
+                {tokenLoading ? "—" : nextRefreshInLabel}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <Button
+                variant="default"
+                onClick={handleRefreshAccess}
+                disabled={refreshLoading || tokenLoading}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${refreshLoading ? "animate-spin" : ""}`} />
+                {refreshLoading ? "Yenileniyor…" : "Refresh access"}
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleRevoke}
+                disabled={revokeLoading}
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                {revokeLoading ? "İptal ediliyor…" : "Revoke"}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Revoke: refresh token iptal edilir, bir daha access token alınamaz (401).
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (view === "profile") {
+    const avA = (firstName.trim() || myProfile?.firstName || "?").charAt(0).toUpperCase();
+    const avB = (lastName.trim() || myProfile?.lastName || "").charAt(0).toUpperCase();
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="flex items-center gap-3">
+          {backButton}
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Profil Bilgileri</h1>
+            <p className="text-sm text-muted-foreground">Kişisel bilgilerinizi güncelleyin.</p>
+          </div>
+        </div>
+
+        {myProfileError ? (
+          <p className="text-sm text-destructive">Profil yüklenemedi. Oturumunuzu kontrol edin.</p>
+        ) : null}
+
+        <div className={`${DASHBOARD_SURFACE} p-6`}>
+          <div className="flex items-center gap-5">
+            <div className="relative">
+              <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center text-2xl font-bold text-muted-foreground">
+                {myProfileLoading ? "…" : `${avA}${avB || ""}`}
+              </div>
+              <button
+                type="button"
+                className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors opacity-50 cursor-not-allowed"
+                disabled
+                aria-label="Fotoğraf (yakında)"
+              >
+                <Camera className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div>
+              <p className="font-semibold text-foreground">
+                {myProfileLoading ? "Yükleniyor…" : `${firstName || myProfile?.firstName || ""} ${lastName || myProfile?.lastName || ""}`.trim() || "—"}
+              </p>
+              <p className="text-xs text-muted-foreground">{email || myProfile?.email || "—"}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Üyelik: {formatMemberSince(myProfile?.memberSince)}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className={`${DASHBOARD_SURFACE} p-6 space-y-5`}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Ad</Label>
+              <Input
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                className="bg-background"
+                disabled={myProfileLoading}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Soyad</Label>
+              <Input
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                className="bg-background"
+                disabled={myProfileLoading}
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">E-posta</Label>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Input
+                value={email || myProfile?.email || ""}
+                className="bg-muted"
+                disabled
+                readOnly
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                className="gap-2 shrink-0"
+                onClick={() => setEmailDialogOpen(true)}
+                disabled={myProfileLoading || myProfileError || isGoogleAccount}
+              >
+                <Mail className="h-4 w-4" /> E-posta Değiştir
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {isGoogleAccount
+                ? "Google hesabıyla giriş yaptığınız için e-posta adresiniz değiştirilemez."
+                : "E-posta değişikliği için önce mevcut, ardından yeni adresinize 5 dakika geçerli doğrulama kodu gönderilir."}
+            </p>
+          </div>
+          <ChangeEmailDialog
+            open={emailDialogOpen}
+            onOpenChange={setEmailDialogOpen}
+            currentEmail={email || myProfile?.email || ""}
+            onNotify={onNotify}
+            onSuccess={() => void handleEmailChangeSuccess()}
+          />
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Telefon</Label>
+            <Input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="bg-background"
+              disabled={myProfileLoading}
+            />
+          </div>
+          <Button className="gap-2" onClick={handleSaveProfile} disabled={profileSaving || myProfileLoading || myProfileError}>
+            <Check className="h-4 w-4" /> {profileSaving ? "Kaydediliyor…" : "Kaydet"}
+          </Button>
+        </div>
+
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 space-y-3">
+          <h3 className="text-sm font-medium text-destructive">Tehlikeli Bölge</h3>
+          <p className="text-xs text-muted-foreground">Hesabınızı silmek geri alınamaz. Tüm verileriniz kalıcı olarak silinir.</p>
+          <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10">
+            Hesabı Sil
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (view === "security") {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="flex items-center gap-3">
+          {backButton}
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Güvenlik</h1>
+            <p className="text-sm text-muted-foreground">Şifre, 2FA ve yazıcı ajanı API anahtarınızı yönetin.</p>
+          </div>
+        </div>
+
+        <PrintAgentApiKeySection userId={myProfile?.userId} onNotify={onNotify} />
+
+        {!isGoogleAccount && (
+          <div className={`${DASHBOARD_SURFACE} p-6 space-y-5`}>
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+              <Lock className="h-4 w-4 text-muted-foreground" /> Şifre Değiştir
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Şifrenizi değiştirmek için e-posta adresinize 6 haneli bir doğrulama kodu gönderilir.
+              Kod 5 dakika geçerlidir. Kod doğrulandıktan sonra yeni şifrenizi belirleyebilirsiniz.
+            </p>
+            <Button className="gap-2" onClick={() => setPasswordDialogOpen(true)}>
+              <Key className="h-4 w-4" /> Şifre Değiştir
+            </Button>
+            <ChangePasswordDialog
+              open={passwordDialogOpen}
+              onOpenChange={setPasswordDialogOpen}
+              onNotify={onNotify}
+              onSuccess={() => void handlePasswordChangeSuccess()}
+            />
+          </div>
+        )}
+
+        <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+          <div className={`${DASHBOARD_SURFACE} p-6 space-y-5`}>
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+              <Smartphone className="h-4 w-4 text-muted-foreground" /> İki Faktörlü Doğrulama
+            </h2>
+            <div className={cn("space-y-4", isGoogleAccount && "opacity-60")}>
+              <div>
+                <p className="text-sm text-foreground">Authenticator (TOTP)</p>
+                <p className="text-xs text-muted-foreground">
+                  İki yol: başka cihazda QR taratın veya aynı telefonda aşağıdaki gizli anahtarı Authenticator’da “Kurulum anahtarını gir” ile ekleyin. Sonra üretilen 6 haneli kodu yazıp etkinleştirin.
+                </p>
+              </div>
+              {isGoogleAccount ? (
+                <div className="space-y-3 max-w-sm">
+                  <p className="text-xs text-muted-foreground">
+                    Google hesabıyla giriş yaptığınız için iki faktörlü doğrulama kullanılamaz.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="gap-2"
+                    disabled
+                  >
+                    <Smartphone className="h-4 w-4" />
+                    Kurulumu başlat (QR + anahtar)
+                  </Button>
+                </div>
+              ) : myProfileLoading ? (
+                <p className="text-sm text-muted-foreground">Güvenlik bilgisi yükleniyor…</p>
+              ) : twoFactorEnabled ? (
+                <div className="space-y-3 max-w-sm">
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">2FA hesabınızda açık.</p>
+                  <p className="text-xs text-muted-foreground">
+                    Kapatmak için Authenticator&apos;dan güncel 6 haneli kodu girin.
+                  </p>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Doğrulama kodu</Label>
+                    <Input
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      placeholder="000000"
+                      className="bg-background tracking-widest font-mono"
+                      value={totpDisableCode}
+                      onChange={(e) => setTotpDisableCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="gap-2"
+                    disabled={twoFactorDisableLoading || totpDisableCode.length !== 6}
+                    onClick={handleDisableTwoFactor}
+                  >
+                    {twoFactorDisableLoading ? "Kapatılıyor…" : "2FA'yı kapat"}
+                  </Button>
+                </div>
+              ) : !twoFactorSetup ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="gap-2"
+                  disabled={twoFactorSetupLoading}
+                  onClick={handleStartTwoFactorSetup}
+                >
+                  <Smartphone className="h-4 w-4" />
+                  {twoFactorSetupLoading ? "Hazırlanıyor…" : "Kurulumu başlat (QR + anahtar)"}
+                </Button>
+              ) : (
+                <div className="space-y-4 max-w-md">
+                  <p className="text-xs text-muted-foreground">
+                    Uygulamaya ekledikten sonra aşağıya güncel 6 haneli kodu yazın.
+                  </p>
+                  <Image
+                    src={`data:image/png;base64,${twoFactorSetup.qrImageBase64}`}
+                    alt="İki adımlı doğrulama QR"
+                    width={200}
+                    height={200}
+                    className="rounded-md border border-border bg-white p-2"
+                  />
+                  <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2">
+                    <p className="text-xs font-medium text-foreground">Tek telefonda (QR taratmadan)</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Google Authenticator / Microsoft Authenticator: <span className="text-foreground">+</span> →{" "}
+                      <span className="text-foreground">Kurulum anahtarını gir</span> → hesap adı olarak e-postanızı, anahtar
+                      olarak aşağıdaki metni kullanın; tür: zamana dayalı, 30 sn.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <code className="text-xs break-all rounded bg-background px-2 py-1.5 font-mono border border-border flex-1 min-w-0">
+                        {twoFactorSetup.secret}
+                      </code>
+                      <Button type="button" variant="outline" size="sm" className="gap-1 shrink-0" onClick={() => void handleCopyTwoFactorSecret()}>
+                        <Copy className="h-3.5 w-3.5" />
+                        Kopyala
+                      </Button>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" className="w-full gap-2" asChild>
+                      <a href={twoFactorSetup.otpAuthUri}>Authenticator’da açmayı dene</a>
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      “Açmayı dene” bazı cihazlarda doğrudan uygulamayı açar; açılmazsa yukarıdaki anahtarı elle girin.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">6 haneli kod</Label>
+                    <Input
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      placeholder="000000"
+                      className="bg-background tracking-widest font-mono"
+                      value={totpCode}
+                      onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      className="gap-2"
+                      disabled={twoFactorActivateLoading || totpCode.length !== 6}
+                      onClick={handleConfirmTwoFactor}
+                    >
+                      <Check className="h-4 w-4" />
+                      {twoFactorActivateLoading ? "Doğrulanıyor…" : "Etkinleştir"}
+                    </Button>
+                    <Button type="button" variant="outline" onClick={clearTwoFactorQr}>
+                      İptal
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-success/40 bg-success/5 p-6 flex flex-col gap-4 h-full">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+                <Monitor className="h-4 w-4 text-success" /> Bu Cihaz
+              </h2>
+              {currentSession ? (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-success/10 text-success font-medium shrink-0">
+                  Aktif oturum
+                </span>
+              ) : null}
+            </div>
+            <div className="min-w-0 flex-1">
+              {sessionsLoading ? (
+                <p className="text-sm text-muted-foreground">Oturum yükleniyor…</p>
+              ) : sessionsError ? (
+                <p className="text-sm text-destructive">{sessionsError}</p>
+              ) : currentSession ? (
+                <>
+                  <p className="text-sm text-foreground">{sessionTitle(currentSession)}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Giriş: {formatSessionDate(currentSession.loggedInAt)}
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">Aktif oturum bulunamadı.</p>
+              )}
+            </div>
+            <Button variant="outline" size="sm" className="w-full mt-auto" asChild>
+              <Link href={DASHBOARD_ROUTES.accountSessions}>Tüm oturumlar</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (view === "notifications") {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="flex items-center gap-3">
+          {backButton}
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Bildirimler</h1>
+            <p className="text-sm text-muted-foreground">Bildirim tercihlerinizi yönetin.</p>
+          </div>
+        </div>
+
+        {myProfileError ? (
+          <p className="text-sm text-destructive">Bildirim ayarları yüklenemedi.</p>
+        ) : null}
+
+        <div className={`${DASHBOARD_SURFACE} p-6 space-y-5`}>
+          <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+            <Mail className="h-4 w-4 text-muted-foreground" /> E-posta Bildirimleri
+          </h2>
+          {[
+            { label: "Önemli güncellemeler", desc: "Önemli güncellemeler için e-posta alın", state: emailNotifs, set: setEmailNotifs },
+            { label: "Haftalık rapor", desc: "Her pazartesi performans özeti alın", state: weeklyReport, set: setWeeklyReport },
+            { label: "Pazarlama e-postaları", desc: "Yeni özellikler ve kampanyalar hakkında bilgi alın", state: marketingEmails, set: setMarketingEmails },
+          ].map((item) => (
+            <div key={item.label} className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-foreground">{item.label}</p>
+                <p className="text-xs text-muted-foreground">{item.desc}</p>
+              </div>
+              <Switch checked={item.state} onCheckedChange={item.set} disabled={myProfileLoading} />
+            </div>
+          ))}
+        </div>
+
+        <div className={`${DASHBOARD_SURFACE} p-6 space-y-5`}>
+          <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+            <Monitor className="h-4 w-4 text-muted-foreground" /> Oturum Bildirimleri
+          </h2>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm text-foreground">Oturum Uyarıları</p>
+              <p className="text-xs text-muted-foreground">Yeni cihazdan giriş yapıldığında bildirim alın</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <ComingSoonBadge />
+              <Switch checked={false} disabled aria-readonly />
+            </div>
+          </div>
+        </div>
+
+        <Button
+          className="gap-2"
+          onClick={handleSaveNotifications}
+          disabled={notificationsSaving || myProfileLoading || myProfileError}
+        >
+          <Check className="h-4 w-4" /> {notificationsSaving ? "Kaydediliyor…" : "Kaydet"}
+        </Button>
+      </div>
+    );
+  }
+
+  return null;
+}

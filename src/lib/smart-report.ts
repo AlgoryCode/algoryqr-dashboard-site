@@ -1,0 +1,364 @@
+import { api } from "@/lib/api/client";
+
+export type SmartReportJobStatus =
+  | "queued"
+  | "processing"
+  | "running"
+  | "completed"
+  | "failed";
+
+export type SmartReportUiStatus = "idle" | "pending" | "ready" | "failed";
+
+export type SmartReportResult = {
+  title: string;
+  summary: string;
+  sections: { key?: string; heading: string; body: string }[];
+  rawMarkdown: string;
+  model?: string | null;
+  promptVersion?: string | null;
+  usage?: {
+    inputTokens?: number | null;
+    outputTokens?: number | null;
+    totalTokens?: number | null;
+  } | null;
+};
+
+export type SmartReportAccepted = {
+  jobId: string;
+  processId?: string;
+  status: SmartReportJobStatus;
+};
+
+export type SmartReportJobResponse = {
+  jobId: string;
+  processId?: string;
+  status: SmartReportJobStatus;
+  result?: SmartReportResult | null;
+  resultText?: string | null;
+  pdfUrl?: string | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  completedAt?: string | null;
+};
+
+export type SmartReportDetailResponse = SmartReportJobResponse & {
+  menuId?: number | null;
+  menuName?: string | null;
+  branchId?: number | null;
+  branchName?: string | null;
+  from: string;
+  to: string;
+  locale?: string | null;
+  requestedAt?: string | null;
+};
+
+export type SmartReportListItem = {
+  jobId: string;
+  processId?: string;
+  menuId?: number | null;
+  menuName?: string | null;
+  branchId?: number | null;
+  branchName?: string | null;
+  from: string;
+  to: string;
+  locale?: string | null;
+  status?: SmartReportJobStatus;
+  createdAt: string;
+  completedAt?: string | null;
+};
+
+export type SmartReportListPage = {
+  content: SmartReportListItem[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+};
+
+export type SmartReportQuota = {
+  period: "DAY" | "WEEK" | string;
+  limit: number;
+  used: number;
+  remaining: number;
+  resetsAt: string;
+  lastUsage?: string | null;
+  paidCredits?: number;
+  addonProductCode?: string | null;
+  addonUnitPrice?: number | string | null;
+};
+
+export const SMART_REPORT_ADDON_PRODUCT_CODE = "SMART_REPORTING_ADDON";
+export const SMART_REPORT_POLL_INTERVAL_MS = 5_000;
+
+export type SmartReportJobScope = {
+  branchId: number | null;
+  menuId: number | null;
+  from: string;
+  to: string;
+};
+
+export function smartReportTitle(
+  item: Pick<SmartReportListItem, "branchName" | "menuName">,
+): string {
+  return item.branchName?.trim() || item.menuName?.trim() || "Akilli rapor";
+}
+
+export function matchesSmartReportScope(
+  item: Pick<SmartReportListItem, "branchId" | "menuId" | "from" | "to">,
+  scope: SmartReportJobScope,
+): boolean {
+  if (item.from !== scope.from || item.to !== scope.to) {
+    return false;
+  }
+  if (scope.menuId != null) {
+    return item.menuId === scope.menuId;
+  }
+  if (scope.branchId != null) {
+    return item.branchId === scope.branchId;
+  }
+  return false;
+}
+
+export function findLatestSmartReportForScope(
+  items: SmartReportListItem[],
+  scope: SmartReportJobScope,
+): SmartReportListItem | null {
+  for (const item of items) {
+    if (matchesSmartReportScope(item, scope)) {
+      return item;
+    }
+  }
+  return null;
+}
+
+export function resolveSmartReportProcessId(
+  value: { jobId?: string | null; processId?: string | null } | null | undefined,
+): string | null {
+  if (!value) return null;
+  if (typeof value.processId === "string" && value.processId.length > 0) {
+    return value.processId;
+  }
+  if (typeof value.jobId === "string" && value.jobId.length > 0) {
+    return value.jobId;
+  }
+  return null;
+}
+
+export function isSmartReportPending(
+  status: SmartReportJobStatus | null | undefined,
+): boolean {
+  return status === "queued" || status === "processing" || status === "running";
+}
+
+export function isSmartReportCompleted(
+  status: SmartReportJobStatus | null | undefined,
+): boolean {
+  return status === "completed";
+}
+
+export function isSmartReportFailed(
+  status: SmartReportJobStatus | null | undefined,
+): boolean {
+  return status === "failed";
+}
+
+export function smartReportStatusLabel(
+  status: SmartReportJobStatus | null | undefined,
+): string {
+  if (status == null) return "—";
+  if (isSmartReportPending(status)) return "Hazırlanıyor";
+  if (isSmartReportCompleted(status)) return "Hazır";
+  if (isSmartReportFailed(status)) return "Başarısız";
+  return status;
+}
+
+export function toSmartReportUiStatus(
+  status: SmartReportJobStatus | null | undefined,
+): SmartReportUiStatus {
+  if (status == null) return "idle";
+  if (isSmartReportPending(status)) return "pending";
+  if (status === "completed") return "ready";
+  return "failed";
+}
+
+export function isSmartReportQuotaExhausted(quota: SmartReportQuota | null | undefined): boolean {
+  if (!quota) return false;
+  if ((quota.paidCredits ?? 0) > 0) return false;
+  if (quota.limit <= 0) return true;
+  return quota.remaining <= 0;
+}
+
+export function smartReportAddonCheckoutCode(quota: SmartReportQuota | null | undefined): string {
+  const code = quota?.addonProductCode?.trim();
+  return code && code.length > 0 ? code : SMART_REPORT_ADDON_PRODUCT_CODE;
+}
+
+export function normalizeSmartReportResult(
+  detail: Pick<SmartReportJobResponse, "result" | "resultText"> | null | undefined,
+): SmartReportResult | null {
+  if (!detail) return null;
+  if (detail.result) {
+    const rawMarkdown =
+      detail.result.rawMarkdown?.trim() ||
+      detail.resultText?.trim() ||
+      "";
+    return {
+      ...detail.result,
+      rawMarkdown:
+        rawMarkdown ||
+        [detail.result.summary, ...(detail.result.sections ?? []).map((s) => s.body)]
+          .filter(Boolean)
+          .join("\n\n"),
+    };
+  }
+  const text = detail.resultText?.trim();
+  if (!text) return null;
+  return {
+    title: "Akilli Rapor",
+    summary: text.slice(0, 280),
+    sections: [],
+    rawMarkdown: text,
+  };
+}
+
+export async function createSmartReportRequest(body: {
+  branchId?: number | null;
+  menuId?: number | null;
+  from: string;
+  to: string;
+  locale?: string;
+}): Promise<SmartReportAccepted> {
+  if (body.branchId != null) {
+    const response = await api.post<SmartReportAccepted>(
+      `/features/SMART_REPORTING/branches/${body.branchId}/reports`,
+      {
+        from: body.from,
+        to: body.to,
+        locale: body.locale ?? "tr",
+      },
+    );
+    return response.data;
+  }
+  const response = await api.post<SmartReportAccepted>("/smart-reports", body);
+  return response.data;
+}
+
+export async function getSmartReportJobRequest(
+  jobId: string,
+): Promise<SmartReportDetailResponse | SmartReportJobResponse> {
+  const response = await api.get<SmartReportDetailResponse>(`/smart-reports/${jobId}`);
+  return response.data;
+}
+
+export async function listSmartReportsRequest(params?: {
+  page?: number;
+  size?: number;
+  status?: SmartReportJobStatus | "all";
+}): Promise<SmartReportListPage> {
+  const response = await api.get<SmartReportListPage>("/smart-reports", {
+    params: {
+      page: params?.page ?? 0,
+      size: params?.size ?? 20,
+      sort: "createdAt,desc",
+      status: params?.status ?? "all",
+    },
+  });
+  return response.data;
+}
+
+export async function getSmartReportQuotaRequest(): Promise<SmartReportQuota> {
+  const response = await api.get<SmartReportQuota>("/smart-reports/quota");
+  return response.data;
+}
+
+export function smartReportQuotaLabel(quota: SmartReportQuota): string {
+  const paid = quota.paidCredits ?? 0;
+  const freeLabel =
+    quota.period === "WEEK"
+      ? `Bu hafta ${quota.used}/${quota.limit} ucretsiz hak`
+      : `Bugun ${quota.used}/${quota.limit} ucretsiz hak`;
+  if (paid > 0) {
+    return `${freeLabel}; ${paid} satin alinan hak`;
+  }
+  return freeLabel;
+}
+
+export function buildSmartReportMarkdown(
+  result: Pick<SmartReportResult, "summary" | "sections" | "rawMarkdown">,
+): string {
+  const fromSections =
+    result.sections?.length > 0
+      ? result.sections
+          .map((section) => `## ${section.heading}\n\n${section.body}`)
+          .join("\n\n")
+      : "";
+  return (
+    result.rawMarkdown?.trim() ||
+    [result.summary?.trim(), fromSections].filter(Boolean).join("\n\n")
+  );
+}
+
+export function buildChannelComparisonMarkdown(
+  channels: Array<{
+    code: string;
+    label: string;
+    revenue?: number | string | null;
+    orderCount?: number;
+    avgOrderValue?: number | string | null;
+    sharePercent?: number | string | null;
+    connected: boolean;
+  }>,
+  currency = "TRY",
+): string {
+  if (!channels.length) return "";
+  const lines = channels.map((channel) => {
+    if (!channel.connected && Number(channel.revenue ?? 0) <= 0) {
+      return `- ${channel.label}: Bağlı değil`;
+    }
+    const revenue = Number(channel.revenue ?? 0).toFixed(2);
+    const share = Number(channel.sharePercent ?? 0).toFixed(0);
+    const aov = Number(channel.avgOrderValue ?? 0).toFixed(2);
+    return `- ${channel.label}: ${revenue} ${currency} (%${share}) · ${channel.orderCount ?? 0} sipariş · ort. ${aov} ${currency}`;
+  });
+  return ["## Satış kanalları", "", ...lines].join("\n");
+}
+
+export function buildChannelComparisonHtml(
+  channels: Array<{
+    code: string;
+    label: string;
+    revenue?: number | string | null;
+    sharePercent?: number | string | null;
+    connected: boolean;
+  }>,
+): string {
+  if (!channels.length) return "";
+  const max = Math.max(...channels.map((c) => Number(c.revenue ?? 0)), 1);
+  const bars = channels
+    .map((channel) => {
+      const value = Number(channel.revenue ?? 0);
+      const width = Math.max(4, Math.round((value / max) * 100));
+      const color = channel.code === "UBER_EATS" ? "#4f46e5" : "#16a34a";
+      const label = !channel.connected && value <= 0
+        ? `${escapePdf(channel.label)} — Bağlı değil`
+        : `${escapePdf(channel.label)} — %${Number(channel.sharePercent ?? 0).toFixed(0)}`;
+      return `<div style="margin:0 0 10px">
+        <div style="font-size:12px;margin:0 0 4px;color:#111">${label}</div>
+        <div style="height:14px;background:#f3f4f6;border-radius:999px;overflow:hidden">
+          <div style="height:100%;width:${width}%;background:${color};border-radius:999px"></div>
+        </div>
+      </div>`;
+    })
+    .join("");
+  return `<h2 style="font-size:16px;margin:16px 0 8px;font-weight:700">Satış kanalları</h2>${bars}`;
+}
+
+function escapePdf(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}

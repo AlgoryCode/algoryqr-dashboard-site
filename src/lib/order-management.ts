@@ -1,0 +1,1164 @@
+import { applyListQueryParams } from "@/hooks/use-list-query-state";
+import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
+import {
+  isKitchenTicketDelayed,
+  kitchenOrderOrigin,
+  kitchenOrderOriginLabel,
+} from "@/lib/kitchen-queue";
+import type { OrderResponse, OrderStatus } from "@/lib/ordering-api";
+import type { StoreOrderDetail, StoreOrderSummary } from "@/lib/store-api";
+import { storeOrderToKitchenTicket } from "@/lib/store-kitchen";
+
+export type OrderChannel = "QR" | "WAITER" | "ONLINE" | "UBER_EATS" | "YEMEKSEPETI";
+
+export const ORDER_CHANNELS: OrderChannel[] = [
+  "QR",
+  "WAITER",
+  "ONLINE",
+  "UBER_EATS",
+  "YEMEKSEPETI",
+];
+
+export const ORDER_CHANNEL_LABEL: Record<OrderChannel, string> = {
+  QR: "QR Masa",
+  WAITER: "Garson",
+  ONLINE: "Online Sipariş",
+  UBER_EATS: "Uber Eats",
+  YEMEKSEPETI: "Yemeksepeti",
+};
+
+export type OrderFlowStage = "RECEIVED" | "PREPARING" | "READY" | "DELIVERED" | "CLOSED";
+
+export const ORDER_FLOW_STAGES: OrderFlowStage[] = [
+  "RECEIVED",
+  "PREPARING",
+  "READY",
+  "DELIVERED",
+  "CLOSED",
+];
+
+export const ORDER_FLOW_STAGE_LABEL: Record<OrderFlowStage, string> = {
+  RECEIVED: "Alındı",
+  PREPARING: "Mutfakta",
+  READY: "Hazır",
+  DELIVERED: "Teslim",
+  CLOSED: "Kapandı",
+};
+
+export type OrderStatusFilter =
+  | "all"
+  | "open"
+  | "pending"
+  | "preparing"
+  | "ready"
+  | "served"
+  | "cancelled";
+
+export const ORDER_STATUS_FILTER_OPTIONS: { value: OrderStatusFilter; label: string }[] = [
+  { value: "all", label: "Tüm durumlar" },
+  { value: "open", label: "Açık siparişler" },
+  { value: "pending", label: "Alındı" },
+  { value: "preparing", label: "Hazırlanıyor" },
+  { value: "ready", label: "Hazır" },
+  { value: "served", label: "Teslim edildi" },
+  { value: "cancelled", label: "İptal / Red" },
+];
+
+export type OrderManagementFilters = {
+  from?: string;
+  to?: string;
+  query?: string;
+  status?: OrderStatusFilter;
+  channel?: "all" | OrderChannel;
+};
+
+export const ORDER_MANAGEMENT_PANELS = [
+  "orders",
+  "kitchen",
+  "online",
+  "uber-eats",
+  "integrations",
+  "ops-kitchen",
+  "ops-waiter",
+  "ops-courier",
+] as const;
+export type OrderManagementPanel = (typeof ORDER_MANAGEMENT_PANELS)[number];
+
+export function parseOrderManagementPanel(value: string | null): OrderManagementPanel | null {
+  return ORDER_MANAGEMENT_PANELS.some((panel) => panel === value)
+    ? (value as OrderManagementPanel)
+    : null;
+}
+
+export function orderManagementPanelHref(
+  searchParams: URLSearchParams,
+  panel: OrderManagementPanel,
+): string {
+  const next = applyListQueryParams(searchParams, { panel });
+  return `${DASHBOARD_ROUTES.waiter}?${next.toString()}`;
+}
+
+export function orderManagementHomeHref(searchParams: URLSearchParams): string {
+  const next = applyListQueryParams(searchParams, { panel: null });
+  const query = next.toString();
+  return query ? `${DASHBOARD_ROUTES.waiter}?${query}` : DASHBOARD_ROUTES.waiter;
+}
+
+export type OrderTimelineEvent = {
+  key: string;
+  label: string;
+  at: string;
+};
+
+export function orderStatusLabel(status: OrderStatus): string {
+  switch (status) {
+    case "CANCELLED":
+      return "İptal edildi";
+    case "REJECTED":
+      return "Reddedildi";
+    case "PENDING":
+      return "Onay bekliyor";
+    case "CONFIRMED":
+    case "SUBMITTED":
+      return "Alındı";
+    case "PREPARING":
+      return "Hazırlanıyor";
+    case "READY":
+      return "Hazır";
+    case "SERVED":
+      return "Müşteriye teslim";
+    case "ON_THE_WAY":
+      return "Yolda";
+    case "DELIVERED":
+      return "Teslim edildi";
+    case "DRAFT":
+      return "Taslak";
+    default:
+      return String(status);
+  }
+}
+
+export function orderAmount(value?: number | string | null): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+export function orderTimestamp(order: OrderResponse): number | null {
+  const raw = order.submittedAt || order.createdAt;
+  if (!raw) return null;
+  const time = new Date(raw).getTime();
+  return Number.isNaN(time) ? null : time;
+}
+
+export function orderCustomerName(order: OrderResponse): string {
+  const name = order.customerName?.trim();
+  if (name) return name;
+  const waiter = order.waiterName?.trim();
+  if (waiter) return waiter;
+  return "Misafir";
+}
+
+export function orderHistoryTitle(order: OrderResponse): string {
+  const name = orderCustomerName(order).trim();
+  if (name.length >= 2 && name.toLocaleLowerCase("tr-TR") !== "misafir") return name;
+  return orderLocationLabel(order);
+}
+
+export function orderChannel(order: OrderResponse): OrderChannel {
+  const source = (order.orderSource ?? "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+  if (source === "WAITER") return "WAITER";
+  if (source === "QR") return "QR";
+  if (source === "UBER_EATS" || source === "UBEREATS" || source === "UBER") return "UBER_EATS";
+  if (source === "YEMEKSEPETI" || source === "YEMEK_SEPETI" || source === "YS") return "YEMEKSEPETI";
+  if (
+    source === "STORE" ||
+    source === "ONLINE" ||
+    source === "ONLINE_ORDER" ||
+    source === "WEB" ||
+    source === "ALGORY" ||
+    source === "ALGORYQR"
+  ) {
+    return "ONLINE";
+  }
+
+  const origin = kitchenOrderOrigin(order);
+  if (origin === "UBER_EATS") return "UBER_EATS";
+  if (origin === "YEMEKSEPETI") return "YEMEKSEPETI";
+  if (origin === "ONLINE") return "ONLINE";
+  return "QR";
+}
+
+export function orderLocationLabel(order: OrderResponse): string {
+  const channel = orderChannel(order);
+  if (channel === "QR" || channel === "WAITER") {
+    const name = order.tableName?.trim();
+    if (name) return name;
+    if (order.tableId != null) return `Masa ${order.tableId}`;
+    return channel === "WAITER" ? "Garson" : "Masa";
+  }
+  const delivery = (order.deliveryType ?? "").trim().toUpperCase();
+  if (delivery === "PICKUP" || delivery === "STORE") return "Gel al";
+  if (delivery === "DELIVERY") return "Teslimat";
+  return ORDER_CHANNEL_LABEL[channel];
+}
+
+export function orderFlowStage(status: OrderStatus): OrderFlowStage {
+  switch (status) {
+    case "PREPARING":
+      return "PREPARING";
+    case "READY":
+      return "READY";
+    case "SERVED":
+    case "ON_THE_WAY":
+    case "DELIVERED":
+      return "DELIVERED";
+    case "CANCELLED":
+    case "REJECTED":
+      return "CLOSED";
+    default:
+      return "RECEIVED";
+  }
+}
+
+export function isOpenOrderStatus(status: OrderStatus): boolean {
+  return (
+    status === "PENDING" ||
+    status === "SUBMITTED" ||
+    status === "CONFIRMED" ||
+    status === "PREPARING" ||
+    status === "READY" ||
+    status === "ON_THE_WAY"
+  );
+}
+
+export function countsTowardRevenue(status: OrderStatus): boolean {
+  return status !== "CANCELLED" && status !== "REJECTED" && status !== "DRAFT";
+}
+
+export function parseYmd(value: string, end = false): Date | null {
+  if (!value) return null;
+  const parsed = new Date(`${value}T${end ? "23:59:59.999" : "00:00:00"}`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+export function matchesOrderSearch(order: OrderResponse, query: string): boolean {
+  const needle = query.trim().toLocaleLowerCase("tr-TR");
+  if (!needle) return true;
+  const channel = orderChannel(order);
+  const haystack = [
+    order.orderNumber,
+    order.externalOrderId,
+    String(order.id),
+    order.customerName,
+    order.customerEmail,
+    order.customerPhone,
+    order.waiterName,
+    order.tableName,
+    order.deliveryAddress,
+    order.note,
+    order.waiterNote,
+    order.kitchenNote,
+    orderLocationLabel(order),
+    orderCustomerName(order),
+    ORDER_CHANNEL_LABEL[channel],
+    kitchenOrderOriginLabel(kitchenOrderOrigin(order)),
+    orderStatusLabel(order.status),
+    ...(order.items ?? []).flatMap((item) => [
+      item.productName,
+      item.note,
+      ...(item.selectedOptions ?? []).map((option) => option.optionName),
+    ]),
+  ]
+    .filter((part): part is string => Boolean(part && String(part).trim()))
+    .join(" ")
+    .toLocaleLowerCase("tr-TR");
+  return haystack.includes(needle);
+}
+
+function matchesStatusFilter(status: OrderStatus, filter: OrderStatusFilter): boolean {
+  switch (filter) {
+    case "open":
+      return isOpenOrderStatus(status);
+    case "pending":
+      return status === "PENDING" || status === "SUBMITTED" || status === "CONFIRMED";
+    case "preparing":
+      return status === "PREPARING";
+    case "ready":
+      return status === "READY";
+    case "served":
+      return status === "SERVED" || status === "ON_THE_WAY" || status === "DELIVERED";
+    case "cancelled":
+      return status === "CANCELLED" || status === "REJECTED";
+    default:
+      return true;
+  }
+}
+
+export function filterManagedOrders(
+  orders: OrderResponse[],
+  filters: OrderManagementFilters,
+): OrderResponse[] {
+  const from = parseYmd(filters.from ?? "", false);
+  const to = parseYmd(filters.to ?? "", true);
+  const query = filters.query ?? "";
+  const status = filters.status ?? "all";
+  const channel = filters.channel ?? "all";
+
+  return orders.filter((order) => {
+    const timestamp = orderTimestamp(order);
+    if (from && (timestamp == null || timestamp < from.getTime())) return false;
+    if (to && (timestamp == null || timestamp > to.getTime())) return false;
+    if (!matchesStatusFilter(order.status, status)) return false;
+    if (channel !== "all" && orderChannel(order) !== channel) return false;
+    return matchesOrderSearch(order, query);
+  });
+}
+
+export function sortOrdersNewestFirst(orders: OrderResponse[]): OrderResponse[] {
+  return [...orders].sort((a, b) => (orderTimestamp(b) ?? 0) - (orderTimestamp(a) ?? 0));
+}
+
+export function tipAmountByOrderId(orders: OrderResponse[]): Map<number, number> {
+  const seenBillIds = new Set<number>();
+  const tips = new Map<number, number>();
+
+  for (const order of orders) {
+    const tip = orderAmount(order.tipAmount);
+    if (tip <= 0) continue;
+    if (order.billId != null) {
+      if (seenBillIds.has(order.billId)) continue;
+      seenBillIds.add(order.billId);
+    }
+    tips.set(order.id, tip);
+  }
+  return tips;
+}
+
+export function sumOrderRevenue(orders: OrderResponse[], includeTips: boolean): number {
+  let total = 0;
+  const revenueOrders: OrderResponse[] = [];
+  for (const order of orders) {
+    if (!countsTowardRevenue(order.status)) continue;
+    total += orderAmount(order.totalAmount);
+    revenueOrders.push(order);
+  }
+  if (!includeTips) return total;
+  for (const tip of tipAmountByOrderId(revenueOrders).values()) {
+    total += tip;
+  }
+  return total;
+}
+
+export function sumTipRevenue(orders: OrderResponse[]): number {
+  const revenueOrders = orders.filter((order) => countsTowardRevenue(order.status));
+  let total = 0;
+  for (const tip of tipAmountByOrderId(revenueOrders).values()) {
+    total += tip;
+  }
+  return total;
+}
+
+export function itemSummary(order: OrderResponse): string {
+  const items = order.items ?? [];
+  if (items.length === 0) return "—";
+  const first = items[0];
+  if (items.length === 1 && !first.productName?.trim()) {
+    return first.quantity > 0 ? `${first.quantity} ürün` : "—";
+  }
+  const label = `${first.quantity}× ${first.productName || `#${first.productId}`}`;
+  if (items.length === 1) return label;
+  return `${label} +${items.length - 1}`;
+}
+
+export function storeOrderToManagedOrder(
+  order: StoreOrderSummary | StoreOrderDetail,
+): OrderResponse {
+  const ticket = storeOrderToKitchenTicket(order);
+  if ((ticket.items?.length ?? 0) > 0) return ticket;
+  if (order.itemCount > 0) {
+    return {
+      ...ticket,
+      items: [{ productId: 0, productName: "", quantity: order.itemCount }],
+    };
+  }
+  return ticket;
+}
+
+export function mergeManagedOrders(
+  menuOrders: OrderResponse[],
+  storeOrders: OrderResponse[],
+): OrderResponse[] {
+  const storeById = new Map(storeOrders.map((order) => [order.id, order]));
+  const consumedStoreIds = new Set<number>();
+  const merged: OrderResponse[] = [];
+
+  for (const order of menuOrders) {
+    const storeMatch = storeById.get(order.id);
+    if (storeMatch && orderChannel(order) === "ONLINE") {
+      merged.push(storeMatch);
+      consumedStoreIds.add(order.id);
+      continue;
+    }
+    merged.push(order);
+  }
+
+  for (const order of storeOrders) {
+    if (!consumedStoreIds.has(order.id)) merged.push(order);
+  }
+  return merged;
+}
+
+export function managedOrderKey(order: OrderResponse): string {
+  return `${order.orderSource ?? orderChannel(order)}-${order.id}`;
+}
+
+export function isFreshOrder(order: OrderResponse, now = Date.now(), windowMs = 15 * 60 * 1000): boolean {
+  const timestamp = orderTimestamp(order);
+  if (timestamp == null) return false;
+  return now - timestamp <= windowMs;
+}
+
+export type OrderKpiSnapshot = {
+  totalOrders: number;
+  openOrders: number;
+  pendingOrders: number;
+  revenue: number;
+  averageBasket: number;
+  tipTotal: number;
+};
+
+export function buildOrderKpis(orders: OrderResponse[], includeTips: boolean): OrderKpiSnapshot {
+  const revenueOrders = orders.filter((order) => countsTowardRevenue(order.status));
+  const revenue = sumOrderRevenue(orders, includeTips);
+  return {
+    totalOrders: orders.length,
+    openOrders: orders.filter((order) => isOpenOrderStatus(order.status)).length,
+    pendingOrders: orders.filter(
+      (order) =>
+        order.status === "PENDING" || order.status === "SUBMITTED" || order.status === "CONFIRMED",
+    ).length,
+    revenue,
+    averageBasket: revenueOrders.length > 0 ? revenue / revenueOrders.length : 0,
+    tipTotal: sumTipRevenue(orders),
+  };
+}
+
+export type FlowStageCount = {
+  stage: OrderFlowStage;
+  label: string;
+  count: number;
+};
+
+export function flowStageCounts(orders: OrderResponse[]): FlowStageCount[] {
+  const counts: Record<OrderFlowStage, number> = {
+    RECEIVED: 0,
+    PREPARING: 0,
+    READY: 0,
+    DELIVERED: 0,
+    CLOSED: 0,
+  };
+  for (const order of orders) {
+    counts[orderFlowStage(order.status)] += 1;
+  }
+  return ORDER_FLOW_STAGES.map((stage) => ({
+    stage,
+    label: ORDER_FLOW_STAGE_LABEL[stage],
+    count: counts[stage],
+  }));
+}
+
+export type ChannelFlowRow = {
+  channel: OrderChannel;
+  label: string;
+  total: number;
+  stages: Record<OrderFlowStage, number>;
+  revenue: number;
+};
+
+export function channelFlowRows(orders: OrderResponse[]): ChannelFlowRow[] {
+  return ORDER_CHANNELS.map((channel) => {
+    const items = orders.filter((order) => orderChannel(order) === channel);
+    const stages: Record<OrderFlowStage, number> = {
+      RECEIVED: 0,
+      PREPARING: 0,
+      READY: 0,
+      DELIVERED: 0,
+      CLOSED: 0,
+    };
+    for (const order of items) {
+      stages[orderFlowStage(order.status)] += 1;
+    }
+    return {
+      channel,
+      label: ORDER_CHANNEL_LABEL[channel],
+      total: items.length,
+      stages,
+      revenue: sumOrderRevenue(items, false),
+    };
+  });
+}
+
+export type DailyOrderPoint = {
+  date: string;
+  label: string;
+  orders: number;
+  revenue: number;
+};
+
+export function dailyOrderSeries(orders: OrderResponse[]): DailyOrderPoint[] {
+  const buckets = new Map<string, DailyOrderPoint>();
+  for (const order of orders) {
+    const timestamp = orderTimestamp(order);
+    if (timestamp == null) continue;
+    const date = new Date(timestamp);
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    const current = buckets.get(key) ?? {
+      date: key,
+      label: date.toLocaleDateString("tr-TR", { day: "numeric", month: "short" }),
+      orders: 0,
+      revenue: 0,
+    };
+    current.orders += 1;
+    if (countsTowardRevenue(order.status)) {
+      current.revenue += orderAmount(order.totalAmount);
+    }
+    buckets.set(key, current);
+  }
+  return [...buckets.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export type HourlyOrderPoint = {
+  hour: string;
+  orders: number;
+  revenue: number;
+};
+
+export function hourlyOrderSeries(orders: OrderResponse[]): HourlyOrderPoint[] {
+  const buckets = Array.from({ length: 24 }, (_, hour) => ({
+    hour: `${String(hour).padStart(2, "0")}:00`,
+    orders: 0,
+    revenue: 0,
+  }));
+  for (const order of orders) {
+    const timestamp = orderTimestamp(order);
+    if (timestamp == null) continue;
+    const hour = new Date(timestamp).getHours();
+    buckets[hour].orders += 1;
+    if (countsTowardRevenue(order.status)) {
+      buckets[hour].revenue += orderAmount(order.totalAmount);
+    }
+  }
+  return buckets;
+}
+
+export type TopProductPoint = {
+  name: string;
+  quantity: number;
+  revenue: number;
+};
+
+export function topProducts(orders: OrderResponse[], limit = 6): TopProductPoint[] {
+  const map = new Map<string, TopProductPoint>();
+  for (const order of orders) {
+    if (!countsTowardRevenue(order.status)) continue;
+    for (const item of order.items ?? []) {
+      const name = item.productName?.trim();
+      if (!name && (item.productId == null || item.productId === 0)) continue;
+      const label = name || `#${item.productId}`;
+      const current = map.get(label) ?? { name: label, quantity: 0, revenue: 0 };
+      current.quantity += item.quantity;
+      current.revenue += orderAmount(item.lineTotal ?? Number(item.unitPrice ?? 0) * item.quantity);
+      map.set(label, current);
+    }
+  }
+  return [...map.values()].sort((a, b) => b.quantity - a.quantity || b.revenue - a.revenue).slice(0, limit);
+}
+
+export const TABLE_CHANNELS: OrderChannel[] = ["QR", "WAITER"];
+export const INTEGRATION_CHANNELS: OrderChannel[] = ["ONLINE", "UBER_EATS", "YEMEKSEPETI"];
+
+export function isTableChannel(channel: OrderChannel): boolean {
+  return channel === "QR" || channel === "WAITER";
+}
+
+export function isIntegrationChannel(channel: OrderChannel): boolean {
+  return channel === "ONLINE" || channel === "UBER_EATS" || channel === "YEMEKSEPETI";
+}
+
+export type RevenueShareRow = {
+  key: string;
+  label: string;
+  orders: number;
+  openOrders: number;
+  revenue: number;
+  share: number;
+};
+
+function withRevenueShare(
+  rows: Array<Omit<RevenueShareRow, "share">>,
+): RevenueShareRow[] {
+  const total = rows.reduce((sum, row) => sum + row.revenue, 0);
+  return rows.map((row) => ({
+    ...row,
+    share: total > 0 ? (row.revenue / total) * 100 : 0,
+  }));
+}
+
+export function ordersForChannels(
+  orders: OrderResponse[],
+  channels: readonly OrderChannel[],
+): OrderResponse[] {
+  const allowed = new Set<OrderChannel>(channels);
+  return orders.filter((order) => allowed.has(orderChannel(order)));
+}
+
+export function integrationEarnings(
+  orders: OrderResponse[],
+  includeTips: boolean,
+): { total: number; orders: number; rows: RevenueShareRow[] } {
+  const items = ordersForChannels(orders, INTEGRATION_CHANNELS);
+  const rows = withRevenueShare(
+    INTEGRATION_CHANNELS.map((channel) => {
+      const channelOrders = items.filter((order) => orderChannel(order) === channel);
+      return {
+        key: channel,
+        label: ORDER_CHANNEL_LABEL[channel],
+        orders: channelOrders.length,
+        openOrders: channelOrders.filter((order) => isOpenOrderStatus(order.status)).length,
+        revenue: sumOrderRevenue(channelOrders, includeTips),
+      };
+    }),
+  );
+  return {
+    total: sumOrderRevenue(items, includeTips),
+    orders: items.length,
+    rows,
+  };
+}
+
+export const SOURCE_EARNING_KEYS = ["INTERNAL", "ONLINE", "UBER_EATS", "YEMEKSEPETI"] as const;
+export type SourceEarningKey = (typeof SOURCE_EARNING_KEYS)[number];
+
+export const SOURCE_EARNING_LABEL: Record<SourceEarningKey, string> = {
+  INTERNAL: "İç sipariş",
+  ONLINE: "Online Sipariş",
+  UBER_EATS: "Uber Eats",
+  YEMEKSEPETI: "Yemeksepeti",
+};
+
+export function sourceEarnings(
+  orders: OrderResponse[],
+  includeTips: boolean,
+): { total: number; orders: number; rows: RevenueShareRow[] } {
+  const internal = ordersForChannels(orders, TABLE_CHANNELS);
+  const rows = withRevenueShare(
+    SOURCE_EARNING_KEYS.map((key) => {
+      const channelOrders = key === "INTERNAL" ? internal : ordersForChannels(orders, [key]);
+      return {
+        key,
+        label: SOURCE_EARNING_LABEL[key],
+        orders: channelOrders.length,
+        openOrders: channelOrders.filter((order) => isOpenOrderStatus(order.status)).length,
+        revenue: sumOrderRevenue(channelOrders, includeTips),
+      };
+    }),
+  );
+  return {
+    total: sumOrderRevenue(orders, includeTips),
+    orders: orders.length,
+    rows,
+  };
+}
+
+export function tableChannelEarnings(
+  orders: OrderResponse[],
+  includeTips: boolean,
+): { total: number; orders: number; rows: RevenueShareRow[] } {
+  const items = ordersForChannels(orders, TABLE_CHANNELS);
+  const rows = withRevenueShare(
+    TABLE_CHANNELS.map((channel) => {
+      const channelOrders = items.filter((order) => orderChannel(order) === channel);
+      return {
+        key: channel,
+        label: ORDER_CHANNEL_LABEL[channel],
+        orders: channelOrders.length,
+        openOrders: channelOrders.filter((order) => isOpenOrderStatus(order.status)).length,
+        revenue: sumOrderRevenue(channelOrders, includeTips),
+      };
+    }),
+  );
+  return {
+    total: sumOrderRevenue(items, includeTips),
+    orders: items.length,
+    rows,
+  };
+}
+
+export function tableSpotEarnings(
+  orders: OrderResponse[],
+  includeTips: boolean,
+): RevenueShareRow[] {
+  const items = ordersForChannels(orders, TABLE_CHANNELS);
+  const grouped = new Map<string, OrderResponse[]>();
+  for (const order of items) {
+    const label = orderLocationLabel(order);
+    const list = grouped.get(label) ?? [];
+    list.push(order);
+    grouped.set(label, list);
+  }
+  return withRevenueShare(
+    [...grouped.entries()].map(([label, tableOrders]) => ({
+      key: label,
+      label,
+      orders: tableOrders.length,
+      openOrders: tableOrders.filter((order) => isOpenOrderStatus(order.status)).length,
+      revenue: sumOrderRevenue(tableOrders, includeTips),
+    })),
+  ).sort((a, b) => b.revenue - a.revenue || b.orders - a.orders);
+}
+
+export type DailyRevenueSplit = {
+  date: string;
+  label: string;
+  tables: number;
+  integrations: number;
+  total: number;
+};
+
+export function dailyRevenueSplit(
+  orders: OrderResponse[],
+  includeTips: boolean,
+): DailyRevenueSplit[] {
+  const buckets = new Map<string, DailyRevenueSplit>();
+  const tableSet = new Set<OrderChannel>(TABLE_CHANNELS);
+  for (const order of orders) {
+    if (!countsTowardRevenue(order.status)) continue;
+    const timestamp = orderTimestamp(order);
+    if (timestamp == null) continue;
+    const date = new Date(timestamp);
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    const current = buckets.get(key) ?? {
+      date: key,
+      label: date.toLocaleDateString("tr-TR", { day: "numeric", month: "short" }),
+      tables: 0,
+      integrations: 0,
+      total: 0,
+    };
+    const amount = orderAmount(order.totalAmount);
+    if (tableSet.has(orderChannel(order))) current.tables += amount;
+    else current.integrations += amount;
+    current.total = current.tables + current.integrations;
+    buckets.set(key, current);
+  }
+  if (includeTips) {
+    for (const [orderId, tip] of tipAmountByOrderId(orders.filter((order) => countsTowardRevenue(order.status)))) {
+      const order = orders.find((item) => item.id === orderId);
+      if (!order) continue;
+      const timestamp = orderTimestamp(order);
+      if (timestamp == null) continue;
+      const date = new Date(timestamp);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+      const current = buckets.get(key);
+      if (!current) continue;
+      if (tableSet.has(orderChannel(order))) current.tables += tip;
+      else current.integrations += tip;
+      current.total = current.tables + current.integrations;
+    }
+  }
+  return [...buckets.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export type HourlyRevenueSplit = {
+  hour: string;
+  tables: number;
+  integrations: number;
+  total: number;
+};
+
+export function hourlyRevenueSplit(
+  orders: OrderResponse[],
+  includeTips: boolean,
+): HourlyRevenueSplit[] {
+  const buckets: HourlyRevenueSplit[] = Array.from({ length: 24 }, (_, hour) => ({
+    hour: `${String(hour).padStart(2, "0")}:00`,
+    tables: 0,
+    integrations: 0,
+    total: 0,
+  }));
+  const tableSet = new Set<OrderChannel>(TABLE_CHANNELS);
+  const add = (order: OrderResponse, amount: number) => {
+    const timestamp = orderTimestamp(order);
+    if (timestamp == null) return;
+    const bucket = buckets[new Date(timestamp).getHours()];
+    if (tableSet.has(orderChannel(order))) bucket.tables += amount;
+    else bucket.integrations += amount;
+    bucket.total = bucket.tables + bucket.integrations;
+  };
+  for (const order of orders) {
+    if (!countsTowardRevenue(order.status)) continue;
+    add(order, orderAmount(order.totalAmount));
+  }
+  if (includeTips) {
+    for (const [orderId, tip] of tipAmountByOrderId(orders.filter((order) => countsTowardRevenue(order.status)))) {
+      const order = orders.find((item) => item.id === orderId);
+      if (order) add(order, tip);
+    }
+  }
+  return buckets;
+}
+
+export type OrderChartComparePeriod = "yesterday" | "today" | "7d";
+export type OrderChartCompareKey = "today" | "yesterday" | "sevenDay" | "total";
+
+export type OrderChartComparePoint = {
+  label: string;
+  today?: number;
+  yesterday?: number;
+  sevenDay?: number;
+  total?: number;
+};
+
+export type OrderChartCompareSeries = {
+  mode: "hour" | "day";
+  points: OrderChartComparePoint[];
+};
+
+const ORDER_CHART_COMPARE_KEY: Record<OrderChartComparePeriod, Exclude<OrderChartCompareKey, "total">> = {
+  today: "today",
+  yesterday: "yesterday",
+  "7d": "sevenDay",
+};
+
+function formatChartDayLabel(ymd: string): string {
+  const date = parseYmd(ymd, false);
+  if (!date) return ymd;
+  return date.toLocaleDateString("tr-TR", { day: "numeric", month: "short" });
+}
+
+function eachYmd(from: string, to: string): string[] {
+  const start = parseYmd(from, false);
+  const end = parseYmd(to, false);
+  if (!start || !end) return [];
+  const days: string[] = [];
+  for (const cursor = new Date(start); cursor.getTime() <= end.getTime(); cursor.setDate(cursor.getDate() + 1)) {
+    days.push(
+      `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`,
+    );
+  }
+  return days;
+}
+
+function trimChartComparePoints(points: OrderChartComparePoint[]): OrderChartComparePoint[] {
+  const keys: OrderChartCompareKey[] = ["today", "yesterday", "sevenDay", "total"];
+  const active = (point: OrderChartComparePoint) => keys.some((key) => Number(point[key] ?? 0) > 0);
+  const first = points.findIndex(active);
+  const last = points.reduce((index, point, i) => (active(point) ? i : index), -1);
+  if (first === -1) return points;
+  return points.slice(Math.max(0, first - 1), Math.min(points.length, last + 2));
+}
+
+export function buildOrderChartCompare(
+  orders: OrderResponse[],
+  includeTips: boolean,
+  periods: readonly OrderChartComparePeriod[],
+  ranges: Record<OrderChartComparePeriod, { from: string; to: string }>,
+  fallbackRange: { from: string; to: string },
+): OrderChartCompareSeries {
+  if (periods.length === 0) {
+    const scoped = filterManagedOrders(orders, fallbackRange);
+    const daily = dailyRevenueSplit(scoped, includeTips);
+    const mode = daily.length <= 1 ? "hour" : "day";
+    if (mode === "hour") {
+      return {
+        mode,
+        points: trimChartComparePoints(
+          hourlyRevenueSplit(scoped, includeTips).map((point) => ({ label: point.hour, total: point.total })),
+        ),
+      };
+    }
+    return {
+      mode,
+      points: daily.map((point) => ({ label: point.label, total: point.total })),
+    };
+  }
+
+  const hourlyCompare = periods.length > 1 || periods[0] !== "7d";
+  if (hourlyCompare) {
+    const hourly = periods.map((id) => {
+      const scoped = filterManagedOrders(orders, ranges[id]);
+      const divisor = id === "7d" ? 7 : 1;
+      return {
+        key: ORDER_CHART_COMPARE_KEY[id],
+        totals: hourlyRevenueSplit(scoped, includeTips).map((point) => point.total / divisor),
+      };
+    });
+    const points = Array.from({ length: 24 }, (_, hour) => {
+      const point: OrderChartComparePoint = { label: `${String(hour).padStart(2, "0")}:00` };
+      for (const item of hourly) point[item.key] = item.totals[hour] ?? 0;
+      return point;
+    });
+    return { mode: "hour", points: trimChartComparePoints(points) };
+  }
+
+  const week = ranges["7d"];
+  const byDate = new Map(
+    dailyRevenueSplit(filterManagedOrders(orders, week), includeTips).map((row) => [row.date, row.total]),
+  );
+  return {
+    mode: "day",
+    points: eachYmd(week.from, week.to).map((date) => ({
+      label: formatChartDayLabel(date),
+      sevenDay: byDate.get(date) ?? 0,
+    })),
+  };
+}
+
+export type TopProductShare = TopProductPoint & { share: number };
+
+export function topProductShares(orders: OrderResponse[], limit = 8): TopProductShare[] {
+  const products = topProducts(orders, limit);
+  const totalQty = products.reduce((sum, product) => sum + product.quantity, 0);
+  return products.map((product) => ({
+    ...product,
+    share: totalQty > 0 ? (product.quantity / totalQty) * 100 : 0,
+  }));
+}
+
+export const OPS_LANES = ["kitchen", "waiter", "courier"] as const;
+export type OpsLane = (typeof OPS_LANES)[number];
+
+export const OPS_LANE_LABEL: Record<OpsLane, string> = {
+  kitchen: "Mutfak takibi",
+  waiter: "Garson takibi",
+  courier: "Kurye takibi",
+};
+
+export function isDeliveryOrder(order: OrderResponse): boolean {
+  const channel = orderChannel(order);
+  if (isTableChannel(channel)) return false;
+  const delivery = (order.deliveryType ?? "").trim().toUpperCase();
+  if (delivery === "PICKUP" || delivery === "STORE") return false;
+  if (delivery === "DELIVERY") return true;
+  return isIntegrationChannel(channel);
+}
+
+export function opsLaneForOrder(order: OrderResponse): OpsLane | null {
+  if (!isOpenOrderStatus(order.status)) return null;
+  if (order.status === "ON_THE_WAY") return "courier";
+  if (order.status === "READY") return isDeliveryOrder(order) ? "courier" : "waiter";
+  if (
+    order.status === "PENDING" ||
+    order.status === "SUBMITTED" ||
+    order.status === "CONFIRMED" ||
+    order.status === "PREPARING"
+  ) {
+    return "kitchen";
+  }
+  return null;
+}
+
+export function groupOpsLaneOrders(orders: OrderResponse[]): Record<OpsLane, OrderResponse[]> {
+  const groups: Record<OpsLane, OrderResponse[]> = {
+    kitchen: [],
+    waiter: [],
+    courier: [],
+  };
+  for (const order of sortOrdersNewestFirst(orders)) {
+    const lane = opsLaneForOrder(order);
+    if (lane) groups[lane].push(order);
+  }
+  return groups;
+}
+
+export type OpsCountGroup = {
+  key: string;
+  label: string;
+  title: string;
+  count: number;
+  orders: OrderResponse[];
+};
+
+export type OpsLaneSnapshot = {
+  lane: OpsLane;
+  primary: OpsCountGroup;
+  secondary: OpsCountGroup;
+  extra: OpsCountGroup | null;
+};
+
+const KITCHEN_WAITING_STATUSES = new Set<OrderStatus>([
+  "PENDING",
+  "SUBMITTED",
+  "CONFIRMED",
+  "PREPARING",
+]);
+
+export function orderItemQuantity(order: OrderResponse): number {
+  const items = order.items ?? [];
+  if (items.length === 0) return 1;
+  const total = items.reduce((sum, item) => {
+    const qty = Number(item.quantity);
+    return sum + (Number.isFinite(qty) && qty > 0 ? qty : 0);
+  }, 0);
+  return total > 0 ? total : 1;
+}
+
+function opsCountGroup(
+  key: string,
+  label: string,
+  title: string,
+  orders: OrderResponse[],
+): OpsCountGroup {
+  return {
+    key,
+    label,
+    title,
+    orders,
+    count: orders.reduce((sum, order) => sum + orderItemQuantity(order), 0),
+  };
+}
+
+export function opsLanePanel(lane: OpsLane): OrderManagementPanel {
+  if (lane === "kitchen") return "ops-kitchen";
+  if (lane === "waiter") return "ops-waiter";
+  return "ops-courier";
+}
+
+export function opsLaneFromPanel(panel: string | null): OpsLane | null {
+  if (panel === "ops-kitchen") return "kitchen";
+  if (panel === "ops-waiter") return "waiter";
+  if (panel === "ops-courier") return "courier";
+  return null;
+}
+
+export function buildOpsLaneSnapshots(orders: OrderResponse[]): Record<OpsLane, OpsLaneSnapshot> {
+  const kitchenWaiting: OrderResponse[] = [];
+  const kitchenReady: OrderResponse[] = [];
+  const waiterPending: OrderResponse[] = [];
+  const waiterDone: OrderResponse[] = [];
+  const courierTransit: OrderResponse[] = [];
+  const courierDone: OrderResponse[] = [];
+  const courierPickup: OrderResponse[] = [];
+
+  for (const order of sortOrdersNewestFirst(orders)) {
+    const status = order.status;
+    if (status === "CANCELLED" || status === "REJECTED" || status === "DRAFT") continue;
+    const delivery = isDeliveryOrder(order);
+
+    if (KITCHEN_WAITING_STATUSES.has(status)) {
+      kitchenWaiting.push(order);
+      continue;
+    }
+    if (status === "READY") {
+      kitchenReady.push(order);
+      if (delivery) courierPickup.push(order);
+      else waiterPending.push(order);
+      continue;
+    }
+    if (status === "ON_THE_WAY") {
+      courierTransit.push(order);
+      continue;
+    }
+    if (status === "SERVED") {
+      if (delivery) courierDone.push(order);
+      else waiterDone.push(order);
+      continue;
+    }
+    if (status === "DELIVERED") {
+      if (delivery) courierDone.push(order);
+      else waiterDone.push(order);
+    }
+  }
+
+  return {
+    kitchen: {
+      lane: "kitchen",
+      primary: opsCountGroup("waiting", "bekleyen", "Mutfakta bekleyen", kitchenWaiting),
+      secondary: opsCountGroup("ready", "hazır", "Hazır", kitchenReady),
+      extra: null,
+    },
+    waiter: {
+      lane: "waiter",
+      primary: opsCountGroup("pending", "teslim edilecek", "Teslim edilecek", waiterPending),
+      secondary: opsCountGroup("done", "teslim edilen", "Teslim edilen", waiterDone),
+      extra: null,
+    },
+    courier: {
+      lane: "courier",
+      primary: opsCountGroup("transit", "dağıtımda", "Dağıtımda", courierTransit),
+      secondary: opsCountGroup("done", "teslim edilen", "Teslim edilen", courierDone),
+      extra: opsCountGroup("pickup", "teslim alınacak", "Teslim alınacak", courierPickup),
+    },
+  };
+}
+
+export function orderTimeline(order: OrderResponse): OrderTimelineEvent[] {
+  const events: OrderTimelineEvent[] = [];
+  const push = (key: string, label: string, at?: string | null) => {
+    if (!at) return;
+    events.push({ key, label, at });
+  };
+  push("created", "Oluşturuldu", order.createdAt);
+  push("submitted", "Gönderildi", order.submittedAt);
+  push("confirmed", "Alındı", order.confirmedAt);
+  push("preparing", "Mutfağa girdi", order.preparedAt);
+  push("ready", "Hazırlandı", order.readyAt);
+  push("served", "Teslim edildi", order.servedAt);
+  push("rejected", "Reddedildi", order.rejectedAt);
+  const seen = new Set<string>();
+  return events.filter((event) => {
+    if (seen.has(event.at)) return event.key === "served" || event.key === "rejected";
+    seen.add(event.at);
+    return true;
+  });
+}
+
+export function formatOrderWhen(value?: string | null): string {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleString("tr-TR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    day: "2-digit",
+    month: "short",
+  });
+}
+
+export function formatOrderWhenCompact(value?: string | null, now = Date.now()): string {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  const diff = now - d.getTime();
+  if (diff >= 0) {
+    const minutes = Math.floor(diff / 60_000);
+    if (minutes < 1) return "Az önce";
+    if (minutes < 60) return `${minutes} dk önce`;
+  }
+  const startOfToday = new Date(now);
+  startOfToday.setHours(0, 0, 0, 0);
+  if (d.getTime() >= startOfToday.getTime()) {
+    return d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+  }
+  return formatOrderWhen(value);
+}
+
+export function formatOrderHistoryDate(value?: string | null): string {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleDateString("tr-TR", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+export function needsApprovalOrders(orders: OrderResponse[]): OrderResponse[] {
+  return orders.filter((order) => order.status === "PENDING");
+}
+
+export function delayedOpenOrders(orders: OrderResponse[], now = Date.now()): OrderResponse[] {
+  return orders.filter(
+    (order) => isOpenOrderStatus(order.status) && isKitchenTicketDelayed(order, now),
+  );
+}

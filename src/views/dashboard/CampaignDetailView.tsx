@@ -1,0 +1,646 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+
+import {
+  DigitalMenuPicker,
+  useDigitalMenuAccess,
+  useDigitalMenuSelection,
+} from "@/components/dashboard/menu/DigitalMenuPicker";
+import { CampaignImageField } from "@/components/dashboard/menu/CampaignImageField";
+import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
+import { useMenuProducts } from "@/hooks/use-menu-products";
+import {
+  activateCampaign,
+  deleteCampaign,
+  getCampaign,
+  listCampaignWinners,
+  pauseCampaign,
+  updateCampaign,
+  type CampaignItem,
+  type CampaignWinner,
+} from "@/lib/campaign-api";
+import { useDashboardBanners } from "@/contexts/dashboard-banners";
+import { useDashboardPageLabel } from "@/contexts/dashboard-page-label";
+import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
+import { DASHBOARD_BACK, DASHBOARD_PANEL_LG, DASHBOARD_TYPE_SECTION } from "@/lib/dashboard-surface";
+
+function campaignImageProductIds(campaign: CampaignItem): number[] {
+  const config = campaign.config ?? {};
+  if (campaign.templateCode === "STAMP_CARD") {
+    const raw = config.targetProductIds;
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value) && value > 0);
+  }
+  const reward = config.reward;
+  if (reward && typeof reward === "object" && "productId" in reward) {
+    const productId = Number((reward as { productId?: unknown }).productId);
+    return Number.isFinite(productId) && productId > 0 ? [productId] : [];
+  }
+  return [];
+}
+function statusLabel(status: CampaignItem["status"]): string {
+  switch (status) {
+    case "ACTIVE":
+      return "Aktif";
+    case "PAUSED":
+      return "Duraklatıldı";
+    case "EXPIRED":
+      return "Süresi doldu";
+    default:
+      return "Taslak";
+  }
+}
+
+function templateLabel(code: string): string {
+  switch (code) {
+    case "STAMP_CARD":
+      return "Damga Kartı";
+    case "SPEND_THRESHOLD":
+      return "Harcama Eşiği";
+    default:
+      return code;
+  }
+}
+
+function rewardStatusLabel(status: CampaignWinner["status"]): string {
+  switch (status) {
+    case "AVAILABLE":
+      return "Kullanılabilir";
+    case "REDEEMED":
+      return "Kullanıldı";
+    case "EXPIRED":
+      return "Süresi doldu";
+    default:
+      return status;
+  }
+}
+
+function winnerName(winner: CampaignWinner): string {
+  const name = [winner.firstName, winner.lastName].filter(Boolean).join(" ").trim();
+  return name || winner.email || `#${winner.customerId}`;
+}
+
+function formatWhen(value?: string | null): string {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleString("tr-TR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+function WinnersTable({ winners }: { winners: CampaignWinner[] }) {
+  if (winners.length === 0) {
+    return (
+      <p className="py-6 text-center text-sm text-muted-foreground">
+        Henüz kazanan müşteri yok.
+      </p>
+    );
+  }
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Müşteri</TableHead>
+          <TableHead>E-posta</TableHead>
+          <TableHead>Durum</TableHead>
+          <TableHead>Kazanma</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {winners.map((winner) => (
+          <TableRow key={winner.rewardId}>
+            <TableCell className="font-medium">{winnerName(winner)}</TableCell>
+            <TableCell>{winner.email || "—"}</TableCell>
+            <TableCell>{rewardStatusLabel(winner.status)}</TableCell>
+            <TableCell>{formatWhen(winner.issuedAt)}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+function CampaignWinnersDialog({
+  open,
+  onOpenChange,
+  menuId,
+  campaignId,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  menuId: number;
+  campaignId: number;
+}) {
+  const [page, setPage] = useState(0);
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setDebouncedSearch(searchInput.trim());
+      setPage(0);
+    }, 300);
+    return () => window.clearTimeout(timeout);
+  }, [searchInput]);
+
+  useEffect(() => {
+    if (!open) {
+      setSearchInput("");
+      setDebouncedSearch("");
+      setPage(0);
+    }
+  }, [open]);
+
+  const winnersQuery = useQuery({
+    queryKey: ["campaign-winners-all", menuId, campaignId, page, debouncedSearch],
+    enabled: open,
+    queryFn: () =>
+      listCampaignWinners(menuId, campaignId, {
+        q: debouncedSearch || undefined,
+        page,
+        size: 10,
+      }),
+  });
+
+  const winners = winnersQuery.data?.content ?? [];
+  const totalPages = winnersQuery.data?.totalPages ?? 0;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85dvh] max-w-3xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Kazanan Müşteriler</DialogTitle>
+        </DialogHeader>
+
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Ad, soyad veya e-posta ara..."
+            className="pl-9"
+          />
+        </div>
+
+        {winnersQuery.isLoading ? (
+          <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Kazananlar yükleniyor…
+          </div>
+        ) : winnersQuery.isError ? (
+          <p className="py-6 text-center text-sm text-destructive">Kazananlar yüklenemedi.</p>
+        ) : (
+          <>
+            <WinnersTable winners={winners} />
+            {totalPages > 1 ? (
+              <div className="flex items-center justify-between gap-3 pt-2">
+                <p className="text-xs text-muted-foreground">
+                  Sayfa {page + 1} / {totalPages} · Toplam {winnersQuery.data?.totalElements ?? 0}
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={page <= 0 || winnersQuery.isFetching}
+                    onClick={() => setPage((prev) => Math.max(prev - 1, 0))}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Önceki
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={page + 1 >= totalPages || winnersQuery.isFetching}
+                    onClick={() => setPage((prev) => prev + 1)}
+                  >
+                    Sonraki
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type CampaignDetailViewProps = {
+  campaignId: number;
+};
+
+export default function CampaignDetailView({ campaignId }: CampaignDetailViewProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const qrFromQuery = Number(searchParams.get("qr"));
+  const initialQrId = Number.isFinite(qrFromQuery) && qrFromQuery > 0 ? qrFromQuery : null;
+  const [winnersDialogOpen, setWinnersDialogOpen] = useState(false);
+  const [termsDraft, setTermsDraft] = useState("");
+  const [termsLoadedFor, setTermsLoadedFor] = useState<number | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
+  const { accessLoading, canUseDigitalMenu } = useDigitalMenuAccess();
+  const { menuQrs, selection, loading, selectQrId } = useDigitalMenuSelection(
+    initialQrId,
+    canUseDigitalMenu && !accessLoading,
+  );
+  const menuId = selection?.menu.menuId ?? null;
+  const { notify } = useDashboardBanners();
+  const queryClient = useQueryClient();
+
+  const campaignQuery = useQuery({
+    queryKey: ["campaign", menuId, campaignId],
+    enabled: menuId != null && Number.isFinite(campaignId) && campaignId > 0,
+    queryFn: () => getCampaign(menuId!, campaignId),
+  });
+
+  const winnersPreviewQuery = useQuery({
+    queryKey: ["campaign-winners-preview", menuId, campaignId],
+    enabled: menuId != null && Number.isFinite(campaignId) && campaignId > 0,
+    queryFn: () => listCampaignWinners(menuId!, campaignId, { page: 0, size: 5 }),
+  });
+
+  const imageMutation = useMutation({
+    mutationFn: async (nextImageUrl: string | null) => {
+      if (menuId == null) throw new Error("Menü seçilmedi");
+      return updateCampaign(menuId, campaignId, { imageUrl: nextImageUrl });
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["campaign", menuId, campaignId], updated);
+      notify("info", "Kampanya görseli güncellendi.");
+    },
+    onError: (err) => {
+      notify("danger", err instanceof Error ? err.message : "Görsel güncellenemedi.");
+    },
+  });
+
+  const termsMutation = useMutation({
+    mutationFn: async (nextTerms: string) => {
+      if (menuId == null) throw new Error("Menü seçilmedi");
+      return updateCampaign(menuId, campaignId, { terms: nextTerms });
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["campaign", menuId, campaignId], updated);
+      setTermsDraft(updated.terms ?? "");
+      notify("info", "Kampanya şartları güncellendi.");
+    },
+    onError: (err) => {
+      notify("danger", err instanceof Error ? err.message : "Şartlar güncellenemedi.");
+    },
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: async (action: "activate" | "pause") => {
+      if (menuId == null) throw new Error("Menü seçilmedi");
+      return action === "activate"
+        ? activateCampaign(menuId, campaignId)
+        : pauseCampaign(menuId, campaignId);
+    },
+    onSuccess: (updated, action) => {
+      queryClient.setQueryData(["campaign", menuId, campaignId], updated);
+      void queryClient.invalidateQueries({ queryKey: ["campaigns", menuId] });
+      notify("info", action === "pause" ? "Kampanya duraklatıldı." : "Kampanya aktifleştirildi.");
+    },
+    onError: (err) => {
+      notify("danger", err instanceof Error ? err.message : "İşlem başarısız.");
+    },
+  });
+
+  const backHref = useMemo(
+    () =>
+      selection?.qr.id
+        ? DASHBOARD_ROUTES.campaignsForQr(selection.qr.id)
+        : DASHBOARD_ROUTES.campaigns,
+    [selection?.qr.id],
+  );
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (menuId == null) throw new Error("Menü seçilmedi");
+      await deleteCampaign(menuId, campaignId);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["campaigns", menuId] });
+      notify("info", "Kampanya silindi.");
+      router.push(backHref);
+    },
+    onError: (err) => {
+      notify("danger", err instanceof Error ? err.message : "Kampanya silinemedi.");
+    },
+  });
+
+  const campaign = campaignQuery.data;
+  useEffect(() => {
+    if (!campaign || termsLoadedFor === campaign.id) return;
+    setTermsDraft(campaign.terms ?? "");
+    setTermsLoadedFor(campaign.id);
+  }, [campaign, termsLoadedFor]);
+  useDashboardPageLabel(campaign?.name);
+  const productsQuery = useMenuProducts(menuId, campaign != null);
+  const imageProducts = useMemo(() => {
+    if (!campaign) return [];
+    const ids = new Set(campaignImageProductIds(campaign));
+    return (productsQuery.data ?? [])
+      .filter((product) => ids.has(product.productId))
+      .map((product) => ({
+        name: product.name,
+        imageUrl: product.imageUrl,
+      }));
+  }, [campaign, productsQuery.data]);
+  const previewWinners = winnersPreviewQuery.data?.content ?? [];
+  const totalWinners = winnersPreviewQuery.data?.totalElements ?? 0;
+
+  if (!Number.isFinite(campaignId) || campaignId <= 0) {
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" className="-ml-2 w-fit gap-1.5" asChild>
+          <Link href={DASHBOARD_ROUTES.campaigns}>
+            <ArrowLeft className="h-4 w-4" />
+            Kampanyalara dön
+          </Link>
+        </Button>
+        <p className="text-sm text-destructive">Geçersiz kampanya.</p>
+      </div>
+    );
+  }
+
+  if (accessLoading || loading) {
+    return (
+      <div className="space-y-6 animate-fade-in pb-8">
+        <DashboardPageHeader
+          title="Kampanya detayı"
+          hint="Kampanya bilgileri ve kazanan müşteriler"
+          back={
+            <Link href={backHref} aria-label="Kampanyalara dön" className={DASHBOARD_BACK}>
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+          }
+        />
+        <DashboardLoadingState label="Kampanya yükleniyor…" />
+      </div>
+    );
+  }
+
+  if (!canUseDigitalMenu) {
+    return (
+      <div className="space-y-4">
+        <Button variant="outline" asChild>
+          <Link href={DASHBOARD_ROUTES.digitalMenu}>Dijital Menüye Dön</Link>
+        </Button>
+        <p className="text-sm text-muted-foreground">
+          Kampanya detayını görmek için dijital menü erişimi gerekir.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 animate-fade-in pb-8">
+      <DashboardPageHeader
+        title={campaign?.name ?? "Kampanya detayı"}
+        hint={
+          campaign
+            ? `${campaign.slogan ? `${campaign.slogan} · ` : ""}${templateLabel(campaign.templateCode)} · ${statusLabel(campaign.status)}`
+            : "Kampanya bilgileri ve kazanan müşteriler"
+        }
+        back={
+          <Link href={backHref} aria-label="Kampanyalara dön" className={DASHBOARD_BACK}>
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+        }
+        action={
+          campaign ? (
+            <div className="flex flex-wrap gap-2">
+              {campaign.status === "ACTIVE" ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={statusMutation.isPending || deleteMutation.isPending}
+                  onClick={() => statusMutation.mutate("pause")}
+                >
+                  {statusMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Duraklat"
+                  )}
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  disabled={statusMutation.isPending || deleteMutation.isPending}
+                  onClick={() => statusMutation.mutate("activate")}
+                >
+                  {statusMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : campaign.status === "PAUSED" ? (
+                    "Aktifleştir"
+                  ) : (
+                    "Yayınla"
+                  )}
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={statusMutation.isPending || deleteMutation.isPending}
+                onClick={() => setDeleteConfirmOpen(true)}
+              >
+                Sil
+              </Button>
+            </div>
+          ) : null
+        }
+      />
+
+      <DigitalMenuPicker
+        menuQrs={menuQrs}
+        selectedQrId={selection?.qr.id ?? null}
+        onSelectQrId={(qrId) => {
+          void selectQrId(qrId);
+          router.replace(DASHBOARD_ROUTES.campaignDetailForQr(campaignId, qrId));
+        }}
+      />
+
+      {menuId == null ? (
+        <DashboardLoadingState label="Menü bilgisi yükleniyor…" />
+      ) : campaignQuery.isLoading ? (
+        <DashboardLoadingState label="Kampanya yükleniyor…" />
+      ) : campaignQuery.isError || !campaign ? (
+        <p className="text-sm text-destructive">Kampanya bulunamadı.</p>
+      ) : (
+        <>
+          <div className={DASHBOARD_PANEL_LG}>
+            <h2 className={DASHBOARD_TYPE_SECTION}>Kampanya bilgileri</h2>
+            <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+              <div>
+                <p className="text-muted-foreground">Başlangıç</p>
+                <p>{formatWhen(campaign.startsAt)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Bitiş</p>
+                <p>{formatWhen(campaign.endsAt)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Toplam kazanan</p>
+                <p>{totalWinners}</p>
+              </div>
+            </div>
+            <div className="mt-5 space-y-2">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="campaign-terms">
+                Şartlar / koşullar
+              </label>
+              <Textarea
+                id="campaign-terms"
+                value={termsDraft}
+                onChange={(e) => setTermsDraft(e.target.value.slice(0, 2000))}
+                rows={4}
+                placeholder="Müşteriye gösterilecek şartlar"
+                disabled={termsMutation.isPending}
+              />
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">{termsDraft.trim().length}/2000</p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={
+                    termsMutation.isPending ||
+                    termsDraft.trim() === (campaign.terms ?? "").trim()
+                  }
+                  onClick={() => termsMutation.mutate(termsDraft.trim() || "")}
+                >
+                  {termsMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Şartları kaydet"
+                  )}
+                </Button>
+              </div>
+            </div>
+            <div className="mt-5">
+              <CampaignImageField
+                menuId={menuId}
+                value={campaign.imageUrl}
+                onChange={(next) => imageMutation.mutate(next)}
+                campaignName={campaign.name}
+                campaignSlogan={campaign.slogan ?? undefined}
+                products={imageProducts}
+                disabled={imageMutation.isPending}
+              />
+            </div>
+          </div>
+
+          <div className={DASHBOARD_PANEL_LG}>
+            <div className="flex flex-row items-center justify-between gap-3">
+              <h2 className={DASHBOARD_TYPE_SECTION}>Kazanan müşteriler</h2>
+              {totalWinners > 5 ? (
+                <Button type="button" variant="outline" size="sm" onClick={() => setWinnersDialogOpen(true)}>
+                  Tümünü gör
+                </Button>
+              ) : null}
+            </div>
+            <div className="mt-4">
+              {winnersPreviewQuery.isLoading ? (
+                <DashboardLoadingState label="Kazananlar yükleniyor…" />
+              ) : (
+                <>
+                  <WinnersTable winners={previewWinners} />
+                  {totalWinners > 0 && totalWinners <= 5 ? null : totalWinners > 5 ? (
+                    <div className="mt-4 flex justify-end">
+                      <Button type="button" variant="link" className="px-0" onClick={() => setWinnersDialogOpen(true)}>
+                        Tümünü gör ({totalWinners})
+                      </Button>
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
+      {menuId != null ? (
+        <CampaignWinnersDialog
+          open={winnersDialogOpen}
+          onOpenChange={setWinnersDialogOpen}
+          menuId={menuId}
+          campaignId={campaignId}
+        />
+      ) : null}
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Kampanya silinsin mi?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Kampanya listeden kaldırılır ve müşterilere sunulmaz. Soft delete uygulanır;
+              kayıt kalıcı olarak silinmez.
+              {campaign ? (
+                <span className="mt-2 block font-medium text-foreground">
+                  Kampanya: {campaign.name}
+                </span>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Vazgeç</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault();
+                deleteMutation.mutate();
+              }}
+            >
+              {deleteMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Evet, sil
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}

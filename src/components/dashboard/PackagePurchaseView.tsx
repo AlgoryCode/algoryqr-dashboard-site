@@ -1,0 +1,536 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Check, CreditCard, Loader2, Lock, ShieldCheck } from "lucide-react";
+
+import BillingAddressForm from "@/components/dashboard/commerce/BillingAddressForm";
+import { BrandLogo } from "@/components/BrandLogo";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { SearchableSelect } from "@/components/dashboard/menu/SearchableSelect";
+import { invalidateBillingAddresses, useBillingAddresses } from "@/hooks/use-commerce";
+import { invalidatePackageUsage } from "@/hooks/use-package-usage";
+import { useActivePackages } from "@/hooks/use-subscription";
+import { usePurchaseFulfillment } from "@/hooks/use-purchase-fulfillment";
+import { ApiError } from "@/lib/api";
+import { refreshAccessAfterEntitlementChange } from "@/lib/refresh-access";
+import { getSiteSameOriginAxios } from "@/lib/site-same-origin-axios";
+import {
+  checkoutSchema,
+  displayBillingName,
+  buildBillingAddressPayload,
+  resolveIdentityNumber,
+  type BillingAddress,
+  type BillingAddressForm as BillingAddressFormValues,
+  type BillingPeriod,
+} from "@/lib/commerce";
+import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
+import {
+  formatPackagePrice,
+  formatYearlySavingsBadge,
+  formatYearlySavingsLabel,
+  isPackageVisibleInCatalog,
+  packageFeatures,
+  resolvePackagePricing,
+  resolveYearlySavingsPercent,
+} from "@/lib/package-display";
+import {
+  abandonPendingPaymentAttempt,
+  clearPendingPurchaseId,
+  storePendingPurchaseId,
+  type PurchaseInitiateResponse,
+} from "@/lib/purchase-fulfillment";
+import PaymentCheckoutOverlay, {
+  type PaymentCheckoutOverlayContent,
+} from "@/components/dashboard/PaymentCheckoutOverlay";
+import { isPaytrCheckout, paytrCheckoutHtml } from "@/lib/paytr-checkout";
+import { cn } from "@/lib/utils";
+import { DASHBOARD_SURFACE } from "@/lib/dashboard-surface";
+
+interface PackagePurchaseViewProps {
+  packageId: number;
+  onNotify: (type: "info" | "warning" | "danger", message: string) => void;
+  returnHref?: string;
+}
+
+type PaymentOverlay = PaymentCheckoutOverlayContent;
+
+type CouponPreview = {
+  code: string;
+  discountType: "PERCENT" | "AMOUNT";
+  discountValue: number;
+  expiresAt: string;
+  usable: boolean;
+};
+
+function couponQuote(listAmount: number, preview: CouponPreview): { discount: number; payable: number } | null {
+  if (!preview.usable) {
+    return null;
+  }
+  const discount = preview.discountType === "PERCENT"
+    ? Math.round(listAmount * Number(preview.discountValue)) / 100
+    : Number(preview.discountValue);
+  const payable = Math.round((listAmount - discount) * 100) / 100;
+  if (payable < 0.01 || discount <= 0) {
+    return null;
+  }
+  return { discount, payable };
+}
+
+export default function PackagePurchaseView({
+  packageId,
+  onNotify,
+  returnHref = DASHBOARD_ROUTES.accountSubscription,
+}: PackagePurchaseViewProps) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const packages = useActivePackages();
+  const addresses = useBillingAddresses();
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("MONTHLY");
+  const [recurringConsent, setRecurringConsent] = useState(false);
+  const [billingAddressId, setBillingAddressId] = useState<number | null>(null);
+  const [creatingAddress, setCreatingAddress] = useState(false);
+  const [isPaying, setIsPaying] = useState(false);
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<CouponPreview | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [couponBusy, setCouponBusy] = useState(false);
+  const [paymentOverlay, setPaymentOverlay] = useState<PaymentOverlay | null>(null);
+  const [purchaseId, setPurchaseId] = useState<number | null>(null);
+  const [pollStartedAt, setPollStartedAt] = useState<number | null>(null);
+  const finalizedPurchaseId = useRef<number | null>(null);
+  const addressInitialized = useRef(false);
+  const fulfillment = usePurchaseFulfillment(purchaseId, pollStartedAt);
+  const rawPkg = packages.data?.find((item) => item.id === packageId);
+  const pkg = rawPkg && isPackageVisibleInCatalog(rawPkg) ? rawPkg : undefined;
+
+  useEffect(() => {
+    if (!addressInitialized.current && addresses.data?.length) {
+      addressInitialized.current = true;
+      setBillingAddressId((addresses.data.find((item) => item.defaultAddress) ?? addresses.data[0]).id);
+    }
+  }, [addresses.data]);
+
+  useEffect(() => {
+    if (addresses.isError) {
+      onNotify(
+        "danger",
+        addresses.error instanceof ApiError
+          ? addresses.error.message
+          : "Fatura adresleri yüklenemedi.",
+      );
+    }
+  }, [addresses.error, addresses.isError, onNotify]);
+
+  const finalizeSuccess = useCallback(async () => {
+    await refreshAccessAfterEntitlementChange(queryClient);
+    await invalidatePackageUsage(queryClient);
+    onNotify("info", "Ödeme tamamlandı ve paketiniz aktif edildi.");
+    router.push(returnHref);
+  }, [onNotify, queryClient, returnHref, router]);
+
+  useEffect(() => {
+    const summary = fulfillment.summary.data;
+    if (!summary || finalizedPurchaseId.current === summary.purchaseId) return;
+    if (summary.status === "ACTIVE") {
+      finalizedPurchaseId.current = summary.purchaseId;
+      clearPendingPurchaseId();
+      setPaymentOverlay(null);
+      void finalizeSuccess();
+    }
+    if (summary.status === "FAILED" || summary.status === "CANCELLED") {
+      finalizedPurchaseId.current = summary.purchaseId;
+      clearPendingPurchaseId();
+      setPaymentOverlay(null);
+      setPurchaseId(null);
+      setPollStartedAt(null);
+      onNotify("danger", "Ödeme tamamlanamadı. Lütfen kart bilgilerinizi kontrol edip tekrar deneyin.");
+    }
+  }, [finalizeSuccess, fulfillment.summary.data, onNotify]);
+
+  const cancelPaymentOverlay = () => {
+    setPaymentOverlay(null);
+    setPurchaseId(null);
+    setPollStartedAt(null);
+    finalizedPurchaseId.current = null;
+    void abandonPendingPaymentAttempt({ cancelIfPending: true });
+  };
+
+  const createAddress = async (values: BillingAddressFormValues) => {
+    try {
+      const response = await getSiteSameOriginAxios().post<BillingAddress>(
+        "/account/billing-addresses",
+        buildBillingAddressPayload(values),
+      );
+      await invalidateBillingAddresses(queryClient);
+      if (response.data?.id) setBillingAddressId(response.data.id);
+      setCreatingAddress(false);
+      onNotify("info", "Fatura adresiniz kaydedildi.");
+    } catch (error) {
+      onNotify("danger", error instanceof ApiError ? error.message : "Fatura adresi kaydedilemedi.");
+    }
+  };
+
+  const pricing = useMemo(() => {
+    if (!pkg) {
+      return resolvePackagePricing(
+        {
+          id: 0,
+          code: "",
+          name: "",
+          description: "",
+          price: 0,
+          currency: "TRY",
+          active: true,
+          validityDays: 30,
+          items: [],
+        },
+        billingPeriod,
+      );
+    }
+    return resolvePackagePricing(pkg, billingPeriod);
+  }, [billingPeriod, pkg]);
+
+  const couponPricing = useMemo(() => {
+    if (!appliedCoupon) {
+      return null;
+    }
+    return couponQuote(pricing.amount, appliedCoupon);
+  }, [appliedCoupon, pricing.amount]);
+
+  const payableLabel = formatPackagePrice(couponPricing?.payable ?? pricing.amount, pkg?.currency);
+  const listLabel = formatPackagePrice(pricing.amount, pkg?.currency);
+
+  const applyCoupon = async () => {
+    const code = couponInput.trim();
+    if (code.length < 4) {
+      setCouponError("Kupon kodu girin");
+      return;
+    }
+    setCouponBusy(true);
+    setCouponError(null);
+    try {
+      const response = await getSiteSameOriginAxios().get<CouponPreview>(
+        `/coupons/${encodeURIComponent(code)}`,
+      );
+      const preview = response.data;
+      if (!preview.usable) {
+        setAppliedCoupon(null);
+        setCouponError("Kupon kullanilamaz");
+        return;
+      }
+      const quoted = couponQuote(pricing.amount, preview);
+      if (quoted == null) {
+        setAppliedCoupon(null);
+        setCouponError("Kupon bu paket tutarina uygulanamaz");
+        return;
+      }
+      setAppliedCoupon(preview);
+    } catch (error) {
+      setAppliedCoupon(null);
+      setCouponError(error instanceof ApiError ? error.message : "Kupon dogrulanamadi");
+    } finally {
+      setCouponBusy(false);
+    }
+  };
+
+  const pay = async () => {
+    const checkout = checkoutSchema.safeParse({
+      billingPeriod,
+      billingAddressId,
+      recurringConsent,
+    });
+    if (!checkout.success) {
+      onNotify("warning", checkout.error.issues[0]?.message ?? "Ödeme seçimlerini kontrol edin.");
+      return;
+    }
+
+    const selectedAddress = addresses.data?.find((item) => item.id === billingAddressId);
+
+    setIsPaying(true);
+    try {
+      const payload: Record<string, unknown> = {
+        packageId,
+        paymentMode: "CHECKOUT_FORM",
+        paymentStyle: "SUBSCRIPTION",
+        billingPeriod,
+        billingAddressId,
+        identityNumber: resolveIdentityNumber(selectedAddress?.tckn, selectedAddress?.vkn),
+        recurringConsent,
+      };
+      if (appliedCoupon?.code && couponPricing) {
+        payload.couponCode = appliedCoupon.code;
+      }
+      const response = await getSiteSameOriginAxios().post<PurchaseInitiateResponse>("/purchases", payload);
+      if (!Number.isSafeInteger(response.data.purchaseId) || response.data.purchaseId <= 0) {
+        throw new Error("Satın alım kimliği alınamadı.");
+      }
+      storePendingPurchaseId(response.data.purchaseId);
+      setPurchaseId(response.data.purchaseId);
+      setPollStartedAt(Date.now());
+      if (response.data.paymentPageUrl) {
+        setPaymentOverlay({ kind: "url", content: response.data.paymentPageUrl });
+      } else if (response.data.checkoutFormContent) {
+        setPaymentOverlay({
+          kind: "html",
+          content: paytrCheckoutHtml(response.data.checkoutFormContent),
+        });
+      } else {
+        throw new Error("Güvenli ödeme sayfası alınamadı.");
+      }
+    } catch (error) {
+      onNotify("danger", error instanceof ApiError ? error.message : "Ödeme işlemi tamamlanamadı.");
+    } finally {
+      setIsPaying(false);
+    }
+  };
+
+  if (paymentOverlay) {
+    const title = isPaytrCheckout(paymentOverlay)
+      ? "Güvenli Ödeme (PayTR)"
+      : "Güvenli Ödeme";
+    return (
+      <PaymentCheckoutOverlay
+        overlay={paymentOverlay}
+        purchaseId={purchaseId}
+        title={title}
+        onClose={cancelPaymentOverlay}
+      />
+    );
+  }
+
+  if (packages.isLoading) return <div className="h-64 animate-pulse rounded-lg bg-muted" />;
+  if (!pkg) return <p className="text-sm text-destructive">Paket bulunamadı veya satışta değil.</p>;
+
+  const compareLabel =
+    pricing.compareAmount != null ? formatPackagePrice(pricing.compareAmount, pkg.currency) : null;
+  const nextDueLabel = (() => {
+    const next = new Date();
+    next.setMonth(next.getMonth() + (billingPeriod === "YEARLY" ? 12 : 1));
+    return next.toLocaleDateString("tr-TR");
+  })();
+
+  return (
+    <div className="space-y-6 animate-fade-in rounded-2xl border border-border bg-muted p-4 sm:p-6/20">
+      <div className="flex items-center gap-3">
+        <Button variant="outline" size="icon" asChild className="border-border bg-card">
+          <Link href={returnHref}><ArrowLeft className="h-4 w-4" /></Link>
+        </Button>
+        <BrandLogo size="sm" />
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Güvenli Ödeme</h1>
+          <p className="text-sm text-muted-foreground">Gerçek kart ve fatura bilgilerinizle işlemi tamamlayın.</p>
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[.8fr_1.2fr] lg:items-start">
+        <div className={`${DASHBOARD_SURFACE} space-y-5 p-6 shadow-none`}>
+          <div>
+            <p className="text-xs uppercase text-muted-foreground">Paket</p>
+            <h2 className="mt-1 text-xl font-semibold">{pkg.name}</h2>
+            <div className="mt-1 min-h-[2.75rem]">
+              <div className="flex flex-wrap items-baseline gap-2">
+                {compareLabel ? (
+                  <span className="text-lg text-muted-foreground line-through">{compareLabel}</span>
+                ) : null}
+                {couponPricing ? (
+                  <span className="text-lg text-muted-foreground line-through">{listLabel}</span>
+                ) : null}
+                <p className="text-2xl font-bold">
+                  {payableLabel}
+                  <span className="ml-1 text-sm font-normal text-muted-foreground">{pricing.suffix}</span>
+                </p>
+                {pricing.yearlySavings != null && pricing.yearlySavings > 0 ? (
+                  <span
+                    className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium leading-none text-emerald-600 dark:text-emerald-400"
+                    title={formatYearlySavingsLabel(pricing.yearlySavings, pkg.currency)}
+                  >
+                    {formatYearlySavingsBadge(
+                      pricing.yearlySavings,
+                      pkg.currency,
+                      resolveYearlySavingsPercent(pricing),
+                    )}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          </div>
+          <ul className="space-y-2 border-t border-border pt-4">
+            {packageFeatures(pkg).map((feature) => (
+              <li key={feature} className="flex gap-2 text-sm text-muted-foreground">
+                <Check className="mt-0.5 h-4 w-4 text-primary" />{feature}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="space-y-5">
+          <div className={`${DASHBOARD_SURFACE} space-y-4 p-6 shadow-none`}>
+            <h2 className="text-base font-semibold text-foreground">Faturalama periyodu</h2>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label
+                className={cn(
+                  "flex cursor-pointer items-center gap-2 rounded-xl border p-3",
+                  billingPeriod === "MONTHLY"
+                    ? "border-primary bg-primary/5"
+                    : "border-border bg-muted",
+                )}
+              >
+                <input
+                  type="radio"
+                  name="billingPeriod"
+                  checked={billingPeriod === "MONTHLY"}
+                  onChange={() => setBillingPeriod("MONTHLY")}
+                />
+                <span className="text-sm">Aylık</span>
+              </label>
+              <label
+                className={cn(
+                  "flex cursor-pointer items-center gap-2 rounded-xl border p-3",
+                  billingPeriod === "YEARLY"
+                    ? "border-primary bg-primary/5"
+                    : "border-border bg-muted",
+                )}
+              >
+                <input
+                  type="radio"
+                  name="billingPeriod"
+                  checked={billingPeriod === "YEARLY"}
+                  onChange={() => setBillingPeriod("YEARLY")}
+                />
+                <span className="text-sm">Yıllık</span>
+              </label>
+            </div>
+          </div>
+
+          <div className={`${DASHBOARD_SURFACE} space-y-4 p-6 shadow-none`}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold text-foreground">Fatura adresi</h2>
+              <Button variant="ghost" size="sm" onClick={() => setCreatingAddress((value) => !value)}>Yeni adres</Button>
+            </div>
+            {creatingAddress ? (
+              <BillingAddressForm onSubmit={createAddress} />
+            ) : addresses.isLoading ? (
+              <div className="h-10 animate-pulse rounded-md bg-muted" />
+            ) : addresses.isError ? (
+              <p className="text-sm text-destructive">
+                {addresses.error instanceof ApiError
+                  ? addresses.error.message
+                  : "Fatura adresleri yüklenemedi."}
+              </p>
+            ) : addresses.data?.length ? (
+              <SearchableSelect
+                value={billingAddressId ? String(billingAddressId) : ""}
+                onValueChange={(value) => setBillingAddressId(Number(value))}
+                options={addresses.data.map((address) => ({
+                  value: String(address.id),
+                  label: `${displayBillingName(address)} · ${address.city}${address.defaultAddress ? " · Aktif" : ""}`,
+                }))}
+                placeholder="Fatura adresi seçin"
+                searchPlaceholder="Adres ara..."
+                emptyText="Adres bulunamadı."
+              />
+            ) : (
+              <Button variant="outline" onClick={() => setCreatingAddress(true)}>Fatura adresi oluştur</Button>
+            )}
+          </div>
+
+          <div className={`${DASHBOARD_SURFACE} space-y-4 p-6 shadow-none`}>
+            <h2 className="text-base font-semibold text-foreground">Kupon kodu</h2>
+            <div className="flex flex-wrap items-end gap-2">
+              <Input
+                value={couponInput}
+                onChange={(event) => {
+                  setCouponInput(event.target.value.toUpperCase());
+                  setCouponError(null);
+                }}
+                placeholder="Kupon kodu"
+                maxLength={32}
+                className="max-w-xs uppercase"
+                autoComplete="off"
+              />
+              <Button type="button" variant="outline" disabled={couponBusy} onClick={() => void applyCoupon()}>
+                {couponBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Uygula"}
+              </Button>
+            </div>
+            {couponError ? <p className="text-sm text-destructive">{couponError}</p> : null}
+            {appliedCoupon && !couponPricing ? (
+              <p className="text-sm text-destructive">Kupon bu faturalama periyoduna uygulanamaz</p>
+            ) : null}
+            {appliedCoupon && couponPricing ? (
+              <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                {appliedCoupon.code} uygulandi. Indirim {formatPackagePrice(couponPricing.discount, pkg.currency)}.
+              </p>
+            ) : null}
+          </div>
+
+          <div className={`${DASHBOARD_SURFACE} space-y-4 p-6 shadow-none`}>
+            <div className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-primary" />
+              <h2 className="text-base font-semibold text-foreground">Ödeme</h2>
+            </div>
+
+            <div className="flex items-start gap-2 rounded-xl border border-border bg-muted p-3 text-xs text-muted-foreground">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              <p>
+                Kart bilgileriniz bizim sunucularımıza ulaşmaz. &quot;Ödemeyi Tamamla&quot; butonuna bastığınızda
+                PayTR güvenli ödeme sayfası açılır; kart bilgilerinizi yalnızca orada girersiniz. Kart kaydetmek
+                isterseniz bunu PayTR ekranından yapabilirsiniz — AlgoryQR tarafında checkout sırasında kart
+                saklanmaz.
+              </p>
+            </div>
+
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-card p-3">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 accent-primary"
+                checked={recurringConsent}
+                onChange={(event) => setRecurringConsent(event.target.checked)}
+              />
+              <span className="text-sm">
+                Düzenli ödeme için kart bilgilerimin saklanmasını istiyorum.
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  İşlemden sonra kartınızı PayTR üzerinden güvenli biçimde ekleyerek otomatik yenilemeyi
+                  etkinleştirebilirsiniz. Kart bilgileri AlgoryQR sunucularında saklanmaz.
+                </span>
+              </span>
+            </label>
+
+            <div className="rounded-xl border border-border bg-muted p-3 text-xs text-muted-foreground">
+              <p>
+                Bu ödeme: bugün · Dönem bitişi:{" "}
+                <span className="font-medium text-foreground">{nextDueLabel}</span>
+              </p>
+              <p className="mt-1">
+                {billingPeriod === "YEARLY" ? "Yıllık" : "Aylık"} tutar: {payableLabel}. Otomatik yenileme
+                {recurringConsent ? "onayı verildi; kart ekleme adımından sonra aktif edilir." : "açık değildir; isterseniz abonelik ayarlarından sonradan aktif edebilirsiniz."}
+              </p>
+              <Link
+                href={DASHBOARD_ROUTES.accountSubscription}
+                className="mt-2 inline-block text-xs font-medium text-primary hover:underline"
+              >
+                Abonelik ayarlarına git
+              </Link>
+            </div>
+
+            <Button
+              className="w-full gap-2"
+              variant="hero"
+              disabled={isPaying || (purchaseId != null && fulfillment.summary.data?.status === "PENDING")}
+              onClick={() => void pay()}
+            >
+              {isPaying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
+              {isPaying ? "Ödeme işleniyor…" : `Ödemeyi Tamamla · ${payableLabel}`}
+            </Button>
+            {purchaseId && fulfillment.summary.data?.status === "PENDING" && (
+              <p className="text-center text-xs text-muted-foreground">Ödeme sonucu doğrulanıyor…</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
