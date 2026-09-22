@@ -2,7 +2,7 @@ import axios from "axios";
 import { NextResponse } from "next/server";
 
 import { getExpFromAccessToken, isoToEpochSeconds } from "@/lib/auth-user";
-import { API_BASE_URL } from "@/lib/config";
+import { authUrl } from "@/lib/config";
 import { setAuthCookies, setTokenExpiryCookies, setTwoFactorPendingCookie } from "@/lib/server/auth-cookies";
 import { clientContextHeaders } from "@/lib/server/client-headers";
 import { fetchCurrentSessionRefreshExpiresAt } from "@/lib/server/session-expiry";
@@ -15,17 +15,19 @@ type LoginBody = {
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as LoginBody;
+    const email = typeof body?.email === "string" ? body.email.trim() : "";
     const loginPayload = {
-      email: typeof body?.email === "string" ? body.email.trim() : "",
+      identifier: email,
+      email,
       password: typeof body?.password === "string" ? body.password : "",
     };
 
-    if (!loginPayload.email || !loginPayload.password) {
+    if (!email || !loginPayload.password) {
       return NextResponse.json({ message: "E-posta ve şifre gerekli" }, { status: 400 });
     }
 
     const upstream = await axios.post<Record<string, unknown>>(
-      `${API_BASE_URL}/auth/login`,
+      authUrl("login"),
       loginPayload,
       {
         headers: {

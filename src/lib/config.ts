@@ -13,6 +13,44 @@ function resolveApiBaseUrl(): string {
   throw new Error("API_BASE_URL is required");
 }
 
+const STAGE_AUTH_BASE = "https://stage.auth.algorycode.com";
+const PROD_AUTH_BASE = "https://prod.auth.algorycode.com";
+
+const AUTH_ROUTES = {
+  login: "/api/v1/auth/basicauth/login",
+  register: "/api/v1/auth/basicauth/register",
+  refresh: "/api/v1/auth/refresh",
+  logout: "/api/v1/auth/logout",
+  googleAuthorize: "/api/v1/auth/google/authorize",
+  googleRedeem: "/api/v1/auth/google/redeem",
+} as const;
+
+const LOCAL_AUTH_ROUTES = {
+  login: "/auth/login",
+  register: "/auth/register",
+  refresh: "/auth/refresh",
+  logout: "/auth/logout",
+  googleAuthorize: "/google-auth/authorize",
+  googleRedeem: "/google-auth/redeem",
+} as const;
+
+export type AuthRoute = keyof typeof AUTH_ROUTES;
+
+function resolveAuthBaseUrl(): string {
+  const explicit = readRuntimeEnv("AUTH_BASE_URL");
+  if (explicit) return explicit;
+  const apiBase = resolveApiBaseUrl();
+  if (!apiBase) return "";
+  try {
+    const host = new URL(apiBase).hostname.toLowerCase();
+    if (host.startsWith("stage.")) return STAGE_AUTH_BASE;
+    if (host.startsWith("prod.")) return PROD_AUTH_BASE;
+  } catch {
+    return apiBase;
+  }
+  return apiBase;
+}
+
 function resolvePublicApiBaseUrl(): string {
   return readRuntimeEnv("PUBLIC_API_BASE_URL") || resolveApiBaseUrl();
 }
@@ -25,7 +63,16 @@ function resolveAppUrl(): string {
 
 export const API_BASE_URL = resolveApiBaseUrl();
 
+export const AUTH_BASE_URL = resolveAuthBaseUrl();
+
 export const PUBLIC_API_BASE_URL = resolvePublicApiBaseUrl();
+
+export function authUrl(route: AuthRoute): string {
+  const routes = AUTH_BASE_URL === STAGE_AUTH_BASE || AUTH_BASE_URL === PROD_AUTH_BASE
+    ? AUTH_ROUTES
+    : LOCAL_AUTH_ROUTES;
+  return `${AUTH_BASE_URL}${routes[route]}`;
+}
 
 export const APP_URL = resolveAppUrl();
 
