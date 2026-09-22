@@ -1,64 +1,20 @@
 const trimTrailingSlash = (s: string) => s.replace(/\/$/, "");
 
-const PROD_API_BASE = "https://prod.qrapi.algorycode.com";
-const STAGE_API_BASE = "https://stage.qrapi.algorycode.com";
-const PROD_AUTH_BASE = "https://prod.auth.algorycode.com";
-const STAGE_AUTH_BASE = "https://stage.auth.algorycode.com";
-
-const AUTH_ROUTES = {
-  login: "/api/v1/auth/basicauth/login",
-  register: "/api/v1/auth/basicauth/register",
-  refresh: "/api/v1/auth/refresh",
-  logout: "/api/v1/auth/logout",
-  googleAuthorize: "/api/v1/auth/google/authorize",
-  googleRedeem: "/api/v1/auth/google/redeem",
-} as const;
-
-export type AuthRoute = keyof typeof AUTH_ROUTES;
-
-function readApiBaseFromEnv(): string | undefined {
-  const raw = process.env.API_BASE_URL?.trim() || process.env.API_UPSTREAM?.trim();
+function readRuntimeEnv(name: string): string | undefined {
+  const raw = process.env[name]?.trim();
   return raw ? trimTrailingSlash(raw) : undefined;
 }
 
-function readDeployEnv(): string {
-  return (process.env.APP_ENV || process.env.DEPLOY_ENV || "").trim().toLowerCase();
-}
-
 function resolveApiBaseUrl(): string {
-  const fromEnv = readApiBaseFromEnv();
+  const fromEnv = readRuntimeEnv("API_BASE_URL") || readRuntimeEnv("API_UPSTREAM");
   if (fromEnv) return fromEnv;
-
-  const deployEnv = readDeployEnv();
-  if (deployEnv === "prod" || deployEnv === "production") return PROD_API_BASE;
-  if (deployEnv === "stage" || deployEnv === "staging") return STAGE_API_BASE;
-
-  if (process.env.NODE_ENV === "development") return "http://localhost:8055";
-
-  throw new Error("APP_ENV must be prod or stage, or set API_BASE_URL");
+  if (typeof window !== "undefined" || process.env.NODE_ENV !== "production") return "http://localhost:8055";
+  if (process.env["NEXT_PHASE"] === "phase-production-build") return "";
+  throw new Error("API_BASE_URL is required");
 }
 
 function resolvePublicApiBaseUrl(): string {
-  const fromEnv = process.env.PUBLIC_API_BASE_URL?.trim();
-  if (fromEnv) return trimTrailingSlash(fromEnv);
-
-  const deployEnv = readDeployEnv();
-  if (deployEnv === "prod" || deployEnv === "production") return PROD_API_BASE;
-  if (deployEnv === "stage" || deployEnv === "staging") return STAGE_API_BASE;
-
-  return resolveApiBaseUrl();
-}
-
-function resolveAuthBaseUrl(): string {
-  const fromEnv = process.env.AUTH_BASE_URL?.trim();
-  if (fromEnv) return trimTrailingSlash(fromEnv);
-
-  const deployEnv = readDeployEnv();
-  if (deployEnv === "prod" || deployEnv === "production") return PROD_AUTH_BASE;
-  if (deployEnv === "stage" || deployEnv === "staging") return STAGE_AUTH_BASE;
-  if (process.env.NODE_ENV === "development") return resolveApiBaseUrl();
-
-  throw new Error("APP_ENV must be prod or stage, or set AUTH_BASE_URL");
+  return readRuntimeEnv("PUBLIC_API_BASE_URL") || resolveApiBaseUrl();
 }
 
 function resolveAppUrl(): string {
@@ -70,10 +26,6 @@ function resolveAppUrl(): string {
 export const API_BASE_URL = resolveApiBaseUrl();
 
 export const PUBLIC_API_BASE_URL = resolvePublicApiBaseUrl();
-
-export const AUTH_BASE_URL = resolveAuthBaseUrl();
-
-export const authUrl = (route: AuthRoute): string => `${AUTH_BASE_URL}${AUTH_ROUTES[route]}`;
 
 export const APP_URL = resolveAppUrl();
 

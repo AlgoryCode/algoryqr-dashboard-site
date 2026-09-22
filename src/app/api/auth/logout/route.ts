@@ -2,7 +2,7 @@ import axios from "axios";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { authUrl } from "@/lib/config";
+import { API_BASE_URL } from "@/lib/config";
 import { clearAuthCookies, readAccessTokenFromCookies, readRefreshTokenFromCookies } from "@/lib/server/auth-cookies";
 
 export async function POST() {
@@ -12,7 +12,7 @@ export async function POST() {
     const accessToken = readAccessTokenFromCookies(cookieStore);
     if (refreshToken || accessToken) {
       await axios
-        .post(authUrl("logout"), { refreshToken }, {
+        .post(`${API_BASE_URL}/auth/logout`, { refreshToken }, {
           headers: {
             "Content-Type": "application/json",
             Accept: "application/json",

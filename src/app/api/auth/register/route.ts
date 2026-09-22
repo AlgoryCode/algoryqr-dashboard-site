@@ -1,7 +1,7 @@
 import axios from "axios";
 import { NextResponse } from "next/server";
 
-import { authUrl } from "@/lib/config";
+import { API_BASE_URL } from "@/lib/config";
 import { messageFromRegisterUpstream } from "@/lib/register-upstream-error";
 import { clientContextHeaders } from "@/lib/server/client-headers";
 import { normalizePhoneNumber } from "@/lib/server/upstream-config";
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     }
 
     const upstream = await axios.post<Record<string, unknown>>(
-      authUrl("register"),
+      `${API_BASE_URL}/auth/register`,
       registerPayload,
       {
         headers: {

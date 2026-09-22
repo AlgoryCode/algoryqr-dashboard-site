@@ -1,35 +1,28 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-async function loadAuthUrl(): Promise<(route: "login" | "refresh") => string> {
+async function loadApiBaseUrl(): Promise<string> {
   vi.resetModules();
   const config = await import("@/lib/config");
-  return config.authUrl;
+  return config.API_BASE_URL;
 }
 
-describe("authUrl", () => {
+describe("API_BASE_URL", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.resetModules();
   });
 
-  it("authUrl_whenAppEnvStage_thenUsesStageAuthHost", async () => {
+  it("resolveApiBaseUrl_whenApiBaseUrlSet_thenUsesThatHost", async () => {
+    vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("APP_ENV", "stage");
-    vi.stubEnv("AUTH_BASE_URL", "");
-    const authUrl = await loadAuthUrl();
-    expect(authUrl("login")).toBe("https://stage.auth.algorycode.com/api/v1/auth/basicauth/login");
+    vi.stubEnv("API_BASE_URL", "https://stage.auth.algorycode.com/");
+    expect(await loadApiBaseUrl()).toBe("https://stage.auth.algorycode.com");
   });
 
-  it("authUrl_whenAppEnvProd_thenUsesProdAuthHost", async () => {
+  it("resolveApiBaseUrl_whenUnsetOutsideProduction_thenUsesLocalhost", async () => {
+    vi.stubEnv("NODE_ENV", "test");
     vi.stubEnv("APP_ENV", "prod");
-    vi.stubEnv("AUTH_BASE_URL", "");
-    const authUrl = await loadAuthUrl();
-    expect(authUrl("refresh")).toBe("https://prod.auth.algorycode.com/api/v1/auth/refresh");
-  });
-
-  it("authUrl_whenAuthBaseUrlSet_thenUsesThatHost", async () => {
-    vi.stubEnv("APP_ENV", "prod");
-    vi.stubEnv("AUTH_BASE_URL", "https://stage.auth.algorycode.com/");
-    const authUrl = await loadAuthUrl();
-    expect(authUrl("login")).toBe("https://stage.auth.algorycode.com/api/v1/auth/basicauth/login");
+    vi.stubEnv("API_BASE_URL", "");
+    expect(await loadApiBaseUrl()).toBe("http://localhost:8055");
   });
 });

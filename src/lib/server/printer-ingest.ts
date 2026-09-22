@@ -1,6 +1,6 @@
 import axios from "axios";
 
-import { API_BASE_URL, authUrl } from "@/lib/config";
+import { API_BASE_URL } from "@/lib/config";
 import { buildUpstreamAuthHeaders } from "@/lib/auth-user";
 import type { MarketplaceLikeOrder } from "@/lib/receipt-ticket";
 import { marketplaceOrderToReceipt } from "@/lib/receipt-ticket";
@@ -27,7 +27,7 @@ async function refreshOwnerAccess(account: PrinterAccount): Promise<string | nul
   if (!account.refreshToken) return account.accessToken ?? null;
   try {
     const upstream = await axios.post(
-      authUrl("refresh"),
+      `${API_BASE_URL}/auth/refresh`,
       { refreshToken: account.refreshToken },
       { validateStatus: () => true, timeout: 15_000 },
     );

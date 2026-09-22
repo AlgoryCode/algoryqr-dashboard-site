@@ -15,13 +15,6 @@ COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
 
-ARG APP_ENV=prod
-ARG API_BASE_URL=https://prod.qrapi.algorycode.com
-ARG APP_URL=
-ENV APP_ENV=${APP_ENV}
-ENV API_BASE_URL=${API_BASE_URL}
-ENV APP_URL=${APP_URL}
-
 RUN npm run build
 
 FROM base AS runner

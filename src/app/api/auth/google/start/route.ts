@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { authUrl } from "@/lib/config";
+import { PUBLIC_API_BASE_URL } from "@/lib/config";
 import {
   setMerchantReturnUrlCookie,
   resolveSafeMerchantReturnUrl,
@@ -17,7 +17,7 @@ export function GET(req: NextRequest) {
     return googleAuthErrorRedirect(req, "login", "invalid_intent");
   }
 
-  const authorizeUrl = new URL(authUrl("googleAuthorize"));
+  const authorizeUrl = new URL(`${PUBLIC_API_BASE_URL}/google-auth/authorize`);
   authorizeUrl.searchParams.set("intent", intent);
   const response = NextResponse.redirect(authorizeUrl, 307);
   response.headers.set("Cache-Control", "no-store");

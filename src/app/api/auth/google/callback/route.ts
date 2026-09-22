@@ -6,7 +6,7 @@ import {
   getUserIdFromAccessToken,
   isoToEpochSeconds,
 } from "@/lib/auth-user";
-import { authUrl } from "@/lib/config";
+import { API_BASE_URL } from "@/lib/config";
 import {
   setAuthCookies,
   setTokenExpiryCookies,
@@ -118,7 +118,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const upstream = await axios.post<RedeemResponse>(
-      authUrl("googleRedeem"),
+      `${API_BASE_URL}/google-auth/redeem`,
       { ticket },
       {
         headers: {
