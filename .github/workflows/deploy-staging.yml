@@ -40,6 +40,14 @@ jobs:
           tags: |
             ${{ env.IMAGE_BASE }}:${{ env.IMAGE_TAG }}
 
+      - name: Coolify Image Tagini Commit Hash Olarak Güncelle
+        run: |
+          curl -f -X PATCH "http://185.184.210.52:8000/api/v1/applications/v7fs6w8rcvv1ol202vcjw4zn" \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"docker_registry_image_name\": \"${{ env.IMAGE_BASE }}\", \"docker_registry_image_tag\": \"${{ env.IMAGE_TAG }}\"}"
+
       - name: Staging Deployunu Tetikle
         run: |
-          curl -fsSL "http://185.184.210.52:8000/api/v1/deploy?uuid=v7fs6w8rcvv1ol202vcjw4zn&force=false"
+          curl -fsSL "http://185.184.210.52:8000/api/v1/deploy?uuid=v7fs6w8rcvv1ol202vcjw4zn&force=false" \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}"
