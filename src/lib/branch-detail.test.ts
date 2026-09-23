@@ -9,6 +9,7 @@ import {
   formatCancelPercent,
   formatManagerShort,
   formatScore,
+  dailySalesPoints,
   weeklyRevenueBars,
 } from "@/lib/branch-detail";
 
@@ -42,6 +43,9 @@ describe("branch detail formatting", () => {
     expect(bars.map((bar) => bar.peak)).toEqual([false, true]);
     expect(bars[1]?.height).toBe(100);
     expect(compareBranchIds(branches(), 2).slice(0, 2)).toEqual([2, 1]);
+    const points = dailySalesPoints(["2026-09-17", "2026-09-18"], [{ date: "2026-09-18", revenue: 400 }]);
+    expect(points.map((point) => point.revenue)).toEqual([0, 400]);
+    expect(points[0]?.label.startsWith("17")).toBe(true);
   });
 });
 

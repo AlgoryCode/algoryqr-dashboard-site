@@ -50,6 +50,24 @@ export function compareBranchIds(branches: BranchItem[], currentId: number): num
   return [currentId, ...others];
 }
 
+export function dailySalesPoints(
+  dates: string[],
+  daily: Array<{ date: string; revenue?: number | string | null }>,
+): Array<{ label: string; revenue: number }> {
+  const totals = new Map(daily.map((row) => [row.date.slice(0, 10), toAmount(row.revenue)]));
+  return dates.map((date) => ({
+    label: shortDayLabel(date),
+    revenue: totals.get(date) ?? 0,
+  }));
+}
+
+export function clockLabel(iso?: string | null): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+}
+
 export function weeklyRevenueBars(
   dates: string[],
   daily: Array<{ date: string; revenue?: number | string | null }>,
@@ -63,6 +81,12 @@ export function weeklyRevenueBars(
     peak: index === peakAt,
     height: barHeight(revenues[index] ?? 0, max),
   }));
+}
+
+function shortDayLabel(iso: string): string {
+  const date = new Date(`${iso.slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleDateString("tr-TR", { day: "numeric", month: "short" }).replace(/\.$/, "");
 }
 
 function barHeight(revenue: number, max: number): number {

@@ -22,19 +22,12 @@ import {
   getMenuFeedbackRequest,
   getMenuFeedbackSummaryRequest,
 } from "@/lib/api";
-import {
-  branchMetaLine,
-  branchStatusLabel,
-  compareBranchIds,
-  formatBranchAmount,
-  formatCancelPercent,
-  formatManagerShort,
-  formatScore,
-  weeklyRevenueBars,
-} from "@/lib/branch-detail";
+import { compareBranchIds, formatBranchAmount, formatScore } from "@/lib/branch-detail";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
+import { listMerchantOrders } from "@/lib/ordering-api";
 import { listMenuUsers, parseStaffRole, STAFF_ROLE_LABEL } from "@/lib/waiter-api";
-import { eachIsoDate, reportingPeriodRange, toAmount } from "@/reporting";
+import { reportingPeriodRange, toAmount } from "@/reporting";
+import { buildOverview } from "@/views/dashboard/branch-detail-overview-model";
 
 type BranchDetailViewProps = { branchId: number };
 
@@ -46,11 +39,17 @@ export default function BranchDetailView({ branchId }: BranchDetailViewProps) {
   const branch = branchQuery.data;
   useDashboardPageLabel(branch?.name);
 
-  const today = useMemo(() => reportingPeriodRange("1d"), []);
   const week = useMemo(() => reportingPeriodRange("7d"), []);
-  const summaryQuery = useBranchSummaryAnalytics(branchId, null, today.from, today.to);
+  const summaryQuery = useBranchSummaryAnalytics(branchId, null, week.from, week.to);
   const revenueQuery = useBranchRevenueReport(branchId, null, week.from, week.to);
   const menuId = branch?.menus[0]?.menuId ?? null;
+  const ordersQuery = useQuery({
+    queryKey: ["branchDetailOrders", menuId],
+    queryFn: () => listMerchantOrders(menuId as number),
+    enabled: menuId != null,
+    retry: false,
+    staleTime: 30_000,
+  });
   const usersQuery = useQuery({
     queryKey: ["branchDetailUsers", branchId],
     queryFn: () => listMenuUsers(branchId),
@@ -67,15 +66,15 @@ export default function BranchDetailView({ branchId }: BranchDetailViewProps) {
   const reviewsQuery = useQuery({
     queryKey: ["branchDetailReviews", menuId],
     queryFn: () => getMenuFeedbackRequest(menuId as number, { size: 8 }),
-    enabled: tab === "reviews" && menuId != null,
+    enabled: menuId != null,
     staleTime: 60_000,
   });
   const branches = branchesQuery.data?.content;
   const ids = useMemo(() => compareBranchIds(branches ?? [], branchId), [branches, branchId]);
   const compareQueries = useQueries({
     queries: ids.map((id) => ({
-      queryKey: branchSummaryAnalyticsQueryKey(id, null, today.from, today.to),
-      queryFn: () => getBranchSummaryAnalyticsRequest(id, today.from, today.to, null),
+      queryKey: branchSummaryAnalyticsQueryKey(id, null, week.from, week.to),
+      queryFn: () => getBranchSummaryAnalyticsRequest(id, week.from, week.to, null),
       enabled: ids.length > 0,
       staleTime: 60_000,
     })),
@@ -88,52 +87,32 @@ export default function BranchDetailView({ branchId }: BranchDetailViewProps) {
     return <p className="text-sm text-muted-foreground">Şube bulunamadı.</p>;
   }
 
-  const manager = formatManagerShort(usersQuery.data?.owner.firstName, usersQuery.data?.owner.lastName);
-  const currency = summaryQuery.data?.overview.currency;
-  const ratingCount = ratingQuery.data?.menu.ratingCount ?? 0;
-  const kpis = [
-    {
-      label: "Bugünkü ciro",
-      value: summaryQuery.isSuccess
-        ? formatBranchAmount(toAmount(summaryQuery.data.overview.grossRevenue), currency)
-        : "—",
-    },
-    {
-      label: "Sipariş",
-      value: summaryQuery.isSuccess
-        ? (summaryQuery.data.overview.orderCount ?? 0).toLocaleString("tr-TR")
-        : "—",
-    },
-    {
-      label: "Ort. puan",
-      value: ratingCount > 0 ? formatScore(toAmount(ratingQuery.data?.menu.ratingAvg)) : "—",
-    },
-    {
-      label: "İptal oranı",
-      value: summaryQuery.isSuccess ? formatCancelPercent(summaryQuery.data.overview.cancelRate) : "—",
-    },
-  ];
-  const bars = weeklyRevenueBars(eachIsoDate(week.from, week.to), revenueQuery.data?.daily ?? []);
-  const compare = compareRows(ids, branches ?? [], branchId, compareQueries, currency);
+  const currency = revenueQuery.data?.kpis.currency ?? summaryQuery.data?.overview.currency;
+  const compare = compareRows(ids, branches ?? [], compareQueries, currency);
   const staff = staffRows(usersQuery.data?.waiters ?? []);
   const reviews = reviewRows(reviewsQuery.data?.content ?? []);
   const menus = menuRows(branch);
+  const overview = buildOverview(branch, currency, week, {
+    summary: summaryQuery.data,
+    summaryReady: summaryQuery.isSuccess,
+    revenue: revenueQuery.data,
+    revenueReady: revenueQuery.isSuccess,
+    orders: ordersQuery.data ?? [],
+    qrId: branch.menus[0]?.qrId ?? null,
+    ratingAvg: ratingQuery.data?.menu.ratingAvg,
+    ratingCount: ratingQuery.data?.menu.ratingCount ?? 0,
+    reviews,
+  });
 
   return (
     <BranchDetailPanel
       branchId={branchId}
       name={branch.name}
-      meta={branchMetaLine([
-        branch.address,
-        branchStatusLabel(branch.active),
-        manager ? `Müdür: ${manager}` : null,
-      ])}
       branches={(branches ?? []).map((item) => ({ id: item.id, name: item.name }))}
       tab={tab}
       onTab={setTab}
       onSelectBranch={(nextId) => router.push(DASHBOARD_ROUTES.branchDetail(nextId))}
-      kpis={kpis}
-      bars={bars}
+      overview={overview}
       compare={compare}
       staff={staff}
       reviews={reviews}
@@ -145,19 +124,17 @@ export default function BranchDetailView({ branchId }: BranchDetailViewProps) {
 function compareRows(
   ids: number[],
   branches: Array<{ id: number; name: string }>,
-  currentId: number,
   queries: Array<{ isSuccess: boolean; data?: { overview: { grossRevenue?: number | string | null } } }>,
   currency?: string | null,
 ): CompareRow[] {
   return ids.map((id, index) => {
     const query = queries[index];
-    const amount = query?.isSuccess
-      ? formatBranchAmount(toAmount(query.data?.overview.grossRevenue), currency)
-      : "—";
+    const value = query?.isSuccess ? toAmount(query.data?.overview.grossRevenue) : 0;
     return {
       id,
-      label: id === currentId ? "Bu şube" : (branches.find((item) => item.id === id)?.name ?? "Şube"),
-      amount,
+      label: branches.find((item) => item.id === id)?.name ?? "Şube",
+      amount: query?.isSuccess ? formatBranchAmount(value, currency) : "—",
+      value,
     };
   });
 }
