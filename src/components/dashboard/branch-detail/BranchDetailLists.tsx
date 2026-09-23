@@ -4,7 +4,7 @@ import Link from "next/link";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { cn } from "@/lib/utils";
 
-export type CompareRow = { id: number; label: string; amount: string };
+export type CompareRow = { id: number; label: string; amount: string; value: number };
 export type StaffRow = { id: number; name: string; role: string };
 export type ReviewRow = { id: number; title: string; score: string; comment: string };
 export type MenuRow = { menuId: number; qrId: number; name: string };

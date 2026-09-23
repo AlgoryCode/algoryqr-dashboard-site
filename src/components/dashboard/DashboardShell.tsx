@@ -61,6 +61,7 @@ import {
   DASHBOARD_ROUTES,
   getVisibleDashboardNavGroups,
   isDashboardNavActive,
+  parseBranchDetailId,
   type DashboardNavKey,
 } from "@/lib/dashboard-routes";
 import { ACCOUNT_PAGE_FRAME, DASHBOARD_CONTENT } from "@/lib/dashboard-surface";
@@ -420,7 +421,9 @@ function DashboardShellInner({ children }: DashboardShellProps) {
 
           <div
             className={cn(
-              pathname === DASHBOARD_ROUTES.onlineOrderOrders || pathname === DASHBOARD_ROUTES.waiter
+              pathname === DASHBOARD_ROUTES.onlineOrderOrders ||
+              pathname === DASHBOARD_ROUTES.waiter ||
+              parseBranchDetailId(pathname) != null
                 ? "mx-auto w-full max-w-[90rem]"
                 : DASHBOARD_CONTENT,
               isOnlineBoard ? "p-4 lg:px-6 lg:pt-4 lg:pb-0" : "p-6 lg:p-8",
