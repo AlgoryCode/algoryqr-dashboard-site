@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, MessageSquareText, Star } from "lucide-react";
+import { ArrowLeft, Star } from "lucide-react";
 
 import {
   DigitalMenuPicker,
@@ -24,7 +24,13 @@ import {
   type FeedbackTypeFilter,
 } from "@/lib/api";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
-import { DASHBOARD_BACK, DASHBOARD_LIST_ITEM, DASHBOARD_STAT_TILE } from "@/lib/dashboard-surface";
+import {
+  DASHBOARD_BACK,
+  DASHBOARD_LIST_ITEM,
+  DASHBOARD_METRIC_LABEL,
+  DASHBOARD_METRIC_VALUE,
+  DASHBOARD_STAT_TILE,
+} from "@/lib/dashboard-surface";
 
 function formatDateTime(value?: string | null): string {
   if (!value) return "—";
@@ -188,26 +194,11 @@ export default function FeedbackView() {
           <div className="grid gap-3 sm:grid-cols-2">
             {summaryCards.map((card) => (
               <div key={card.key} className={DASHBOARD_STAT_TILE}>
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-muted/40 text-muted-foreground">
-                    {card.key === "menu" ? (
-                      <MessageSquareText className="h-4 w-4" />
-                    ) : (
-                      <Star className="h-4 w-4" />
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      {card.label}
-                    </p>
-                    <p className="mt-0.5 text-lg font-semibold text-foreground">
-                      {card.avg}{" "}
-                      <span className="text-sm font-normal text-muted-foreground">
-                        · {card.count} oy
-                      </span>
-                    </p>
-                  </div>
-                </div>
+                <p className={DASHBOARD_METRIC_LABEL}>{card.label}</p>
+                <p className={DASHBOARD_METRIC_VALUE}>
+                  {card.avg}
+                  <span className="ml-2 text-sm font-light text-neutral-400">· {card.count} oy</span>
+                </p>
               </div>
             ))}
           </div>

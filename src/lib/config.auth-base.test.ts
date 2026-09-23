@@ -37,6 +37,7 @@ describe("API_BASE_URL", () => {
     vi.stubEnv("API_BASE_URL", "");
     const config = await loadConfig();
     expect(config.API_BASE_URL).toBe("http://localhost:8055");
-    expect(config.authUrl("login")).toBe("http://localhost:8055/auth/login");
+    expect(config.authUrl("login")).toBe("http://localhost:8080/api/v1/auth/basicauth/login");
+    expect(config.authUrl("googleAuthorize")).toBe("http://localhost:8080/api/v1/auth/google/authorize");
   });
 });

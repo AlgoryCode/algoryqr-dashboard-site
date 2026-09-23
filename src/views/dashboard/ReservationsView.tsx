@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, CheckCircle2, Clock, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 import { DigitalMenuHubGate } from "@/components/dashboard/digital-menu/DigitalMenuHubGate";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
@@ -12,7 +12,7 @@ import { EmptyState } from "@/components/dashboard/EmptyState";
 import { FilterSelect } from "@/components/dashboard/FilterSelect";
 import { useListQueryState } from "@/hooks/use-list-query-state";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
-import { DASHBOARD_STAT_TILE, DASHBOARD_TYPE_KPI } from "@/lib/dashboard-surface";
+import { DASHBOARD_METRIC_LABEL, DASHBOARD_STAT_TILE, DASHBOARD_TYPE_KPI } from "@/lib/dashboard-surface";
 import {
   DigitalMenuPicker,
   useDigitalMenuSelection,
@@ -291,15 +291,8 @@ function ReservationsPanel() {
               }}
               className={DASHBOARD_STAT_TILE}
             >
-              <div className="flex items-center gap-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted">
-                  <CalendarDays className="h-3.5 w-3.5" style={{ color: "hsl(var(--chart-indigo))" }} />
-                </div>
-                <p className="text-xs text-muted-foreground">Toplam</p>
-              </div>
-              <p className={`mt-2 tabular-nums ${DASHBOARD_TYPE_KPI}`}>
-                {counts.total}
-              </p>
+              <p className={DASHBOARD_METRIC_LABEL}>Toplam</p>
+              <p className={DASHBOARD_TYPE_KPI}>{counts.total}</p>
             </button>
             <button
               type="button"
@@ -309,15 +302,8 @@ function ReservationsPanel() {
               }}
               className={DASHBOARD_STAT_TILE}
             >
-              <div className="flex items-center gap-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted">
-                  <Clock className="h-3.5 w-3.5" style={{ color: "hsl(var(--chart-orange))" }} />
-                </div>
-                <p className="text-xs text-muted-foreground">Bekleyen</p>
-              </div>
-              <p className={`mt-2 tabular-nums ${DASHBOARD_TYPE_KPI}`}>
-                {counts.pending}
-              </p>
+              <p className={DASHBOARD_METRIC_LABEL}>Bekleyen</p>
+              <p className={DASHBOARD_TYPE_KPI}>{counts.pending}</p>
             </button>
             <button
               type="button"
@@ -327,15 +313,8 @@ function ReservationsPanel() {
               }}
               className={DASHBOARD_STAT_TILE}
             >
-              <div className="flex items-center gap-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted">
-                  <CheckCircle2 className="h-3.5 w-3.5" style={{ color: "hsl(var(--chart-green))" }} />
-                </div>
-                <p className="text-xs text-muted-foreground">Aktif</p>
-              </div>
-              <p className={`mt-2 tabular-nums ${DASHBOARD_TYPE_KPI}`}>
-                {counts.active}
-              </p>
+              <p className={DASHBOARD_METRIC_LABEL}>Aktif</p>
+              <p className={DASHBOARD_TYPE_KPI}>{counts.active}</p>
             </button>
           </div>
 

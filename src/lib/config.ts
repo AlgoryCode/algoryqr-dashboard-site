@@ -15,6 +15,7 @@ function resolveApiBaseUrl(): string {
 
 const STAGE_AUTH_BASE = "https://stage.auth.algorycode.com";
 const PROD_AUTH_BASE = "https://prod.auth.algorycode.com";
+const LOCAL_AUTH_BASE = "http://localhost:8080";
 
 const AUTH_ROUTES = {
   login: "/api/v1/auth/basicauth/login",
@@ -23,15 +24,6 @@ const AUTH_ROUTES = {
   logout: "/api/v1/auth/logout",
   googleAuthorize: "/api/v1/auth/google/authorize",
   googleRedeem: "/api/v1/auth/google/redeem",
-} as const;
-
-const LOCAL_AUTH_ROUTES = {
-  login: "/auth/login",
-  register: "/auth/register",
-  refresh: "/auth/refresh",
-  logout: "/auth/logout",
-  googleAuthorize: "/google-auth/authorize",
-  googleRedeem: "/google-auth/redeem",
 } as const;
 
 export type AuthRoute = keyof typeof AUTH_ROUTES;
@@ -46,9 +38,9 @@ function resolveAuthBaseUrl(): string {
     if (host.startsWith("stage.")) return STAGE_AUTH_BASE;
     if (host.startsWith("prod.")) return PROD_AUTH_BASE;
   } catch {
-    return apiBase;
+    return LOCAL_AUTH_BASE;
   }
-  return apiBase;
+  return LOCAL_AUTH_BASE;
 }
 
 function resolvePublicApiBaseUrl(): string {
@@ -68,10 +60,7 @@ export const AUTH_BASE_URL = resolveAuthBaseUrl();
 export const PUBLIC_API_BASE_URL = resolvePublicApiBaseUrl();
 
 export function authUrl(route: AuthRoute): string {
-  const routes = AUTH_BASE_URL === STAGE_AUTH_BASE || AUTH_BASE_URL === PROD_AUTH_BASE
-    ? AUTH_ROUTES
-    : LOCAL_AUTH_ROUTES;
-  return `${AUTH_BASE_URL}${routes[route]}`;
+  return `${AUTH_BASE_URL}${AUTH_ROUTES[route]}`;
 }
 
 export const APP_URL = resolveAppUrl();

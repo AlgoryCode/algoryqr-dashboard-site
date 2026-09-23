@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  BookOpen,
   Building2,
   ChevronRight,
   Loader2,
@@ -21,6 +20,7 @@ import { useListQueryState } from "@/hooks/use-list-query-state";
 import { useBranches } from "@/hooks/use-branches";
 import type { BranchItem, BranchMenuSummary } from "@/lib/branch";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
+import { DASHBOARD_METRIC_LABEL, DASHBOARD_STAT_TILE } from "@/lib/dashboard-surface";
 import { cn } from "@/lib/utils";
 
 type StatusFilter = "all" | "active" | "inactive";
@@ -181,9 +181,9 @@ export function DigitalMenuDirectoryPanel() {
             {groups.map(({ branch, menus }) => (
               <section
                 key={branch.id}
-                className="overflow-hidden rounded-2xl border border-[#e5e7eb] bg-white dark:border-border dark:bg-card"
+                className={cn(DASHBOARD_STAT_TILE, "space-y-4")}
               >
-                <div className="flex flex-col gap-3 border-b border-border/70 bg-muted/30 px-3 py-3 sm:flex-row sm:items-center">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <Link
                     href={DASHBOARD_ROUTES.branchDetail(branch.id)}
                     className="flex min-w-0 flex-1 items-center gap-3"
@@ -200,17 +200,13 @@ export function DigitalMenuDirectoryPanel() {
                       </span>
                     )}
                     <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-md bg-background px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground ring-1 ring-border">
-                          Şube
-                        </span>
-                        {!branch.active ? (
-                          <span className="text-[10px] font-medium text-muted-foreground">Pasif</span>
-                        ) : null}
-                      </div>
-                      <p className="mt-0.5 truncate text-sm font-semibold text-foreground">
+                      <p className={DASHBOARD_METRIC_LABEL}>
+                        Şube
+                        {!branch.active ? <span className="ml-2">Pasif</span> : null}
+                      </p>
+                      <p className="mt-1.5 truncate text-[1.35rem] font-semibold leading-none tracking-tight text-neutral-950 dark:text-foreground">
                         {branch.name}
-                        <span className="ml-1.5 font-mono text-xs font-normal text-muted-foreground">
+                        <span className="ml-1.5 font-mono text-xs font-light text-neutral-400">
                           #{branch.id}
                         </span>
                       </p>
@@ -235,11 +231,8 @@ export function DigitalMenuDirectoryPanel() {
                   </div>
                 </div>
 
-                <div className="px-3 py-2">
-                  <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    <BookOpen className="h-3.5 w-3.5" />
-                    Bu şubedeki menüler
-                  </p>
+                <div>
+                  <p className={cn(DASHBOARD_METRIC_LABEL, "mb-1.5")}>Bu şubedeki menüler</p>
 
                   {menus.length === 0 ? (
                     <div className="flex flex-col items-start gap-2 rounded-xl border border-dashed border-border px-3 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -259,28 +252,16 @@ export function DigitalMenuDirectoryPanel() {
                         <li key={menu.menuId}>
                           <Link
                             href={DASHBOARD_ROUTES.digitalMenuEdit(menu.qrId)}
-                            className="group flex items-center gap-3 rounded-xl border border-transparent px-2.5 py-2.5 transition-colors hover:border-border hover:bg-muted/40"
+                            className="group flex items-center gap-3 rounded-[16px] border border-black/[0.04] bg-white px-4 py-3.5 shadow-[0_8px_24px_rgba(15,23,42,0.05)] transition-colors hover:bg-neutral-50 dark:border-border dark:bg-card"
                           >
-                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
-                              <BookOpen className="h-3.5 w-3.5" />
-                            </span>
                             <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                  Menü
-                                </span>
-                                <span
-                                  className={cn(
-                                    "rounded-full px-2 py-0.5 text-[11px] font-medium",
-                                    menu.active
-                                      ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                                      : "bg-muted text-muted-foreground",
-                                  )}
-                                >
+                              <p className={DASHBOARD_METRIC_LABEL}>
+                                Menü
+                                <span className={cn("ml-2", menu.active ? "text-emerald-700" : undefined)}>
                                   {menu.active ? "Yayında" : "Pasif"}
                                 </span>
-                              </div>
-                              <p className="mt-0.5 truncate text-sm font-medium text-foreground">
+                              </p>
+                              <p className="mt-1.5 truncate text-[1.15rem] font-semibold leading-none tracking-tight text-neutral-950 dark:text-foreground">
                                 {menuTitle(menu)}
                               </p>
                             </div>

@@ -14,6 +14,7 @@ const PUBLIC_AUTH_API_PATHS = [
   "/auth/logout",
   "/auth/register",
   "/auth/refresh",
+  "/auth/demo-account",
   "/auth/2fa/login/verify",
   "/auth/email-verification/resend",
   "/auth/email-verification/verify",
@@ -39,7 +40,9 @@ export async function refreshSiteSession(): Promise<boolean> {
         });
         if (r.status === 401) {
           await axios.post("/api/auth/logout", {}, { withCredentials: true, validateStatus: () => true }).catch(() => undefined);
-          window.location.assign("/login");
+          if (window.location.pathname !== "/login") {
+            window.location.assign("/login");
+          }
           return false;
         }
         if (r.status >= 200 && r.status < 300) return true;

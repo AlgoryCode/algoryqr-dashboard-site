@@ -32,6 +32,8 @@ import { useAccessSession } from "@/hooks/use-commerce";
 import {
   DASHBOARD_FILTER_FIELD,
   DASHBOARD_FILTER_LABEL,
+  DASHBOARD_METRIC_LABEL,
+  DASHBOARD_METRIC_VALUE,
   DASHBOARD_PANEL,
   DASHBOARD_STAT_TILE,
 } from "@/lib/dashboard-surface";
@@ -377,8 +379,8 @@ function AccountingViewContent() {
       <div className="grid gap-4 sm:grid-cols-3">
         {summaryCards.map((card) => (
           <div key={card.label} className={DASHBOARD_STAT_TILE}>
-            <p className="text-xs text-muted-foreground">{card.label}</p>
-            <p className="mt-1 text-xl font-semibold">{card.value}</p>
+            <p className={DASHBOARD_METRIC_LABEL}>{card.label}</p>
+            <p className={DASHBOARD_METRIC_VALUE}>{card.value}</p>
           </div>
         ))}
       </div>

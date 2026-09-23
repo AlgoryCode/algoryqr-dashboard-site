@@ -37,7 +37,13 @@ export const DASHBOARD_FILTER_FIELD = "flex min-w-0 flex-col gap-2";
 export const DASHBOARD_FILTER_LABEL = "text-xs leading-4 text-muted-foreground";
 
 export const DASHBOARD_STAT_TILE =
-  `${DASHBOARD_SURFACE} p-3 text-left transition-colors hover:bg-muted/50`;
+  "rounded-[20px] border border-black/[0.04] bg-white p-5 text-left shadow-[0_8px_24px_rgba(15,23,42,0.05)] dark:border-border dark:bg-card";
+
+export const DASHBOARD_METRIC_LABEL =
+  "text-[13px] font-light leading-none text-neutral-500 dark:text-muted-foreground";
+
+export const DASHBOARD_METRIC_VALUE =
+  "mt-1.5 text-[1.75rem] font-semibold leading-none tracking-tight tabular-nums text-neutral-950 dark:text-foreground";
 
 export const DASHBOARD_ICON_WELL =
   "flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-lg font-medium text-muted-foreground";
@@ -52,4 +58,4 @@ export const DASHBOARD_TYPE_SECTION = "text-base font-semibold text-foreground";
 export const DASHBOARD_TYPE_HINT = "text-sm text-muted-foreground";
 export const DASHBOARD_TYPE_TILE = "text-sm font-medium text-foreground";
 export const DASHBOARD_TYPE_META = "text-xs text-muted-foreground";
-export const DASHBOARD_TYPE_KPI = "text-3xl font-semibold tracking-tight text-foreground";
+export const DASHBOARD_TYPE_KPI = DASHBOARD_METRIC_VALUE;

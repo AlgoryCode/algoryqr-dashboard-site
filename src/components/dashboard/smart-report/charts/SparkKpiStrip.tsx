@@ -1,20 +1,11 @@
 "use client";
 
-import { CreditCard, DollarSign, RotateCcw, UserPlus, Users, type LucideIcon } from "lucide-react";
-
 import { Card, CardContent } from "@/components/ui/card";
+import { DASHBOARD_METRIC_LABEL, DASHBOARD_METRIC_VALUE, DASHBOARD_STAT_TILE } from "@/lib/dashboard-surface";
 
 import type { SparkKpi } from "../shadcn-spark";
 import { MiniLineSpark } from "./FadeLineSpark";
 import { DeltaText } from "./DeltaPill";
-
-const ICONS: Record<SparkKpi["icon"], LucideIcon> = {
-  users: Users,
-  userPlus: UserPlus,
-  repeat: RotateCcw,
-  wallet: DollarSign,
-  card: CreditCard,
-};
 
 export function SparkKpiStrip({ items }: { items: SparkKpi[] }) {
   return (
@@ -41,16 +32,12 @@ function SplitList({ splits }: { splits?: SparkKpi["splits"] }) {
 }
 
 function SparkKpiCard({ item }: { item: SparkKpi }) {
-  const Icon = ICONS[item.icon];
   return (
-    <Card className="overflow-hidden rounded-2xl">
-      <CardContent className="space-y-3 p-4">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Icon className="h-4 w-4 shrink-0" />
-          <span className="truncate">{item.title}</span>
-        </div>
+    <Card className={DASHBOARD_STAT_TILE}>
+      <CardContent className="space-y-3 p-0">
         <div className="min-w-0">
-          <p className="truncate text-2xl font-semibold tabular-nums tracking-tight">{item.value}</p>
+          <p className={DASHBOARD_METRIC_LABEL}>{item.title}</p>
+          <p className={`truncate ${DASHBOARD_METRIC_VALUE}`}>{item.value}</p>
           <DeltaText value={item.delta} />
         </div>
         <MiniLineSpark values={item.series} className="-mx-1 h-12 w-[calc(100%+0.5rem)]" />

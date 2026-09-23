@@ -11,6 +11,7 @@ import {
   useDigitalMenuSelection,
 } from "@/components/dashboard/menu/DigitalMenuPicker";
 import ProductNutritionPanel from "@/components/dashboard/menu/ProductNutritionPanel";
+import { ProductRecipePanel } from "@/components/dashboard/menu/ProductRecipePanel";
 import { ProductImageField } from "@/components/dashboard/menu/ProductImageField";
 import {
   ProductPairingFields,
@@ -610,6 +611,7 @@ export default function DigitalMenuProductDetailView({ productId }: DigitalMenuP
                 nutrition={product.nutrition}
                 onSaved={handleNutritionSaved}
               />
+              <ProductRecipePanel productId={product.productId} />
             </div>
           </div>
         )}

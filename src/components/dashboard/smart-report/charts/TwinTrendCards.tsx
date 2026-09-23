@@ -3,6 +3,8 @@
 import { Line, LineChart, XAxis } from "recharts";
 
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { DASHBOARD_METRIC_LABEL, DASHBOARD_METRIC_VALUE, DASHBOARD_STAT_TILE } from "@/lib/dashboard-surface";
+import { cn } from "@/lib/utils";
 import {
   ChartContainer,
   ChartTooltip,
@@ -34,15 +36,15 @@ export function TwinTrendCards({
 
 function TwinCard({ series }: { series: TwinSeries }) {
   return (
-    <Card className="overflow-hidden rounded-2xl">
-      <CardHeader className="space-y-2 p-5 pb-2">
-        <p className="text-sm text-muted-foreground">{series.title}</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-2xl font-semibold tabular-nums tracking-tight">{series.value}</p>
+    <Card className={DASHBOARD_STAT_TILE}>
+      <CardHeader className="space-y-0 p-0 pb-2">
+        <p className={DASHBOARD_METRIC_LABEL}>{series.title}</p>
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          <p className={cn(DASHBOARD_METRIC_VALUE, "mt-0")}>{series.value}</p>
           <DeltaPill value={series.delta} />
         </div>
       </CardHeader>
-      <CardContent className="p-5 pt-1">
+      <CardContent className="p-0 pt-1">
         <ChartContainer
           config={CONFIG}
           className="aspect-auto h-[88px] w-full min-w-0 [&_.recharts-responsive-container]:h-full [&_.recharts-responsive-container]:w-full"

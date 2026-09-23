@@ -1,6 +1,6 @@
 # AlgoryQR Dashboard
 
-Port: **3001**
+Port: **3000**
 
 ```bash
 cp .env.example .env.local
