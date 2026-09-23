@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ACCOUNT_CARD,
+  ACCOUNT_PAGE_FRAME,
   DASHBOARD_HUB_GRID,
   DASHBOARD_SURFACE,
   DASHBOARD_TILE_SQUARE,
@@ -21,6 +23,10 @@ describe("dashboard-surface", () => {
     expect(DASHBOARD_SURFACE).toContain("border-border");
     expect(DASHBOARD_SURFACE).toContain("bg-card");
     expect(DASHBOARD_HUB_GRID).toContain("grid-cols-2");
+    expect(ACCOUNT_PAGE_FRAME).toContain("border-[#ececea]");
+    expect(ACCOUNT_PAGE_FRAME).toContain("bg-white");
+    expect(ACCOUNT_CARD).toContain("shadow-[0_6px_16px_rgba(0,0,0,0.08)]");
+    expect(ACCOUNT_CARD).toContain("border-[#ececea]");
   });
 
   it("keeps the closed type scale", () => {

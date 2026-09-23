@@ -12,7 +12,7 @@ export async function resolvePostAuthDashboardPathWithAccessToken(
   returnPath: string | null | undefined,
 ): Promise<string> {
   try {
-    const response = await axios.get(`${API_BASE_URL}/access/session`, {
+    const response = await axios.get(`${API_BASE_URL}/access/context`, {
       headers: {
         Accept: "application/json",
         Authorization: `Bearer ${accessToken}`,

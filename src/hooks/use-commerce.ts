@@ -7,14 +7,14 @@ import type {
   BinInstallmentOption,
   PaymentMethod,
 } from "@/lib/commerce";
-import type { AccessSession } from "@/lib/access-session-gate";
 import { parseAccessSession } from "@/lib/access-session-gate";
+import { useSessionContext, SESSION_CONTEXT_QUERY_KEY } from "@/hooks/use-session-context";
 import type { PlanPackageApiItem } from "@/lib/api";
 import { getSiteSameOriginAxios } from "@/lib/site-same-origin-axios";
 
 export const BILLING_ADDRESSES_QUERY_KEY = ["billingAddresses"] as const;
 export const PAYMENT_METHODS_QUERY_KEY = ["paymentMethods"] as const;
-export const ACCESS_SESSION_QUERY_KEY = ["accessSession"] as const;
+export const ACCESS_SESSION_QUERY_KEY = SESSION_CONTEXT_QUERY_KEY;
 export const ONBOARDING_PACKAGE_QUERY_KEY = ["onboardingPackage"] as const;
 
 function listFromPayload<TEntity>(payload: unknown, keys: string[]): TEntity[] {
@@ -65,16 +65,7 @@ export function usePaymentMethods(options?: {
 }
 
 export function useAccessSession(enabled = true) {
-  return useQuery({
-    queryKey: ACCESS_SESSION_QUERY_KEY,
-    queryFn: async () => {
-      const response = await getSiteSameOriginAxios().get("/access/session");
-      return parseAccessSession(response.data) satisfies AccessSession | null;
-    },
-    enabled,
-    staleTime: 15_000,
-    retry: 1,
-  });
+  return useSessionContext(enabled);
 }
 
 export function useEligibleTrialPackages(enabled = true) {

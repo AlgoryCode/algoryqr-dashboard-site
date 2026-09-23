@@ -221,28 +221,43 @@ export function normalizeProductScope(value: string): ProductScope | null {
   return isProductScope(value) ? value : null;
 }
 
-export function getAccessProfileFromToken(token?: string | null): AccessProfile {
-  const payload = token ? parseJwtPayload(token) : null;
-  if (!payload) {
-    return { activePackage: null, products: [], scopes: [], roles: [], provider: null };
-  }
-  const products = readStringArray(payload.products)
+export function toAccessProfile(input: {
+  packageCode: string | null;
+  products: readonly string[];
+  scopes: readonly string[];
+  roles: readonly string[];
+  provider: unknown;
+}): AccessProfile {
+  const products = input.products
     .map(normalizeProductCode)
     .filter((item): item is ProductCode => item != null);
-  const activePackageRaw =
-    typeof payload.activePackage === "string" ? payload.activePackage : null;
+  const activePackageRaw = input.packageCode;
   return {
     activePackage:
       activePackageRaw && PACKAGE_CODES.has(activePackageRaw)
         ? (activePackageRaw as PackageCode)
         : null,
     products: [...new Set(products)],
-    scopes: readStringArray(payload.scopes)
+    scopes: input.scopes
       .map(normalizeProductScope)
       .filter((item): item is ProductScope => item != null),
-    roles: readStringArray(payload.roles),
-    provider: parseAuthProvider(payload.provider),
+    roles: [...input.roles],
+    provider: parseAuthProvider(input.provider),
   };
+}
+
+export function getAccessProfileFromToken(token?: string | null): AccessProfile {
+  const payload = token ? parseJwtPayload(token) : null;
+  if (!payload) {
+    return { activePackage: null, products: [], scopes: [], roles: [], provider: null };
+  }
+  return toAccessProfile({
+    packageCode: typeof payload.activePackage === "string" ? payload.activePackage : null,
+    products: readStringArray(payload.products),
+    scopes: readStringArray(payload.scopes),
+    roles: readStringArray(payload.roles),
+    provider: payload.provider,
+  });
 }
 
 export function isGoogleAuthProvider(provider: AuthProvider | null | undefined): boolean {

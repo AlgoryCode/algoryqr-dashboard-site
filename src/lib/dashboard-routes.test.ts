@@ -7,6 +7,7 @@ import {
   isIntegrationsSectionActive,
   isOnlineOrderSectionActive,
   isRestaurantLayoutPath,
+  parseBranchDetailId,
   parseBranchSettingsId,
   parseRestaurantLayoutBranchId,
   splitMobileDashboardNav,
@@ -36,6 +37,10 @@ describe("restaurant layout under branch settings", () => {
   });
 
   it("parses branch settings vs nested layout paths", () => {
+    expect(DASHBOARD_ROUTES.branchDetail(16)).toBe("/dashboard/dijital-menu/subeler/16");
+    expect(parseBranchDetailId("/dashboard/dijital-menu/subeler/16")).toBe(16);
+    expect(parseBranchDetailId("/dashboard/dijital-menu/subeler/16/ayarlar")).toBe(null);
+    expect(parseBranchDetailId("/dashboard/dijital-menu/subeler/yeni")).toBe(null);
     expect(parseBranchSettingsId("/dashboard/dijital-menu/subeler/16/ayarlar")).toBe(16);
     expect(parseBranchSettingsId("/dashboard/dijital-menu/subeler/16/ayarlar/restoran-duzeni")).toBe(
       null,

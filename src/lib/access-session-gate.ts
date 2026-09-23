@@ -1,5 +1,4 @@
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
-import { getSiteSameOriginAxios } from "@/lib/site-same-origin-axios";
 
 export type AccessDecision =
   | "START_PACKAGE"
@@ -83,21 +82,3 @@ export function parseAccessSession(payload: unknown): AccessSession | null {
   };
 }
 
-export async function fetchAccessSessionClient(): Promise<AccessSession | null> {
-  try {
-    const response = await getSiteSameOriginAxios().get("/access/session");
-    return parseAccessSession(response.data);
-  } catch {
-    return null;
-  }
-}
-
-export async function resolvePostAuthDashboardPath(
-  returnPath: string | null | undefined,
-): Promise<string> {
-  const session = await fetchAccessSessionClient();
-  if (!session) {
-    return returnPath ?? DASHBOARD_ROUTES.root;
-  }
-  return destinationForDecision(session.decision, returnPath);
-}

@@ -4,6 +4,15 @@ export const DASHBOARD_CONTENT =
 export const DASHBOARD_SURFACE =
   "rounded-3xl border border-border bg-card shadow-none";
 
+export const ACCOUNT_PAGE_FRAME =
+  "border border-[#ececea] bg-white text-zinc-950 [--background:0_0%_100%] [--foreground:221_39%_11%] [--card:0_0%_100%] [--card-foreground:221_39%_11%] [--muted:220_14%_96%] [--muted-foreground:220_9%_46%] [--border:60_5%_92%] [--popover:0_0%_100%] [--popover-foreground:221_39%_11%]";
+
+export const ACCOUNT_CARD =
+  "rounded-2xl border border-[#ececea] bg-white shadow-[0_6px_16px_rgba(0,0,0,0.08)]";
+
+export const ACCOUNT_SURFACE =
+  "rounded-3xl border border-[#ececea] bg-white shadow-[0_6px_16px_rgba(0,0,0,0.08)]";
+
 export const DASHBOARD_TILE =
   `${DASHBOARD_SURFACE} p-4 transition-colors hover:bg-muted/40`;
 

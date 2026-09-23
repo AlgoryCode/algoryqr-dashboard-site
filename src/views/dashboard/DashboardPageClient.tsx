@@ -15,6 +15,7 @@ import { useDashboardBanners } from "@/contexts/dashboard-banners";
 import { prefetchActivePackages } from "@/hooks/use-subscription";
 import {
   DASHBOARD_ROUTES,
+  parseBranchDetailId,
   parseBranchSettingsId,
   parseRestaurantLayoutBranchId,
 } from "@/lib/dashboard-routes";
@@ -25,6 +26,7 @@ import AccountSessionsView from "@/views/dashboard/AccountSessionsView";
 import AccountSessionsDetailView from "@/views/dashboard/AccountSessionsDetailView";
 import BillingAddressesView from "@/views/dashboard/BillingAddressesView";
 import BranchCreateView from "@/views/dashboard/BranchCreateView";
+import BranchDetailView from "@/views/dashboard/BranchDetailView";
 import BranchSettingsView from "@/views/dashboard/BranchSettingsView";
 import DigitalMenuView from "@/views/dashboard/DigitalMenuView";
 import DigitalMenuMenusView from "@/views/dashboard/DigitalMenuMenusView";
@@ -187,6 +189,7 @@ export default function DashboardPageClient({ initialUser = null }: DashboardPag
     return code === "QR_BRANCH" || code === "QR_MENU" ? code : null;
   }, [pathname]);
 
+  const branchDetailId = useMemo(() => parseBranchDetailId(pathname), [pathname]);
   const branchSettingsId = useMemo(() => parseBranchSettingsId(pathname), [pathname]);
   const restaurantLayoutBranchId = useMemo(
     () => parseRestaurantLayoutBranchId(pathname),
@@ -489,6 +492,10 @@ export default function DashboardPageClient({ initialUser = null }: DashboardPag
 
   if (pathname === DASHBOARD_ROUTES.branchCreate) {
     return <BranchCreateView />;
+  }
+
+  if (branchDetailId != null) {
+    return <BranchDetailView branchId={branchDetailId} />;
   }
 
   if (branchSettingsId != null) {

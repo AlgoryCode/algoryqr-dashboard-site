@@ -44,6 +44,7 @@ export const DASHBOARD_ROUTES = {
   digitalMenuCreateForBranch: (branchId: number | string) =>
     `/dashboard/dijital-menu/olustur?branch=${branchId}`,
   branchCreate: "/dashboard/dijital-menu/subeler/yeni",
+  branchDetail: (branchId: number | string) => `/dashboard/dijital-menu/subeler/${branchId}`,
   branchSettings: (branchId: number | string) =>
     `/dashboard/dijital-menu/subeler/${branchId}/ayarlar`,
   catalogProductCheckout: (code: string) =>
@@ -523,6 +524,10 @@ export function buildDashboardBreadcrumbs(
       crumbs.push({ label: "Şube oluştur" });
       return crumbs;
     }
+    if (parseBranchDetailId(pathname) != null) {
+      crumbs.push({ label: currentLabel ?? "Şube" });
+      return crumbs;
+    }
     if (pathname.startsWith(`${DASHBOARD_ROUTES.digitalMenu}/subeler/`)) {
       crumbs.push({ label: currentLabel ?? "Şube ayarları" });
       return crumbs;
@@ -698,6 +703,14 @@ function parsePositiveId(value: string | undefined): number | null {
   if (!value) return null;
   const id = Number(value);
   return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
+export function parseBranchDetailId(pathname: string): number | null {
+  const prefix = `${DASHBOARD_ROUTES.digitalMenu}/subeler/`;
+  if (!pathname.startsWith(prefix)) return null;
+  const rest = pathname.slice(prefix.length);
+  if (!rest || rest.includes("/")) return null;
+  return parsePositiveId(rest);
 }
 
 export function parseBranchSettingsId(pathname: string): number | null {

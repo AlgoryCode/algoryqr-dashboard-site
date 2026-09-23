@@ -62,7 +62,7 @@ import {
   isDashboardNavActive,
   type DashboardNavKey,
 } from "@/lib/dashboard-routes";
-import { DASHBOARD_CONTENT } from "@/lib/dashboard-surface";
+import { ACCOUNT_PAGE_FRAME, DASHBOARD_CONTENT } from "@/lib/dashboard-surface";
 import { hasScope } from "@/lib/auth-user";
 import type { StoredUser } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -128,6 +128,7 @@ function DashboardShellInner({ children }: DashboardShellProps) {
     waiterPanel === "uber-eats" ||
     waiterPanel === "integrations";
   const isOnlineBoard = pathname === DASHBOARD_ROUTES.onlineOrderOrders || waiterPanel === "online";
+  const isAccountPage = pathname.startsWith(DASHBOARD_ROUTES.account);
   const { banners, addBanner, removeBanner } = useDashboardBannerState();
   const [portalReady, setPortalReady] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -159,21 +160,10 @@ function DashboardShellInner({ children }: DashboardShellProps) {
     () => getVisibleDashboardNavGroups(menuNavItems),
     [menuNavItems],
   );
-  const activeGroupId = useMemo(() => {
-    const match = visibleNavGroups.find(
-      ({ group, items }) =>
-        group.label && items.some((item) => isDashboardNavActive(pathname, item.href)),
-    );
-    return match?.group.id ?? null;
-  }, [pathname, visibleNavGroups]);
   const [openGroupIds, setOpenGroupIds] = useState<Record<string, boolean>>({});
-  const isGroupOpen = (groupId: string) =>
-    openGroupIds[groupId] !== undefined ? openGroupIds[groupId] : groupId === activeGroupId;
+  const isGroupOpen = (groupId: string) => openGroupIds[groupId] ?? true;
   const toggleGroup = (groupId: string) => {
-    setOpenGroupIds((prev) => {
-      const currentlyOpen = prev[groupId] !== undefined ? prev[groupId] : groupId === activeGroupId;
-      return { ...prev, [groupId]: !currentlyOpen };
-    });
+    setOpenGroupIds((prev) => ({ ...prev, [groupId]: !(prev[groupId] ?? true) }));
   };
   const showPendingBadge = hasScope(accessProfile, "WAITER_PANEL_OWNER");
   const { count: pendingOrderCount } = usePendingOrderCount(showPendingBadge);
@@ -378,7 +368,12 @@ function DashboardShellInner({ children }: DashboardShellProps) {
           </div>
         </aside>
 
-        <main className="relative min-h-0 flex-1 overflow-y-auto bg-background pb-20 lg:pb-0">
+        <main
+          className={cn(
+            "relative min-h-0 flex-1 overflow-y-auto bg-background pb-20 lg:pb-0",
+            isAccountPage && `m-3 rounded-3xl ${ACCOUNT_PAGE_FRAME}`,
+          )}
+        >
           <header className="flex items-center justify-between border-b border-border bg-card px-4 py-3 lg:hidden">
             <Link href={DASHBOARD_ROUTES.overview} className="flex items-center gap-2">
               <BrandLogo size="md" />

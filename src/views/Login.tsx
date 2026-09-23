@@ -18,7 +18,8 @@ import {
   buildRegisterTrialUrl,
   resolveSafeReturnUrl,
 } from "@/lib/trial-flow";
-import { resolvePostAuthDashboardPath } from "@/lib/access-session-gate";
+import { fetchSessionContextClient, pathForSession } from "@/lib/session-context";
+import { SESSION_CONTEXT_QUERY_KEY } from "@/hooks/use-session-context";
 import {
   clearPendingVerificationEmail,
   isVerifyIntent,
@@ -53,8 +54,11 @@ const Login = () => {
     : "/register";
 
   const redirectAfterAuth = async () => {
-    const path = await resolvePostAuthDashboardPath(returnPath);
-    router.push(path);
+    const session = await fetchSessionContextClient();
+    if (session) {
+      queryClient.setQueryData(SESSION_CONTEXT_QUERY_KEY, session);
+    }
+    router.push(pathForSession(session, returnPath));
     router.refresh();
   };
 

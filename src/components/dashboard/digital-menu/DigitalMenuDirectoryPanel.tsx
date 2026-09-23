@@ -184,7 +184,10 @@ export function DigitalMenuDirectoryPanel() {
                 className="overflow-hidden rounded-2xl border border-[#e5e7eb] bg-white dark:border-border dark:bg-card"
               >
                 <div className="flex flex-col gap-3 border-b border-border/70 bg-muted/30 px-3 py-3 sm:flex-row sm:items-center">
-                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <Link
+                    href={DASHBOARD_ROUTES.branchDetail(branch.id)}
+                    className="flex min-w-0 flex-1 items-center gap-3"
+                  >
                     {branch.photoUrl ? (
                       <img
                         src={branch.photoUrl}
@@ -215,7 +218,7 @@ export function DigitalMenuDirectoryPanel() {
                         <p className="truncate text-xs text-muted-foreground">{branch.address}</p>
                       ) : null}
                     </div>
-                  </div>
+                  </Link>
                   <div className="flex shrink-0 items-center gap-2">
                     <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
                       <Link href={DASHBOARD_ROUTES.branchSettings(branch.id)}>

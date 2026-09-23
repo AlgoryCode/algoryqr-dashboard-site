@@ -1,0 +1,114 @@
+import { destinationForDecision, parseAccessSession, type AccessSession } from "@/lib/access-session-gate";
+import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
+import { getSiteSameOriginAxios } from "@/lib/site-same-origin-axios";
+
+export type SessionUser = {
+  userId: number;
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+  phoneNumber: string | null;
+  provider: string | null;
+  role: string | null;
+};
+
+export type SessionEntitlement = {
+  featureCode: string;
+  scopeCode: string | null;
+  quantity: number | null;
+  unlimited: boolean;
+  usedQuantity: number | null;
+  source: string | null;
+};
+
+export type SessionContext = AccessSession & {
+  user: SessionUser;
+  packageName: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  products: string[];
+  scopes: string[];
+  entitlements: SessionEntitlement[];
+};
+
+export function parseSessionContext(payload: unknown): SessionContext | null {
+  const session = parseAccessSession(payload);
+  if (!session || !payload || typeof payload !== "object") return null;
+  const record = payload as Record<string, unknown>;
+  const user = parseUser(record.user);
+  if (!user) return null;
+  return {
+    ...session,
+    user,
+    packageName: stringOrNull(record.packageName),
+    periodStart: stringOrNull(record.periodStart),
+    periodEnd: stringOrNull(record.periodEnd),
+    products: stringArray(record.products),
+    scopes: stringArray(record.scopes),
+    entitlements: parseEntitlements(record.entitlements),
+  };
+}
+
+export async function fetchSessionContextClient(): Promise<SessionContext | null> {
+  try {
+    const response = await getSiteSameOriginAxios().get("/access/context");
+    return parseSessionContext(response.data);
+  } catch {
+    return null;
+  }
+}
+
+export function pathForSession(
+  session: Pick<AccessSession, "decision"> | null,
+  returnPath: string | null | undefined,
+): string {
+  if (!session) {
+    return returnPath ?? DASHBOARD_ROUTES.root;
+  }
+  return destinationForDecision(session.decision, returnPath);
+}
+
+function parseUser(value: unknown): SessionUser | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  if (typeof record.userId !== "number" || typeof record.email !== "string") return null;
+  return {
+    userId: record.userId,
+    firstName: stringOrNull(record.firstName),
+    lastName: stringOrNull(record.lastName),
+    email: record.email,
+    phoneNumber: stringOrNull(record.phoneNumber),
+    provider: stringOrNull(record.provider),
+    role: stringOrNull(record.role),
+  };
+}
+
+function parseEntitlements(value: unknown): SessionEntitlement[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const record = item as Record<string, unknown>;
+    if (typeof record.featureCode !== "string") return [];
+    return [{
+      featureCode: record.featureCode,
+      scopeCode: stringOrNull(record.scopeCode),
+      quantity: numberOrNull(record.quantity),
+      unlimited: record.unlimited === true,
+      usedQuantity: numberOrNull(record.usedQuantity),
+      source: stringOrNull(record.source),
+    }];
+  });
+}
+
+function stringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function numberOrNull(value: unknown): number | null {
+  return typeof value === "number" ? value : null;
+}

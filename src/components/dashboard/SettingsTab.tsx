@@ -15,16 +15,12 @@ import { invalidateMyProfile, useMyProfile, MY_PROFILE_QUERY_KEY } from "@/hooks
 import { useAccessProfile } from "@/hooks/use-access-profile";
 import type { MyProfile } from "@/hooks/use-my-profile";
 import {
-  User, Shield, Bell, ArrowLeft,
+  ArrowLeft,
   Check, Camera, Key, Lock, Smartphone, Mail,
-  RefreshCw, LogOut, Timer, Copy, CreditCard,
-  WalletCards, MapPin, History, Monitor, Clock3,
-  UtensilsCrossed,
+  RefreshCw, LogOut, Timer, Copy, Monitor, Clock3,
 } from "lucide-react";
-import { DashboardHubTile } from "@/components/dashboard/DashboardHubTile";
-import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { PrintAgentApiKeySection } from "@/components/dashboard/PrintAgentApiKeySection";
-import { DASHBOARD_BACK, DASHBOARD_HUB_GRID, DASHBOARD_ICON_WELL, DASHBOARD_SURFACE, DASHBOARD_TILE, DASHBOARD_TILE_ROW } from "@/lib/dashboard-surface";
+import { ACCOUNT_CARD, ACCOUNT_SURFACE, DASHBOARD_BACK } from "@/lib/dashboard-surface";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { authService, type TwoFactorSetupPayload } from "@/lib/auth-service";
 import { copyTextToClipboard } from "@/components/dashboard/qr/qr-actions";
@@ -65,6 +61,9 @@ interface SettingsTabProps {
 }
 
 const PREVIEW_SESSION_LIMIT = 50;
+const ACCOUNT_MENU_LABEL = "px-1 text-[11px] font-medium uppercase tracking-[0.16em] text-[#8a8a86]";
+const ACCOUNT_MENU_ROW =
+  "flex w-full items-center px-4 py-3.5 text-left text-sm font-medium text-zinc-900 transition-colors hover:bg-[#fafafa]";
 
 function formatCountdown(expiresAt: number): string {
   const now = Math.floor(Date.now() / 1000);
@@ -509,28 +508,71 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
     const trialDays = active?.daysUntilExpiry;
     const trialUrgent = typeof trialDays === "number" && trialDays <= 3;
 
+    const storedUser = getStoredUser();
+    const firstNameLabel = myProfile?.firstName || storedUser?.first_name || "";
+    const lastNameLabel = myProfile?.lastName || storedUser?.last_name || "";
+    const displayName = [firstNameLabel, lastNameLabel].filter(Boolean).join(" ") || "Hesap";
+    const displayEmail = myProfile?.email || storedUser?.email || "";
+    const initials = `${firstNameLabel.charAt(0)}${lastNameLabel.charAt(0)}`.trim().toUpperCase();
+    const openMenu = (key: SettingsMenuKey) => {
+      const routes: Partial<Record<SettingsMenuKey, string>> = {
+        subscription: DASHBOARD_ROUTES.accountSubscription,
+        paymentHistory: DASHBOARD_ROUTES.accountPaymentHistory,
+        paymentMethods: DASHBOARD_ROUTES.accountPaymentMethods,
+        billingAddresses: DASHBOARD_ROUTES.accountBillingAddresses,
+        security: DASHBOARD_ROUTES.accountSecurity,
+      };
+      const href = routes[key];
+      if (href) {
+        router.push(href);
+        return;
+      }
+      setPage(key as SettingsPage);
+    };
+    const hesapItems: { title: string; key: SettingsMenuKey }[] = [
+      { title: "Profil", key: "profile" },
+      { title: "Güvenlik", key: "security" },
+      { title: "Abonelik", key: "subscription" },
+      { title: "Ödeme geçmişi", key: "paymentHistory" },
+      { title: "Kayıtlı kartlarım", key: "paymentMethods" },
+      { title: "Fatura adreslerim", key: "billingAddresses" },
+      { title: "Oturum", key: "session" },
+    ];
+    const preferenceItems: { title: string; onClick: () => void }[] = [
+      { title: "Bildirimler", onClick: () => setPage("notifications") },
+    ];
+    if (hasScope(accessProfile, "WAITER_PANEL_OWNER")) {
+      preferenceItems.push({
+        title: "Ekip & roller",
+        onClick: () => router.push(DASHBOARD_ROUTES.menuUsers),
+      });
+    }
+    if (hasScope(accessProfile, "QR_MENU_OWNER")) {
+      preferenceItems.push({
+        title: "Entegrasyonlar",
+        onClick: () => router.push(DASHBOARD_ROUTES.integrations),
+      });
+    }
+
     return (
-      <div className="space-y-6 animate-fade-in">
-        <DashboardPageHeader title="Hesabım" hint="Abonelik, güvenlik ve profil ayarları" />
-        {hasScope(accessProfile, "QR_MENU_OWNER") ? (
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
-              Entegrasyonlar
-            </p>
-            <Link href={DASHBOARD_ROUTES.integrations} className={DASHBOARD_TILE_ROW}>
-              <span className={`${DASHBOARD_ICON_WELL} h-9 w-9`}>
-                <UtensilsCrossed className="h-4 w-4" strokeWidth={1.75} />
-              </span>
-              <span className="min-w-0 flex-1 text-sm font-medium text-foreground">Entegrasyonlar</span>
-            </Link>
+      <div className="mx-auto w-full max-w-lg space-y-8 animate-fade-in">
+        <div className="flex items-center gap-4 px-1">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#f3f3f1] text-sm font-semibold text-zinc-700">
+            {myProfileLoading ? "…" : initials || "•"}
           </div>
-        ) : null}
+          <div className="min-w-0">
+            <p className="truncate text-base font-semibold text-zinc-950">{displayName}</p>
+            {displayEmail ? (
+              <p className="truncate text-sm text-zinc-500">{displayEmail}</p>
+            ) : null}
+          </div>
+        </div>
         {isActiveTrial && active ? (
           <button
             type="button"
             className={cn(
-              DASHBOARD_TILE,
-              "flex w-full items-center justify-between gap-3 text-left",
+              ACCOUNT_CARD,
+              "flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left",
               trialUrgent ? "border-amber-300/80" : "border-emerald-300/80",
             )}
             onClick={() => router.push(DASHBOARD_ROUTES.accountPackages)}
@@ -543,10 +585,10 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
                 )}
               />
               <div className="min-w-0">
-                <h3 className="text-sm font-medium text-foreground">
+                <h3 className="text-sm font-medium text-zinc-950">
                   {active.packageName} denemeniz aktif
                 </h3>
-                <p className="truncate text-xs font-normal text-muted-foreground">
+                <p className="truncate text-xs font-normal text-zinc-500">
                   {formatDaysUntilExpiry(trialDays)}
                   {active.expiresAt
                     ? ` · ${new Intl.DateTimeFormat("tr-TR", {
@@ -560,67 +602,51 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
             <span
               className={cn(
                 "shrink-0 text-xs font-medium",
-                trialUrgent ? "text-amber-700 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400",
+                trialUrgent ? "text-amber-700" : "text-emerald-700",
               )}
             >
               Pakete geç
             </span>
           </button>
         ) : null}
-        <div className={DASHBOARD_HUB_GRID}>
-          {([
-            { icon: CreditCard, title: "Abonelik", key: "subscription" },
-            { icon: History, title: "Ödeme geçmişi", key: "paymentHistory" },
-            { icon: WalletCards, title: "Kayıtlı Kartlarım", key: "paymentMethods" },
-            { icon: MapPin, title: "Fatura Adreslerim", key: "billingAddresses" },
-            { icon: Key, title: "Oturum / Token", key: "session" },
-            { icon: User, title: "Profil Bilgileri", key: "profile" },
-            { icon: Shield, title: "Güvenlik", key: "security" },
-            { icon: Bell, title: "Bildirimler", key: "notifications" },
-          ] as const satisfies ReadonlyArray<{ icon: typeof CreditCard; title: string; key: SettingsMenuKey }>).map((item) => (
-            <DashboardHubTile
-              key={item.title}
-              title={item.title}
-              icon={item.icon}
-              onClick={() => {
-                if (item.key === "subscription") {
-                  router.push(DASHBOARD_ROUTES.accountSubscription);
-                  return;
-                }
-                if (item.key === "paymentHistory") {
-                  router.push(DASHBOARD_ROUTES.accountPaymentHistory);
-                  return;
-                }
-                if (item.key === "paymentMethods") {
-                  router.push(DASHBOARD_ROUTES.accountPaymentMethods);
-                  return;
-                }
-                if (item.key === "billingAddresses") {
-                  router.push(DASHBOARD_ROUTES.accountBillingAddresses);
-                  return;
-                }
-                if (item.key === "security") {
-                  router.push(DASHBOARD_ROUTES.accountSecurity);
-                  return;
-                }
-                setPage(item.key as SettingsPage);
-              }}
-            />
-          ))}
-        </div>
-        <div className={`${DASHBOARD_TILE} flex items-center justify-between gap-3`}>
-          <h3 className="text-sm font-medium text-foreground">Çıkış Yap</h3>
-          <Button
-            variant="destructive"
-            size="sm"
-            className="h-8 shrink-0"
-            onClick={() => void handleLogout()}
-            disabled={logoutLoading}
-          >
-            <LogOut className="h-4 w-4 mr-2" />
-            {logoutLoading ? "Çıkış yapılıyor…" : "Çıkış Yap"}
-          </Button>
-        </div>
+        <section className="space-y-2">
+          <h2 className={ACCOUNT_MENU_LABEL}>Hesap</h2>
+          <div className={cn(ACCOUNT_CARD, "divide-y divide-[#ececea] overflow-hidden")}>
+            {hesapItems.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className={ACCOUNT_MENU_ROW}
+                onClick={() => openMenu(item.key)}
+              >
+                {item.title}
+              </button>
+            ))}
+          </div>
+        </section>
+        <section className="space-y-2">
+          <h2 className={ACCOUNT_MENU_LABEL}>Tercihler</h2>
+          <div className={cn(ACCOUNT_CARD, "divide-y divide-[#ececea] overflow-hidden")}>
+            {preferenceItems.map((item) => (
+              <button
+                key={item.title}
+                type="button"
+                className={ACCOUNT_MENU_ROW}
+                onClick={item.onClick}
+              >
+                {item.title}
+              </button>
+            ))}
+          </div>
+        </section>
+        <button
+          type="button"
+          className={cn(ACCOUNT_CARD, "w-full py-3.5 text-center text-sm font-medium text-[#a33b32] disabled:opacity-60")}
+          onClick={() => void handleLogout()}
+          disabled={logoutLoading}
+        >
+          {logoutLoading ? "Çıkış yapılıyor…" : "Çıkış yap"}
+        </button>
       </div>
     );
   }
@@ -636,7 +662,7 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
           </div>
         </div>
 
-        <Card className={DASHBOARD_SURFACE}>
+        <Card className={ACCOUNT_SURFACE}>
           <CardContent className="p-6 space-y-6">
             <div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
@@ -710,7 +736,7 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
           <p className="text-sm text-destructive">Profil yüklenemedi. Oturumunuzu kontrol edin.</p>
         ) : null}
 
-        <div className={`${DASHBOARD_SURFACE} p-6`}>
+        <div className={`${ACCOUNT_SURFACE} p-6`}>
           <div className="flex items-center gap-5">
             <div className="relative">
               <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center text-2xl font-bold text-muted-foreground">
@@ -737,7 +763,7 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
           </div>
         </div>
 
-        <div className={`${DASHBOARD_SURFACE} p-6 space-y-5`}>
+        <div className={`${ACCOUNT_SURFACE} p-6 space-y-5`}>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground">Ad</Label>
@@ -829,7 +855,7 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
         <PrintAgentApiKeySection userId={myProfile?.userId} onNotify={onNotify} />
 
         {!isGoogleAccount && (
-          <div className={`${DASHBOARD_SURFACE} p-6 space-y-5`}>
+          <div className={`${ACCOUNT_SURFACE} p-6 space-y-5`}>
             <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
               <Lock className="h-4 w-4 text-muted-foreground" /> Şifre Değiştir
             </h2>
@@ -850,7 +876,7 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
         )}
 
         <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
-          <div className={`${DASHBOARD_SURFACE} p-6 space-y-5`}>
+          <div className={`${ACCOUNT_SURFACE} p-6 space-y-5`}>
             <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
               <Smartphone className="h-4 w-4 text-muted-foreground" /> İki Faktörlü Doğrulama
             </h2>
@@ -1035,7 +1061,7 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
           <p className="text-sm text-destructive">Bildirim ayarları yüklenemedi.</p>
         ) : null}
 
-        <div className={`${DASHBOARD_SURFACE} p-6 space-y-5`}>
+        <div className={`${ACCOUNT_SURFACE} p-6 space-y-5`}>
           <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
             <Mail className="h-4 w-4 text-muted-foreground" /> E-posta Bildirimleri
           </h2>
@@ -1054,7 +1080,7 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
           ))}
         </div>
 
-        <div className={`${DASHBOARD_SURFACE} p-6 space-y-5`}>
+        <div className={`${ACCOUNT_SURFACE} p-6 space-y-5`}>
           <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
             <Monitor className="h-4 w-4 text-muted-foreground" /> Oturum Bildirimleri
           </h2>
