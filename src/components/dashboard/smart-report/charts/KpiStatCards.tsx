@@ -1,6 +1,7 @@
 "use client";
 
 import { Card, CardContent } from "@/components/ui/card";
+import { DASHBOARD_METRIC_LABEL, DASHBOARD_METRIC_VALUE, DASHBOARD_STAT_TILE } from "@/lib/dashboard-surface";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 
@@ -23,15 +24,13 @@ export function KpiStatCards({ items }: { items: KpiStat[] }) {
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       {items.map((item) => (
-        <Card key={item.id} className="overflow-hidden">
-          <CardContent className="space-y-2 p-4">
+        <Card key={item.id} className={DASHBOARD_STAT_TILE}>
+          <CardContent className="p-0">
             <div className="flex items-start justify-between gap-2">
-              <p className="text-xs text-muted-foreground">{item.label}</p>
+              <p className={DASHBOARD_METRIC_LABEL}>{item.label}</p>
               <TrendBadge value={item.trend} />
             </div>
-            <p className="text-xl font-semibold tabular-nums tracking-tight sm:text-2xl">
-              {item.value}
-            </p>
+            <p className={DASHBOARD_METRIC_VALUE}>{item.value}</p>
             {item.spark && item.spark.length >= 2 ? (
               <FadeLineSpark
                 values={item.spark}

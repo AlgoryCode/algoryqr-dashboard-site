@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
-import { DASHBOARD_STAT_TILE, DASHBOARD_SURFACE } from "@/lib/dashboard-surface";
+import { DASHBOARD_METRIC_LABEL, DASHBOARD_METRIC_VALUE, DASHBOARD_STAT_TILE, DASHBOARD_SURFACE } from "@/lib/dashboard-surface";
 import type { StoreOrderStatus, StoreOrderSummary } from "@/lib/store-api";
 import { STORE_DELIVERY_TYPE_LABEL, STORE_ORDER_STATUS_LABEL } from "@/lib/store-ui";
 import { cn } from "@/lib/utils";
@@ -65,8 +65,8 @@ export function StoreOrdersTable({
     <div className="space-y-4">
       <div className="flex flex-wrap items-stretch gap-3">
         <div className={cn(DASHBOARD_STAT_TILE, "w-fit min-w-[10.5rem] shrink-0")}>
-          <p className="text-xs text-muted-foreground">Siparişlerden kazanılan toplam</p>
-          <p className="mt-1 text-xl font-semibold tracking-tight tabular-nums">
+          <p className={DASHBOARD_METRIC_LABEL}>Siparişlerden kazanılan toplam</p>
+          <p className={DASHBOARD_METRIC_VALUE}>
             {formatMenuPrice(revenueTotal, currency)}
           </p>
         </div>

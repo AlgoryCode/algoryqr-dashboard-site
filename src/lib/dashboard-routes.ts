@@ -107,6 +107,8 @@ export const DASHBOARD_ROUTES = {
   reportsHub: "/dashboard/raporlar",
   orderPanel: "/dashboard/siparis-paneli",
   muhasebe: "/dashboard/muhasebe",
+  stock: "/dashboard/stok",
+  stockForBranch: (branchId: number | string) => `/dashboard/stok?branch=${branchId}`,
   waiter: "/dashboard/garson",
   waiterForQr: (qrId: number | string) =>
     `/dashboard/garson?qr=${qrId}`,
@@ -179,6 +181,7 @@ export type DashboardNavKey =
   | "uberEats"
   | "orderPanel"
   | "reservations"
+  | "stock"
   | "reports"
   | "accounting"
   | "menuUsers"
@@ -205,7 +208,7 @@ export type DashboardNavGroup = {
 
 export const DASHBOARD_NAV_GROUPS: DashboardNavGroup[] = [
   { id: "main", label: "", items: ["overview", "modules"] },
-  { id: "operations", label: "Operasyon", items: ["orderPanel", "reservations"] },
+  { id: "operations", label: "Operasyon", items: ["orderPanel", "reservations", "stock"] },
   { id: "menu", label: "Menü", items: ["digitalMenu", "campaigns", "qrCodes"] },
   { id: "integrations", label: "Entegrasyonlar", items: ["uberEats"] },
   { id: "reports", label: "Raporlar", items: ["reports"] },
@@ -271,6 +274,13 @@ export const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
     label: "Rezervasyonlar",
     mobileLabel: "Rezervasyon",
     href: DASHBOARD_ROUTES.reservations,
+    requiredScope: "QR_MENU_OWNER",
+  },
+  {
+    key: "stock",
+    label: "Stok",
+    mobileLabel: "Stok",
+    href: DASHBOARD_ROUTES.stock,
     requiredScope: "QR_MENU_OWNER",
   },
   {
@@ -546,6 +556,11 @@ export function buildDashboardBreadcrumbs(
 
   if (pathname === DASHBOARD_ROUTES.muhasebe) {
     crumbs.push({ label: "Muhasebe" });
+    return crumbs;
+  }
+
+  if (pathname === DASHBOARD_ROUTES.stock) {
+    crumbs.push({ label: "Stok" });
     return crumbs;
   }
 

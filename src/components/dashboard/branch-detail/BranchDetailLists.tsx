@@ -47,24 +47,6 @@ export function StaffList({ branchId, staff }: { branchId: number; staff: StaffR
   );
 }
 
-export function StockList({ menus }: { menus: MenuRow[] }) {
-  return (
-    <PanelList filled={menus.length > 0} empty="Bu şubeye bağlı menü yok. Stok, menü ürünlerinden takip edilir.">
-      {menus.map((menu) => (
-        <li key={menu.menuId} className="flex items-center justify-between gap-3 text-sm">
-          <span className="font-medium text-foreground">{menu.name}</span>
-          <Link
-            href={DASHBOARD_ROUTES.digitalMenuProductsForQr(menu.qrId)}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            Ürünler
-          </Link>
-        </li>
-      ))}
-    </PanelList>
-  );
-}
-
 export function ReviewList({ reviews }: { reviews: ReviewRow[] }) {
   return (
     <PanelList filled={reviews.length > 0} empty="Bu şube için yorum yok.">

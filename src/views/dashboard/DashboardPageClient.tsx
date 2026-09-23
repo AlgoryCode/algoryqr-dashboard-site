@@ -10,6 +10,7 @@ import PackagePurchaseView from "@/components/dashboard/PackagePurchaseView";
 import CartCheckoutView from "@/components/dashboard/CartCheckoutView";
 import ProductPurchaseView from "@/components/dashboard/ProductPurchaseView";
 import SettingsTab from "@/components/dashboard/SettingsTab";
+import StockView from "@/views/dashboard/StockView";
 import SubscriptionSection from "@/components/dashboard/SubscriptionSection";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
 import { prefetchActivePackages } from "@/hooks/use-subscription";
@@ -367,6 +368,14 @@ export default function DashboardPageClient({ initialUser = null }: DashboardPag
     return (
       <Suspense fallback={null}>
         <RestaurantLayoutView branchId={restaurantLayoutBranchId} />
+      </Suspense>
+    );
+  }
+
+  if (pathname === DASHBOARD_ROUTES.stock) {
+    return (
+      <Suspense fallback={null}>
+        <StockView />
       </Suspense>
     );
   }

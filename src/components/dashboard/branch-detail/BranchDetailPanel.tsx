@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { ChevronDown, FileText, Pencil, Store } from "lucide-react";
 
+import { BranchStockList } from "@/components/dashboard/branch-detail/BranchStockList";
 import {
   CompareList,
   ReviewList,
   StaffList,
-  StockList,
   type CompareRow,
   type MenuRow,
   type ReviewRow,
@@ -140,12 +140,12 @@ function BranchHeader({
   );
 }
 
-function BranchDetailBody({ tab, branchId, kpis, bars, compare, staff, reviews, menus }: BranchDetailPanelProps) {
+function BranchDetailBody({ tab, branchId, kpis, bars, compare, staff, reviews }: BranchDetailPanelProps) {
   switch (tab) {
     case "staff":
       return <StaffList branchId={branchId} staff={staff} />;
     case "stock":
-      return <StockList menus={menus} />;
+      return <BranchStockList branchId={branchId} />;
     case "reviews":
       return <ReviewList reviews={reviews} />;
     case "compare":

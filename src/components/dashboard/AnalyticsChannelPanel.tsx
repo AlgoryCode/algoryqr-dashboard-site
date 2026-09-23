@@ -21,8 +21,8 @@ import {
 
 import { formatMenuPrice } from "@/components/menu-templates/types";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
+import { DASHBOARD_METRIC_LABEL, DASHBOARD_METRIC_VALUE, DASHBOARD_STAT_TILE } from "@/lib/dashboard-surface";
 import type { RevenueChannelDailyPoint, RevenueChannelShare } from "@/lib/api";
-import { cn } from "@/lib/utils";
 
 import { REVENUE_COLORS, REVENUE_PIE_FILLS } from "./analyticsRevenueShared";
 
@@ -288,9 +288,9 @@ function KpiTile({
   hint?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-[#e5e7eb] bg-white p-4 dark:border-border dark:bg-card">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className={cn("mt-1 text-lg font-semibold tracking-tight text-foreground")}>{value}</p>
+    <div className={DASHBOARD_STAT_TILE}>
+      <p className={DASHBOARD_METRIC_LABEL}>{label}</p>
+      <p className={DASHBOARD_METRIC_VALUE}>{value}</p>
       {hint ? <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p> : null}
     </div>
   );

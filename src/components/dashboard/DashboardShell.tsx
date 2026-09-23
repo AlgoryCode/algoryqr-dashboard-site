@@ -29,6 +29,7 @@ import {
   UtensilsCrossed,
   CalendarDays,
   ChevronDown,
+  Warehouse,
 } from "lucide-react";
 
 import { DigitalMenuIcon } from "@/components/icons/DigitalMenuIcon";
@@ -74,6 +75,7 @@ const NAV_ICONS: Record<DashboardNavKey, ComponentType<{ className?: string }>> 
   uberEats: UtensilsCrossed,
   orderPanel: MonitorSmartphone,
   reservations: CalendarDays,
+  stock: Warehouse,
   reports: TrendingUp,
   accounting: Calculator,
   menuUsers: Users,

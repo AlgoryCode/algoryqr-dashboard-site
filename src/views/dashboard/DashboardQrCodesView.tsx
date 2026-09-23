@@ -52,7 +52,13 @@ import { useDashboardPageLabel } from "@/contexts/dashboard-page-label";
 import { useListQueryState } from "@/hooks/use-list-query-state";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { useQrCreateAccess } from "@/hooks/use-qr-create-access";
-import { DASHBOARD_BACK, DASHBOARD_SURFACE } from "@/lib/dashboard-surface";
+import {
+  DASHBOARD_BACK,
+  DASHBOARD_METRIC_LABEL,
+  DASHBOARD_METRIC_VALUE,
+  DASHBOARD_STAT_TILE,
+  DASHBOARD_SURFACE,
+} from "@/lib/dashboard-surface";
 
 const qrTypes = [
   { value: "link", label: "Link", icon: LinkIcon, desc: "Web sitesi veya URL" },
@@ -834,14 +840,13 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
                     <>
                       <div className="grid gap-4 sm:grid-cols-3">
                         {[
-                          { label: "Toplam Tarama", value: selectedQR.scans.toLocaleString(), icon: Eye },
-                          { label: "Oluşturulma", value: selectedQR.created, icon: Calendar },
-                          { label: "Tür", value: selectedQR.type, icon: QrCode },
+                          { label: "Toplam Tarama", value: selectedQR.scans.toLocaleString() },
+                          { label: "Oluşturulma", value: selectedQR.created },
+                          { label: "Tür", value: selectedQR.type },
                         ].map((s) => (
-                          <div key={s.label} className="rounded-2xl border border-[#e5e7eb] bg-white p-4 shadow-none dark:border-border dark:bg-card">
-                            <s.icon className="h-4 w-4 text-muted-foreground mb-2" />
-                            <p className="text-lg font-semibold text-foreground">{s.value}</p>
-                            <p className="text-xs text-muted-foreground">{s.label}</p>
+                          <div key={s.label} className={DASHBOARD_STAT_TILE}>
+                            <p className={DASHBOARD_METRIC_LABEL}>{s.label}</p>
+                            <p className={DASHBOARD_METRIC_VALUE}>{s.value}</p>
                           </div>
                         ))}
                       </div>

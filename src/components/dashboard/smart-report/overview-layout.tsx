@@ -1,14 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
-import { Eye, ShoppingBag, Users, Wallet } from "lucide-react";
-
 import type {
   MenuAnalyticsReportResponse,
   MenuRevenueReportResponse,
   MenuWaiterPerformanceReportResponse,
 } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
+import { DASHBOARD_METRIC_LABEL, DASHBOARD_METRIC_VALUE, DASHBOARD_STAT_TILE } from "@/lib/dashboard-surface";
 
 import { useBranchRevenueReport } from "@/hooks/use-branch-revenue-report";
 import { comparePeriodRange } from "@/reporting";
@@ -26,7 +25,6 @@ type OverviewMetric = {
   label: string;
   value: string;
   hint?: string;
-  icon: typeof Wallet;
 };
 
 export function OverviewPage({
@@ -62,16 +60,12 @@ export function OverviewPage({
 }
 
 function OverviewMetricCard({ item }: { item: OverviewMetric }) {
-  const Icon = item.icon;
   return (
-    <Card className="overflow-hidden rounded-2xl">
-      <CardContent className="space-y-3 p-4">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Icon className="h-4 w-4 shrink-0" />
-          <span className="truncate">{item.label}</span>
-        </div>
-        <p className="truncate text-2xl font-semibold tabular-nums tracking-tight">{item.value}</p>
-        {item.hint ? <p className="text-xs text-muted-foreground">{item.hint}</p> : null}
+    <Card className={DASHBOARD_STAT_TILE}>
+      <CardContent className="p-0">
+        <p className={DASHBOARD_METRIC_LABEL}>{item.label}</p>
+        <p className={`truncate ${DASHBOARD_METRIC_VALUE}`}>{item.value}</p>
+        {item.hint ? <p className="mt-2 text-xs font-light text-neutral-400">{item.hint}</p> : null}
       </CardContent>
     </Card>
   );
@@ -195,14 +189,12 @@ function buildOverviewMetrics({
         label: "Ciro",
         value: m(metrics.total),
         hint: `${metrics.orders.toLocaleString("tr-TR")} sipariş`,
-        icon: Wallet,
       },
       {
         id: "orders",
         label: "Sipariş",
         value: metrics.orders.toLocaleString("tr-TR"),
         hint: `Ort. sepet ${m(metrics.aov)}`,
-        icon: ShoppingBag,
       },
     );
   }
@@ -214,14 +206,12 @@ function buildOverviewMetrics({
         label: "Oturum",
         value: (visits.kpis.sessions ?? 0).toLocaleString("tr-TR"),
         hint: `${(visits.kpis.menuOpens ?? 0).toLocaleString("tr-TR")} menü açılış`,
-        icon: Users,
       },
       {
         id: "views",
         label: "Ürün görüntüleme",
         value: (visits.kpis.productViews ?? 0).toLocaleString("tr-TR"),
         hint: `Ort. ${(visits.kpis.avgProductsPerSession ?? 0).toLocaleString("tr-TR", { maximumFractionDigits: 1 })} / oturum`,
-        icon: Eye,
       },
     );
   }
@@ -233,7 +223,6 @@ function buildOverviewMetrics({
       label: "Bahşiş",
       value: m(staff.totalTip),
       hint: `${(waiter.waiters?.length ?? 0).toLocaleString("tr-TR")} personel`,
-      icon: Wallet,
     });
   }
 
