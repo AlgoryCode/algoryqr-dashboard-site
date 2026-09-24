@@ -16,6 +16,7 @@ import { useBranchRevenueReport } from "@/hooks/use-branch-revenue-report";
 import { useBranchWaiterPerformanceReport } from "@/hooks/use-branch-waiter-performance-report";
 import { useAccessProfile } from "@/hooks/use-access-profile";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
+import { DASHBOARD_BACK } from "@/lib/dashboard-surface";
 import { hasScope } from "@/lib/auth-user";
 import { SlidingTabSelect } from "@/components/ui/sliding-tab-select";
 import { listMenuUsers } from "@/lib/waiter-api";
@@ -129,8 +130,14 @@ export default function AnalyticsTab() {
     selection?.menu?.qrId != null
       ? DASHBOARD_ROUTES.digitalMenuEdit(selection.menu.qrId)
       : pathname === DASHBOARD_ROUTES.reportsHub
-        ? null
+        ? DASHBOARD_ROUTES.overview
         : DASHBOARD_ROUTES.reportsHub;
+  const backLabel =
+    selection?.menu?.qrId != null
+      ? "Menüye dön"
+      : pathname === DASHBOARD_ROUTES.reportsHub
+        ? "Genel bakışa dön"
+        : "Raporlara dön";
 
   useEffect(() => {
     setWaiterId(null);
@@ -161,14 +168,9 @@ export default function AnalyticsTab() {
     <div className="min-w-0 space-y-6 animate-fade-in">
       <div className="sticky top-0 z-10 flex flex-col gap-4 bg-background/95 py-1 backdrop-blur sm:flex-row sm:items-end sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
-          {backHref ? (
-            <Link
-              href={backHref}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          ) : null}
+          <Link href={backHref} aria-label={backLabel} className={DASHBOARD_BACK}>
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
           <div className="min-w-0">
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">
               Raporlar

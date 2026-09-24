@@ -48,6 +48,7 @@ import { useDashboardBanners } from "@/contexts/dashboard-banners";
 import { useDashboardPageLabel } from "@/contexts/dashboard-page-label";
 import { useBranch } from "@/hooks/use-branches";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
+import { resolveSafeReturnUrl } from "@/lib/trial-flow";
 import { DASHBOARD_BACK } from "@/lib/dashboard-surface";
 import {
   createMenuArea,
@@ -780,8 +781,16 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
     );
   }
 
+  const returnTo = resolveSafeReturnUrl(searchParams.get("return"));
+  const orderManagementReturn =
+    returnTo === DASHBOARD_ROUTES.waiter ||
+    returnTo?.startsWith(`${DASHBOARD_ROUTES.waiter}?`) ||
+    returnTo?.startsWith(`${DASHBOARD_ROUTES.waiter}/`)
+      ? returnTo
+      : null;
   const backHref =
-    branchId != null ? DASHBOARD_ROUTES.branchSettings(branchId) : DASHBOARD_ROUTES.digitalMenu;
+    orderManagementReturn ??
+    (branchId != null ? DASHBOARD_ROUTES.branchSettings(branchId) : DASHBOARD_ROUTES.digitalMenu);
   const hasBranchMenus = branchId == null || (allowedQrIds?.length ?? 0) > 0;
 
   return (
@@ -792,7 +801,13 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
         back={
           <Link
             href={backHref}
-            aria-label={branchId != null ? "Şube ayarlarına dön" : "Menüye dön"}
+            aria-label={
+              orderManagementReturn
+                ? "Sipariş yönetimine dön"
+                : branchId != null
+                  ? "Şube ayarlarına dön"
+                  : "Menüye dön"
+            }
             className={DASHBOARD_BACK}
           >
             <ArrowLeft className="h-4 w-4" />
