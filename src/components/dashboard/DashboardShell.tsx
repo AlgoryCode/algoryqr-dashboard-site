@@ -141,6 +141,10 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
     waiterPanel === "online" ||
     waiterPanel === "uber-eats" ||
     waiterPanel === "integrations";
+  const isLiveOpsHome =
+    pathname === DASHBOARD_ROUTES.waiter &&
+    waiterPanel == null &&
+    searchParams.get("view") !== "yonetim";
   const isOnlineBoard = pathname === DASHBOARD_ROUTES.onlineOrderOrders || waiterPanel === "online";
   const { banners, addBanner, removeBanner } = useDashboardBannerState();
   const [portalReady, setPortalReady] = useState(false);
@@ -258,8 +262,8 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
         <PackageAccessGate />
         <TrialReminderDialog />
         <DashboardCommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
-        {isFullScreenGate ? (
-          <div className="h-svh overflow-y-auto bg-background">{children}</div>
+        {isFullScreenGate || isLiveOpsHome ? (
+          <div className="h-svh overflow-hidden bg-[#f8f9fb]">{children}</div>
         ) : (
       <div className="flex h-svh overflow-hidden bg-background">
         <aside

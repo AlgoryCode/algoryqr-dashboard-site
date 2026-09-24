@@ -104,6 +104,12 @@ export function orderManagementHomeHref(searchParams: URLSearchParams): string {
   return query ? `${DASHBOARD_ROUTES.waiter}?${query}` : DASHBOARD_ROUTES.waiter;
 }
 
+export function restaurantLayoutFromOrderManagementHref(returnHref: string): string {
+  const params = new URLSearchParams();
+  params.set("return", returnHref);
+  return `${DASHBOARD_ROUTES.restaurantLayout}?${params.toString()}`;
+}
+
 export type OrderTimelineEvent = {
   key: string;
   label: string;
@@ -942,7 +948,15 @@ export function isDeliveryOrder(order: OrderResponse): boolean {
   return isIntegrationChannel(channel);
 }
 
-export function opsLaneForOrder(order: OrderResponse): OpsLane | null {
+/**
+ * Live-ops lane routing.
+ * - Mutfak açık: erken durumlar (PENDING…PREPARING) mutfağa gider.
+ * - Mutfak kapalı: aynı siparişler doğrudan garsona atanır; mutfak kolonu boş kalır.
+ */
+export function opsLaneForOrder(
+  order: OrderResponse,
+  kitchenEnabled = true,
+): OpsLane | null {
   if (!isOpenOrderStatus(order.status)) return null;
   if (order.status === "ON_THE_WAY") return "courier";
   if (order.status === "READY") return isDeliveryOrder(order) ? "courier" : "waiter";
@@ -952,19 +966,22 @@ export function opsLaneForOrder(order: OrderResponse): OpsLane | null {
     order.status === "CONFIRMED" ||
     order.status === "PREPARING"
   ) {
-    return "kitchen";
+    return kitchenEnabled ? "kitchen" : "waiter";
   }
   return null;
 }
 
-export function groupOpsLaneOrders(orders: OrderResponse[]): Record<OpsLane, OrderResponse[]> {
+export function groupOpsLaneOrders(
+  orders: OrderResponse[],
+  kitchenEnabled = true,
+): Record<OpsLane, OrderResponse[]> {
   const groups: Record<OpsLane, OrderResponse[]> = {
     kitchen: [],
     waiter: [],
     courier: [],
   };
   for (const order of sortOrdersNewestFirst(orders)) {
-    const lane = opsLaneForOrder(order);
+    const lane = opsLaneForOrder(order, kitchenEnabled);
     if (lane) groups[lane].push(order);
   }
   return groups;
@@ -1030,10 +1047,14 @@ export function opsLaneFromPanel(panel: string | null): OpsLane | null {
   return null;
 }
 
-export function buildOpsLaneSnapshots(orders: OrderResponse[]): Record<OpsLane, OpsLaneSnapshot> {
+export function buildOpsLaneSnapshots(
+  orders: OrderResponse[],
+  kitchenEnabled = true,
+): Record<OpsLane, OpsLaneSnapshot> {
   const kitchenWaiting: OrderResponse[] = [];
   const kitchenReady: OrderResponse[] = [];
   const waiterPending: OrderResponse[] = [];
+  const waiterActive: OrderResponse[] = [];
   const waiterDone: OrderResponse[] = [];
   const courierTransit: OrderResponse[] = [];
   const courierDone: OrderResponse[] = [];
@@ -1045,11 +1066,15 @@ export function buildOpsLaneSnapshots(orders: OrderResponse[]): Record<OpsLane, 
     const delivery = isDeliveryOrder(order);
 
     if (KITCHEN_WAITING_STATUSES.has(status)) {
-      kitchenWaiting.push(order);
+      if (kitchenEnabled) {
+        kitchenWaiting.push(order);
+      } else {
+        waiterActive.push(order);
+      }
       continue;
     }
     if (status === "READY") {
-      kitchenReady.push(order);
+      if (kitchenEnabled) kitchenReady.push(order);
       if (delivery) courierPickup.push(order);
       else waiterPending.push(order);
       continue;
@@ -1069,6 +1094,15 @@ export function buildOpsLaneSnapshots(orders: OrderResponse[]): Record<OpsLane, 
     }
   }
 
+  const waiterPrimary = kitchenEnabled
+    ? opsCountGroup("pending", "teslim edilecek", "Teslim edilecek", waiterPending)
+    : opsCountGroup(
+        "active",
+        "aktif",
+        "Garsona atanan",
+        [...waiterActive, ...waiterPending],
+      );
+
   return {
     kitchen: {
       lane: "kitchen",
@@ -1078,9 +1112,11 @@ export function buildOpsLaneSnapshots(orders: OrderResponse[]): Record<OpsLane, 
     },
     waiter: {
       lane: "waiter",
-      primary: opsCountGroup("pending", "teslim edilecek", "Teslim edilecek", waiterPending),
+      primary: waiterPrimary,
       secondary: opsCountGroup("done", "teslim edilen", "Teslim edilen", waiterDone),
-      extra: null,
+      extra: kitchenEnabled
+        ? null
+        : opsCountGroup("pending", "teslim edilecek", "Teslim edilecek", waiterPending),
     },
     courier: {
       lane: "courier",
@@ -1089,6 +1125,231 @@ export function buildOpsLaneSnapshots(orders: OrderResponse[]): Record<OpsLane, 
       extra: opsCountGroup("pickup", "teslim alınacak", "Teslim alınacak", courierPickup),
     },
   };
+}
+
+export type SalonWaiterGroup = {
+  key: string;
+  waiterName: string;
+  initials: string;
+  tableLabels: string[];
+  orders: OrderResponse[];
+};
+
+export type LiveOpsChannelCount = {
+  key: string;
+  label: string;
+  count: number;
+};
+
+export type LiveOpsKpiSnapshot = {
+  revenue: number;
+  openOrders: number;
+  tableOrders: number;
+  deliveryOrders: number;
+  pickupOrders: number;
+  kitchenAvgMinutes: number | null;
+  kitchenOnTarget: boolean;
+  kitchenTargetMinutes: number;
+  courierOnRoad: number;
+  courierWaiting: number;
+  courierAvgMinutes: number | null;
+  tableOccupancyPercent: number | null;
+  occupiedTables: number;
+  emptyTables: number;
+  totalTables: number;
+};
+
+function waiterInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toLocaleUpperCase("tr-TR");
+  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toLocaleUpperCase("tr-TR");
+}
+
+/** Salon kolonunda gösterilecek siparişler: masa kanalı + açık / yeni teslim edilmiş. */
+export function salonBoardOrders(
+  orders: OrderResponse[],
+  kitchenEnabled = true,
+): OrderResponse[] {
+  const lanes = groupOpsLaneOrders(orders, kitchenEnabled);
+  const servedToday = orders.filter(
+    (order) =>
+      !isDeliveryOrder(order) &&
+      isTableChannel(orderChannel(order)) &&
+      (order.status === "SERVED" || order.status === "DELIVERED"),
+  );
+  return sortOrdersNewestFirst([...lanes.waiter, ...servedToday.slice(0, 8)]);
+}
+
+export function groupSalonByWaiter(orders: OrderResponse[]): SalonWaiterGroup[] {
+  const map = new Map<string, SalonWaiterGroup>();
+  for (const order of orders) {
+    if (!isTableChannel(orderChannel(order)) && !order.tableName && order.tableId == null) continue;
+    const waiterName = order.waiterName?.trim() || "Atanmamış";
+    const key = order.waiterId != null ? `id:${order.waiterId}` : `name:${waiterName}`;
+    const current = map.get(key) ?? {
+      key,
+      waiterName,
+      initials: waiterInitials(waiterName),
+      tableLabels: [],
+      orders: [],
+    };
+    current.orders.push(order);
+    const table = orderLocationLabel(order);
+    if (table && !current.tableLabels.includes(table)) current.tableLabels.push(table);
+    map.set(key, current);
+  }
+  return [...map.values()].sort(
+    (a, b) => b.orders.length - a.orders.length || a.waiterName.localeCompare(b.waiterName, "tr"),
+  );
+}
+
+export function courierChannelCounts(orders: OrderResponse[]): LiveOpsChannelCount[] {
+  const open = orders.filter(
+    (order) =>
+      isDeliveryOrder(order) &&
+      (isOpenOrderStatus(order.status) || order.status === "READY"),
+  );
+  const keys: Array<{ key: OrderChannel | "PHONE"; label: string; match: (o: OrderResponse) => boolean }> = [
+    { key: "YEMEKSEPETI", label: "Yemeksepeti", match: (o) => orderChannel(o) === "YEMEKSEPETI" },
+    { key: "ONLINE", label: "Getir", match: (o) => orderChannel(o) === "ONLINE" },
+    { key: "UBER_EATS", label: "Trendyol", match: (o) => orderChannel(o) === "UBER_EATS" },
+    {
+      key: "PHONE",
+      label: "Telefon",
+      match: (o) => {
+        const ch = orderChannel(o);
+        return ch !== "YEMEKSEPETI" && ch !== "ONLINE" && ch !== "UBER_EATS";
+      },
+    },
+  ];
+  return keys.map((row) => ({
+    key: row.key,
+    label: row.label,
+    count: open.filter(row.match).length,
+  }));
+}
+
+export function averageKitchenPrepMinutes(orders: OrderResponse[], now = Date.now()): number | null {
+  const samples: number[] = [];
+  for (const order of orders) {
+    if (order.status === "CANCELLED" || order.status === "REJECTED" || order.status === "DRAFT") continue;
+    const startRaw = order.confirmedAt || order.submittedAt || order.createdAt;
+    if (!startRaw) continue;
+    const start = new Date(startRaw).getTime();
+    if (Number.isNaN(start)) continue;
+    const endRaw = order.readyAt || order.preparedAt || order.servedAt;
+    const end = endRaw ? new Date(endRaw).getTime() : now;
+    if (Number.isNaN(end) || end < start) continue;
+    const minutes = (end - start) / 60_000;
+    if (minutes > 0 && minutes < 180) samples.push(minutes);
+  }
+  if (samples.length === 0) return null;
+  return samples.reduce((sum, value) => sum + value, 0) / samples.length;
+}
+
+export function averageCourierMinutes(orders: OrderResponse[], now = Date.now()): number | null {
+  const samples: number[] = [];
+  for (const order of orders) {
+    if (!isDeliveryOrder(order)) continue;
+    if (order.status !== "ON_THE_WAY" && order.status !== "DELIVERED") continue;
+    const startRaw = order.readyAt || order.preparedAt || order.confirmedAt || order.submittedAt;
+    if (!startRaw) continue;
+    const start = new Date(startRaw).getTime();
+    if (Number.isNaN(start)) continue;
+    const end = order.status === "DELIVERED" && order.servedAt
+      ? new Date(order.servedAt).getTime()
+      : now;
+    if (Number.isNaN(end) || end < start) continue;
+    const minutes = (end - start) / 60_000;
+    if (minutes > 0 && minutes < 240) samples.push(minutes);
+  }
+  if (samples.length === 0) return null;
+  return samples.reduce((sum, value) => sum + value, 0) / samples.length;
+}
+
+const KITCHEN_TARGET_MINUTES = 16;
+
+export function buildLiveOpsKpis(
+  orders: OrderResponse[],
+  includeTips = false,
+  kitchenEnabled = true,
+): LiveOpsKpiSnapshot {
+  const open = orders.filter((order) => isOpenOrderStatus(order.status));
+  let tableOrders = 0;
+  let deliveryOrders = 0;
+  let pickupOrders = 0;
+  const tableNames = new Set<string>();
+  const occupied = new Set<string>();
+
+  for (const order of open) {
+    const channel = orderChannel(order);
+    const delivery = (order.deliveryType ?? "").trim().toUpperCase();
+    if (isTableChannel(channel)) {
+      tableOrders += 1;
+      const table = orderLocationLabel(order);
+      tableNames.add(table);
+      occupied.add(table);
+    } else if (delivery === "PICKUP" || delivery === "STORE") {
+      pickupOrders += 1;
+    } else if (isDeliveryOrder(order)) {
+      deliveryOrders += 1;
+    } else {
+      pickupOrders += 1;
+    }
+  }
+
+  for (const order of orders) {
+    if (!isTableChannel(orderChannel(order))) continue;
+    const table = orderLocationLabel(order);
+    if (table) tableNames.add(table);
+  }
+
+  const courierOnRoad = open.filter((o) => o.status === "ON_THE_WAY").length;
+  const courierWaiting = open.filter(
+    (o) => isDeliveryOrder(o) && (o.status === "READY" || KITCHEN_WAITING_STATUSES.has(o.status)),
+  ).length;
+
+  const kitchenAvg = kitchenEnabled ? averageKitchenPrepMinutes(orders) : null;
+  const totalTables = Math.max(tableNames.size, occupied.size);
+  const occupiedTables = occupied.size;
+  const emptyTables = Math.max(0, totalTables - occupiedTables);
+
+  return {
+    revenue: sumOrderRevenue(orders, includeTips),
+    openOrders: open.length,
+    tableOrders,
+    deliveryOrders,
+    pickupOrders,
+    kitchenAvgMinutes: kitchenAvg,
+    kitchenOnTarget: kitchenAvg == null || kitchenAvg < KITCHEN_TARGET_MINUTES,
+    kitchenTargetMinutes: KITCHEN_TARGET_MINUTES,
+    courierOnRoad,
+    courierWaiting,
+    courierAvgMinutes: averageCourierMinutes(orders),
+    tableOccupancyPercent: totalTables > 0 ? Math.round((occupiedTables / totalTables) * 100) : null,
+    occupiedTables,
+    emptyTables,
+    totalTables,
+  };
+}
+
+export function tableStatusTone(
+  order: OrderResponse,
+  now = Date.now(),
+): "occupied" | "serving" | "waiting" | "delayed" | "empty" {
+  if (isKitchenTicketDelayed(order, now)) return "delayed";
+  if (order.status === "READY" || order.status === "SERVED") return "serving";
+  if (
+    order.status === "PENDING" ||
+    order.status === "SUBMITTED" ||
+    order.status === "CONFIRMED" ||
+    order.status === "PREPARING"
+  ) {
+    return "waiting";
+  }
+  if (isOpenOrderStatus(order.status)) return "occupied";
+  return "empty";
 }
 
 export function orderTimeline(order: OrderResponse): OrderTimelineEvent[] {
