@@ -2,12 +2,10 @@
 
 import { ChevronDown } from "lucide-react";
 
-import { BranchStockList } from "@/components/dashboard/branch-detail/BranchStockList";
 import {
-  CompareList,
+  MenuList,
   ReviewList,
   StaffList,
-  type CompareRow,
   type MenuRow,
   type ReviewRow,
   type StaffRow,
@@ -16,6 +14,8 @@ import {
   BranchDetailOverview,
   type BranchOverview,
 } from "@/components/dashboard/branch-detail/BranchDetailOverview";
+import { Hero } from "@/components/dashboard/branch-detail/branch-detail-hero";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,14 +24,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
-export type BranchDetailTab = "overview" | "staff" | "stock" | "reviews" | "compare";
+export type BranchDetailTab = "overview" | "menus" | "staff" | "reviews";
 
 const TABS: Array<{ id: BranchDetailTab; label: string }> = [
   { id: "overview", label: "Genel bakış" },
+  { id: "menus", label: "Menüler" },
   { id: "staff", label: "Personel" },
-  { id: "stock", label: "Stok" },
   { id: "reviews", label: "Yorumlar" },
-  { id: "compare", label: "Şube kıyası" },
 ];
 
 type BranchOption = { id: number; name: string };
@@ -44,22 +43,18 @@ type BranchDetailPanelProps = {
   onTab: (tab: BranchDetailTab) => void;
   onSelectBranch: (branchId: number) => void;
   overview: BranchOverview;
-  compare: CompareRow[];
-  staff: StaffRow[];
   reviews: ReviewRow[];
   menus: MenuRow[];
+  staff: StaffRow[];
 };
 
 export function BranchDetailPanel(props: BranchDetailPanelProps) {
-  const { name, branches, tab, onTab, onSelectBranch } = props;
+  const { name, branches, onSelectBranch } = props;
   return (
     <section>
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Şube Detayı</h1>
-          <BranchSwitcher name={name} branches={branches} onSelectBranch={onSelectBranch} />
-        </div>
-        <TabBar tab={tab} onTab={onTab} />
+      <header className="flex items-center gap-3">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Şube Detayı</h1>
+        <BranchSwitcher name={name} branches={branches} onSelectBranch={onSelectBranch} />
       </header>
       <BranchDetailBody {...props} />
     </section>
@@ -92,63 +87,46 @@ function BranchSwitcher({
   );
 }
 
-function TabBar({ tab, onTab }: { tab: BranchDetailTab; onTab: (tab: BranchDetailTab) => void }) {
+function TabSlide({ tab, onTab }: { tab: BranchDetailTab; onTab: (tab: BranchDetailTab) => void }) {
   return (
-    <div className="flex flex-wrap items-center gap-1">
+    <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {TABS.map((item) => (
-        <button
+        <Button
           key={item.id}
           type="button"
+          variant="outline"
+          size="sm"
           onClick={() => onTab(item.id)}
           className={cn(
-            "rounded-full px-3 py-1.5 text-sm font-medium",
-            tab === item.id ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
+            "h-8 shrink-0 rounded-full border-2 border-primary bg-background px-3 font-medium text-primary shadow-none hover:bg-primary hover:text-primary-foreground",
+            tab === item.id && "bg-primary text-primary-foreground",
           )}
         >
           {item.label}
-        </button>
+        </Button>
       ))}
     </div>
   );
 }
 
 function BranchDetailBody(props: BranchDetailPanelProps) {
-  const { tab, branchId, name, overview, compare, staff, reviews, menus } = props;
-  if (tab === "overview") {
-    return <BranchDetailOverview branchId={branchId} name={name} menus={menus} compare={compare} overview={overview} />;
-  }
+  const { tab, onTab } = props;
   return (
-    <div className="mt-4">
-      <SecondaryTab tab={tab} branchId={branchId} compare={compare} staff={staff} reviews={reviews} />
+    <div className="mt-4 space-y-4">
+      <div className="space-y-3">
+        <Hero branchId={props.branchId} name={props.name} overview={props.overview} />
+        <TabSlide tab={tab} onTab={onTab} />
+      </div>
+      <TabPanel {...props} />
     </div>
   );
 }
 
-function SecondaryTab({
-  tab,
-  branchId,
-  compare,
-  staff,
-  reviews,
-}: {
-  tab: Exclude<BranchDetailTab, "overview">;
-  branchId: number;
-  compare: CompareRow[];
-  staff: StaffRow[];
-  reviews: ReviewRow[];
-}) {
-  switch (tab) {
-    case "staff":
-      return <StaffList branchId={branchId} staff={staff} />;
-    case "stock":
-      return <BranchStockList branchId={branchId} />;
-    case "reviews":
-      return <ReviewList reviews={reviews} />;
-    case "compare":
-      return <CompareList rows={compare} />;
-    default: {
-      const exhaustive: never = tab;
-      return exhaustive;
-    }
+function TabPanel({ tab, branchId, name, overview, reviews, menus, staff }: BranchDetailPanelProps) {
+  if (tab === "overview") {
+    return <BranchDetailOverview branchId={branchId} name={name} menus={menus} overview={overview} />;
   }
+  if (tab === "menus") return <MenuList branchId={branchId} menus={menus} />;
+  if (tab === "staff") return <StaffList branchId={branchId} staff={staff} />;
+  return <ReviewList reviews={reviews} />;
 }

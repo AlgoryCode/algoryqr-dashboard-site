@@ -9,7 +9,6 @@ import {
   Loader2,
   Plus,
   Search,
-  Settings2,
 } from "lucide-react";
 
 import { DigitalMenuHubShell } from "@/components/dashboard/digital-menu/DigitalMenuHubShell";
@@ -20,7 +19,7 @@ import { useListQueryState } from "@/hooks/use-list-query-state";
 import { useBranches } from "@/hooks/use-branches";
 import type { BranchItem, BranchMenuSummary } from "@/lib/branch";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
-import { DASHBOARD_METRIC_LABEL, DASHBOARD_STAT_TILE } from "@/lib/dashboard-surface";
+import { ACCOUNT_CARD } from "@/lib/dashboard-surface";
 import { cn } from "@/lib/utils";
 
 type StatusFilter = "all" | "active" | "inactive";
@@ -30,6 +29,43 @@ const STATUS_CHIPS: Array<{ value: StatusFilter; label: string }> = [
   { value: "active", label: "Yayında" },
   { value: "inactive", label: "Pasif" },
 ];
+
+function BranchDirectoryCard({ branch }: { branch: BranchItem }) {
+  return (
+    <Link
+      href={DASHBOARD_ROUTES.branchDetail(branch.id)}
+      className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-[#fafafa]"
+    >
+      {branch.photoUrl ? (
+        <img
+          src={branch.photoUrl}
+          alt=""
+          className="h-16 w-16 shrink-0 rounded-xl object-cover"
+        />
+      ) : (
+        <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-[#f3f3f1] text-zinc-500">
+          <Building2 className="h-5 w-5" />
+        </span>
+      )}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold text-zinc-950">{branch.name}</span>
+        {branch.address ? (
+          <span className="mt-0.5 block truncate text-xs text-muted-foreground">{branch.address}</span>
+        ) : null}
+        <span className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span
+            className={cn(
+              "h-2 w-2 shrink-0 rounded-full",
+              branch.active ? "bg-emerald-500" : "bg-zinc-300",
+            )}
+          />
+          {branch.active ? "Açık" : "Kapalı"}
+        </span>
+      </span>
+      <ChevronRight className="h-4 w-4 shrink-0 text-zinc-950" />
+    </Link>
+  );
+}
 
 function menuTitle(menu: BranchMenuSummary): string {
   return menu.businessName?.trim() || `Menü #${menu.qrId}`;
@@ -173,110 +209,19 @@ export function DigitalMenuDirectoryPanel() {
             }
           />
         ) : (
-          <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              {groups.length} şube · {totalMenus} menü
-            </p>
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <h2 className="text-2xl font-semibold tracking-tight text-zinc-950">Şubeler</h2>
+              <p className="text-sm text-zinc-950">
+                {groups.length} şube ve {totalMenus} menü. Satıra dokunarak şube detayına gidin.
+              </p>
+            </div>
 
-            {groups.map(({ branch, menus }) => (
-              <section
-                key={branch.id}
-                className={cn(DASHBOARD_STAT_TILE, "space-y-4")}
-              >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                  <Link
-                    href={DASHBOARD_ROUTES.branchDetail(branch.id)}
-                    className="flex min-w-0 flex-1 items-center gap-3"
-                  >
-                    {branch.photoUrl ? (
-                      <img
-                        src={branch.photoUrl}
-                        alt=""
-                        className="h-10 w-10 rounded-xl border border-border object-cover"
-                      />
-                    ) : (
-                      <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground">
-                        <Building2 className="h-4 w-4" />
-                      </span>
-                    )}
-                    <div className="min-w-0">
-                      <p className={DASHBOARD_METRIC_LABEL}>
-                        Şube
-                        {!branch.active ? <span className="ml-2">Pasif</span> : null}
-                      </p>
-                      <p className="mt-1.5 truncate text-[1.35rem] font-semibold leading-none tracking-tight text-neutral-950 dark:text-foreground">
-                        {branch.name}
-                        <span className="ml-1.5 font-mono text-xs font-light text-neutral-400">
-                          #{branch.id}
-                        </span>
-                      </p>
-                      {branch.address ? (
-                        <p className="truncate text-xs text-muted-foreground">{branch.address}</p>
-                      ) : null}
-                    </div>
-                  </Link>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-                      <Link href={DASHBOARD_ROUTES.branchSettings(branch.id)}>
-                        <Settings2 className="h-3.5 w-3.5" />
-                        Şube ayarları
-                      </Link>
-                    </Button>
-                    <Button asChild size="sm" className="h-8 gap-1.5 text-xs">
-                      <Link href={DASHBOARD_ROUTES.digitalMenuCreateForBranch(branch.id)}>
-                        <Plus className="h-3.5 w-3.5" />
-                        Menü ekle
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-
-                <div>
-                  <p className={cn(DASHBOARD_METRIC_LABEL, "mb-1.5")}>Bu şubedeki menüler</p>
-
-                  {menus.length === 0 ? (
-                    <div className="flex flex-col items-start gap-2 rounded-xl border border-dashed border-border px-3 py-4 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="text-sm text-muted-foreground">
-                        Bu şubeye henüz menü eklenmedi.
-                      </p>
-                      <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-                        <Link href={DASHBOARD_ROUTES.digitalMenuCreateForBranch(branch.id)}>
-                          <Plus className="h-3.5 w-3.5" />
-                          İlk menüyü ekle
-                        </Link>
-                      </Button>
-                    </div>
-                  ) : (
-                    <ul className="space-y-1.5">
-                      {menus.map((menu) => (
-                        <li key={menu.menuId}>
-                          <Link
-                            href={DASHBOARD_ROUTES.digitalMenuEdit(menu.qrId)}
-                            className="group flex items-center gap-3 rounded-[16px] border border-black/[0.04] bg-white px-4 py-3.5 shadow-[0_8px_24px_rgba(15,23,42,0.05)] transition-colors hover:bg-neutral-50 dark:border-border dark:bg-card"
-                          >
-                            <div className="min-w-0 flex-1">
-                              <p className={DASHBOARD_METRIC_LABEL}>
-                                Menü
-                                <span className={cn("ml-2", menu.active ? "text-emerald-700" : undefined)}>
-                                  {menu.active ? "Yayında" : "Pasif"}
-                                </span>
-                              </p>
-                              <p className="mt-1.5 truncate text-[1.15rem] font-semibold leading-none tracking-tight text-neutral-950 dark:text-foreground">
-                                {menuTitle(menu)}
-                              </p>
-                            </div>
-                            <span className="hidden text-xs text-muted-foreground sm:inline">
-                              Düzenle
-                            </span>
-                            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground opacity-50 transition-all group-hover:translate-x-0.5 group-hover:opacity-100" />
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </section>
-            ))}
+            <div className={cn(ACCOUNT_CARD, "divide-y divide-[#ececea] overflow-hidden")}>
+              {groups.map(({ branch }) => (
+                <BranchDirectoryCard key={branch.id} branch={branch} />
+              ))}
+            </div>
           </div>
         )}
       </div>

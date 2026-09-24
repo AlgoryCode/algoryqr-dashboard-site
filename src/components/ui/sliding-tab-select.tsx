@@ -45,11 +45,11 @@ const VARIANT_STYLES: Record<
     indicator: "absolute inset-x-0 bottom-0 h-0.5 bg-foreground",
   },
   nav: {
-    track: "flex w-full gap-1.5 border-0 bg-transparent p-0",
-    item: "flex-1 rounded-lg border bg-white px-3 py-2.5 text-center text-xs sm:text-sm dark:bg-card",
-    activeText: "border-transparent text-foreground",
-    inactiveText: "border-border/70 text-muted-foreground hover:text-foreground",
-    indicator: "absolute inset-0 rounded-lg bg-muted",
+    track: "flex gap-2 overflow-x-auto border-0 bg-transparent p-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+    item: "h-8 shrink-0 rounded-full border-2 border-primary bg-background px-3 text-sm font-medium shadow-none hover:bg-primary hover:text-primary-foreground",
+    activeText: "bg-primary text-primary-foreground",
+    inactiveText: "text-primary",
+    indicator: "",
   },
   soft: {
     track: "inline-flex flex-wrap gap-1 rounded-2xl border border-border/60 bg-muted/30 p-1",
@@ -100,7 +100,7 @@ export function SlidingTabSelect({
         );
         const content = (
           <>
-            {active ? (
+            {active && look.indicator ? (
               <motion.span
                 layoutId={layoutId}
                 className={look.indicator}

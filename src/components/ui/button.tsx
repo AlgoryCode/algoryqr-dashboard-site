@@ -15,6 +15,7 @@ const buttonVariants = cva(
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+        pill: "rounded-full border-2 border-primary bg-background font-semibold text-primary shadow-none hover:bg-primary hover:text-primary-foreground",
         hero: "bg-primary text-primary-foreground font-semibold hover:shadow-[var(--shadow-glow)] hover:bg-primary/90 transition-all duration-300",
         heroOutline: "border border-border bg-transparent text-foreground hover:bg-secondary transition-all duration-300",
         google: "bg-foreground text-background font-medium hover:bg-foreground/90 transition-all duration-200",
@@ -30,6 +31,12 @@ const buttonVariants = cva(
       variant: "default",
       size: "default",
     },
+    compoundVariants: [
+      {
+        variant: "pill",
+        class: "rounded-full",
+      },
+    ],
   },
 );
 

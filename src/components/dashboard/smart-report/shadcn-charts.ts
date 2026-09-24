@@ -2,6 +2,7 @@ import type { MenuRevenueReportResponse } from "@/lib/api";
 import { eachIsoDate, formatReportingDate, isSingleDayRange } from "@/reporting";
 import { toAmount } from "@/reporting/numbers";
 
+import { activeWindow } from "./chart-config";
 import { fillHourlyPoints } from "./ciro-metrics";
 
 export type PulseAreaPoint = {
@@ -54,11 +55,6 @@ export function compactAxis(value: number): string {
   return `₺${compactAmount(value)}`;
 }
 
-export function scaleSeries(values: number[], total: number, part: number): number[] {
-  if (total <= 0) return values.map(() => 0);
-  return values.map((value) => value * (part / total));
-}
-
 export function trimZeroEdges(points: PulseAreaPoint[]): PulseAreaPoint[] {
   const first = points.findIndex((point) => point.current > 0 || point.previous > 0);
   if (first < 0) return points;
@@ -72,6 +68,33 @@ export function trimZeroEdges(points: PulseAreaPoint[]): PulseAreaPoint[] {
 export function keepActivePoints(points: PulseAreaPoint[]): PulseAreaPoint[] {
   const active = points.filter((point) => point.current > 0 || point.previous > 0);
   return active.length >= 2 ? active : trimZeroEdges(points);
+}
+
+export type CiroWorthPoint = {
+  label: string;
+  value: number;
+};
+
+export function buildCiroWorthSeries(revenue: MenuRevenueReportResponse): CiroWorthPoint[] {
+  const points = isSingleDayRange(revenue.from, revenue.to) ? hourlyWorth(revenue) : dailyWorth(revenue);
+  const windowed = activeWindow(points);
+  if (windowed.length >= 2) return windowed;
+  return points;
+}
+
+function hourlyWorth(revenue: MenuRevenueReportResponse): CiroWorthPoint[] {
+  return fillHourlyPoints(revenue.hourly ?? []).map((row) => ({
+    label: pulseHourLabel(row.hour),
+    value: row.revenue,
+  }));
+}
+
+function dailyWorth(revenue: MenuRevenueReportResponse): CiroWorthPoint[] {
+  const totals = sumByDate(revenue.daily ?? []);
+  return eachIsoDate(revenue.from, revenue.to).map((date) => ({
+    label: formatReportingDate(date),
+    value: totals.get(date) ?? 0,
+  }));
 }
 
 export function buildPulseArea(

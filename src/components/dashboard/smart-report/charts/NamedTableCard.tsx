@@ -21,7 +21,7 @@ export function NamedTableCard({
           <p className="shrink-0 text-lg font-semibold tabular-nums tracking-tight">{value}</p>
         ) : null}
       </CardHeader>
-      <CardContent className="p-4 pt-1">
+      <CardContent className="overflow-x-auto p-4 pt-1">
         <table className="w-full text-sm">
           <caption className="sr-only">{title}</caption>
           <thead>

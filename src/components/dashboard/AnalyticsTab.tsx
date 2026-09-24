@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
@@ -51,6 +51,7 @@ type ReportView = "overview" | "visits" | "revenue" | "personnel";
 
 export default function AnalyticsTab() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const initialBranchId = useMemo(() => {
     const raw = Number(searchParams.get("branch"));
@@ -94,7 +95,6 @@ export default function AnalyticsTab() {
       branchId != null &&
       (activeReportView === "overview" ||
         activeReportView === "revenue" ||
-        activeReportView === "visits" ||
         activeReportView === "personnel"),
   );
   const personnelQuery = useBranchWaiterPerformanceReport(
@@ -102,9 +102,7 @@ export default function AnalyticsTab() {
     null,
     range.from,
     range.to,
-    canUseRevenue &&
-      branchId != null &&
-      (activeReportView === "overview" || activeReportView === "personnel"),
+    canUseRevenue && branchId != null && activeReportView === "personnel",
   );
   const waitersQuery = useQuery({
     queryKey: ["menu-users", branchId],
@@ -130,7 +128,9 @@ export default function AnalyticsTab() {
   const backHref =
     selection?.menu?.qrId != null
       ? DASHBOARD_ROUTES.digitalMenuEdit(selection.menu.qrId)
-      : DASHBOARD_ROUTES.reportsHub;
+      : pathname === DASHBOARD_ROUTES.reportsHub
+        ? null
+        : DASHBOARD_ROUTES.reportsHub;
 
   useEffect(() => {
     setWaiterId(null);
@@ -147,9 +147,7 @@ export default function AnalyticsTab() {
   const revenueLoading = selectionLoading || revenueQuery.isLoading;
   const personnelLoading = selectionLoading || personnelQuery.isLoading;
   const overviewLoading =
-    selectionLoading ||
-    reportQuery.isLoading ||
-    (canUseRevenue && (revenueQuery.isLoading || personnelQuery.isLoading));
+    selectionLoading || reportQuery.isLoading || (canUseRevenue && revenueQuery.isLoading);
   const loading =
     activeReportView === "overview"
       ? overviewLoading
@@ -163,12 +161,14 @@ export default function AnalyticsTab() {
     <div className="min-w-0 space-y-6 animate-fade-in">
       <div className="sticky top-0 z-10 flex flex-col gap-4 bg-background/95 py-1 backdrop-blur sm:flex-row sm:items-end sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
-          <Link
-            href={backHref}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
+          {backHref ? (
+            <Link
+              href={backHref}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+          ) : null}
           <div className="min-w-0">
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">
               Raporlar
@@ -272,7 +272,6 @@ export default function AnalyticsTab() {
         <OverviewPage
           revenue={revenueQuery.data}
           visits={reportQuery.data}
-          waiter={personnelQuery.data}
           canUseRevenue={canUseRevenue}
         />
       ) : null}
@@ -347,7 +346,7 @@ export default function AnalyticsTab() {
       ) : null}
 
       {activeReportView === "visits" && branchId != null && !visitLoading && !reportQuery.isError && report ? (
-        <TrafficSection visits={report} revenue={revenueQuery.data} />
+        <TrafficSection visits={report} />
       ) : null}
     </div>
   );

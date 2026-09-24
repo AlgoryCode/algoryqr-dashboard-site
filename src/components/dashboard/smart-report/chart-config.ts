@@ -33,6 +33,14 @@ export function halfSplit<T>(arr: T[]): [T[], T[]] {
   return [arr.slice(0, mid), arr.slice(mid)];
 }
 
+export function activeWindow<T extends { value: number }>(rows: T[]): T[] {
+  const first = rows.findIndex((row) => row.value > 0);
+  if (first < 0) return [];
+  let last = rows.length - 1;
+  while (last > first && rows[last].value <= 0) last -= 1;
+  return rows.slice(first, last + 1);
+}
+
 export function seriesConfig(
   entries: { key: string; label: string; color?: string }[],
 ): ChartConfig {

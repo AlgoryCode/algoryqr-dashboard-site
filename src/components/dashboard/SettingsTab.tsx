@@ -16,8 +16,11 @@ import { useAccessProfile } from "@/hooks/use-access-profile";
 import type { MyProfile } from "@/hooks/use-my-profile";
 import {
   ArrowLeft,
-  Check, Camera, Key, Lock, Smartphone, Mail,
-  RefreshCw, LogOut, Timer, Copy, Monitor, Clock3,
+  Bell,
+  Check, Camera, ChevronRight, CreditCard, Key, Lock, Smartphone, Mail, MapPin,
+  Package, Plug, Receipt, RefreshCw, LogOut, Shield, Timer, Copy, Monitor, Clock3,
+  User, Users,
+  type LucideIcon,
 } from "lucide-react";
 import { PrintAgentApiKeySection } from "@/components/dashboard/PrintAgentApiKeySection";
 import { ACCOUNT_CARD, ACCOUNT_SURFACE, DASHBOARD_BACK } from "@/lib/dashboard-surface";
@@ -529,27 +532,29 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
       }
       setPage(key as SettingsPage);
     };
-    const hesapItems: { title: string; key: SettingsMenuKey }[] = [
-      { title: "Profil", key: "profile" },
-      { title: "Güvenlik", key: "security" },
-      { title: "Abonelik", key: "subscription" },
-      { title: "Ödeme geçmişi", key: "paymentHistory" },
-      { title: "Kayıtlı kartlarım", key: "paymentMethods" },
-      { title: "Fatura adreslerim", key: "billingAddresses" },
-      { title: "Oturum", key: "session" },
+    const hesapItems: { title: string; key: SettingsMenuKey; icon: LucideIcon }[] = [
+      { title: "Profil", key: "profile", icon: User },
+      { title: "Güvenlik", key: "security", icon: Shield },
+      { title: "Abonelik", key: "subscription", icon: Package },
+      { title: "Ödeme geçmişi", key: "paymentHistory", icon: Receipt },
+      { title: "Kayıtlı kartlarım", key: "paymentMethods", icon: CreditCard },
+      { title: "Fatura adreslerim", key: "billingAddresses", icon: MapPin },
+      { title: "Oturum", key: "session", icon: Monitor },
     ];
-    const preferenceItems: { title: string; onClick: () => void }[] = [
-      { title: "Bildirimler", onClick: () => setPage("notifications") },
+    const preferenceItems: { title: string; icon: LucideIcon; onClick: () => void }[] = [
+      { title: "Bildirimler", icon: Bell, onClick: () => setPage("notifications") },
     ];
     if (hasScope(accessProfile, "WAITER_PANEL_OWNER")) {
       preferenceItems.push({
         title: "Ekip & roller",
+        icon: Users,
         onClick: () => router.push(DASHBOARD_ROUTES.menuUsers),
       });
     }
     if (hasScope(accessProfile, "QR_MENU_OWNER")) {
       preferenceItems.push({
         title: "Entegrasyonlar",
+        icon: Plug,
         onClick: () => router.push(DASHBOARD_ROUTES.integrations),
       });
     }
@@ -619,7 +624,9 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
                 className={ACCOUNT_MENU_ROW}
                 onClick={() => openMenu(item.key)}
               >
-                {item.title}
+                <item.icon className="mr-3 h-4 w-4 shrink-0 text-zinc-500" />
+                <span className="min-w-0 flex-1">{item.title}</span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-zinc-950" />
               </button>
             ))}
           </div>
@@ -634,17 +641,20 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
                 className={ACCOUNT_MENU_ROW}
                 onClick={item.onClick}
               >
-                {item.title}
+                <item.icon className="mr-3 h-4 w-4 shrink-0 text-zinc-500" />
+                <span className="min-w-0 flex-1">{item.title}</span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-zinc-950" />
               </button>
             ))}
           </div>
         </section>
         <button
           type="button"
-          className={cn(ACCOUNT_CARD, "w-full py-3.5 text-center text-sm font-medium text-[#a33b32] disabled:opacity-60")}
+          className={cn(ACCOUNT_CARD, "flex w-full items-center justify-center gap-2 py-3.5 text-sm font-medium text-[#a33b32] disabled:opacity-60")}
           onClick={() => void handleLogout()}
           disabled={logoutLoading}
         >
+          <LogOut className="h-4 w-4 shrink-0" />
           {logoutLoading ? "Çıkış yapılıyor…" : "Çıkış yap"}
         </button>
       </div>

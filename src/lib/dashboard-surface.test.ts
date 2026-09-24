@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   ACCOUNT_CARD,
-  ACCOUNT_PAGE_FRAME,
   DASHBOARD_HUB_GRID,
   DASHBOARD_SURFACE,
   DASHBOARD_TILE_SQUARE,
@@ -18,14 +17,11 @@ import {
 describe("dashboard-surface", () => {
   it("matches the branch square card chrome", () => {
     expect(DASHBOARD_TILE_SQUARE).toBe(
-      "group flex aspect-square flex-col items-center justify-center gap-3 rounded-3xl border border-border bg-card shadow-none p-4 transition-colors hover:bg-muted/40",
+      `group flex aspect-square flex-col items-center justify-center gap-3 ${ACCOUNT_CARD} p-4 transition-colors hover:bg-muted/40`,
     );
-    expect(DASHBOARD_SURFACE).toContain("border-border");
-    expect(DASHBOARD_SURFACE).toContain("bg-card");
+    expect(DASHBOARD_SURFACE).toBe(ACCOUNT_CARD);
     expect(DASHBOARD_HUB_GRID).toContain("grid-cols-2");
-    expect(ACCOUNT_PAGE_FRAME).toContain("border-[#ececea]");
-    expect(ACCOUNT_PAGE_FRAME).toContain("bg-white");
-    expect(ACCOUNT_CARD).toContain("shadow-[0_6px_16px_rgba(0,0,0,0.08)]");
+    expect(ACCOUNT_CARD).toContain("shadow-[0_1px_2px_rgba(15,23,42,0.06),0_2px_6px_rgba(15,23,42,0.05)]");
     expect(ACCOUNT_CARD).toContain("border-[#ececea]");
   });
 
@@ -36,7 +32,7 @@ describe("dashboard-surface", () => {
     expect(DASHBOARD_TYPE_TILE).toContain("text-sm");
     expect(DASHBOARD_TYPE_META).toContain("text-xs");
     expect(DASHBOARD_TYPE_KPI).toContain("text-3xl");
-    expect(DASHBOARD_PANEL_LG).toContain("border-border");
+    expect(DASHBOARD_PANEL_LG).toContain("border-[#ececea]");
     expect(DASHBOARD_PANEL_LG).toContain("p-6");
   });
 });
