@@ -6,26 +6,21 @@ import type { MenuRevenueReportResponse } from "@/lib/api";
 import { useBranchRevenueReport } from "@/hooks/use-branch-revenue-report";
 import { comparePeriodRange } from "@/reporting";
 
-import { CHART_COLORS } from "./chart-config";
+import { activeWindow, CHART_COLORS, pctDelta } from "./chart-config";
 import { CategorySalesCard } from "./charts/CategorySalesCard";
+import { CiroWorthCard } from "./charts/CiroWorthCard";
 import { DualRankCard } from "./charts/DualRankCard";
 import { PeakTrackCard } from "./charts/NestedRingCard";
 import { RemainSplitCard } from "./charts/RemainSplitCard";
+import { RetentionStepChart } from "./charts/ZentraOverview";
 import { SparkKpiStrip } from "./charts/SparkKpiStrip";
-import { TodayPulseCard } from "./charts/TodayPulseCard";
-import { TwinTrendCards } from "./charts/TwinTrendCards";
-import {
-  readChannelMix,
-  readCiroMetrics,
-  readProfitMix,
-  readSoldMix,
-  readVolumeValue,
-} from "./ciro-metrics";
-import { buildCategorySales, buildCiroSparkKpis, buildTwinTrends } from "./shadcn-spark";
+import { fillHourlyPoints, readChannelMix, readCiroMetrics, readProfitMix, readVolumeValue } from "./ciro-metrics";
+import { buildCiroWorthSeries } from "./shadcn-charts";
+import { buildCategorySales, buildCiroSparkKpis } from "./shadcn-spark";
 
 export function CiroPage({
   revenue,
-  money: m,
+  money: formatMoney,
 }: {
   revenue: MenuRevenueReportResponse;
   money: (value: number) => string;
@@ -41,66 +36,69 @@ export function CiroPage({
     compareRange.to,
     revenue.branchId != null,
   );
-  const previous = compareQuery.data;
   const metrics = readCiroMetrics(revenue);
   const channels = readChannelMix(revenue, metrics);
-  const sold = readSoldMix(revenue);
   const volume = readVolumeValue(revenue);
   const profit = readProfitMix(revenue, metrics);
-  const twins = buildTwinTrends(revenue, previous, m);
-  const sparks = buildCiroSparkKpis(revenue, previous, m);
-  const categories = buildCategorySales(revenue, previous, m);
+  const categories = buildCategorySales(revenue, compareQuery.data, formatMoney);
+  const hourly = hourlyRevenue(revenue);
+
+  const priorTotal = compareQuery.data ? readCiroMetrics(compareQuery.data).total : null;
 
   return (
     <div className="space-y-3">
-      <SparkKpiStrip items={sparks} />
-      <TodayPulseCard current={revenue} previous={previous} money={m} />
-      <TwinTrendCards left={twins[0]} right={twins[1]} />
+      <CiroWorthCard
+        total={formatMoney(metrics.total)}
+        delta={priorTotal == null ? null : pctDelta(metrics.total, priorTotal)}
+        points={buildCiroWorthSeries(revenue)}
+        formatValue={formatMoney}
+      />
+      <SparkKpiStrip items={buildCiroSparkKpis(revenue, compareQuery.data, formatMoney)} />
       <div className="grid gap-3 xl:grid-cols-2">
+        <RemainSplitCard
+          title="Tahsilat"
+          percent={metrics.cashShare}
+          center={formatMoney(metrics.paymentTotal)}
+          caption="nakit payı"
+          rows={[
+            { name: "Nakit", value: metrics.cash, display: formatMoney(metrics.cash) },
+            { name: "Kart", value: metrics.card, display: formatMoney(metrics.card) },
+          ]}
+        />
         <RemainSplitCard
           title="Kasada kalan"
           percent={profit.netShare}
-          center={m(profit.net)}
+          center={formatMoney(profit.net)}
           caption="kasada kalan"
           rows={[
-            { name: "Brüt satış", value: profit.gross, display: m(profit.gross) },
-            { name: "Sabit gider", value: profit.expense, display: m(profit.expense) },
-            { name: "Kasada kalan", value: profit.net, display: m(profit.net) },
+            { name: "Brüt satış", value: profit.gross, display: formatMoney(profit.gross) },
+            { name: "Sabit gider", value: profit.expense, display: formatMoney(profit.expense) },
+            { name: "Kasada kalan", value: profit.net, display: formatMoney(profit.net) },
           ]}
         />
-        <CategorySalesCard
-          title="Kategori"
-          compact={categories.compact}
-          delta={categories.delta}
-          slices={categories.slices}
-        />
       </div>
+      {hourly.length > 0 ? <RetentionStepChart title="Saatlik ciro" data={hourly} /> : null}
       <PeakTrackCard
         title="Kanal"
-        value={m(channels.total)}
+        value={formatMoney(channels.total)}
         rows={channels.rows.map((row) => ({
           name: row.label,
           value: row.revenue,
-          display: m(row.revenue),
+          display: formatMoney(row.revenue),
           hint: `${row.orders.toLocaleString("tr-TR")} sipariş`,
         }))}
         accent={CHART_COLORS.c1}
       />
-      <PeakTrackCard
-        title="Satılanlar"
-        value={`${sold.itemCount.toLocaleString("tr-TR")} adet`}
-        rows={sold.products.slice(0, 8).map((row) => ({
-          name: row.name,
-          value: row.quantity,
-          display: `${row.quantity.toLocaleString("tr-TR")} adet`,
-          hint: m(row.revenue),
-        }))}
-        accent={CHART_COLORS.c2}
+      <CategorySalesCard
+        title="Kategori cirosu"
+        compact={categories.compact}
+        delta={categories.delta}
+        slices={categories.slices}
       />
       <DualRankCard
-        title="Adet / ciro"
-        leftTitle="Ürün"
-        rightTitle="Ürün"
+        title="Ne çok satıldı, ne çok kazandırdı"
+        leftTitle="Adet"
+        rightTitle="Ciro"
         left={volume.byQuantity.map((row) => ({
           name: row.name,
           value: row.quantity.toLocaleString("tr-TR"),
@@ -108,12 +106,21 @@ export function CiroPage({
         }))}
         right={volume.byRevenue.map((row) => ({
           name: row.name,
-          value: m(row.revenue),
+          value: formatMoney(row.revenue),
           weight: row.revenue,
         }))}
         footer={volumeFooter(volume)}
       />
     </div>
+  );
+}
+
+function hourlyRevenue(revenue: MenuRevenueReportResponse): { label: string; value: number }[] {
+  return activeWindow(
+    fillHourlyPoints(revenue.hourly ?? []).map((point) => ({
+      label: point.label,
+      value: point.revenue,
+    })),
   );
 }
 

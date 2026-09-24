@@ -1,33 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import {
   BranchDetailPanel,
   type BranchDetailTab,
 } from "@/components/dashboard/branch-detail/BranchDetailPanel";
-import type { CompareRow, MenuRow, ReviewRow, StaffRow } from "@/components/dashboard/branch-detail/BranchDetailLists";
+import type { BranchOverview } from "@/components/dashboard/branch-detail/branch-detail-types";
+import type { MenuRow, ReviewRow, StaffRow } from "@/components/dashboard/branch-detail/BranchDetailLists";
 import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
 import { useDashboardPageLabel } from "@/contexts/dashboard-page-label";
 import { useBranch, useBranches } from "@/hooks/use-branches";
-import { useBranchRevenueReport } from "@/hooks/use-branch-revenue-report";
-import {
-  branchSummaryAnalyticsQueryKey,
-  useBranchSummaryAnalytics,
-} from "@/hooks/use-branch-summary-analytics";
-import {
-  getBranchSummaryAnalyticsRequest,
-  getMenuFeedbackRequest,
-  getMenuFeedbackSummaryRequest,
-} from "@/lib/api";
-import { compareBranchIds, formatBranchAmount, formatScore } from "@/lib/branch-detail";
+import { getMenuFeedbackRequest } from "@/lib/api";
+import { formatScore } from "@/lib/branch-detail";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
-import { listMerchantOrders } from "@/lib/ordering-api";
 import { listMenuUsers, parseStaffRole, STAFF_ROLE_LABEL } from "@/lib/waiter-api";
-import { reportingPeriodRange, toAmount } from "@/reporting";
-import { buildOverview } from "@/views/dashboard/branch-detail-overview-model";
 
 type BranchDetailViewProps = { branchId: number };
 
@@ -39,28 +28,12 @@ export default function BranchDetailView({ branchId }: BranchDetailViewProps) {
   const branch = branchQuery.data;
   useDashboardPageLabel(branch?.name);
 
-  const week = useMemo(() => reportingPeriodRange("7d"), []);
-  const summaryQuery = useBranchSummaryAnalytics(branchId, null, week.from, week.to);
-  const revenueQuery = useBranchRevenueReport(branchId, null, week.from, week.to);
   const menuId = branch?.menus[0]?.menuId ?? null;
-  const ordersQuery = useQuery({
-    queryKey: ["branchDetailOrders", menuId],
-    queryFn: () => listMerchantOrders(menuId as number),
-    enabled: menuId != null,
-    retry: false,
-    staleTime: 30_000,
-  });
   const usersQuery = useQuery({
     queryKey: ["branchDetailUsers", branchId],
     queryFn: () => listMenuUsers(branchId),
     enabled: branchId > 0,
     retry: false,
-    staleTime: 60_000,
-  });
-  const ratingQuery = useQuery({
-    queryKey: ["branchDetailRating", menuId],
-    queryFn: () => getMenuFeedbackSummaryRequest(menuId as number),
-    enabled: menuId != null,
     staleTime: 60_000,
   });
   const reviewsQuery = useQuery({
@@ -70,15 +43,6 @@ export default function BranchDetailView({ branchId }: BranchDetailViewProps) {
     staleTime: 60_000,
   });
   const branches = branchesQuery.data?.content;
-  const ids = useMemo(() => compareBranchIds(branches ?? [], branchId), [branches, branchId]);
-  const compareQueries = useQueries({
-    queries: ids.map((id) => ({
-      queryKey: branchSummaryAnalyticsQueryKey(id, null, week.from, week.to),
-      queryFn: () => getBranchSummaryAnalyticsRequest(id, week.from, week.to, null),
-      enabled: ids.length > 0,
-      staleTime: 60_000,
-    })),
-  });
 
   if (branchQuery.isLoading) {
     return <DashboardLoadingState label="Şube yükleniyor…" />;
@@ -87,22 +51,10 @@ export default function BranchDetailView({ branchId }: BranchDetailViewProps) {
     return <p className="text-sm text-muted-foreground">Şube bulunamadı.</p>;
   }
 
-  const currency = revenueQuery.data?.kpis.currency ?? summaryQuery.data?.overview.currency;
-  const compare = compareRows(ids, branches ?? [], compareQueries, currency);
-  const staff = staffRows(usersQuery.data?.waiters ?? []);
   const reviews = reviewRows(reviewsQuery.data?.content ?? []);
   const menus = menuRows(branch);
-  const overview = buildOverview(branch, currency, week, {
-    summary: summaryQuery.data,
-    summaryReady: summaryQuery.isSuccess,
-    revenue: revenueQuery.data,
-    revenueReady: revenueQuery.isSuccess,
-    orders: ordersQuery.data ?? [],
-    qrId: branch.menus[0]?.qrId ?? null,
-    ratingAvg: ratingQuery.data?.menu.ratingAvg,
-    ratingCount: ratingQuery.data?.menu.ratingCount ?? 0,
-    reviews,
-  });
+  const staff = staffRows(usersQuery.data?.waiters ?? []);
+  const overview = branchOverview(branch);
 
   return (
     <BranchDetailPanel
@@ -113,30 +65,29 @@ export default function BranchDetailView({ branchId }: BranchDetailViewProps) {
       onTab={setTab}
       onSelectBranch={(nextId) => router.push(DASHBOARD_ROUTES.branchDetail(nextId))}
       overview={overview}
-      compare={compare}
-      staff={staff}
       reviews={reviews}
       menus={menus}
+      staff={staff}
     />
   );
 }
 
-function compareRows(
-  ids: number[],
-  branches: Array<{ id: number; name: string }>,
-  queries: Array<{ isSuccess: boolean; data?: { overview: { grossRevenue?: number | string | null } } }>,
-  currency?: string | null,
-): CompareRow[] {
-  return ids.map((id, index) => {
-    const query = queries[index];
-    const value = query?.isSuccess ? toAmount(query.data?.overview.grossRevenue) : 0;
-    return {
-      id,
-      label: branches.find((item) => item.id === id)?.name ?? "Şube",
-      amount: query?.isSuccess ? formatBranchAmount(value, currency) : "—",
-      value,
-    };
-  });
+function branchOverview(branch: {
+  photoUrl?: string | null;
+  active: boolean;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  kitchenEnabled?: boolean | null;
+}): BranchOverview {
+  return {
+    photoUrl: branch.photoUrl ?? null,
+    active: branch.active,
+    address: branch.address ?? null,
+    phone: branch.phone ?? null,
+    email: branch.email ?? null,
+    kitchenOn: Boolean(branch.kitchenEnabled),
+  };
 }
 
 function staffRows(waiters: Array<{ id: number; displayName: string; staffRole?: string | null }>): StaffRow[] {

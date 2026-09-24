@@ -9,11 +9,20 @@ import {
   isPurchaseAllowlistedPath,
   isStartAllowlistedPath,
 } from "@/lib/access-session-gate";
+import { ACCESS_REFRESHED_EVENT } from "@/lib/refresh-access";
 
 export default function PackageAccessGate() {
   const pathname = usePathname();
   const router = useRouter();
   const session = useAccessSession();
+
+  useEffect(() => {
+    const onAccessRefreshed = () => {
+      router.refresh();
+    };
+    window.addEventListener(ACCESS_REFRESHED_EVENT, onAccessRefreshed);
+    return () => window.removeEventListener(ACCESS_REFRESHED_EVENT, onAccessRefreshed);
+  }, [router]);
 
   useEffect(() => {
     if (session.isLoading || session.isError) return;

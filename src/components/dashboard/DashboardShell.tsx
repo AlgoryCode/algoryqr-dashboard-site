@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -13,7 +13,6 @@ import {
   BarChart3,
   Blocks,
   User,
-  Users,
   UsersRound,
   Info,
   AlertTriangle,
@@ -55,16 +54,18 @@ import {
 import { useTokenRefresh } from "@/hooks/use-token-refresh";
 import { useAccessProfile } from "@/hooks/use-access-profile";
 import { useAccessSession } from "@/hooks/use-commerce";
+import { SESSION_CONTEXT_QUERY_KEY } from "@/hooks/use-session-context";
 import { usePendingOrderCount } from "@/hooks/use-pending-order-count";
+import { useQueryClient } from "@tanstack/react-query";
+import type { SessionContext } from "@/lib/session-context";
 import {
   DASHBOARD_NAV_ITEMS,
   DASHBOARD_ROUTES,
   getVisibleDashboardNavGroups,
   isDashboardNavActive,
-  parseBranchDetailId,
   type DashboardNavKey,
 } from "@/lib/dashboard-routes";
-import { ACCOUNT_PAGE_FRAME, DASHBOARD_CONTENT } from "@/lib/dashboard-surface";
+import { DASHBOARD_CONTENT } from "@/lib/dashboard-surface";
 import { hasScope } from "@/lib/auth-user";
 import type { StoredUser } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -79,7 +80,6 @@ const NAV_ICONS: Record<DashboardNavKey, ComponentType<{ className?: string }>> 
   stock: Warehouse,
   reports: TrendingUp,
   accounting: Calculator,
-  menuUsers: Users,
   menuCustomers: UsersRound,
   campaigns: Megaphone,
   qrCodes: QrCode,
@@ -117,10 +117,21 @@ function sidebarLabelClass(collapsed: boolean) {
 
 interface DashboardShellProps {
   initialUser?: StoredUser | null;
+  initialSession?: SessionContext | null;
   children: ReactNode;
 }
 
-function DashboardShellInner({ children }: DashboardShellProps) {
+function SessionCacheHydrator({ session }: { session?: SessionContext | null }) {
+  const queryClient = useQueryClient();
+  const seeded = useRef(false);
+  if (session && !seeded.current) {
+    queryClient.setQueryData(SESSION_CONTEXT_QUERY_KEY, session);
+    seeded.current = true;
+  }
+  return null;
+}
+
+function DashboardShellInner({ children, initialSession }: DashboardShellProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -131,7 +142,6 @@ function DashboardShellInner({ children }: DashboardShellProps) {
     waiterPanel === "uber-eats" ||
     waiterPanel === "integrations";
   const isOnlineBoard = pathname === DASHBOARD_ROUTES.onlineOrderOrders || waiterPanel === "online";
-  const isAccountPage = pathname.startsWith(DASHBOARD_ROUTES.account);
   const { banners, addBanner, removeBanner } = useDashboardBannerState();
   const [portalReady, setPortalReady] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -244,6 +254,7 @@ function DashboardShellInner({ children }: DashboardShellProps) {
     <DashboardBannersProvider onBanner={addBanner}>
       <TrialReminderUiProvider>
         {bannerPortal}
+        <SessionCacheHydrator session={initialSession} />
         <PackageAccessGate />
         <TrialReminderDialog />
         <DashboardCommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
@@ -374,7 +385,6 @@ function DashboardShellInner({ children }: DashboardShellProps) {
         <main
           className={cn(
             "relative min-h-0 flex-1 overflow-y-auto bg-background pb-20 lg:pb-0",
-            isAccountPage && `m-3 rounded-3xl ${ACCOUNT_PAGE_FRAME}`,
           )}
         >
           <header className="flex items-center justify-between border-b border-border bg-card px-4 py-3 lg:hidden">
@@ -422,8 +432,7 @@ function DashboardShellInner({ children }: DashboardShellProps) {
           <div
             className={cn(
               pathname === DASHBOARD_ROUTES.onlineOrderOrders ||
-              pathname === DASHBOARD_ROUTES.waiter ||
-              parseBranchDetailId(pathname) != null
+              pathname === DASHBOARD_ROUTES.waiter
                 ? "mx-auto w-full max-w-[90rem]"
                 : DASHBOARD_CONTENT,
               isOnlineBoard ? "p-4 lg:px-6 lg:pt-4 lg:pb-0" : "p-6 lg:p-8",

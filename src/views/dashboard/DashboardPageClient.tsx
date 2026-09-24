@@ -71,7 +71,6 @@ import PrinterHubView from "@/views/dashboard/PrinterHubView";
 import RestaurantLayoutView from "@/views/dashboard/RestaurantLayoutView";
 import SmartReportDetailView from "@/views/dashboard/SmartReportDetailView";
 import SmartReportsView from "@/views/dashboard/SmartReportsView";
-import ReportsHubView from "@/views/dashboard/ReportsHubView";
 import MenuCustomersView from "@/views/dashboard/MenuCustomersView";
 import CampaignsView from "@/views/dashboard/CampaignsView";
 import CampaignCreateView from "@/views/dashboard/CampaignCreateView";
@@ -262,7 +261,11 @@ export default function DashboardPageClient({ initialUser = null }: DashboardPag
   }
 
   if (pathname === DASHBOARD_ROUTES.reportsHub) {
-    return <ReportsHubView />;
+    return (
+      <Suspense fallback={null}>
+        <AnalyticsTab />
+      </Suspense>
+    );
   }
 
   if (

@@ -1,17 +1,12 @@
 export const DASHBOARD_CONTENT =
   "mx-auto w-full max-w-5xl";
 
-export const DASHBOARD_SURFACE =
-  "rounded-3xl border border-border bg-card shadow-none";
-
-export const ACCOUNT_PAGE_FRAME =
-  "border border-[#ececea] bg-white text-zinc-950 [--background:0_0%_100%] [--foreground:221_39%_11%] [--card:0_0%_100%] [--card-foreground:221_39%_11%] [--muted:220_14%_96%] [--muted-foreground:220_9%_46%] [--border:60_5%_92%] [--popover:0_0%_100%] [--popover-foreground:221_39%_11%]";
-
 export const ACCOUNT_CARD =
-  "rounded-2xl border border-[#ececea] bg-white shadow-[0_6px_16px_rgba(0,0,0,0.08)]";
+  "rounded-2xl border border-[#ececea] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06),0_2px_6px_rgba(15,23,42,0.05)]";
 
-export const ACCOUNT_SURFACE =
-  "rounded-3xl border border-[#ececea] bg-white shadow-[0_6px_16px_rgba(0,0,0,0.08)]";
+export const DASHBOARD_SURFACE = ACCOUNT_CARD;
+
+export const ACCOUNT_SURFACE = ACCOUNT_CARD;
 
 export const DASHBOARD_TILE =
   `${DASHBOARD_SURFACE} p-4 transition-colors hover:bg-muted/40`;
@@ -36,8 +31,7 @@ export const DASHBOARD_FILTER_FIELD = "flex min-w-0 flex-col gap-2";
 
 export const DASHBOARD_FILTER_LABEL = "text-xs leading-4 text-muted-foreground";
 
-export const DASHBOARD_STAT_TILE =
-  "rounded-[20px] border border-black/[0.04] bg-white p-5 text-left shadow-[0_8px_24px_rgba(15,23,42,0.05)] dark:border-border dark:bg-card";
+export const DASHBOARD_STAT_TILE = `${ACCOUNT_CARD} p-5 text-left`;
 
 export const DASHBOARD_METRIC_LABEL =
   "text-[13px] font-light leading-none text-neutral-500 dark:text-muted-foreground";

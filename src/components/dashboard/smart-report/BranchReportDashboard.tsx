@@ -154,7 +154,7 @@ export default function BranchReportDashboard({
           ) : null}
           {activeTab === "traffic" ? (
             visits ? (
-              <TrafficSection visits={visits} revenue={revenue} />
+              <TrafficSection visits={visits} />
             ) : (
               <ReportEmpty text="Trafik verisi yok." />
             )

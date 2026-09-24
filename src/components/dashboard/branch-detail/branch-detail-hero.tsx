@@ -1,12 +1,21 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Mail, MapPin, Pencil, Phone, Store, UtensilsCrossed } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { CircleHelp, Mail, MapPin, Pencil, Phone, Save, Store, UtensilsCrossed, X } from "lucide-react";
 
-import { CARD } from "@/components/dashboard/branch-detail/branch-detail-cards";
 import type { BranchOverview } from "@/components/dashboard/branch-detail/branch-detail-types";
 import type { MenuRow } from "@/components/dashboard/branch-detail/BranchDetailLists";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useToast } from "@/hooks/use-toast";
+import { invalidateBranches } from "@/hooks/use-branches";
+import { ApiError } from "@/lib/api";
+import { updateBranchRequest } from "@/lib/branch";
+import { ACCOUNT_CARD } from "@/lib/dashboard-surface";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { cn } from "@/lib/utils";
 
@@ -35,30 +44,231 @@ export function Hero({ branchId, name, overview }: { branchId: number; name: str
   );
 }
 
-export function InfoCard({ name, menus, overview }: { name: string; menus: MenuRow[]; overview: BranchOverview }) {
-  const rows = [
-    { icon: Store, label: "Şube adı", value: name },
-    { icon: MapPin, label: "Adres", value: overview.address || "—" },
-    { icon: Phone, label: "Telefon", value: overview.phone || "—" },
-    { icon: Mail, label: "E-posta", value: overview.email || "—" },
-    { icon: UtensilsCrossed, label: "Mutfak", value: overview.kitchenOn ? "Açık" : "Kapalı" },
-  ];
+export function InfoCard({
+  branchId,
+  name,
+  menus,
+  overview,
+  className,
+}: {
+  branchId: number;
+  name: string;
+  menus: MenuRow[];
+  overview: BranchOverview;
+  className?: string;
+}) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [kitchenOn, setKitchenOn] = useState(overview.kitchenOn);
+  const [kitchenSaving, setKitchenSaving] = useState(false);
+  const [draft, setDraft] = useState(() => infoDraft(name, overview));
+  const shown = editing ? draft : infoDraft(name, overview);
+  const rows = infoRows(shown);
+
+  useEffect(() => {
+    setKitchenOn(overview.kitchenOn);
+  }, [overview.kitchenOn]);
+
+  const saveKitchen = async (next: boolean) => {
+    const previous = kitchenOn;
+    setKitchenOn(next);
+    setKitchenSaving(true);
+    try {
+      await updateBranchRequest(branchId, {
+        name: name.trim(),
+        address: overview.address?.trim() || undefined,
+        phone: overview.phone?.trim() || undefined,
+        email: overview.email?.trim() || undefined,
+        kitchenEnabled: next,
+      });
+      await invalidateBranches(queryClient);
+    } catch (error) {
+      setKitchenOn(previous);
+      toast({
+        title: error instanceof ApiError ? error.message : "Mutfak güncellenemedi.",
+        variant: "destructive",
+      });
+    } finally {
+      setKitchenSaving(false);
+    }
+  };
+
+  const startEditing = () => {
+    setDraft(infoDraft(name, overview));
+    setEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setDraft(infoDraft(name, overview));
+    setEditing(false);
+  };
+
+  const saveEditing = async () => {
+    if (!draft.name.trim()) {
+      toast({ title: "Şube adı zorunludur.", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateBranchRequest(branchId, {
+        name: draft.name.trim(),
+        address: draft.address.trim() || undefined,
+        phone: draft.phone.trim() || undefined,
+        email: draft.email.trim() || undefined,
+      });
+      await invalidateBranches(queryClient);
+      setEditing(false);
+      toast({ title: "Şube bilgileri güncellendi." });
+    } catch (error) {
+      toast({
+        title: error instanceof ApiError ? error.message : "Şube güncellenemedi.",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <article className={cn(CARD, "p-4")}>
-      <h2 className="text-sm font-semibold text-foreground">Şube bilgileri</h2>
+    <article className={cn(ACCOUNT_CARD, "p-4", className)}>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold text-foreground">Şube bilgileri</h2>
+        <div className="flex items-center gap-1">
+          {editing ? (
+            <>
+              <button
+                type="button"
+                className="flex size-8 items-center justify-center rounded-full text-zinc-950 hover:bg-[#fafafa] disabled:opacity-60"
+                aria-label="İptal et"
+                disabled={saving}
+                onClick={cancelEditing}
+              >
+                <X className="size-4" />
+              </button>
+              <button
+                type="button"
+                className="flex size-8 items-center justify-center rounded-full text-zinc-950 hover:bg-[#fafafa] disabled:opacity-60"
+                aria-label="Kaydet"
+                disabled={saving}
+                onClick={() => void saveEditing()}
+              >
+                <Save className="size-4" />
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="flex size-8 items-center justify-center rounded-full text-zinc-950 hover:bg-[#fafafa]"
+              aria-label="Düzenle"
+              onClick={startEditing}
+            >
+              <Pencil className="size-4" />
+            </button>
+          )}
+        </div>
+      </div>
       <ul className="mt-4 space-y-3">
         {rows.map((row) => (
-          <li key={row.label} className="flex items-start gap-2.5">
+          <li key={row.key} className="flex items-start gap-2.5">
             <row.icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-[11px] text-muted-foreground">{row.label}</p>
-              <p className="truncate text-sm text-foreground">{row.value}</p>
+              <InfoValue row={row} draft={draft} editing={editing} onChange={setDraft} />
             </div>
           </li>
         ))}
+        <li className="flex items-start gap-2.5">
+          <UtensilsCrossed className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1">
+              <p className="text-[11px] text-muted-foreground">Mutfak</p>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="text-zinc-950"
+                    aria-label="Mutfak ne işe yarar"
+                  >
+                    <CircleHelp className="size-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-56 text-left font-normal leading-relaxed">
+                  Açıkken bu şubenin siparişleri mutfak ekranına düşer ve mutfak hesabı eklenebilir.
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <span className="mt-1 flex items-center gap-2 text-sm text-foreground">
+              <Switch
+                checked={kitchenOn}
+                disabled={kitchenSaving}
+                onCheckedChange={(next) => void saveKitchen(next)}
+                aria-label="Mutfak"
+              />
+              {kitchenOn ? "Açık" : "Kapalı"}
+            </span>
+          </div>
+        </li>
       </ul>
       <MenuLinks menus={menus} />
     </article>
+  );
+}
+
+type InfoDraft = {
+  name: string;
+  address: string;
+  phone: string;
+  email: string;
+};
+
+type InfoRow = {
+  key: keyof InfoDraft;
+  icon: typeof Store;
+  label: string;
+  value: string;
+};
+
+function infoDraft(name: string, overview: BranchOverview): InfoDraft {
+  return {
+    name,
+    address: overview.address ?? "",
+    phone: overview.phone ?? "",
+    email: overview.email ?? "",
+  };
+}
+
+function infoRows(draft: InfoDraft): InfoRow[] {
+  return [
+    { key: "name", icon: Store, label: "Şube adı", value: draft.name || "—" },
+    { key: "address", icon: MapPin, label: "Adres", value: draft.address || "—" },
+    { key: "phone", icon: Phone, label: "Telefon", value: draft.phone || "—" },
+    { key: "email", icon: Mail, label: "E-posta", value: draft.email || "—" },
+  ];
+}
+
+function InfoValue({
+  row,
+  draft,
+  editing,
+  onChange,
+}: {
+  row: InfoRow;
+  draft: InfoDraft;
+  editing: boolean;
+  onChange: (next: InfoDraft) => void;
+}) {
+  if (!editing) {
+    return <p className="truncate text-sm text-foreground">{row.value}</p>;
+  }
+  return (
+    <Input
+      value={draft[row.key]}
+      onChange={(event) => onChange({ ...draft, [row.key]: event.target.value })}
+      className="mt-1 h-8"
+      aria-label={row.label}
+    />
   );
 }
 

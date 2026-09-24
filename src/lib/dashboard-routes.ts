@@ -184,7 +184,6 @@ export type DashboardNavKey =
   | "stock"
   | "reports"
   | "accounting"
-  | "menuUsers"
   | "menuCustomers"
   | "campaigns"
   | "qrCodes"
@@ -212,7 +211,7 @@ export const DASHBOARD_NAV_GROUPS: DashboardNavGroup[] = [
   { id: "menu", label: "Menü", items: ["digitalMenu", "campaigns", "qrCodes"] },
   { id: "integrations", label: "Entegrasyonlar", items: ["uberEats"] },
   { id: "reports", label: "Raporlar", items: ["reports"] },
-  { id: "management", label: "Yönetim", items: ["accounting", "menuUsers", "menuCustomers"] },
+  { id: "management", label: "Yönetim", items: ["accounting", "menuCustomers"] },
   { id: "account", label: "", items: ["account"] },
 ];
 
@@ -296,13 +295,6 @@ export const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
     mobileLabel: "Muhasebe",
     href: DASHBOARD_ROUTES.muhasebe,
     requiresAllowAccess: true,
-  },
-  {
-    key: "menuUsers",
-    label: "Kullanıcılar",
-    mobileLabel: "Kullanıcılar",
-    href: DASHBOARD_ROUTES.menuUsers,
-    requiredScope: "WAITER_PANEL_OWNER",
   },
   {
     key: "menuCustomers",

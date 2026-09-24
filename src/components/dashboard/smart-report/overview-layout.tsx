@@ -1,24 +1,19 @@
 "use client";
 
 import { useMemo } from "react";
-import type {
-  MenuAnalyticsReportResponse,
-  MenuRevenueReportResponse,
-  MenuWaiterPerformanceReportResponse,
-} from "@/lib/api";
+import type { MenuAnalyticsReportResponse, MenuRevenueReportResponse } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { DASHBOARD_METRIC_LABEL, DASHBOARD_METRIC_VALUE, DASHBOARD_STAT_TILE } from "@/lib/dashboard-surface";
-
+import { useBranchAnalyticsReport } from "@/hooks/use-branch-analytics-report";
 import { useBranchRevenueReport } from "@/hooks/use-branch-revenue-report";
 import { comparePeriodRange } from "@/reporting";
 
-import { CHART_COLORS, money, num } from "./chart-config";
+import { dayLabel, money, pctDelta } from "./chart-config";
 import { ReportEmpty } from "./ReportChartCard";
-import { PeakTrackCard } from "./charts/NestedRingCard";
-import { RemainSplitCard } from "./charts/RemainSplitCard";
-import { TodayPulseCard } from "./charts/TodayPulseCard";
-import { readChannelMix, readCiroMetrics, readProfitMix } from "./ciro-metrics";
-import { readStaffCompare } from "./staff-metrics";
+import { CiroWorthCard } from "./charts/CiroWorthCard";
+import { RetentionStepChart } from "./charts/ZentraOverview";
+import { readCiroMetrics } from "./ciro-metrics";
+import { buildCiroWorthSeries } from "./shadcn-charts";
 
 type OverviewMetric = {
   id: string;
@@ -30,33 +25,80 @@ type OverviewMetric = {
 export function OverviewPage({
   revenue,
   visits,
-  waiter,
   canUseRevenue,
 }: {
   revenue?: MenuRevenueReportResponse | null;
   visits?: MenuAnalyticsReportResponse | null;
-  waiter?: MenuWaiterPerformanceReportResponse | null;
   canUseRevenue?: boolean;
 }) {
+  const from = revenue?.from ?? visits?.from ?? "";
+  const to = revenue?.to ?? visits?.to ?? "";
+  const branchId = revenue?.branchId ?? visits?.branchId ?? null;
+  const menuId = revenue?.menuId ?? visits?.menuId ?? null;
+  const compareRange = useMemo(
+    () => comparePeriodRange(from || "1970-01-01", to || "1970-01-01", "previous"),
+    [from, to],
+  );
+  const compareRevenue = useBranchRevenueReport(
+    branchId,
+    menuId,
+    compareRange.from,
+    compareRange.to,
+    Boolean(canUseRevenue && branchId != null && from),
+  );
+  const compareVisits = useBranchAnalyticsReport(
+    branchId,
+    menuId,
+    compareRange.from,
+    compareRange.to,
+    branchId != null && Boolean(from),
+  );
+
   if (!revenue && !visits) {
     return <ReportEmpty text="Özet verisi henüz yok." />;
   }
 
   const currency = revenue ? readCiroMetrics(revenue).currency : "TRY";
-  const m = (value: number) => money(value, currency);
-  const metrics = buildOverviewMetrics({ revenue, visits, waiter, canUseRevenue, money: m });
+  const formatMoney = (value: number) => money(value, currency);
+  const metrics = buildOverviewMetrics({
+    revenue,
+    visits,
+    previousRevenue: compareRevenue.data,
+    previousVisits: compareVisits.data,
+    canUseRevenue,
+    money: formatMoney,
+  });
+
+  const showCiroWorth = Boolean(revenue && canUseRevenue);
 
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        {showCiroWorth ? (
+          <div className="col-span-2 min-w-0">
+            <CiroWorthCard
+              total={formatMoney(readCiroMetrics(revenue!).total)}
+              delta={worthDelta(revenue!, compareRevenue.data)}
+              points={buildCiroWorthSeries(revenue!)}
+              formatValue={formatMoney}
+            />
+          </div>
+        ) : null}
         {metrics.map((item) => (
           <OverviewMetricCard key={item.id} item={item} />
         ))}
       </div>
-      {revenue && canUseRevenue ? <OverviewRevenueBlock revenue={revenue} money={m} /> : null}
-      {waiter && canUseRevenue ? <OverviewStaffBlock waiter={waiter} money={m} /> : null}
+      {visits && (!revenue || !canUseRevenue) ? <SessionRhythm visits={visits} /> : null}
     </div>
   );
+}
+
+function worthDelta(
+  current: MenuRevenueReportResponse,
+  previous: MenuRevenueReportResponse | undefined,
+): number | null {
+  if (!previous) return null;
+  return pctDelta(readCiroMetrics(current).total, readCiroMetrics(previous).total);
 }
 
 function OverviewMetricCard({ item }: { item: OverviewMetric }) {
@@ -71,97 +113,11 @@ function OverviewMetricCard({ item }: { item: OverviewMetric }) {
   );
 }
 
-function OverviewRevenueBlock({
-  revenue,
-  money: m,
-}: {
-  revenue: MenuRevenueReportResponse;
-  money: (value: number) => string;
-}) {
-  const compareRange = useMemo(
-    () => comparePeriodRange(revenue.from, revenue.to, "previous"),
-    [revenue.from, revenue.to],
-  );
-  const compareQuery = useBranchRevenueReport(
-    revenue.branchId ?? null,
-    revenue.menuId ?? null,
-    compareRange.from,
-    compareRange.to,
-    revenue.branchId != null,
-  );
-  const metrics = readCiroMetrics(revenue);
-  const profit = readProfitMix(revenue, metrics);
-  const channels = readChannelMix(revenue, metrics);
-
+function SessionRhythm({ visits }: { visits: MenuAnalyticsReportResponse }) {
   return (
-    <>
-      <TodayPulseCard current={revenue} previous={compareQuery.data} money={m} />
-      <div className="grid gap-3 xl:grid-cols-2">
-        <RemainSplitCard
-          title="Tahsilat"
-          percent={metrics.cashShare}
-          center={m(metrics.paymentTotal)}
-          caption="nakit payı"
-          rows={[
-            { name: "Nakit", value: metrics.cash, display: m(metrics.cash) },
-            { name: "Kart", value: metrics.card, display: m(metrics.card) },
-            { name: "Bahşiş", value: metrics.tip, display: m(metrics.tip) },
-          ]}
-        />
-        <RemainSplitCard
-          title="Kasada kalan"
-          percent={profit.netShare}
-          center={m(profit.net)}
-          caption="kasada kalan"
-          rows={[
-            { name: "Brüt satış", value: profit.gross, display: m(profit.gross) },
-            { name: "Sabit gider", value: profit.expense, display: m(profit.expense) },
-            { name: "Kasada kalan", value: profit.net, display: m(profit.net) },
-          ]}
-        />
-      </div>
-      {channels.rows.length > 0 ? (
-        <PeakTrackCard
-          title="Kanal özeti"
-          value={m(channels.total)}
-          rows={channels.rows.slice(0, 4).map((row) => ({
-            name: row.label,
-            value: row.revenue,
-            display: m(row.revenue),
-            hint: `${row.orders.toLocaleString("tr-TR")} sipariş`,
-          }))}
-          accent={CHART_COLORS.c1}
-        />
-      ) : null}
-    </>
-  );
-}
-
-function OverviewStaffBlock({
-  waiter,
-  money: m,
-}: {
-  waiter: MenuWaiterPerformanceReportResponse;
-  money: (value: number) => string;
-}) {
-  const staff = readStaffCompare(waiter);
-  const top = [...(waiter.waiters ?? [])]
-    .sort((a, b) => num(b.revenue) - num(a.revenue))
-    .slice(0, 5);
-
-  if (top.length === 0) return null;
-
-  return (
-    <PeakTrackCard
-      title="Personel özeti"
-      value={m(staff.totalRevenue)}
-      rows={top.map((row) => ({
-        name: row.displayName,
-        value: num(row.revenue),
-        display: m(num(row.revenue)),
-        hint: `${(row.orderCount ?? 0).toLocaleString("tr-TR")} sipariş`,
-      }))}
-      accent={CHART_COLORS.c2}
+    <RetentionStepChart
+      title="Oturum"
+      data={(visits.daily ?? []).map((row) => ({ label: dayLabel(row.date), value: row.sessions }))}
     />
   );
 }
@@ -169,62 +125,110 @@ function OverviewStaffBlock({
 function buildOverviewMetrics({
   revenue,
   visits,
-  waiter,
+  previousRevenue,
+  previousVisits,
   canUseRevenue,
-  money: m,
+  money: formatMoney,
 }: {
   revenue?: MenuRevenueReportResponse | null;
   visits?: MenuAnalyticsReportResponse | null;
-  waiter?: MenuWaiterPerformanceReportResponse | null;
+  previousRevenue?: MenuRevenueReportResponse;
+  previousVisits?: MenuAnalyticsReportResponse;
   canUseRevenue?: boolean;
   money: (value: number) => string;
 }): OverviewMetric[] {
-  const items: OverviewMetric[] = [];
-
   if (revenue && canUseRevenue) {
-    const metrics = readCiroMetrics(revenue);
-    items.push(
-      {
-        id: "revenue",
-        label: "Ciro",
-        value: m(metrics.total),
-        hint: `${metrics.orders.toLocaleString("tr-TR")} sipariş`,
-      },
-      {
-        id: "orders",
-        label: "Sipariş",
-        value: metrics.orders.toLocaleString("tr-TR"),
-        hint: `Ort. sepet ${m(metrics.aov)}`,
-      },
-    );
+    return revenueScorecard(revenue, visits, previousRevenue, previousVisits, formatMoney);
   }
+  if (!visits) return [];
+  return visitScorecard(visits, previousVisits);
+}
 
-  if (visits) {
-    items.push(
-      {
-        id: "sessions",
-        label: "Oturum",
-        value: (visits.kpis.sessions ?? 0).toLocaleString("tr-TR"),
-        hint: `${(visits.kpis.menuOpens ?? 0).toLocaleString("tr-TR")} menü açılış`,
-      },
-      {
-        id: "views",
-        label: "Ürün görüntüleme",
-        value: (visits.kpis.productViews ?? 0).toLocaleString("tr-TR"),
-        hint: `Ort. ${(visits.kpis.avgProductsPerSession ?? 0).toLocaleString("tr-TR", { maximumFractionDigits: 1 })} / oturum`,
-      },
-    );
-  }
+function revenueScorecard(
+  revenue: MenuRevenueReportResponse,
+  visits: MenuAnalyticsReportResponse | null | undefined,
+  previousRevenue: MenuRevenueReportResponse | undefined,
+  previousVisits: MenuAnalyticsReportResponse | undefined,
+  formatMoney: (value: number) => string,
+): OverviewMetric[] {
+  const current = readCiroMetrics(revenue);
+  const prior = previousRevenue ? readCiroMetrics(previousRevenue) : null;
+  const sessions = visits?.kpis.sessions ?? 0;
+  const conversion = menuConversion(revenue, visits);
+  return [
+    metric("orders", "Sipariş", current.orders.toLocaleString("tr-TR"), prior ? pctDelta(current.orders, prior.orders) : null),
+    metric(
+      "sessions",
+      "Oturum",
+      sessions.toLocaleString("tr-TR"),
+      previousVisits ? pctDelta(sessions, previousVisits.kpis.sessions) : null,
+    ),
+    metric(
+      "conversion",
+      "Dönüşüm",
+      percent(conversion),
+      previousRevenue && previousVisits ? pctDelta(conversion, menuConversion(previousRevenue, previousVisits)) : null,
+      "Menü açılışından siparişe",
+    ),
+  ];
+}
 
-  if (waiter && canUseRevenue && items.length < 4) {
-    const staff = readStaffCompare(waiter);
-    items.push({
-      id: "tip",
-      label: "Bahşiş",
-      value: m(staff.totalTip),
-      hint: `${(waiter.waiters?.length ?? 0).toLocaleString("tr-TR")} personel`,
-    });
-  }
+function visitScorecard(
+  visits: MenuAnalyticsReportResponse,
+  previous: MenuAnalyticsReportResponse | undefined,
+): OverviewMetric[] {
+  const sessions = visits.kpis.sessions;
+  const intensity = opensPerSession(visits);
+  return [
+    metric("sessions", "Oturum", sessions.toLocaleString("tr-TR"), previous ? pctDelta(sessions, previous.kpis.sessions) : null),
+    metric(
+      "intensity",
+      "Açılış / oturum",
+      intensity.toLocaleString("tr-TR", { maximumFractionDigits: 1 }),
+      previous ? pctDelta(intensity, opensPerSession(previous)) : null,
+      "Bir oturumda menünün kaç kez açıldığı",
+    ),
+  ];
+}
 
-  return items.slice(0, 4);
+function menuConversion(
+  revenue?: MenuRevenueReportResponse | null,
+  visits?: MenuAnalyticsReportResponse | null,
+): number {
+  const opens = visits?.kpis.menuOpens ?? 0;
+  if (!revenue || opens <= 0) return 0;
+  return (inHouseOrders(revenue) / opens) * 100;
+}
+
+function inHouseOrders(revenue: MenuRevenueReportResponse): number {
+  const inHouse = (revenue.channels ?? []).find((row) => row.code === "IN_HOUSE");
+  if (inHouse?.orderCount != null) return inHouse.orderCount;
+  return revenue.kpis.orderCount ?? 0;
+}
+
+function opensPerSession(visits?: MenuAnalyticsReportResponse | null): number {
+  const sessions = visits?.kpis.sessions ?? 0;
+  if (sessions <= 0) return 0;
+  return (visits?.kpis.menuOpens ?? 0) / sessions;
+}
+
+function metric(
+  id: string,
+  label: string,
+  value: string,
+  delta: number | null,
+  note?: string,
+): OverviewMetric {
+  return { id, label, value, hint: compareHint(delta, note) };
+}
+
+function percent(value: number): string {
+  return `%${value.toLocaleString("tr-TR", { maximumFractionDigits: 1 })}`;
+}
+
+function compareHint(delta: number | null, note?: string): string | undefined {
+  if (delta == null) return note;
+  const rounded = Math.round(delta);
+  const change = `${rounded > 0 ? "+" : ""}${rounded.toLocaleString("tr-TR")}% önceki dönem`;
+  return note ? `${note} · ${change}` : change;
 }

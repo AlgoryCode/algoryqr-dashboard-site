@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { MenuAnalyticsReportResponse, MenuRevenueReportResponse } from "@/lib/api";
 
 import {
+  buildCiroWorthSeries,
   buildPulseArea,
   compactAmount,
   compactAxis,
@@ -10,16 +11,10 @@ import {
   pulseHourLabel,
   pulseNowHour,
   pulseRadioLabels,
-  scaleSeries,
   todayIso,
   trimZeroEdges,
 } from "./shadcn-charts";
-import {
-  buildCategorySales,
-  buildCiroSparkKpis,
-  buildTrafficSparkKpis,
-  buildTwinTrends,
-} from "./shadcn-spark";
+import { buildCategorySales, buildCiroSparkKpis, buildTrafficSparkKpis } from "./shadcn-spark";
 
 function revenue(partial: Partial<MenuRevenueReportResponse>): MenuRevenueReportResponse {
   return {
@@ -118,6 +113,36 @@ describe("pulse helpers", () => {
     ]);
   });
 
+  it("buildCiroWorthSeries_trimsIdleEdges", () => {
+    const daily = buildCiroWorthSeries(
+      revenue({
+        from: "2026-09-10",
+        to: "2026-09-13",
+        daily: [
+          { date: "2026-09-11", revenue: 40 },
+          { date: "2026-09-12", revenue: 80 },
+        ],
+      }),
+    );
+    expect(daily.map((point) => point.value)).toEqual([40, 80]);
+
+    const hourly = buildCiroWorthSeries(
+      revenue({
+        from: "2026-09-12",
+        to: "2026-09-12",
+        hourly: [
+          { hour: 12, revenue: 30 },
+          { hour: 14, revenue: 50 },
+        ],
+      }),
+    );
+    expect(hourly).toEqual([
+      { label: "12:00", value: 30 },
+      { label: "13:00", value: 0 },
+      { label: "14:00", value: 50 },
+    ]);
+  });
+
   it("compactAxis_prefixesLira", () => {
     expect(compactAxis(0)).toBe("₺0");
     expect(compactAxis(15000)).toBe("₺15K");
@@ -129,29 +154,6 @@ describe("spark and category helpers", () => {
     expect(compactAmount(250_000)).toBe("250K");
     expect(compactAmount(1_200_000)).toBe("1,2M");
     expect(compactAmount(80)).toBe("80");
-  });
-
-  it("scaleSeries_whenTotalZero_thenZeros", () => {
-    expect(scaleSeries([10, 20], 0, 5)).toEqual([0, 0]);
-    expect(scaleSeries([100, 50], 150, 75)).toEqual([50, 25]);
-  });
-
-  it("buildTwinTrends_scalesNetFromGrossShare", () => {
-    const [gross, net] = buildTwinTrends(
-      revenue({
-        kpis: { totalRevenue: 400, orderCount: 4 },
-        paymentBreakdown: { grossRevenue: 400, netRevenue: 200 },
-        daily: [
-          { date: "2026-09-11", revenue: 100, orderCount: 1 },
-          { date: "2026-09-12", revenue: 300, orderCount: 3 },
-        ],
-      }),
-      revenue({ kpis: { totalRevenue: 200 }, paymentBreakdown: { netRevenue: 100 } }),
-      (value) => `₺${value}`,
-    );
-    expect(gross.value).toBe("₺400");
-    expect(gross.delta).toBe(100);
-    expect(net.points.map((point) => point.value)).toEqual([50, 150]);
   });
 
   it("buildCiroSparkKpis_mapsOrderItemAndAov", () => {
@@ -167,22 +169,11 @@ describe("spark and category helpers", () => {
       revenue({ kpis: { totalRevenue: 100, orderCount: 2, itemCount: 4, avgOrderValue: 50 } }),
       (value) => `₺${value}`,
     );
-    expect(items.map((item) => item.title)).toEqual(["Siparişler", "Ciro", "Ödeme", "Ort. sepet"]);
-    expect(items[0]?.value).toBe("4");
+    expect(items.map((item) => item.title)).toEqual(["Kasada kalan", "Sabit gider", "Ort. sepet", "Kalem / sipariş"]);
+    expect(items[0]?.value).toBe("₺200");
     expect(items[0]?.delta).toBe(100);
-    expect(items[0]?.splits).toEqual([
-      { label: "Kalem", value: "8" },
-      { label: "Sipariş başı", value: "2" },
-    ]);
-    expect(items[1]?.splits).toEqual([
-      { label: "Brüt", value: "₺200" },
-      { label: "Net", value: "₺200" },
-    ]);
-    expect(items[2]?.splits).toEqual([
-      { label: "Kart", value: "₺150" },
-      { label: "Nakit", value: "₺50" },
-    ]);
-    expect(items[3]?.series).toEqual([40, 60]);
+    expect(items[2]?.series).toEqual([40, 60]);
+    expect(items[3]?.value).toBe("2");
   });
 
   it("buildCategorySales_rollsExtraSlicesIntoDiger", () => {
@@ -214,8 +205,13 @@ describe("spark and category helpers", () => {
         ],
       }),
     );
-    expect(items[0]?.title).toBe("Oturum");
-    expect(items[0]?.series).toEqual([4, 6]);
-    expect(items[1]?.series).toEqual([5, 7]);
+    expect(items.map((item) => item.title)).toEqual([
+      "Menü açılış",
+      "Kategori bakışı",
+      "Ürün görüntüleme",
+      "Ürün / oturum",
+    ]);
+    expect(items[0]?.series).toEqual([5, 7]);
+    expect(items[2]?.series).toEqual([8, 16]);
   });
 });
