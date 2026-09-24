@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
-import { CircleHelp, Mail, MapPin, Pencil, Phone, Save, Store, UtensilsCrossed, X } from "lucide-react";
+import { Bike, CircleHelp, Mail, MapPin, Pencil, Phone, Save, Store, UtensilsCrossed, X } from "lucide-react";
 
 import type { BranchOverview } from "@/components/dashboard/branch-detail/branch-detail-types";
 import type { MenuRow } from "@/components/dashboard/branch-detail/BranchDetailLists";
@@ -63,26 +63,31 @@ export function InfoCard({
   const [saving, setSaving] = useState(false);
   const [kitchenOn, setKitchenOn] = useState(overview.kitchenOn);
   const [kitchenSaving, setKitchenSaving] = useState(false);
+  const [courierOn, setCourierOn] = useState(overview.courierOn);
+  const [courierSaving, setCourierSaving] = useState(false);
   const [draft, setDraft] = useState(() => infoDraft(name, overview));
   const shown = editing ? draft : infoDraft(name, overview);
   const rows = infoRows(shown);
 
   useEffect(() => {
     setKitchenOn(overview.kitchenOn);
-  }, [overview.kitchenOn]);
+    setCourierOn(overview.courierOn);
+  }, [overview.kitchenOn, overview.courierOn]);
+
+  const branchPayload = (flags: { kitchenEnabled: boolean; courierEnabled: boolean }) => ({
+    name: name.trim(),
+    address: overview.address?.trim() || undefined,
+    phone: overview.phone?.trim() || undefined,
+    email: overview.email?.trim() || undefined,
+    ...flags,
+  });
 
   const saveKitchen = async (next: boolean) => {
     const previous = kitchenOn;
     setKitchenOn(next);
     setKitchenSaving(true);
     try {
-      await updateBranchRequest(branchId, {
-        name: name.trim(),
-        address: overview.address?.trim() || undefined,
-        phone: overview.phone?.trim() || undefined,
-        email: overview.email?.trim() || undefined,
-        kitchenEnabled: next,
-      });
+      await updateBranchRequest(branchId, branchPayload({ kitchenEnabled: next, courierEnabled: courierOn }));
       await invalidateBranches(queryClient);
     } catch (error) {
       setKitchenOn(previous);
@@ -92,6 +97,24 @@ export function InfoCard({
       });
     } finally {
       setKitchenSaving(false);
+    }
+  };
+
+  const saveCourier = async (next: boolean) => {
+    const previous = courierOn;
+    setCourierOn(next);
+    setCourierSaving(true);
+    try {
+      await updateBranchRequest(branchId, branchPayload({ kitchenEnabled: kitchenOn, courierEnabled: next }));
+      await invalidateBranches(queryClient);
+    } catch (error) {
+      setCourierOn(previous);
+      toast({
+        title: error instanceof ApiError ? error.message : "Kurye güncellenemedi.",
+        variant: "destructive",
+      });
+    } finally {
+      setCourierSaving(false);
     }
   };
 
@@ -117,6 +140,8 @@ export function InfoCard({
         address: draft.address.trim() || undefined,
         phone: draft.phone.trim() || undefined,
         email: draft.email.trim() || undefined,
+        kitchenEnabled: kitchenOn,
+        courierEnabled: courierOn,
       });
       await invalidateBranches(queryClient);
       setEditing(false);
@@ -207,6 +232,37 @@ export function InfoCard({
                 aria-label="Mutfak"
               />
               {kitchenOn ? "Açık" : "Kapalı"}
+            </span>
+          </div>
+        </li>
+        <li className="flex items-start gap-2.5">
+          <Bike className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1">
+              <p className="text-[11px] text-muted-foreground">Kurye</p>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="text-zinc-950"
+                    aria-label="Kurye ne işe yarar"
+                  >
+                    <CircleHelp className="size-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-56 text-left font-normal leading-relaxed">
+                  Açıkken bu şubenin teslimat siparişleri kurye ekranına düşer ve kurye hesabı eklenebilir.
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <span className="mt-1 flex items-center gap-2 text-sm text-foreground">
+              <Switch
+                checked={courierOn}
+                disabled={courierSaving}
+                onCheckedChange={(next) => void saveCourier(next)}
+                aria-label="Kurye"
+              />
+              {courierOn ? "Açık" : "Kapalı"}
             </span>
           </div>
         </li>

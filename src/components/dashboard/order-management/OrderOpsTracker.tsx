@@ -42,6 +42,7 @@ type OrderOpsTrackerProps = {
   orders: OrderResponse[];
   snapshots: Record<OpsLane, OpsLaneSnapshot>;
   kitchenEnabled: boolean;
+  courierEnabled: boolean;
   delayedKeys?: Set<string>;
   detailHref: (lane: OpsLane) => string;
   onSelect: (order: OrderResponse) => void;
@@ -559,29 +560,20 @@ export function OrderOpsTracker({
   orders,
   snapshots: _snapshots,
   kitchenEnabled,
+  courierEnabled,
   delayedKeys,
   detailHref,
   onSelect,
 }: OrderOpsTrackerProps) {
   void _snapshots;
+  const columnCount = 1 + Number(kitchenEnabled) + Number(courierEnabled);
   return (
     <div className="space-y-3">
-      {!kitchenEnabled ? (
-        <div className="flex items-start gap-3 rounded-xl border border-dashed border-border bg-muted/30 px-4 py-3">
-          <ChefHat className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-          <div>
-            <p className="text-sm font-semibold text-foreground">Mutfak bu şubede kapalı</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Seçilen siparişler mutfağa düşmez; doğrudan garsona atanır. Mutfağı şube ayarlarından
-              açabilirsiniz.
-            </p>
-          </div>
-        </div>
-      ) : null}
       <section
         className={cn(
           "grid grid-cols-1 gap-4",
-          kitchenEnabled ? "xl:grid-cols-3" : "xl:grid-cols-2",
+          columnCount >= 3 && "xl:grid-cols-3",
+          columnCount === 2 && "xl:grid-cols-2",
         )}
       >
         <SalonColumn
@@ -599,12 +591,14 @@ export function OrderOpsTracker({
             onSelect={onSelect}
           />
         ) : null}
-        <CourierColumn
-          orders={orders}
-          delayedKeys={delayedKeys}
-          detailHref={detailHref("courier")}
-          onSelect={onSelect}
-        />
+        {courierEnabled ? (
+          <CourierColumn
+            orders={orders}
+            delayedKeys={delayedKeys}
+            detailHref={detailHref("courier")}
+            onSelect={onSelect}
+          />
+        ) : null}
       </section>
     </div>
   );

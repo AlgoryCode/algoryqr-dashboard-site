@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils";
 type OrderLiveOpsCanvasProps = {
   branchLabel: string;
   kitchenEnabled: boolean;
+  courierEnabled: boolean;
   currency: string;
   kpis: LiveOpsKpiSnapshot;
   orders: OrderResponse[];
@@ -132,6 +133,7 @@ function KpiValue({
 export function OrderLiveOpsCanvas({
   branchLabel,
   kitchenEnabled,
+  courierEnabled,
   currency,
   kpis,
   orders,
@@ -187,7 +189,7 @@ export function OrderLiveOpsCanvas({
     { label: "Sipariş Akışı", short: "Akış", icon: "receipt_long", href: listHref, active: false },
     { label: "Masa & Kat", short: "Masa", icon: "table_restaurant", href: restaurantLayoutFromOrderManagementHref(homeHref), active: false },
     { label: "Garson Takibi", short: "Garson", icon: "person_apron", href: detailHref("waiter"), active: false },
-    { label: "Kurye Filosu", short: "Kurye", icon: "two_wheeler", href: detailHref("courier"), active: false },
+    { label: "Kurye Filosu", short: "Kurye", icon: "two_wheeler", href: detailHref("courier"), active: false, hide: !courierEnabled },
     { label: "Finans & Rapor", short: "Finans", icon: "analytics", href: DASHBOARD_ROUTES.reportsHub, active: false },
   ].filter((item) => !item.hide);
 
@@ -195,10 +197,15 @@ export function OrderLiveOpsCanvas({
     { label: "Canlı İzleme", icon: "dashboard", href: homeHref, active: true },
     { label: "Mutfak KDS", icon: "skillet", href: kitchenHref, active: false, hide: !kitchenEnabled },
     { label: "Kat Planı", icon: "table_restaurant", href: restaurantLayoutFromOrderManagementHref(homeHref), active: false },
-    { label: "Kurye Takip", icon: "two_wheeler", href: detailHref("courier"), active: false },
+    { label: "Kurye Takip", icon: "two_wheeler", href: detailHref("courier"), active: false, hide: !courierEnabled },
     { label: "Envanter", icon: "inventory_2", href: DASHBOARD_ROUTES.stock, active: false },
     { label: "Ayarlar", icon: "tune", href: DASHBOARD_ROUTES.account, active: false },
   ].filter((item) => !item.hide);
+
+  const opsColumnCount = 1 + Number(kitchenEnabled) + Number(courierEnabled);
+  const opsColClass =
+    opsColumnCount === 1 ? "lg:col-span-12" : opsColumnCount === 2 ? "lg:col-span-6" : "lg:col-span-4";
+  const kpiCount = 3 + Number(kitchenEnabled) + Number(courierEnabled);
 
   return (
     <div
@@ -363,7 +370,14 @@ export function OrderLiveOpsCanvas({
           ) : null}
 
           {/* KPI ROW */}
-          <section className="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <section
+            className={cn(
+              "grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2",
+              kpiCount >= 5 && "lg:grid-cols-5",
+              kpiCount === 4 && "lg:grid-cols-4",
+              kpiCount <= 3 && "lg:grid-cols-3",
+            )}
+          >
             <KpiCard
               label="Günlük canlı ciro"
               icon="payments"
@@ -422,57 +436,49 @@ export function OrderLiveOpsCanvas({
               />
             </KpiCard>
 
+            {kitchenEnabled ? (
             <KpiCard
               label="Mutfak ort. süre"
               icon="timer"
               tone="emerald"
               footer={
-                kitchenEnabled ? (
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-500">Canlı mutfak ortalaması</span>
-                    <span className="font-semibold text-slate-700">{preparing.length} aktif bilet</span>
-                  </div>
-                ) : (
-                  <p className="text-[11px] text-slate-500">Siparişler doğrudan garsona atanıyor</p>
-                )
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500">Canlı mutfak ortalaması</span>
+                  <span className="font-semibold text-slate-700">{preparing.length} aktif bilet</span>
+                </div>
               }
             >
-              {kitchenEnabled ? (
-                <KpiValue
-                  value={
-                    kpis.kitchenAvgMinutes != null
-                      ? kpis.kitchenAvgMinutes.toLocaleString("tr-TR", {
-                          maximumFractionDigits: 1,
-                          minimumFractionDigits: 1,
-                        })
-                      : "—"
-                  }
-                  suffix="dakika"
-                  caption={
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                        kpis.kitchenOnTarget
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                          : "border-rose-200 bg-rose-50 text-rose-700",
-                      )}
-                    >
-                      <span className={cn("h-1.5 w-1.5 rounded-full", kpis.kitchenOnTarget ? "bg-emerald-600" : "bg-rose-600")} />
-                      Hedef &lt;{kpis.kitchenTargetMinutes} dk
-                      <span className="font-medium opacity-80">
-                        {kpis.kitchenOnTarget ? "Başarılı" : "Aşım"}
-                      </span>
+              <KpiValue
+                value={
+                  kpis.kitchenAvgMinutes != null
+                    ? kpis.kitchenAvgMinutes.toLocaleString("tr-TR", {
+                        maximumFractionDigits: 1,
+                        minimumFractionDigits: 1,
+                      })
+                    : "—"
+                }
+                suffix="dakika"
+                caption={
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                      kpis.kitchenOnTarget
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : "border-rose-200 bg-rose-50 text-rose-700",
+                    )}
+                  >
+                    <span className={cn("h-1.5 w-1.5 rounded-full", kpis.kitchenOnTarget ? "bg-emerald-600" : "bg-rose-600")} />
+                    Hedef &lt;{kpis.kitchenTargetMinutes} dk
+                    <span className="font-medium opacity-80">
+                      {kpis.kitchenOnTarget ? "Başarılı" : "Aşım"}
                     </span>
-                  }
-                />
-              ) : (
-                <KpiValue
-                  value="Kapalı"
-                  caption={<span className="text-slate-500">Mutfak bu şubede aktif değil</span>}
-                />
-              )}
+                  </span>
+                }
+              />
             </KpiCard>
+            ) : null}
 
+            {courierEnabled ? (
             <KpiCard
               label="Kurye filosu"
               icon="two_wheeler"
@@ -497,6 +503,7 @@ export function OrderLiveOpsCanvas({
                 }
               />
             </KpiCard>
+            ) : null}
 
             <KpiCard
               label="Masa doluluk"
@@ -541,7 +548,7 @@ export function OrderLiveOpsCanvas({
           {/* 3 COLUMN OPS */}
           <section className="grid grid-cols-1 gap-4 lg:grid-cols-12">
             {/* SALON */}
-            <div className="flex min-h-[32rem] flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:col-span-4">
+            <div className={cn("flex min-h-[32rem] flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm", opsColClass)}>
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700">
@@ -698,8 +705,8 @@ export function OrderLiveOpsCanvas({
               </div>
             </div>
 
-            {/* KITCHEN */}
-            <div className="flex min-h-[32rem] flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:col-span-4">
+            {kitchenEnabled ? (
+            <div className={cn("flex min-h-[32rem] flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm", opsColClass)}>
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-orange-200 bg-orange-50 text-[#c2410c]">
@@ -707,9 +714,7 @@ export function OrderLiveOpsCanvas({
                   </div>
                   <div>
                     <h2 className="text-[15px] font-bold text-slate-900">Mutfak KDS Ekranı</h2>
-                    <span className="text-[11px] font-medium text-slate-500">
-                      {kitchenEnabled ? "Canlı mutfak kuyruğu" : "Mutfak kapalı — garsona yönlendirme"}
-                    </span>
+                    <span className="text-[11px] font-medium text-slate-500">Canlı mutfak kuyruğu</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
@@ -718,18 +723,7 @@ export function OrderLiveOpsCanvas({
                 </div>
               </div>
 
-              {!kitchenEnabled ? (
-                <div className="flex flex-1 flex-col items-center justify-center px-4 text-center">
-                  <Icon name="skillet" className="mb-3 text-[36px] text-slate-300" />
-                  <p className="text-sm font-bold text-slate-900">Mutfak aktif değil</p>
-                  <p className="mt-2 max-w-xs text-xs text-slate-500">
-                    Şubede mutfak kapalı olduğu için seçilen siparişler mutfağa eklenmez; doğrudan
-                    garsona atanır.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <div className="mt-3 flex-1 space-y-3 overflow-y-auto pr-1">
+              <div className="mt-3 flex-1 space-y-3 overflow-y-auto pr-1">
                     {kitchenTickets.length === 0 ? (
                       <p className="py-10 text-center text-xs text-slate-500">Mutfak kuyruğu boş.</p>
                     ) : (
@@ -856,12 +850,11 @@ export function OrderLiveOpsCanvas({
                     <Icon name="notifications_active" className="text-xs" />
                     GARSONA ÇAĞRI BİLDİRİMİ GÖNDER
                   </Link>
-                </>
-              )}
             </div>
+            ) : null}
 
-            {/* COURIER */}
-            <div className="flex min-h-[32rem] flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:col-span-4">
+            {courierEnabled ? (
+            <div className={cn("flex min-h-[32rem] flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm", opsColClass)}>
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-sky-200 bg-sky-50 text-sky-700">
@@ -981,6 +974,7 @@ export function OrderLiveOpsCanvas({
                 )}
               </div>
             </div>
+            ) : null}
           </section>
 
           {/* BOTTOM INSIGHTS */}
