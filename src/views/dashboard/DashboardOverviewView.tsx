@@ -46,7 +46,7 @@ export default function DashboardOverviewView() {
         </section>
         <section aria-label="Destek">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-            <ReportIssueCard className={\ items-start\} />
+            <ReportIssueCard className={`${SHORTCUT_CARD_CLASS} items-start`} />
           </div>
         </section>
       </div>
