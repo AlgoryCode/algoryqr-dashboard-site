@@ -1,6 +1,5 @@
 "use client";
 
-import { SetupChecklist } from "@/components/dashboard/SetupChecklist";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import {
   ACCOUNT_TILES,
@@ -10,40 +9,18 @@ import {
 } from "@/components/dashboard/overview-shortcuts";
 import { ReportIssueCard } from "@/components/dashboard/ReportIssueCard";
 import { useAccessProfile } from "@/hooks/use-access-profile";
-import { useAccessSession, usePaymentMethods } from "@/hooks/use-commerce";
 import { useOverviewOpsStats } from "@/hooks/use-overview-ops-stats";
-import { useSubscription } from "@/hooks/use-subscription";
 import { hasScope } from "@/lib/auth-user";
-import { buildSetupSteps, isSetupComplete } from "@/lib/dashboard-setup";
-import { isActivePaidPurchase } from "@/lib/product-access";
 
 export default function DashboardOverviewView() {
   const { data: accessProfile } = useAccessProfile();
   const showOrders = hasScope(accessProfile, "WAITER_PANEL_OWNER");
   const showMenus = hasScope(accessProfile, "QR_MENU_OWNER");
-  const cards = usePaymentMethods();
-  const trial = useAccessSession();
-  const subscription = useSubscription();
-  const hasActiveSubscription = isActivePaidPurchase(subscription.data?.activePurchase ?? null);
   const stats = useOverviewOpsStats({
     orders: showOrders,
     reservations: showMenus,
     menus: showMenus,
   });
-  const steps = buildSetupSteps({
-    hasCard: (cards.data?.length ?? 0) > 0,
-    canOperate: trial.data?.decision === "ALLOW" || showMenus || hasActiveSubscription,
-    hasActiveSubscription,
-    branchCount: stats.branchCount,
-    totalMenus: stats.totalMenus,
-    liveMenus: stats.liveMenus,
-  });
-  const showChecklist =
-    !stats.loading &&
-    !cards.isLoading &&
-    !trial.isLoading &&
-    !subscription.isLoading &&
-    !isSetupComplete(steps);
 
   return (
     <div className="animate-fade-in">
@@ -53,12 +30,6 @@ export default function DashboardOverviewView() {
           hint="Bugünün operasyonu ve sık kullanılan işlemler."
         />
       </div>
-
-      {showChecklist ? (
-        <div className="mb-8">
-          <SetupChecklist steps={steps} />
-        </div>
-      ) : null}
 
       <div className="space-y-8">
         <section aria-label="Operasyon">
