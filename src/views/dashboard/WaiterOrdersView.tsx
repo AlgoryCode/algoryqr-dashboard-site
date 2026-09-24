@@ -27,7 +27,12 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useListQueryState } from "@/hooks/use-list-query-state";
 import { useBranches } from "@/hooks/use-branches";
 import { useMyStore, useStoreOrders } from "@/hooks/use-store";
-import { anyBranchHasKitchen, isBranchKitchenEnabled } from "@/lib/branch";
+import {
+  anyBranchHasCourier,
+  anyBranchHasKitchen,
+  isBranchCourierEnabled,
+  isBranchKitchenEnabled,
+} from "@/lib/branch";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { resolveMenuLogoUrl } from "@/lib/menu-assets";
 import { DASHBOARD_BACK } from "@/lib/dashboard-surface";
@@ -159,6 +164,14 @@ function WaiterOrdersHome({
     }
     return anyBranchHasKitchen(branches);
   }, [branchesQuery.data?.content, selectedBranchId]);
+  const courierEnabled = useMemo(() => {
+    const branches = branchesQuery.data?.content ?? [];
+    if (selectedBranchId != null) {
+      const branch = branches.find((item) => item.id === selectedBranchId);
+      if (branch) return isBranchCourierEnabled(branch);
+    }
+    return anyBranchHasCourier(branches);
+  }, [branchesQuery.data?.content, selectedBranchId]);
 
   const menuId = selection?.menu.menuId ?? null;
   const qrId = selection?.qr.id ?? null;
@@ -288,6 +301,7 @@ function WaiterOrdersHome({
         <OrderLiveOpsCanvas
           branchLabel="Şube seçin"
           kitchenEnabled={false}
+          courierEnabled={false}
           currency="TRY"
           kpis={{
             revenue: 0,
@@ -438,6 +452,7 @@ function WaiterOrdersHome({
             orders={dateScopedOrders}
             snapshots={laneSnapshots}
             kitchenEnabled={kitchenEnabled}
+            courierEnabled={courierEnabled}
             delayedKeys={delayedKeys}
             detailHref={(lane) => orderManagementPanelHref(searchParams, opsLanePanel(lane))}
             onSelect={setPeekOrder}
@@ -462,6 +477,7 @@ function WaiterOrdersHome({
       <OrderLiveOpsCanvas
         branchLabel={branchLabel}
         kitchenEnabled={kitchenEnabled}
+        courierEnabled={courierEnabled}
         currency={currency}
         kpis={liveKpis}
         orders={dateScopedOrders}

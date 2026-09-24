@@ -5,4 +5,5 @@ export type BranchOverview = {
   phone: string | null;
   email: string | null;
   kitchenOn: boolean;
+  courierOn: boolean;
 };

@@ -8,7 +8,7 @@ import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader"
 import { Button } from "@/components/ui/button";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
 import { useBranches } from "@/hooks/use-branches";
-import { anyBranchHasKitchen } from "@/lib/branch";
+import { anyBranchHasCourier, anyBranchHasKitchen } from "@/lib/branch";
 import { DASHBOARD_HUB_GRID, DASHBOARD_SURFACE } from "@/lib/dashboard-surface";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 
@@ -17,6 +17,7 @@ export default function OrderPanelView() {
   const [copied, setCopied] = useState<"waiter" | "kitchen" | "courier" | null>(null);
   const branchesQuery = useBranches(true);
   const kitchenEnabled = anyBranchHasKitchen(branchesQuery.data?.content);
+  const courierEnabled = anyBranchHasCourier(branchesQuery.data?.content);
 
   const copyLink = async (href: string, kind: "waiter" | "kitchen" | "courier") => {
     const absolute =
@@ -42,11 +43,7 @@ export default function OrderPanelView() {
     <div className="space-y-6 animate-fade-in">
       <DashboardPageHeader
         title="Garson Paneli"
-        hint={
-          kitchenEnabled
-            ? "Garson, mutfak ve kurye ekranları ayrı uygulamalardır"
-            : "Garson servis ekranı ve kurye teslimat ekranı ayrı uygulamalardır"
-        }
+        hint={orderPanelHint(kitchenEnabled, courierEnabled)}
       />
 
       <div className="flex items-center gap-2">
@@ -95,27 +92,29 @@ export default function OrderPanelView() {
         </div>
       ) : null}
 
-      <div className="flex items-center gap-2">
-        <Button asChild className="h-11 min-w-0 flex-1 gap-2">
-          <a href={DASHBOARD_ROUTES.courierPanel} target="_blank" rel="noopener noreferrer">
-            Kurye paneline git
-            <ExternalLink className="h-4 w-4" />
-          </a>
-        </Button>
-        <button
-          type="button"
-          onClick={() => void copyLink(DASHBOARD_ROUTES.courierPanel, "courier")}
-          className={`${DASHBOARD_SURFACE} inline-flex h-11 w-11 shrink-0 items-center justify-center text-foreground transition-colors hover:bg-muted`}
-          aria-label="Kurye paneli linkini kopyala"
-          title={copied === "courier" ? "Kopyalandı" : "Linki kopyala"}
-        >
-          {copied === "courier" ? (
-            <Check className="h-4 w-4 text-emerald-600" />
-          ) : (
-            <Copy className="h-4 w-4" />
-          )}
-        </button>
-      </div>
+      {courierEnabled ? (
+        <div className="flex items-center gap-2">
+          <Button asChild className="h-11 min-w-0 flex-1 gap-2">
+            <a href={DASHBOARD_ROUTES.courierPanel} target="_blank" rel="noopener noreferrer">
+              Kurye paneline git
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          </Button>
+          <button
+            type="button"
+            onClick={() => void copyLink(DASHBOARD_ROUTES.courierPanel, "courier")}
+            className={`${DASHBOARD_SURFACE} inline-flex h-11 w-11 shrink-0 items-center justify-center text-foreground transition-colors hover:bg-muted`}
+            aria-label="Kurye paneli linkini kopyala"
+            title={copied === "courier" ? "Kopyalandı" : "Linki kopyala"}
+          >
+            {copied === "courier" ? (
+              <Check className="h-4 w-4 text-emerald-600" />
+            ) : (
+              <Copy className="h-4 w-4" />
+            )}
+          </button>
+        </div>
+      ) : null}
 
       <div className={DASHBOARD_HUB_GRID}>
         <DashboardHubTile
@@ -132,13 +131,21 @@ export default function OrderPanelView() {
             href={DASHBOARD_ROUTES.kitchenMonitor}
           />
         ) : null}
-        <DashboardHubTile
-          title="Kurye"
-          description="Hazır paketleri teslim alın ve müşteriye götürün"
-          icon={Bike}
-          href={DASHBOARD_ROUTES.courierPanel}
-        />
+        {courierEnabled ? (
+          <DashboardHubTile
+            title="Kurye"
+            description="Hazır paketleri teslim alın ve müşteriye götürün"
+            icon={Bike}
+            href={DASHBOARD_ROUTES.courierPanel}
+          />
+        ) : null}
       </div>
     </div>
   );
+}
+
+function orderPanelHint(kitchenEnabled: boolean, courierEnabled: boolean) {
+  const apps = ["Garson", kitchenEnabled ? "mutfak" : null, courierEnabled ? "kurye" : null].filter(Boolean);
+  if (apps.length === 1) return "Garson servis ekranı ayrı bir uygulamadır";
+  return `${apps.join(", ")} ekranları ayrı uygulamalardır`;
 }

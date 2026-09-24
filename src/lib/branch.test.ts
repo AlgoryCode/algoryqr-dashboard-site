@@ -9,7 +9,9 @@ import {
   formatBranchQuotaSubtitle,
   formatBranchQuotaUsageFraction,
   isBranchKitchenEnabled,
+  isBranchCourierEnabled,
   anyBranchHasKitchen,
+  anyBranchHasCourier,
   packageIncludedBranchSlots,
   summarizePurchasedBranchUsage,
   type BranchItem,
@@ -166,5 +168,18 @@ describe("kitchen enablement", () => {
   it("detects a branch that already opened kitchen", () => {
     expect(isBranchKitchenEnabled(branch({ kitchenEnabled: true }))).toBe(true);
     expect(anyBranchHasKitchen([branch(), branch({ id: 2, kitchenEnabled: true })])).toBe(true);
+  });
+});
+
+describe("courier enablement", () => {
+  it("treats missing courierEnabled as off", () => {
+    expect(isBranchCourierEnabled(branch())).toBe(false);
+    expect(isBranchCourierEnabled(null)).toBe(false);
+    expect(anyBranchHasCourier([branch(), branch({ id: 2 })])).toBe(false);
+  });
+
+  it("detects a branch that already opened courier", () => {
+    expect(isBranchCourierEnabled(branch({ courierEnabled: true }))).toBe(true);
+    expect(anyBranchHasCourier([branch(), branch({ id: 2, courierEnabled: true })])).toBe(true);
   });
 });
