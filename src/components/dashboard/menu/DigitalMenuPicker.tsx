@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import Link from "next/link";
-import { useQuery, type QueryClient } from "@tanstack/react-query";
+import { type QueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 
 import type { DashboardQrItem } from "@/components/dashboard/qr/qr-mappers";
@@ -12,14 +11,13 @@ import { SearchableSelect } from "@/components/dashboard/menu/SearchableSelect";
 import { useDigitalMenuAccess } from "@/hooks/use-digital-menu-access";
 import { useMenuByQr } from "@/hooks/use-menu-by-qr";
 import {
-  ApiError,
-  getMyActiveMenusRequest,
   getUserQrsRequest,
-  type ActiveMenuSummaryApiItem,
   type MenuProfileApiItem,
 } from "@/lib/api";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { SELECTED_MENU_QR_STORAGE_KEY } from "@/lib/dashboard-menu-context";
+import { useBranches } from "@/hooks/use-branches";
+import { flattenBranchMenus, type DigitalMenuDirectoryItem } from "@/lib/digital-menu-directory";
 
 export const MY_ACTIVE_MENUS_QUERY_KEY = ["myActiveMenus"] as const;
 
@@ -27,30 +25,6 @@ export type DigitalMenuSelection = {
   qr: DashboardQrItem;
   menu: MenuProfileApiItem;
 };
-
-function mapActiveMenuToDashboardItem(item: ActiveMenuSummaryApiItem): DashboardQrItem {
-  const businessName = item.businessName?.trim() || undefined;
-  const qrName = item.qr?.name?.trim() || undefined;
-  return {
-    id: item.qrId,
-    userId: 0,
-    name: qrName || businessName || `Menü #${item.qrId}`,
-    content: item.publicUrl ?? "",
-    scans: 0,
-    created: "",
-    type: "menu",
-    active: item.active,
-    imgSrc: null,
-    details: {
-      type: "menu",
-      businessName: businessName ?? "",
-      themeId: item.themeId ?? "",
-      menuId: item.menuId,
-    },
-    menuId: item.menuId,
-    publicUrl: item.publicUrl ?? undefined,
-  };
-}
 
 export { useDigitalMenuAccess };
 
@@ -61,33 +35,30 @@ async function loadAllMenuQrs(): Promise<DashboardQrItem[]> {
     .map(mapUserQrToDashboardItem);
 }
 
-export function useDigitalMenuOptions(enabled = true) {
-  const query = useQuery({
-    queryKey: MY_ACTIVE_MENUS_QUERY_KEY,
-    queryFn: async (): Promise<DashboardQrItem[]> => {
-      try {
-        const items = await getMyActiveMenusRequest();
-        if (items.length > 0) {
-          return items.map(mapActiveMenuToDashboardItem);
-        }
-        // Aktif menü yoksa (pasif/eski menüler dahil) tüm menü QR'larını listele.
-        return loadAllMenuQrs();
-      } catch (error) {
-        if (!(error instanceof ApiError) || error.status !== 404) {
-          throw error;
-        }
-        return loadAllMenuQrs();
-      }
-    },
-    enabled,
-    staleTime: 60_000,
-    refetchOnWindowFocus: false,
-    retry: 1,
-  });
+export function mapDirectoryItemToDashboardQrItem(item: DigitalMenuDirectoryItem): DashboardQrItem {
   return {
-    menuQrs: query.data ?? [],
-    loading: query.isLoading || query.isFetching,
-    error: query.error,
+    id: item.qrId,
+    userId: 0,
+    name: item.businessName?.trim() || `Menü #${item.qrId}`,
+    content: "",
+    scans: 0,
+    created: "",
+    type: "menu",
+    active: item.active,
+    imgSrc: null,
+    details: { type: "menu", businessName: item.businessName, menuId: item.menuId, branchId: item.branchId },
+    menuId: item.menuId,
+  };
+}
+
+export function useDigitalMenuOptions(enabled = true) {
+  const branchesQuery = useBranches(enabled);
+  const directory = flattenBranchMenus(branchesQuery.data?.content ?? []);
+  const menuQrs = directory.map(mapDirectoryItemToDashboardQrItem);
+  return {
+    menuQrs,
+    loading: branchesQuery.isLoading || branchesQuery.isFetching,
+    error: (branchesQuery.error as unknown as Error) ?? null,
   };
 }
 

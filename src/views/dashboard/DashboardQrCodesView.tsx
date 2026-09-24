@@ -34,7 +34,7 @@ import {
   isMenuQrDetails,
   type DashboardQrItem,
 } from "@/components/dashboard/qr/qr-mappers";
-import type { QrListScope } from "@/lib/api/qr";
+// removed QrListScope filter; always listing ALL
 import {
   copyQrImageToClipboard,
   copyTextToClipboard,
@@ -88,11 +88,6 @@ interface DashboardQrCodesViewProps {
 }
 
 const QR_PAGE_SIZE = 5;
-const QR_SCOPE_OPTIONS: { value: QrListScope; label: string }[] = [
-  { value: "ALL", label: "Tümü" },
-  { value: "CURRENT", label: "Aktif paket" },
-  { value: "LEGACY", label: "Önceki paketler" },
-];
 
 const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCodesViewProps) => {
   const tooltipStyle = useTooltipStyle();
@@ -105,7 +100,7 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
   const { canCreateQr, qrQuotaLabel, accessLoading: isQrAccessLoading } = useQrCreateAccess();
   const { searchParams, setQuery } = useListQueryState();
   const [isLoading, setIsLoading] = useState(false);
-  const [listScope, setListScope] = useState<QrListScope>("ALL");
+  // scope filter removed; always list ALL
   const [nameQuery, setNameQuery] = useState(() => searchParams.get("q") ?? "");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">(
     () => (searchParams.get("status") as "all" | "active" | "inactive") || "all",
@@ -161,7 +156,7 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
         includeImage: true,
         page: pageIndex,
         size: pageSize,
-        scope: mode === "list" ? listScope : "ALL",
+        scope: "ALL",
       });
       const mapped = (response.content ?? [])
         .map(mapUserQrToDashboardItem)
@@ -180,11 +175,11 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
     } finally {
       setIsLoading(false);
     }
-  }, [hasListFilter, listScope, mode, notify, page, user?.id]);
+  }, [hasListFilter, mode, notify, page, user?.id]);
 
   useEffect(() => {
     setPage(0);
-  }, [hasListFilter, listScope]);
+  }, [hasListFilter]);
 
   const visibleQrs = useMemo(() => {
     const query = nameQuery.trim().toLocaleLowerCase("tr");
@@ -502,19 +497,6 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
               ) : (
                 <>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-wrap gap-2">
-                  {QR_SCOPE_OPTIONS.map((option) => (
-                    <Button
-                      key={option.value}
-                      type="button"
-                      size="sm"
-                      variant={listScope === option.value ? "default" : "outline"}
-                      onClick={() => setListScope(option.value)}
-                    >
-                      {option.label}
-                    </Button>
-                  ))}
-                </div>
                 {canCreateQr ? (
                   <Button variant="hero" size="sm" className="gap-2 self-start sm:self-auto" asChild>
                     <Link href={DASHBOARD_ROUTES.qrCodesNew}>
@@ -638,16 +620,7 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
                               <span className={`inline-flex w-fit shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${qr.active ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}`}>
                                 {qr.active ? "Aktif" : "Pasif"}
                               </span>
-                              {qr.activePackage && qr.packageName ? (
-                                <span className="inline-flex w-fit shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                                  {qr.packageName}
-                                </span>
-                              ) : null}
-                              {qr.legacy ? (
-                                <span className="inline-flex w-fit shrink-0 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
-                                  Önceki paket
-                                </span>
-                              ) : null}
+                              {/* package badges removed */}
                             </div>
                             <p className="mt-0.5 break-words text-xs leading-5 text-muted-foreground">{qr.content}</p>
                             <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">

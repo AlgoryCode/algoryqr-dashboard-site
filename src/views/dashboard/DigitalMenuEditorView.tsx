@@ -59,6 +59,10 @@ export default function DigitalMenuEditorView({ qrId }: DigitalMenuEditorViewPro
   const menuHref =
     menuQuery.data?.publicUrl?.trim() ||
     (menuQuery.data?.publicId ? publicMenuContentPath(menuQuery.data.publicId) : "");
+  const backHref =
+    menuQuery.data?.branchId != null
+      ? DASHBOARD_ROUTES.branchDetail(menuQuery.data.branchId)
+      : DASHBOARD_ROUTES.digitalMenu;
 
   if (accessLoading) {
     return (
@@ -76,7 +80,7 @@ export default function DigitalMenuEditorView({ qrId }: DigitalMenuEditorViewPro
         back={
           <button
             type="button"
-            onClick={() => router.push(DASHBOARD_ROUTES.digitalMenu)}
+            onClick={() => router.push(backHref)}
             className={DASHBOARD_BACK}
           >
             <ArrowLeft className="h-4 w-4" />

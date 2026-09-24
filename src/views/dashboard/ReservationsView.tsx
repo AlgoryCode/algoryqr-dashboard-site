@@ -23,6 +23,7 @@ import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Input } from "@/components/ui/input";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
+import { BranchPicker, useBranchSelection } from "@/components/dashboard/BranchPicker";
 import {
   ApiError,
   getMenuReservationsRequest,
@@ -30,6 +31,7 @@ import {
   type MenuReservationApiItem,
   type MenuReservationStatus,
 } from "@/lib/api";
+import { flattenBranchMenus } from "@/lib/digital-menu-directory";
 
 type StatusFilter = MenuReservationStatus | "all";
 
@@ -87,10 +89,21 @@ function ReservationsPanel() {
   const searchParams = useSearchParams();
   const qrFromQuery = Number(searchParams.get("qr"));
   const initialQrId = Number.isFinite(qrFromQuery) && qrFromQuery > 0 ? qrFromQuery : null;
+  const initialBranchId = (() => {
+    const raw = Number(searchParams.get("branch"));
+    return Number.isFinite(raw) && raw > 0 ? raw : null;
+  })();
   const { notify } = useDashboardBanners();
   const queryClient = useQueryClient();
 
-  const { menuQrs, selection, loading, error, selectQrId } = useDigitalMenuSelection(initialQrId);
+  const branch = useBranchSelection(initialBranchId);
+  const allowedQrIds = (branch.selection?.menus ?? []).map((m) => m.qrId);
+  const { menuQrs: allMenuQrs, selection, loading, error, selectQrId } = useDigitalMenuSelection(
+    initialQrId,
+    true,
+    allowedQrIds,
+  );
+  const menuQrs = allMenuQrs;
   const { setQuery } = useListQueryState();
 
   const [status, setStatus] = useState<StatusFilter>(
@@ -163,13 +176,16 @@ function ReservationsPanel() {
     };
   }, [items, listQuery.data?.totalElements]);
 
-  if (loading) {
+  if (branch.loading || loading) {
     return (
       <div className="flex items-center justify-center py-20 text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin" />
       </div>
     );
   }
+
+  const hasAnyMenus = flattenBranchMenus(branch.branches).length > 0;
+  const selectedBranchHasMenus = (branch.selection?.menus.length ?? 0) > 0;
 
   const renderActions = (item: MenuReservationApiItem) => {
     const busy = mutation.isPending;
@@ -251,27 +267,59 @@ function ReservationsPanel() {
         title="Rezervasyonlar"
         hint="Onay bekleyen ve aktif rezervasyonları yönetin."
         action={
-          <DigitalMenuPicker
-            compact
-            menuQrs={menuQrs}
-            selectedQrId={selection?.qr.id ?? null}
-            onSelectQrId={(qrId) => {
-              setPage(0);
-              void selectQrId(qrId);
-            }}
-          />
+          <div className="flex items-center gap-2">
+            <BranchPicker
+              branches={branch.branches}
+              selectedBranchId={branch.branchId}
+              onSelect={(next) => {
+                branch.select(next);
+                setQuery({ branch: String(next) });
+              }}
+              disabled={branch.loading}
+            />
+            <DigitalMenuPicker
+              compact
+              menuQrs={menuQrs}
+              selectedQrId={selection?.qr.id ?? null}
+              onSelectQrId={(qrId) => {
+                setPage(0);
+                void selectQrId(qrId);
+              }}
+              disabled={!selectedBranchHasMenus}
+            />
+          </div>
         }
       />
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
-      {menuQrs.length === 0 ? (
+      {branch.empty ? (
+        <EmptyState
+          title="Henüz şube yok"
+          description="Rezervasyonları yönetmek için önce bir şube oluşturun."
+          action={
+            <Button asChild>
+              <Link href={DASHBOARD_ROUTES.branchCreate}>Şube oluştur</Link>
+            </Button>
+          }
+        />
+      ) : !hasAnyMenus ? (
         <EmptyState
           title="Menü gerekli"
           description="Rezervasyonları görmek için önce bir dijital menü yayınlayın."
           action={
             <Button asChild variant="outline">
-              <Link href={DASHBOARD_ROUTES.digitalMenu}>Menü oluştur</Link>
+              <Link href={DASHBOARD_ROUTES.digitalMenuCreateForBranch(branch.branchId!)}>Bu şubeye menü ekle</Link>
+            </Button>
+          }
+        />
+      ) : !selectedBranchHasMenus ? (
+        <EmptyState
+          title="Bu şubede menü yok"
+          description="Rezervasyonları bu şubede yönetmek için bir menü ekleyin."
+          action={
+            <Button asChild variant="outline">
+              <Link href={DASHBOARD_ROUTES.digitalMenuCreateForBranch(branch.branchId!)}>Bu şubeye menü ekle</Link>
             </Button>
           }
         />

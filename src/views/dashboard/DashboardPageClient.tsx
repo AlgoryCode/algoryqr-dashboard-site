@@ -304,7 +304,7 @@ export default function DashboardPageClient({ initialUser = null }: DashboardPag
   }
 
   if (pathname === DASHBOARD_ROUTES.integrations) {
-    return <IntegrationsHubView />;
+    return <IntegrationsHubView backHref={DASHBOARD_ROUTES.account} />;
   }
 
   if (pathname === DASHBOARD_ROUTES.yemekSepeti) {
