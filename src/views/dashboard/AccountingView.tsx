@@ -11,7 +11,6 @@ import {
   useDigitalMenuOptions,
 } from "@/components/dashboard/menu/DigitalMenuPicker";
 import { BranchPicker, useBranchSelection } from "@/components/dashboard/BranchPicker";
-import { DashboardFilterBar } from "@/components/dashboard/DashboardFilterBar";
 import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { SearchableSelect } from "@/components/dashboard/menu/SearchableSelect";
@@ -44,14 +43,11 @@ import {
   createAccountingEntryRequest,
   createBranchFixedExpenseRequest,
   deleteAccountingEntryRequest,
-  deleteBranchFixedExpenseRequest,
   getAccountingEntryDetailRequest,
   listAccountingEntriesRequest,
-  listBranchFixedExpensesRequest,
   type AccountingEntryApiItem,
   type AccountingEntryType,
   type AccountingSourceType,
-  type BranchFixedExpenseItem,
   type FixedExpensePeriod,
 } from "@/lib/api";
 
@@ -138,20 +134,29 @@ function entryTypeClass(type: AccountingEntryType): string {
   }
 }
 
-function periodLabel(period: FixedExpensePeriod): string {
-  switch (period) {
-    case "DAILY":
-      return "Günlük";
-    case "WEEKLY":
-      return "Haftalık";
-    case "MONTHLY":
-      return "Aylık";
-    case "YEARLY":
-      return "Yıllık";
-    default:
-      return period;
-  }
-}
+// Pill-shaped outline styling for the action buttons, keyed to each entry type's accent color.
+// Base shape mirrors the app's outline-pill pattern (h-8, rounded-full, border-2, bg-background).
+const ACTION_BUTTON_BASE =
+  "h-8 shrink-0 rounded-full border-2 bg-background px-3 font-medium shadow-none";
+
+const actionButtonClass: Record<AccountingEntryType | "FIXED", string> = {
+  GELIR: cn(
+    ACTION_BUTTON_BASE,
+    "border-emerald-500 text-emerald-700 hover:bg-emerald-500 hover:text-white",
+  ),
+  GIDER: cn(
+    ACTION_BUTTON_BASE,
+    "border-red-500 text-red-700 hover:bg-red-500 hover:text-white",
+  ),
+  BORC: cn(
+    ACTION_BUTTON_BASE,
+    "border-amber-500 text-amber-700 hover:bg-amber-500 hover:text-white",
+  ),
+  FIXED: cn(
+    ACTION_BUTTON_BASE,
+    "border-border text-foreground hover:bg-foreground hover:text-background",
+  ),
+};
 
 type ExpenseMode = "ONE_TIME" | "FIXED";
 
@@ -184,7 +189,6 @@ function AccountingViewContent() {
     branches,
     branchId: fixedExpenseBranchId,
     select: selectFixedExpenseBranch,
-    loading: branchesLoading,
   } = useBranchSelection(null, true);
 
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
@@ -204,12 +208,6 @@ function AccountingViewContent() {
   const [expenseMode, setExpenseMode] = useState<ExpenseMode>("ONE_TIME");
   const [expensePeriod, setExpensePeriod] = useState<FixedExpensePeriod>("MONTHLY");
   const [dialogBranchId, setDialogBranchId] = useState<number | null>(null);
-
-  const fixedExpenseQuery = useQuery({
-    queryKey: ["branch-fixed-expenses", fixedExpenseBranchId],
-    queryFn: () => listBranchFixedExpensesRequest(fixedExpenseBranchId as number),
-    enabled: fixedExpenseBranchId != null,
-  });
 
   const createFixedExpenseMutation = useMutation({
     mutationFn: (payload: {
@@ -232,18 +230,6 @@ function AccountingViewContent() {
     },
     onError: (err) => {
       notify("danger", err instanceof ApiError ? err.message : "Sabit gider eklenemedi.");
-    },
-  });
-
-  const deleteFixedExpenseMutation = useMutation({
-    mutationFn: (payload: { branchId: number; expenseId: number }) =>
-      deleteBranchFixedExpenseRequest(payload.branchId, payload.expenseId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["branch-fixed-expenses"] });
-      notify("info", "Sabit gider silindi.");
-    },
-    onError: (err) => {
-      notify("danger", err instanceof ApiError ? err.message : "Sabit gider silinemedi.");
     },
   });
 
@@ -315,6 +301,13 @@ function AccountingViewContent() {
     setDialogOpen(true);
   }
 
+  function openFixedExpenseDialog() {
+    setDialogType("GIDER");
+    resetForm();
+    setExpenseMode("FIXED");
+    setDialogOpen(true);
+  }
+
   function handleSubmit() {
     const parsedAmount = parseMoneyInput(amount);
     if (!title.trim()) {
@@ -359,21 +352,10 @@ function AccountingViewContent() {
   const saving = createMutation.isPending || createFixedExpenseMutation.isPending;
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-4 animate-fade-in">
       <DashboardPageHeader
         title="Muhasebe"
         hint="Gelir, gider ve borç kayıtlarınızı takip edin."
-        action={
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={() => openDialog("GELIR")}>Gelir Gir</Button>
-            <Button variant="outline" onClick={() => openDialog("GIDER")}>
-              Gider Gir
-            </Button>
-            <Button variant="outline" onClick={() => openDialog("BORC")}>
-              Borç Gir
-            </Button>
-          </div>
-        }
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -386,177 +368,166 @@ function AccountingViewContent() {
       </div>
 
       <div className={`${DASHBOARD_PANEL} space-y-4`}>
-        <div>
-          <h2 className="text-base font-semibold text-foreground">Sabit giderler</h2>
-          <p className="text-xs text-muted-foreground">
-            Şube bazlı periyodik giderler ciro raporunda otomatik düşülür. Yeni kayıt için
-            &quot;Gider Gir&quot; → Sabit seçin.
-          </p>
+        {/*
+          Responsive filter row.
+          - Mobile (<sm): everything stacks in a single column, full width. The date range
+            filter is wrapped in its own `w-full overflow-x-auto` box as a safety net — if
+            DateRangeFilter renders two side-by-side inputs internally that don't wrap, this
+            keeps that scroll contained to the filter itself instead of the whole page.
+          - sm and up: original inline row returns, fields size themselves instead of being
+            forced full-width.
+        */}
+        <div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-end">
+            <div className={cn(DASHBOARD_FILTER_FIELD, "w-full sm:w-[11rem]")}>
+              <label className={DASHBOARD_FILTER_LABEL}>Tür</label>
+              <SearchableSelect
+                value={typeFilter}
+                onValueChange={(value) => {
+                  setTypeFilter(value as TypeFilter);
+                  setPage(0);
+                }}
+                options={[
+                  { value: "all", label: "Tümü" },
+                  { value: "GELIR", label: "Gelir" },
+                  { value: "GIDER", label: "Gider" },
+                  { value: "BORC", label: "Borç" },
+                ]}
+                placeholder="Tür seçin"
+                searchPlaceholder="Tür ara..."
+              />
+            </div>
+
+            <div className="w-full overflow-x-auto sm:w-auto sm:overflow-visible">
+              <DateRangeFilter
+                value={{ from, to }}
+                onChange={(next) => {
+                  setFrom(next.from);
+                  setTo(next.to);
+                  setPage(0);
+                }}
+              />
+            </div>
+
+            <div className={cn(DASHBOARD_FILTER_FIELD, "w-full sm:min-w-[12rem] sm:w-auto sm:flex-1 sm:max-w-xs")}>
+              <label className={DASHBOARD_FILTER_LABEL}>Ara</label>
+              <input
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={q}
+                placeholder="Başlık veya not"
+                onChange={(e) => {
+                  setQ(e.target.value);
+                  setPage(0);
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <Button
+              variant="outline"
+              className={cn(actionButtonClass.GELIR, "flex-1 sm:flex-none")}
+              onClick={() => openDialog("GELIR")}
+            >
+              Gelir Gir
+            </Button>
+            <Button
+              variant="outline"
+              className={cn(actionButtonClass.GIDER, "flex-1 sm:flex-none")}
+              onClick={() => openDialog("GIDER")}
+            >
+              Gider Gir
+            </Button>
+            <Button
+              variant="outline"
+              className={cn(actionButtonClass.BORC, "flex-1 sm:flex-none")}
+              onClick={() => openDialog("BORC")}
+            >
+              Borç Gir
+            </Button>
+            <Button
+              variant="outline"
+              className={cn(actionButtonClass.FIXED, "flex-1 sm:flex-none")}
+              onClick={openFixedExpenseDialog}
+            >
+              Sabit Gider Ekle
+            </Button>
+          </div>
         </div>
-        {branchesLoading ? (
-          <DashboardLoadingState label="Şubeler yükleniyor…" />
+
+        {listQuery.isLoading ? (
+          <DashboardLoadingState label="Kayıtlar yükleniyor…" />
+        ) : items.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+            Bu filtrelerle kayıt yok.
+          </div>
         ) : (
-          <BranchPicker
-            branches={branches}
-            selectedBranchId={fixedExpenseBranchId}
-            onSelect={selectFixedExpenseBranch}
-          />
-        )}
-        {fixedExpenseBranchId != null ? (
-          fixedExpenseQuery.isLoading ? (
-            <div className="flex justify-center py-4">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <ul className="divide-y divide-border rounded-md border border-border">
-              {(fixedExpenseQuery.data ?? []).length === 0 ? (
-                <li className="px-4 py-3 text-sm text-muted-foreground">Sabit gider yok.</li>
-              ) : (
-                (fixedExpenseQuery.data ?? []).map((item: BranchFixedExpenseItem) => (
-                  <li
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead className="border-b border-border bg-muted/40 text-left text-xs text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Tarih</th>
+                  <th className="px-4 py-3 font-medium">Tür</th>
+                  <th className="px-4 py-3 font-medium">Başlık</th>
+                  <th className="px-4 py-3 font-medium">Tutar</th>
+                  <th className="px-4 py-3 font-medium">Menü</th>
+                  <th className="px-4 py-3 font-medium" />
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <AccountingRow
                     key={item.id}
-                    className="flex items-center justify-between gap-3 px-4 py-3 text-sm"
-                  >
-                    <div>
-                      <p className="font-medium text-foreground">{item.title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {periodLabel(item.period)} · {formatAmount(item.amount ?? 0)}
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="text-destructive"
-                      disabled={deleteFixedExpenseMutation.isPending}
-                      onClick={() =>
-                        deleteFixedExpenseMutation.mutate({
-                          branchId: fixedExpenseBranchId,
-                          expenseId: item.id,
-                        })
-                      }
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </li>
-                ))
-              )}
-            </ul>
-          )
+                    item={item}
+                    onOpen={() => setDetailItem(item)}
+                    onDelete={
+                      item.sourceType === "MANUAL"
+                        ? () => deleteMutation.mutate(item.id)
+                        : undefined
+                    }
+                    deleting={deleteMutation.isPending}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {totalPages > 1 ? (
+          <div className="flex items-center justify-between gap-3 pt-2">
+            <p className="text-xs text-muted-foreground">
+              Sayfa {page + 1} / {totalPages}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={page <= 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                Önceki
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={page + 1 >= totalPages}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Sonraki
+              </Button>
+            </div>
+          </div>
         ) : null}
-      </div>
-
-      <DashboardFilterBar>
-        <div className={cn(DASHBOARD_FILTER_FIELD, "min-w-[10rem] sm:w-[11rem]")}>
-          <label className={DASHBOARD_FILTER_LABEL}>Tür</label>
-          <SearchableSelect
-            value={typeFilter}
-            onValueChange={(value) => {
-              setTypeFilter(value as TypeFilter);
-              setPage(0);
-            }}
-            options={[
-              { value: "all", label: "Tümü" },
-              { value: "GELIR", label: "Gelir" },
-              { value: "GIDER", label: "Gider" },
-              { value: "BORC", label: "Borç" },
-            ]}
-            placeholder="Tür seçin"
-            searchPlaceholder="Tür ara..."
-          />
-        </div>
-        <DateRangeFilter
-          value={{ from, to }}
-          onChange={(next) => {
-            setFrom(next.from);
-            setTo(next.to);
-            setPage(0);
-          }}
-        />
-        <div className={cn(DASHBOARD_FILTER_FIELD, "min-w-[12rem] flex-1 sm:max-w-xs")}>
-          <label className={DASHBOARD_FILTER_LABEL}>Ara</label>
-          <input
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-            value={q}
-            placeholder="Başlık veya not"
-            onChange={(e) => {
-              setQ(e.target.value);
-              setPage(0);
-            }}
-          />
-        </div>
-      </DashboardFilterBar>
-
-      <div className={`${DASHBOARD_PANEL} space-y-4`}>
-          {listQuery.isLoading ? (
-            <DashboardLoadingState label="Kayıtlar yükleniyor…" />
-          ) : items.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-              Bu filtrelerle kayıt yok.
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full min-w-[720px] text-sm">
-                <thead className="border-b border-border bg-muted/40 text-left text-xs text-muted-foreground">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Tarih</th>
-                    <th className="px-4 py-3 font-medium">Tür</th>
-                    <th className="px-4 py-3 font-medium">Başlık</th>
-                    <th className="px-4 py-3 font-medium">Tutar</th>
-                    <th className="px-4 py-3 font-medium">Menü</th>
-                    <th className="px-4 py-3 font-medium" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item) => (
-                    <AccountingRow
-                      key={item.id}
-                      item={item}
-                      onOpen={() => setDetailItem(item)}
-                      onDelete={
-                        item.sourceType === "MANUAL"
-                          ? () => deleteMutation.mutate(item.id)
-                          : undefined
-                      }
-                      deleting={deleteMutation.isPending}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {totalPages > 1 ? (
-            <div className="flex items-center justify-between gap-3 pt-2">
-              <p className="text-xs text-muted-foreground">
-                Sayfa {page + 1} / {totalPages}
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={page <= 0}
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
-                >
-                  Önceki
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={page + 1 >= totalPages}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Sonraki
-                </Button>
-              </div>
-            </div>
-          ) : null}
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{entryTypeLabel(dialogType)} Gir</DialogTitle>
+            <DialogTitle>
+              {dialogType === "GIDER" && expenseMode === "FIXED"
+                ? "Sabit Gider Ekle"
+                : `${entryTypeLabel(dialogType)} Gir`}
+            </DialogTitle>
             <DialogDescription>
               {dialogType === "GELIR"
                 ? "Gelir kaydı oluşturun. İsterseniz hangi menüden geldiğini seçebilirsiniz."
