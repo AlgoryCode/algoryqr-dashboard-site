@@ -53,7 +53,7 @@ export function useUserSessions(enabled: boolean, options?: UseUserSessionsOptio
     setLoading(true);
     setError(null);
     try {
-      const response = await getSiteSameOriginAxios().get<UserSessionPage>("/auth/sessions", {
+      const response = await getSiteSameOriginAxios().get<UserSessionPage>("/account/sessions", {
         params: { page, size },
       });
       const data = response.data;
@@ -81,7 +81,7 @@ export function useUserSessions(enabled: boolean, options?: UseUserSessionsOptio
     setRevokingId(sessionId);
     try {
       const response = await getSiteSameOriginAxios().delete<{ message?: string }>(
-        `/auth/sessions/${encodeURIComponent(sessionId)}`,
+        `/account/sessions/${encodeURIComponent(sessionId)}`,
       );
       await reload();
       return response.data?.message ?? "Oturum iptal edildi";
