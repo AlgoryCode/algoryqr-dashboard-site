@@ -14,7 +14,7 @@ export async function GET() {
       return NextResponse.json({ message: "Access token yok" }, { status: 401 });
     }
 
-    const upstream = await axios.get(`${API_BASE_URL}/purchases/my`, {
+    const upstream = await axios.get(`${API_BASE_URL}/account/purchases`, {
       headers: { Authorization: `Bearer ${accessToken}` },
       validateStatus: () => true,
       timeout: 20_000,
