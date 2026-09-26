@@ -5,11 +5,34 @@ function readRuntimeEnv(name: string): string | undefined {
   return raw ? trimTrailingSlash(raw) : undefined;
 }
 
+function readDeployEnv(): string {
+  return (process.env.APP_ENV || process.env.DEPLOY_ENV || "").trim().toLowerCase();
+}
+
+const STAGE_API_BASE = "https://stage.qrapi.algorycode.com";
+const PROD_API_BASE = "https://prod.qrapi.algorycode.com";
+
 function resolveApiBaseUrl(): string {
   const fromEnv = readRuntimeEnv("API_BASE_URL") || readRuntimeEnv("API_UPSTREAM");
   if (fromEnv) return fromEnv;
+
+  const deployEnv = readDeployEnv();
+  if (deployEnv === "stage" || deployEnv === "staging") return STAGE_API_BASE;
+  if (deployEnv === "prod" || deployEnv === "production") return PROD_API_BASE;
+
+  try {
+    const appUrl = readRuntimeEnv("APP_URL") || readRuntimeEnv("NEXT_PUBLIC_APP_URL");
+    if (appUrl) {
+      const host = new URL(appUrl).hostname.toLowerCase();
+      if (host.includes("stage.")) return STAGE_API_BASE;
+      if (host.includes("prod.") || host === "qr.algorycode.com") return PROD_API_BASE;
+    }
+  } catch {
+    // ignore
+  }
+
   if (typeof window !== "undefined" || process.env.NODE_ENV !== "production") return "http://localhost:8055";
-  if (process.env["NEXT_PHASE"] === "phase-production-build") return "";
+  if (process.env["NEXT_PHASE"] === "phase-production-build") return STAGE_API_BASE;
   throw new Error("API_BASE_URL is required");
 }
 

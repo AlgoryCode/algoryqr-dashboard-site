@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { API_BASE_URL } from "@/lib/config";
+import { PUBLIC_API_BASE_URL } from "@/lib/config";
 import {
   PUBLIC_MENU_CACHE_CONTROL,
   PUBLIC_MENU_REVALIDATE_SECONDS,
@@ -43,7 +43,7 @@ export function buildPublicMenuUpstreamUrl(
   path: string,
   params?: Record<string, string | string[]>,
 ) {
-  const url = new URL(`${API_BASE_URL}${path}`);
+  const url = new URL(`${PUBLIC_API_BASE_URL}${path}`);
   if (!params) return url.toString();
 
   for (const [key, value] of Object.entries(params)) {
