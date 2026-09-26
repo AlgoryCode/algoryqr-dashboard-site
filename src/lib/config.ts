@@ -89,11 +89,23 @@ export const STORE_APP_ORIGIN = trimTrailingSlash(
     "http://localhost:3006",
 );
 
-export const MENU_APP_ORIGIN = trimTrailingSlash(
-  process.env.NEXT_PUBLIC_MENU_APP_ORIGIN?.trim() ||
-    process.env.MENU_APP_ORIGIN?.trim() ||
-    "http://localhost:3002",
-);
+function resolveMenuAppOrigin(): string {
+  const fromEnv = readRuntimeEnv("NEXT_PUBLIC_MENU_APP_ORIGIN") || readRuntimeEnv("MENU_APP_ORIGIN");
+  if (fromEnv) return fromEnv;
+  const deployEnv = (process.env.APP_ENV || process.env.DEPLOY_ENV || "").trim().toLowerCase();
+  if (deployEnv === "stage" || deployEnv === "staging") return "https://stage.qr.algorycode.com";
+  if (deployEnv === "prod" || deployEnv === "production") return "https://qr.algorycode.com";
+  try {
+    const host = new URL(resolveApiBaseUrl()).hostname.toLowerCase();
+    if (host.startsWith("stage.")) return "https://stage.qr.algorycode.com";
+    if (host.startsWith("prod.")) return "https://qr.algorycode.com";
+  } catch {
+    // ignore
+  }
+  return "http://localhost:3002";
+}
+
+export const MENU_APP_ORIGIN = trimTrailingSlash(resolveMenuAppOrigin());
 
 export const MARKETING_APP_ORIGIN = trimTrailingSlash(
   process.env.NEXT_PUBLIC_MARKETING_APP_ORIGIN?.trim() ||
