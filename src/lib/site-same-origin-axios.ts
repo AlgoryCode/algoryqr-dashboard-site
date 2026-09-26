@@ -15,6 +15,8 @@ const PUBLIC_AUTH_API_PATHS = [
   "/auth/register",
   "/auth/refresh",
   "/auth/demo-account",
+  "/auth/demo/register",
+  "/auth/demo/username-available",
   "/auth/2fa/login/verify",
   "/auth/email-verification/resend",
   "/auth/email-verification/verify",

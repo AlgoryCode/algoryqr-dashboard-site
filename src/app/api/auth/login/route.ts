@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     };
 
     if (!email || !loginPayload.password) {
-      return NextResponse.json({ message: "E-posta ve şifre gerekli" }, { status: 400 });
+      return NextResponse.json({ message: "E-posta/kullanıcı adı ve şifre gerekli" }, { status: 400 });
     }
 
     const upstream = await axios.post<Record<string, unknown>>(
