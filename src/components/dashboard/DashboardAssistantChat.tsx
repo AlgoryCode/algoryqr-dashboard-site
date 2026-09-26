@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Send, Sparkles } from "lucide-react";
 
-import { useBranchReportSelection } from "@/components/dashboard/BranchReportPicker";
+import {
+  BranchReportPicker,
+  useBranchReportSelection,
+} from "@/components/dashboard/BranchReportPicker";
 import { AskAssistantButton } from "@/components/ui/ask-assistant-button";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -44,11 +47,15 @@ export function DashboardAssistantChat({ open, onOpenChange }: DashboardAssistan
   const entitled =
     hasProduct(profile, "SMART_ASSISTANT") || hasProduct(profile, "QR_AGENT");
 
-  const { branchId, menuId, selection, loading: branchLoading } = useBranchReportSelection(
-    null,
-    null,
-    open,
-  );
+  const {
+    branches,
+    branchId,
+    menuId,
+    selection,
+    loading: branchLoading,
+    empty: noBranches,
+    select,
+  } = useBranchReportSelection(null, null, open);
 
   const [prefetching, setPrefetching] = useState(false);
   const [prefetchError, setPrefetchError] = useState<string | null>(null);
@@ -57,6 +64,7 @@ export function DashboardAssistantChat({ open, onOpenChange }: DashboardAssistan
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
+  const previousBranchIdRef = useRef<number | null>(null);
 
   const loadReports = useCallback(async () => {
     if (branchId == null) {
@@ -78,6 +86,18 @@ export function DashboardAssistantChat({ open, onOpenChange }: DashboardAssistan
       setPrefetching(false);
     }
   }, [branchId, menuId, selection?.branch.name, selection?.menu?.businessName]);
+
+  useEffect(() => {
+    if (branchId == null) return;
+    if (
+      previousBranchIdRef.current != null &&
+      previousBranchIdRef.current !== branchId
+    ) {
+      setConversationId(undefined);
+      setMessages([]);
+    }
+    previousBranchIdRef.current = branchId;
+  }, [branchId]);
 
   useEffect(() => {
     if (!open || branchLoading || branchId == null) return;
@@ -154,22 +174,35 @@ export function DashboardAssistantChat({ open, onOpenChange }: DashboardAssistan
     }
   }
 
-  const branchLabel = selection?.branch.name ?? (branchId != null ? `Şube #${branchId}` : "Şube seçilmedi");
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-md">
-        <SheetHeader className="border-b border-border px-5 py-4 text-left">
+        <SheetHeader className="space-y-3 border-b border-border px-5 py-4 text-left">
           <SheetTitle className="flex items-center gap-2 text-base">
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-orange-400 text-white">
               <Sparkles className="h-4 w-4" />
             </span>
             İşletme asistanı
           </SheetTitle>
+          <div className="w-full min-w-0">
+            <BranchReportPicker
+              branches={branches}
+              selectedBranchId={branchId}
+              showMenuFilter={false}
+              disabled={branchLoading || prefetching}
+              onBranchSelect={(nextBranchId) => {
+                select(nextBranchId, null);
+              }}
+            />
+          </div>
           <SheetDescription className="text-xs leading-relaxed">
-            {branchLabel}
-            {prefetching ? " · raporlar güncelleniyor…" : null}
-            {prefetchError ? ` · ${prefetchError}` : null}
+            {noBranches
+              ? "Rapor için önce bir şube oluşturun."
+              : selection?.branch.name
+                ? `${selection.branch.name} şubesinin satış özetleri kullanılır.`
+                : "Şube seçin."}
+            {prefetching ? " Raporlar güncelleniyor…" : null}
+            {prefetchError ? ` ${prefetchError}` : null}
           </SheetDescription>
         </SheetHeader>
 
