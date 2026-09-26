@@ -45,6 +45,7 @@ import {
 import { DashboardMobileNav } from "@/components/dashboard/DashboardMobileNav";
 import { NavBadge } from "@/components/dashboard/NavBadge";
 import { DashboardPageLabelProvider, useDashboardPageLabelValue } from "@/contexts/dashboard-page-label";
+import { DashboardAssistantLauncher } from "@/components/dashboard/DashboardAssistantChat";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -409,6 +410,7 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
               >
                 <Search className="size-4" />
               </Button>
+              <DashboardAssistantLauncher className="h-9 px-3" />
               <TrialReminderHeaderBadge compact />
             </div>
           </header>
@@ -416,19 +418,21 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
           <DashboardMobileNav items={menuNavItems} pendingOrderCount={pendingOrderCount} />
 
           <div className="hidden px-6 pt-3 lg:block">
-            <div className="mx-auto flex w-fit max-w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card px-3 py-1.5">
-              <Button
+            <div className="mx-auto flex w-full max-w-[560px] items-center gap-2.5">
+              <button
                 type="button"
-                variant="ghost"
-                className="h-8 gap-2 px-2.5 text-sm text-muted-foreground hover:bg-muted/60"
                 onClick={() => setCommandOpen(true)}
+                className="flex h-12 min-w-0 flex-1 items-center gap-2.5 rounded-[14px] border border-border bg-muted/40 px-3.5 text-left transition-colors hover:bg-muted/60"
               >
-                <Search className="size-3.5" />
-                Ara
-                <kbd className="rounded border border-border px-1.5 py-0.5 text-[10px] font-medium">
+                <Search className="size-[18px] shrink-0 text-muted-foreground opacity-70" />
+                <span className="min-w-0 flex-1 truncate text-[15px] text-muted-foreground">
+                  Ara...
+                </span>
+                <kbd className="hidden shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline">
                   Ctrl K
                 </kbd>
-              </Button>
+              </button>
+              <DashboardAssistantLauncher />
               <TrialReminderHeaderBadge />
             </div>
           </div>

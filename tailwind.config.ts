@@ -115,6 +115,11 @@ export default {
           "0%": { transform: "translateX(0)" },
           "100%": { transform: "translateX(-50%)" },
         },
+        gradient: {
+          "0%": { backgroundPosition: "0% 50%" },
+          "50%": { backgroundPosition: "100% 50%" },
+          "100%": { backgroundPosition: "0% 50%" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -123,6 +128,7 @@ export default {
         "pulse-glow": "pulse-glow 3s ease-in-out infinite",
         float: "float 6s ease-in-out infinite",
         marquee: "marquee 20s linear infinite",
+        gradient: "gradient 6s ease infinite",
       },
     },
   },

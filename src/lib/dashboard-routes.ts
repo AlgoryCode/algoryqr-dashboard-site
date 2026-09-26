@@ -74,6 +74,8 @@ export const DASHBOARD_ROUTES = {
   feedbackForQr: (qrId: number | string) =>
     `/dashboard/dijital-menu/geri-bildirimler?qr=${qrId}`,
   reservations: "/dashboard/rezervasyonlar",
+  reservationsForBranch: (branchId: number | string) =>
+    `/dashboard/rezervasyonlar?branch=${branchId}`,
   reservationsForQr: (qrId: number | string) =>
     `/dashboard/rezervasyonlar?qr=${qrId}`,
   restaurantLayout: "/dashboard/dijital-menu/restaurant-layout",
