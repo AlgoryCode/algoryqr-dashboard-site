@@ -5,7 +5,11 @@ import { useMemo } from "react";
 import type { MenuAnalyticsReportResponse } from "@/lib/api";
 import { computeChefFunnelMetrics } from "@/lib/chef/chef-funnel-metrics";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DASHBOARD_METRIC_LABEL, DASHBOARD_METRIC_VALUE } from "@/lib/dashboard-surface";
+import {
+  DASHBOARD_METRIC_LABEL,
+  DASHBOARD_METRIC_VALUE,
+  DASHBOARD_STAT_TILE,
+} from "@/lib/dashboard-surface";
 
 function pct(value: number | null): string {
   if (value == null) return "—";

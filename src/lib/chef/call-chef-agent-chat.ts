@@ -18,6 +18,7 @@ export type ChefAgentChatRequest = {
 
 export type ChefAgentChatResponse = {
   reply?: string;
+  message?: string;
   conversationId?: string;
   turnId?: string;
   productIds?: unknown;
