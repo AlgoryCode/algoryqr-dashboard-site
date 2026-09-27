@@ -37,6 +37,11 @@ import Link from "next/link";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { refreshAccessAfterEntitlementChange } from "@/lib/refresh-access";
 import { DASHBOARD_BACK, DASHBOARD_PANEL, DASHBOARD_SURFACE } from "@/lib/dashboard-surface";
+import {
+  ChefQuickOptionsEditor,
+  useChefChatSettings,
+} from "@/components/dashboard/menu/ChefQuickOptionsEditor";
+import { createEmptyChefChatSettings, type ChefChatSettings } from "@/lib/chef/chef-quick-option";
 
 type DigitalMenuSettingsViewProps = {
   qrId: number;
@@ -52,9 +57,12 @@ export default function DigitalMenuSettingsView({ qrId }: DigitalMenuSettingsVie
   const [deleting, setDeleting] = useState(false);
   const [menu, setMenu] = useState<MenuData>(createInitialMenuData());
   const [menuHydratedFor, setMenuHydratedFor] = useState<number | null>(null);
+  const [chefSettings, setChefSettings] = useState<ChefChatSettings>(createEmptyChefChatSettings());
+  const [chefSaving, setChefSaving] = useState(false);
 
   const profile = menuQuery.data ?? null;
   const menuId = profile?.menuId ?? null;
+  const chefSettingsQuery = useChefChatSettings(menuId);
   const backHref =
     profile?.branchId != null
       ? DASHBOARD_ROUTES.branchDetail(profile.branchId)
@@ -80,6 +88,12 @@ export default function DigitalMenuSettingsView({ qrId }: DigitalMenuSettingsVie
   }, [menuHydratedFor, profile]);
 
   useEffect(() => {
+    if (chefSettingsQuery.settings) {
+      setChefSettings(chefSettingsQuery.settings);
+    }
+  }, [chefSettingsQuery.settings]);
+
+  useEffect(() => {
     if (menuQuery.isError) {
       notify(
         "danger",
@@ -88,6 +102,28 @@ export default function DigitalMenuSettingsView({ qrId }: DigitalMenuSettingsVie
       router.push(DASHBOARD_ROUTES.digitalMenu);
     }
   }, [menuQuery.error, menuQuery.isError, notify, router]);
+
+  const saveChefSettings = async () => {
+    if (menuId == null) return;
+    setChefSaving(true);
+    try {
+      const res = await fetch(`/api/menu/${menuId}/chef-chat-settings`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(chefSettings),
+      });
+      const data = (await res.json().catch(() => ({}))) as ChefChatSettings & { message?: string };
+      if (!res.ok) {
+        throw new ApiError(res.status, data.message || "Şef ayarları kaydedilemedi");
+      }
+      setChefSettings(data);
+      notify("info", "Şef asistanı ayarları güncellendi.");
+    } catch (error) {
+      notify("danger", error instanceof ApiError ? error.message : "Şef ayarları kaydedilemedi.");
+    } finally {
+      setChefSaving(false);
+    }
+  };
 
   const saveProfile = async () => {
     if (menuId == null) return;
@@ -180,9 +216,10 @@ export default function DigitalMenuSettingsView({ qrId }: DigitalMenuSettingsVie
       {menuId != null ? (
         <div className={`${DASHBOARD_SURFACE} p-4 sm:p-6`}>
           <Tabs defaultValue="info" className="space-y-5">
-            <TabsList className="grid h-auto w-full grid-cols-2">
+            <TabsList className="grid h-auto w-full grid-cols-3">
               <TabsTrigger value="info">Menü bilgileri</TabsTrigger>
               <TabsTrigger value="appearance">Görünüm</TabsTrigger>
+              <TabsTrigger value="chef">Şef asistanı</TabsTrigger>
             </TabsList>
             {(["info", "appearance"] as const).map((section) => (
               <TabsContent key={section} value={section} className="mt-0 space-y-5">
@@ -212,6 +249,22 @@ export default function DigitalMenuSettingsView({ qrId }: DigitalMenuSettingsVie
                 </div>
               </TabsContent>
             ))}
+            <TabsContent value="chef" className="mt-0 space-y-5">
+              {chefSettingsQuery.loading ? (
+                <DashboardLoadingState label="Şef ayarları yükleniyor…" />
+              ) : (
+                <ChefQuickOptionsEditor
+                  menuId={menuId}
+                  value={chefSettings}
+                  onChange={setChefSettings}
+                />
+              )}
+              <div className="flex justify-end">
+                <Button type="button" disabled={chefSaving} onClick={() => void saveChefSettings()}>
+                  {chefSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Şef ayarlarını kaydet"}
+                </Button>
+              </div>
+            </TabsContent>
           </Tabs>
         </div>
       ) : null}

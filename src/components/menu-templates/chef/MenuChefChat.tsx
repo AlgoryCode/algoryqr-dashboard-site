@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUp, Bell, RotateCcw, X } from "lucide-react";
+import { ArrowUp, Bell, Hand, RotateCcw, ShoppingBag, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -15,9 +15,16 @@ import {
 import type { ChefMenuSuggestion } from "@/lib/chef/chef-menu-suggestion";
 import type { ChefProductItem } from "@/lib/chef/chef-product-item";
 import type { ChefChatBadge } from "@/lib/chef/chef-chat-badges";
-import { stripProductListFromReply } from "@/lib/chef/strip-product-list-from-reply";
-import { useOrderingOptional } from "../shared";
+import {
+  buildCartCoachMessage,
+  buildUpsellBadges,
+  cartCourseRoles,
+  missingCourseRoles,
+} from "@/lib/chef/chef-cart-coach";
+import { useOrderingOptional, usePublicMenuProducts } from "../shared";
 
+import { ChefProductGalleryProvider } from "./ChefProductGallery";
+import { MenuChefInlineBadges } from "./MenuChefInlineBadges";
 import { MenuChefMenuSuggestions } from "./MenuChefMenuSuggestions";
 import { MenuChefProductCard } from "./MenuChefProductCard";
 import { MenuChefQuickBadges } from "./MenuChefQuickBadges";
@@ -169,7 +176,6 @@ const bubbleTransition = {
 function AssistantBubble({
   msg,
   animateEnter,
-  onOpened,
   onEntered,
   onAvatarClick,
   chefAvatarUrl,
@@ -181,7 +187,6 @@ function AssistantBubble({
 }: {
   msg: Extract<ChefChatMessage, { role: "assistant" }>;
   animateEnter: boolean;
-  onOpened: () => void;
   onEntered: () => void;
   onAvatarClick: () => void;
   chefAvatarUrl: string;
@@ -195,12 +200,8 @@ function AssistantBubble({
   onEnteredRef.current = onEntered;
 
   const products = msg.products?.length ? msg.products : undefined;
-  const displayText = products
-    ? stripProductListFromReply(
-        msg.text,
-        products.map((product) => product.name),
-      )
-    : msg.text;
+  const displayText = msg.text;
+  const upsellBadges = msg.upsellBadges?.length ? msg.upsellBadges : undefined;
 
   return (
     <motion.div
@@ -232,8 +233,21 @@ function AssistantBubble({
             transition={{ ...bubbleTransition, delay: 0.06 }}
             className="origin-bottom-left rounded-[1.35rem] rounded-bl-md border border-white/70 bg-white/80 px-4 py-3 text-[14.5px] leading-relaxed tracking-[-0.01em] text-[#24302c] shadow-[0_8px_28px_rgba(28,40,36,0.05)] backdrop-blur-sm"
           >
+            {msg.id === "welcome" ? (
+              <p className="mb-2 flex items-center gap-2 text-[15px] font-semibold text-[#1c2824]">
+                <Hand className="h-5 w-5 animate-chef-hand-wave text-[#5f7a6d]" aria-hidden />
+                <span>Merhaba!</span>
+              </p>
+            ) : null}
             {displayText ? (
               <p className="whitespace-pre-wrap">{displayText}</p>
+            ) : null}
+            {upsellBadges ? (
+              <MenuChefInlineBadges
+                badges={upsellBadges}
+                disabled={badgesDisabled}
+                onSelect={onBadgeSelect}
+              />
             ) : null}
             {msg.id === "welcome" ? (
               <MenuChefQuickBadges
@@ -254,15 +268,14 @@ function AssistantBubble({
             transition={{ ...bubbleTransition, delay: 0.1 }}
             role="list"
             aria-label="Önerilen ürünler"
-            tabIndex={0}
-            className="-mx-1 flex snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-x-contain px-1 pb-0.5 [scrollbar-width:none] [-ms-overflow-style:none] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2a3833]/25 [&::-webkit-scrollbar]:hidden"
+            className="flex flex-col gap-3"
           >
             {products.map((product, index) => (
               <motion.div
                 key={product.productId}
                 role="listitem"
-                initial={animateEnter ? { opacity: 0, x: 16, scale: 0.96 } : false}
-                animate={{ opacity: 1, x: 0, scale: 1 }}
+                initial={animateEnter ? { opacity: 0, y: 12, scale: 0.98 } : false}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
                 transition={{
                   ...bubbleTransition,
                   delay: 0.12 + index * 0.05,
@@ -270,7 +283,8 @@ function AssistantBubble({
               >
                 <MenuChefProductCard
                   item={product}
-                  onOpened={onOpened}
+                  galleryProducts={products}
+                  galleryIndex={index}
                   showProductId={showProductIdOnCards}
                 />
               </motion.div>
@@ -364,7 +378,9 @@ export function MenuChefChat({
   onClose,
 }: MenuChefChatProps) {
   const ordering = useOrderingOptional();
+  const { products: menuCatalog } = usePublicMenuProducts();
   const resolveChefChatProducts = useResolveChefChatProducts(publicId);
+  const lastCoachCartSigRef = useRef("");
   const showProductIdOnCards = isSearchCompleteVisible();
   const saved = getChefChatSession(publicId);
   const [messages, setMessages] = useState<ChefChatMessage[]>(
@@ -388,6 +404,57 @@ export function MenuChefChat({
   useEffect(() => {
     setChefChatSession(publicId, { messages, conversationId });
   }, [publicId, messages, conversationId]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    void fetch(`/api/menu/chef/badges?publicId=${encodeURIComponent(publicId)}`)
+      .then((res) => res.json())
+      .then((data: { welcomeMessage?: string }) => {
+        if (cancelled || !data.welcomeMessage?.trim()) return;
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === "welcome" && msg.role === "assistant"
+              ? { ...msg, text: data.welcomeMessage!.trim() }
+              : msg,
+          ),
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [open, publicId]);
+
+  useEffect(() => {
+    if (!open || !ordering || ordering.localItems.length === 0 || menuCatalog.length === 0) {
+      return;
+    }
+    const productIds = ordering.localItems.map((item) => item.productId);
+    const sig = productIds.join(",");
+    if (sig === lastCoachCartSigRef.current) return;
+    lastCoachCartSigRef.current = sig;
+
+    const present = cartCourseRoles(productIds, menuCatalog);
+    const missing = missingCourseRoles(present);
+    const text = buildCartCoachMessage(missing);
+    const badges = buildUpsellBadges(missing);
+    if (!text) return;
+
+    setMessages((prev) => {
+      const coachId = `coach-${sig}`;
+      if (prev.some((msg) => msg.id === coachId)) return prev;
+      return [
+        ...prev,
+        {
+          id: coachId,
+          role: "assistant",
+          text,
+          upsellBadges: badges.length > 0 ? badges : undefined,
+        },
+      ];
+    });
+  }, [open, ordering, ordering?.localItems, menuCatalog]);
 
   useEffect(() => {
     if (!open) {
@@ -434,6 +501,7 @@ export function MenuChefChat({
     if (loading) return;
     clearChefChatSession(publicId);
     enteredIdsRef.current = new Set(["welcome"]);
+    lastCoachCartSigRef.current = "";
     setConversationId(undefined);
     setInput("");
     setMessages([{ ...CHEF_WELCOME_MESSAGE }]);
@@ -574,6 +642,7 @@ export function MenuChefChat({
   if (!portalReady) return null;
 
   return createPortal(
+    <ChefProductGalleryProvider>
     <AnimatePresence>
       {open ? (
         <motion.div
@@ -671,7 +740,6 @@ export function MenuChefChat({
                           key={msg.id}
                           msg={msg}
                           animateEnter={shouldEnter}
-                          onOpened={onClose}
                           onEntered={markEntered}
                           onAvatarClick={() => setAvatarOpen(true)}
                           chefAvatarUrl={chefAvatarUrl}
@@ -736,6 +804,26 @@ export function MenuChefChat({
               </div>
             </div>
 
+            {ordering ? (
+              <div className="relative z-10 border-t border-[#1c2824]/[0.06] bg-white/70 px-4 pt-2 backdrop-blur-xl">
+                <div className="mx-auto max-w-2xl">
+                  <button
+                    type="button"
+                    onClick={() => ordering.setCartOpen(true)}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#2a3833] px-4 py-2.5 text-[13.5px] font-semibold text-white shadow-[0_8px_24px_rgba(28,40,36,0.12)] transition hover:bg-[#1f2b27]"
+                  >
+                    <ShoppingBag className="h-4 w-4" strokeWidth={2.1} />
+                    Siparişi tamamla
+                    {ordering.cartCount > 0 ? (
+                      <span className="rounded-full bg-white/15 px-2 py-0.5 text-[12px] tabular-nums">
+                        {ordering.cartCount}
+                      </span>
+                    ) : null}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
             <form
               className="relative z-10 border-t border-[#1c2824]/[0.06] bg-white/60 px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl"
               onSubmit={(e) => {
@@ -782,7 +870,8 @@ export function MenuChefChat({
           </div>
         </motion.div>
       ) : null}
-    </AnimatePresence>,
+    </AnimatePresence>
+    </ChefProductGalleryProvider>,
     document.body,
   );
 }

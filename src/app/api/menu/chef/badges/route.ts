@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getChefChatBadgesForMenu } from "@/lib/chef/chef-chat-badges";
+import { getChefChatPublicConfig } from "@/lib/chef/chef-chat-public-config";
 
 const querySchema = z.object({
   publicId: z.string().trim().min(1).max(128),
@@ -20,7 +20,10 @@ export async function GET(req: Request) {
     );
   }
 
+  const config = await getChefChatPublicConfig(parsed.data.publicId);
+
   return NextResponse.json({
-    badges: getChefChatBadgesForMenu(parsed.data.publicId),
+    welcomeMessage: config.welcomeMessage,
+    badges: config.badges,
   });
 }

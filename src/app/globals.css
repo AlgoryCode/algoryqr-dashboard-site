@@ -520,6 +520,30 @@
   animation: chef-typing-dot 1.05s ease-in-out infinite;
 }
 
+@keyframes chef-hand-wave {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  20% {
+    transform: rotate(18deg);
+  }
+  40% {
+    transform: rotate(-8deg);
+  }
+  60% {
+    transform: rotate(14deg);
+  }
+  80% {
+    transform: rotate(-4deg);
+  }
+}
+
+.animate-chef-hand-wave {
+  animation: chef-hand-wave 1.8s ease-in-out infinite;
+  transform-origin: 70% 70%;
+}
+
 @keyframes waiter-pending-bounce {
   0%,
   100% {

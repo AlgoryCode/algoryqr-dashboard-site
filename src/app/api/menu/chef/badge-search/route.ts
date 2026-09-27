@@ -2,11 +2,13 @@ import axios from "axios";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { DEFAULT_CHEF_CHAT_BADGES, type ChefChatBadgeFilter } from "@/lib/chef/chef-chat-badges";
-import { extractChefProductIds } from "@/lib/chef/extract-chef-product-ids";
 import { buildChefMenuSuggestions } from "@/lib/chef/build-chef-menu-suggestions";
+import { getChefChatPublicConfig } from "@/lib/chef/chef-chat-public-config";
+import { mergeReplyWithPersuasion } from "@/lib/chef/chef-recommendation-copy";
+import { extractChefProductIds } from "@/lib/chef/extract-chef-product-ids";
 import { fetchPublicMenuProducts } from "@/lib/chef/fetch-public-menu-products-server";
 import { hydrateChefProductsForPublicMenu } from "@/lib/chef/hydrate-chef-products-server";
+import { selectProductsForChefBadgeFilter } from "@/lib/chef/resolve-chef-badge-products";
 import type { MenuProductApiItem } from "@/lib/api";
 import { API_BASE_URL } from "@/lib/config";
 
@@ -20,20 +22,6 @@ const bodySchema = z.object({
 type ProductPageResponse = {
   content?: MenuProductApiItem[];
 };
-
-function resolveBadgeFilter(badgeId: string): ChefChatBadgeFilter | null {
-  const badge = DEFAULT_CHEF_CHAT_BADGES.find((entry) => entry.id === badgeId);
-  return badge?.filter ?? null;
-}
-
-function ratingScore(product: MenuProductApiItem): number {
-  const avg =
-    typeof product.ratingAvg === "number" ? product.ratingAvg : Number(product.ratingAvg ?? 0);
-  const count =
-    typeof product.ratingCount === "number" ? product.ratingCount : Number(product.ratingCount ?? 0);
-  if (!Number.isFinite(avg) || !Number.isFinite(count)) return 0;
-  return avg * 1000 + count;
-}
 
 async function fetchPublicProducts(
   publicId: string,
@@ -84,38 +72,36 @@ export async function POST(req: Request) {
       );
     }
 
-    const filter = resolveBadgeFilter(parsed.data.badgeId);
-    if (!filter) {
+    const { publicId, badgeId } = parsed.data;
+    const config = await getChefChatPublicConfig(publicId);
+    const badge = config.badges.find((entry) => entry.id === badgeId);
+    if (!badge) {
       return NextResponse.json({ message: "Badge bulunamadı" }, { status: 404 });
     }
 
-    const { publicId, badgeId } = parsed.data;
-    let menuProducts: MenuProductApiItem[] = [];
+    const filter = badge.filter;
+    let fetched: MenuProductApiItem[] = [];
 
     if (filter.type === "chefRecommended") {
-      menuProducts = await fetchPublicProducts(publicId, {
+      fetched = await fetchPublicProducts(publicId, {
         page: 0,
         size: MAX_PRODUCTS,
         chefRecommended: true,
       });
     } else if (filter.type === "tagSlug") {
-      menuProducts = await fetchPublicProducts(publicId, {
+      fetched = await fetchPublicProducts(publicId, {
         page: 0,
         size: MAX_PRODUCTS,
         tagSlug: filter.slug,
       });
-    } else {
-      const fetched = await fetchPublicProducts(publicId, {
-        page: 0,
-        size: 50,
-      });
-      menuProducts = [...fetched]
-        .sort((left, right) => ratingScore(right) - ratingScore(left))
-        .slice(0, MAX_PRODUCTS);
+    } else if (filter.type === "popularByRating") {
+      fetched = await fetchPublicProducts(publicId, { page: 0, size: 50 });
     }
 
-    const productIds = menuProducts.map((product) => product.productId);
     const fullCatalog = await fetchPublicMenuProducts(publicId);
+    const menuProducts = selectProductsForChefBadgeFilter(filter, fullCatalog, fetched);
+    const productIds = menuProducts.map((product) => product.productId);
+
     const { products } = await hydrateChefProductsForPublicMenu(publicId, {
       productIds,
       catalog: menuProducts,
@@ -123,8 +109,11 @@ export async function POST(req: Request) {
     const menuSuggestions =
       products.length > 0 ? buildChefMenuSuggestions(products, fullCatalog) : [];
 
+    const baseReply = buildReply(badgeId, products.length);
+    const reply = products.length > 0 ? mergeReplyWithPersuasion(baseReply, products) : baseReply;
+
     return NextResponse.json({
-      reply: buildReply(badgeId, products.length),
+      reply,
       productIds: extractChefProductIds({ productIds }),
       products,
       menuSuggestions,

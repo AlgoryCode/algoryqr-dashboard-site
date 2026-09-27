@@ -2,6 +2,7 @@ import axios, { AxiosError } from "axios";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { mergeReplyWithPersuasion } from "@/lib/chef/chef-recommendation-copy";
 import { extractChefProductIds } from "@/lib/chef/extract-chef-product-ids";
 import { mapMenuProductToAgentCatalog } from "@/lib/chef/agent-catalog-product";
 import { buildChefMenuSuggestions } from "@/lib/chef/build-chef-menu-suggestions";
@@ -103,8 +104,12 @@ export async function POST(req: Request) {
     const menuSuggestions =
       products.length > 0 ? buildChefMenuSuggestions(products, menuProducts) : [];
 
+    const baseReply = upstream.data.reply ?? "";
+    const reply =
+      products.length > 0 ? mergeReplyWithPersuasion(baseReply, products) : baseReply;
+
     return NextResponse.json({
-      reply: upstream.data.reply ?? "",
+      reply,
       conversationId: upstream.data.conversationId,
       productIds,
       products,
