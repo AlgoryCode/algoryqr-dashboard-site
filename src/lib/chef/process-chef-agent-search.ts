@@ -1,4 +1,6 @@
 import { alignChefRecommendationsWithUserQuery } from "@/lib/chef/align-chef-agent-recommendations";
+import { shouldShowFullCourseCatalog } from "@/lib/chef/chef-user-query-intent";
+import { expandChefRecommendationsForUserQuery } from "@/lib/chef/expand-chef-recommendations-for-intent";
 import { mergeReplyWithPersuasion } from "@/lib/chef/chef-recommendation-copy";
 import { extractChefProductIds } from "@/lib/chef/extract-chef-product-ids";
 import { filterChefProductsByDietMessage } from "@/lib/chef/filter-chef-products-by-diet-message";
@@ -62,14 +64,24 @@ export async function processChefAgentSearch(
     userQuery: input.userQuery,
     cartProductIds: input.cartProductIds,
   });
-  const specificQuery = isSpecificUserQuery(input.userQuery);
-  const products = rankChefRecommendations(
+  const expanded = expandChefRecommendationsForUserQuery(
     aligned,
+    input.menuProducts,
+    input.userQuery,
+    input.cartProductIds,
+  );
+  const specificQuery = isSpecificUserQuery(input.userQuery);
+  const fullCourseBrowse = shouldShowFullCourseCatalog(input.userQuery);
+  const products = rankChefRecommendations(
+    expanded,
     input.menuProducts,
     input.cartProductIds,
     input.recentlyShownProductIds,
     input.priorOrderProductIds,
-    specificQuery ? { maxPerMainCategory: 6 } : {},
+    {
+      maxPerMainCategory: specificQuery || fullCourseBrowse ? 6 : undefined,
+      excludeRecentlyShown: !fullCourseBrowse,
+    },
   );
 
   const baseReply = input.agent.reply ?? input.agent.message ?? "";

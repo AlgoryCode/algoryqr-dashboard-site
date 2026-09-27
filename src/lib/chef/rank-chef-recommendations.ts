@@ -7,6 +7,8 @@ const MAX_PER_MAIN_CATEGORY = 2;
 
 export type RankChefRecommendationsOptions = {
   maxPerMainCategory?: number;
+  /** false → son gösterilen ürünleri tekrar önerebilir (ör. “başka tatlı”). */
+  excludeRecentlyShown?: boolean;
 };
 
 function ratingScore(product: MenuProductApiItem): number {
@@ -80,8 +82,9 @@ export function rankChefRecommendations(
   if (products.length === 0) return [];
 
   const maxPerMainCategory = options.maxPerMainCategory ?? MAX_PER_MAIN_CATEGORY;
+  const excludeRecentlyShown = options.excludeRecentlyShown ?? true;
   const cartSet = new Set(cartProductIds);
-  const recentSet = new Set(recentlyShownProductIds);
+  const recentSet = excludeRecentlyShown ? new Set(recentlyShownProductIds) : new Set<number>();
   const excludeWithRecent = new Set([...cartSet, ...recentSet]);
 
   const withRecentDedup = pickRanked(
