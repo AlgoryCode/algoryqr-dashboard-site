@@ -8,12 +8,23 @@ import { mapMenuProductToAgentCatalog } from "@/lib/chef/agent-catalog-product";
 import { buildChefMenuSuggestions } from "@/lib/chef/build-chef-menu-suggestions";
 import { fetchPublicMenuProducts } from "@/lib/chef/fetch-public-menu-products-server";
 import { hydrateChefProductsForPublicMenu } from "@/lib/chef/hydrate-chef-products-server";
+import type { MenuProductApiItem } from "@/lib/api";
 import { QR_AGENT_BASE_URL } from "@/lib/config";
+
+const menuProductBodySchema = z
+  .object({
+    productId: z.number().int().positive(),
+    menuId: z.number().int(),
+    name: z.string().trim().min(1),
+  })
+  .passthrough();
 
 const bodySchema = z.object({
   publicId: z.string().trim().min(1).max(128),
-  message: z.string().trim().min(1).max(1000),
+  message: z.string().trim().min(1).max(2000),
   conversationId: z.string().trim().min(1).max(100).optional(),
+  menuProducts: z.array(menuProductBodySchema).min(1).max(400).optional(),
+  cartProductIds: z.array(z.number().int().positive()).max(40).optional(),
 });
 
 type ChatTiming = {
@@ -48,7 +59,11 @@ export async function POST(req: Request) {
       );
     }
 
-    const menuProducts = await fetchPublicMenuProducts(parsed.data.publicId);
+    const clientMenuProducts = parsed.data.menuProducts as MenuProductApiItem[] | undefined;
+    const menuProducts =
+      clientMenuProducts && clientMenuProducts.length > 0
+        ? clientMenuProducts
+        : await fetchPublicMenuProducts(parsed.data.publicId);
     const catalog = menuProducts.map(mapMenuProductToAgentCatalog);
 
     const upstream = await axios.post<AgentChatResponse>(

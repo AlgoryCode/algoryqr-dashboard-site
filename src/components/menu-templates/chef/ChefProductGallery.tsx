@@ -16,6 +16,9 @@ import type { ChefProductItem } from "@/lib/chef/chef-product-item";
 
 import { MenuChefProductDetailPane } from "./MenuChefProductDetailPane";
 
+const SWIPE_OFFSET_THRESHOLD = 56;
+const SWIPE_VELOCITY_THRESHOLD = 320;
+
 type ChefProductGalleryContextValue = {
   openGallery: (products: ChefProductItem[], startIndex: number) => void;
 };
@@ -26,11 +29,13 @@ export function ChefProductGalleryProvider({ children }: { children: ReactNode }
   const [open, setOpen] = useState(false);
   const [products, setProducts] = useState<ChefProductItem[]>([]);
   const [index, setIndex] = useState(0);
+  const [slideDirection, setSlideDirection] = useState(0);
 
   const openGallery = useCallback((nextProducts: ChefProductItem[], startIndex: number) => {
     if (nextProducts.length === 0) return;
     setProducts(nextProducts);
     setIndex(Math.max(0, Math.min(startIndex, nextProducts.length - 1)));
+    setSlideDirection(0);
     setOpen(true);
   }, []);
 
@@ -39,6 +44,16 @@ export function ChefProductGalleryProvider({ children }: { children: ReactNode }
   const active = products[index] ?? null;
   const canPrev = index > 0;
   const canNext = index < products.length - 1;
+
+  const paginate = useCallback(
+    (direction: -1 | 1) => {
+      const next = index + direction;
+      if (next < 0 || next >= products.length) return;
+      setSlideDirection(direction);
+      setIndex(next);
+    },
+    [index, products.length],
+  );
 
   return (
     <ChefProductGalleryContext.Provider value={value}>
@@ -52,15 +67,15 @@ export function ChefProductGalleryProvider({ children }: { children: ReactNode }
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="fixed inset-0 z-[120] flex items-end justify-center bg-[#0f1613]/55 p-0 sm:items-center sm:p-4"
+                  className="fixed inset-0 z-[120] flex items-center justify-center bg-[#0f1613]/60 p-4 backdrop-blur-[2px]"
                   onClick={() => setOpen(false)}
                 >
                   <motion.div
-                    initial={{ y: 40, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: 24, opacity: 0 }}
+                    initial={{ opacity: 0, scale: 0.94, y: 12 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.96, y: 8 }}
                     transition={{ type: "spring", stiffness: 420, damping: 32 }}
-                    className="relative flex max-h-[min(92dvh,40rem)] w-full max-w-lg flex-col overflow-hidden rounded-t-[1.35rem] border border-white/80 bg-[#f7f8f7] shadow-[0_24px_60px_rgba(28,40,36,0.28)] sm:rounded-[1.35rem]"
+                    className="relative flex max-h-[min(88dvh,40rem)] w-full max-w-lg flex-col overflow-hidden rounded-[1.35rem] border border-white/80 bg-[#f7f8f7] shadow-[0_24px_60px_rgba(28,40,36,0.32)]"
                     onClick={(event) => event.stopPropagation()}
                     role="dialog"
                     aria-modal="true"
@@ -69,6 +84,11 @@ export function ChefProductGalleryProvider({ children }: { children: ReactNode }
                     <div className="flex items-center justify-between border-b border-[#1c2824]/[0.06] px-4 py-3">
                       <p className="text-[13px] font-medium text-[#5f6f68]">
                         {index + 1} / {products.length}
+                        {products.length > 1 ? (
+                          <span className="ml-2 text-[11px] font-normal text-[#8a9a93]">
+                            Kaydırarak gezin
+                          </span>
+                        ) : null}
                       </p>
                       <button
                         type="button"
@@ -79,31 +99,85 @@ export function ChefProductGalleryProvider({ children }: { children: ReactNode }
                         <X className="h-4 w-4" />
                       </button>
                     </div>
-                    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-                      <MenuChefProductDetailPane item={active} />
+
+                    <div className="relative min-h-0 flex-1 overflow-hidden">
+                      {products.length > 1 ? (
+                        <>
+                          <button
+                            type="button"
+                            disabled={!canPrev}
+                            onClick={() => paginate(-1)}
+                            className="absolute left-2 top-1/2 z-10 hidden -translate-y-1/2 rounded-full bg-white/90 p-2 text-[#2a3833] shadow-md disabled:opacity-0 sm:inline-flex"
+                            aria-label="Önceki ürün"
+                          >
+                            <ChevronLeft className="h-5 w-5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!canNext}
+                            onClick={() => paginate(1)}
+                            className="absolute right-2 top-1/2 z-10 hidden -translate-y-1/2 rounded-full bg-white/90 p-2 text-[#2a3833] shadow-md disabled:opacity-0 sm:inline-flex"
+                            aria-label="Sonraki ürün"
+                          >
+                            <ChevronRight className="h-5 w-5" />
+                          </button>
+                        </>
+                      ) : null}
+
+                      <div className="h-full overflow-y-auto overscroll-contain px-4 py-4 touch-pan-y">
+                        <AnimatePresence mode="wait" initial={false}>
+                          <motion.div
+                            key={active.productId}
+                            initial={{ opacity: 0, x: slideDirection * 72 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: slideDirection * -72 }}
+                            transition={{ type: "spring", stiffness: 380, damping: 32 }}
+                            drag={products.length > 1 ? "x" : false}
+                            dragConstraints={{ left: 0, right: 0 }}
+                            dragElastic={0.18}
+                            onDragEnd={(_, info) => {
+                              const swipe = info.offset.x + info.velocity.x * 0.15;
+                              if (swipe > SWIPE_OFFSET_THRESHOLD || info.velocity.x > SWIPE_VELOCITY_THRESHOLD) {
+                                if (canPrev) paginate(-1);
+                                return;
+                              }
+                              if (
+                                swipe < -SWIPE_OFFSET_THRESHOLD ||
+                                info.velocity.x < -SWIPE_VELOCITY_THRESHOLD
+                              ) {
+                                if (canNext) paginate(1);
+                              }
+                            }}
+                            className={
+                              products.length > 1
+                                ? "cursor-grab touch-pan-y active:cursor-grabbing"
+                                : undefined
+                            }
+                          >
+                            <MenuChefProductDetailPane item={active} />
+                          </motion.div>
+                        </AnimatePresence>
+                      </div>
                     </div>
+
                     {products.length > 1 ? (
-                      <div className="flex items-center justify-between gap-2 border-t border-[#1c2824]/[0.06] px-3 py-3">
-                        <button
-                          type="button"
-                          disabled={!canPrev}
-                          onClick={() => setIndex((value) => Math.max(0, value - 1))}
-                          className="inline-flex flex-1 items-center justify-center gap-1 rounded-full bg-white px-3 py-2 text-[13px] font-medium text-[#2a3833] disabled:opacity-35"
-                        >
-                          <ChevronLeft className="h-4 w-4" />
-                          Önceki
-                        </button>
-                        <button
-                          type="button"
-                          disabled={!canNext}
-                          onClick={() =>
-                            setIndex((value) => Math.min(products.length - 1, value + 1))
-                          }
-                          className="inline-flex flex-1 items-center justify-center gap-1 rounded-full bg-[#2a3833] px-3 py-2 text-[13px] font-medium text-white disabled:opacity-35"
-                        >
-                          Sonraki
-                          <ChevronRight className="h-4 w-4" />
-                        </button>
+                      <div className="flex items-center justify-center gap-1.5 border-t border-[#1c2824]/[0.06] px-3 py-3">
+                        {products.map((product, dotIndex) => (
+                          <button
+                            key={product.productId}
+                            type="button"
+                            onClick={() => {
+                              setSlideDirection(dotIndex > index ? 1 : -1);
+                              setIndex(dotIndex);
+                            }}
+                            className={`h-1.5 rounded-full transition-all ${
+                              dotIndex === index
+                                ? "w-5 bg-[#2a3833]"
+                                : "w-1.5 bg-[#1c2824]/20"
+                            }`}
+                            aria-label={`Ürün ${dotIndex + 1}`}
+                          />
+                        ))}
                       </div>
                     ) : null}
                   </motion.div>
