@@ -118,13 +118,15 @@ export const STORE_APP_ORIGIN = trimTrailingSlash(
 function resolveMenuAppOrigin(): string {
   const fromEnv = readRuntimeEnv("NEXT_PUBLIC_MENU_APP_ORIGIN") || readRuntimeEnv("MENU_APP_ORIGIN");
   if (fromEnv) return fromEnv;
+  const appUrl = readRuntimeEnv("APP_URL") || readRuntimeEnv("NEXT_PUBLIC_APP_URL");
+  if (appUrl) return appUrl;
   const deployEnv = (process.env.APP_ENV || process.env.DEPLOY_ENV || "").trim().toLowerCase();
-  if (deployEnv === "stage" || deployEnv === "staging") return "https://stage.qr.algorycode.com";
-  if (deployEnv === "prod" || deployEnv === "production") return "https://qr.algorycode.com";
+  if (deployEnv === "stage" || deployEnv === "staging") return "https://stage.dashboard.algorycode.com";
+  if (deployEnv === "prod" || deployEnv === "production") return "https://dashboard.algorycode.com";
   try {
     const host = new URL(resolveApiBaseUrl()).hostname.toLowerCase();
-    if (host.startsWith("stage.")) return "https://stage.qr.algorycode.com";
-    if (host.startsWith("prod.")) return "https://qr.algorycode.com";
+    if (host.startsWith("stage.")) return "https://stage.dashboard.algorycode.com";
+    if (host.startsWith("prod.")) return "https://dashboard.algorycode.com";
   } catch {
     // ignore
   }

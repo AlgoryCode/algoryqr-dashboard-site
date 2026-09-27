@@ -5,7 +5,7 @@ import { COMPANY } from "@/lib/company";
 function resolveSiteUrl(): string {
   const fromEnv = process.env.APP_URL?.trim().replace(/\/$/, "");
   if (fromEnv) return fromEnv;
-  if (process.env.NODE_ENV === "production") return "https://qr.algorycode.com";
+  if (process.env.NODE_ENV === "production") return "https://dashboard.algorycode.com";
   return "http://localhost:3000";
 }
 

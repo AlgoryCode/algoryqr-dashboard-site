@@ -64,7 +64,8 @@ export function parsePaymentMethodsPayload(payload: unknown): PaymentMethod[] {
 }
 
 export function parseSubscriptionOverviewPayload(payload: unknown): SubscriptionOverviewApiItem {
-  const data = payload && typeof payload === "object" ? (payload as SubscriptionOverviewApiItem) : {};
+  const data: Partial<SubscriptionOverviewApiItem> =
+    payload && typeof payload === "object" ? (payload as SubscriptionOverviewApiItem) : {};
   return {
     activePackage: data.activePackage ?? null,
     entitlements: Array.isArray(data.entitlements) ? data.entitlements : [],
@@ -77,7 +78,8 @@ export function parseSubscriptionOverviewPayload(payload: unknown): Subscription
 }
 
 export function parseSessionsPagePayload(payload: unknown): UserSessionPage {
-  const data = payload && typeof payload === "object" ? (payload as UserSessionPage) : {};
+  const data: Partial<UserSessionPage> =
+    payload && typeof payload === "object" ? (payload as UserSessionPage) : {};
   const content = Array.isArray(data.content) ? data.content : [];
   return {
     content,

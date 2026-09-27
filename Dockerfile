@@ -1,4 +1,8 @@
 # syntax=docker/dockerfile:1
+#
+# App configuration (API_BASE_URL, APP_URL, NEXT_PUBLIC_*, secrets) is NOT set here.
+# Define Build Environment + Runtime Environment in Coolify for this service.
+# NEXT_PUBLIC_* must be present at build time (Coolify → Build Variables).
 
 ARG TARGETPLATFORM=linux/amd64
 
@@ -15,13 +19,6 @@ COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
 
-ARG APP_ENV=stage
-ARG API_BASE_URL=https://stage.qrapi.algorycode.com
-ARG NEXT_PUBLIC_MENU_APP_ORIGIN=https://stage.qr.algorycode.com
-ENV APP_ENV=${APP_ENV}
-ENV API_BASE_URL=${API_BASE_URL}
-ENV NEXT_PUBLIC_MENU_APP_ORIGIN=${NEXT_PUBLIC_MENU_APP_ORIGIN}
-
 RUN npm run build
 
 FROM base AS runner
@@ -31,11 +28,6 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
-ENV APP_ENV=stage
-ENV API_BASE_URL=https://stage.qrapi.algorycode.com
-ENV PUBLIC_API_BASE_URL=https://stage.qrapi.algorycode.com
-ENV NEXT_PUBLIC_MENU_APP_ORIGIN=https://stage.qr.algorycode.com
-ENV APP_URL=https://stage.qr.algorycode.com
 
 RUN groupadd --system --gid 1001 nodejs \
   && useradd --system --uid 1001 --gid nodejs nextjs
