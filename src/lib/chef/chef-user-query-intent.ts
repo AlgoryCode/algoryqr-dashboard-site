@@ -28,7 +28,11 @@ export function inferChefCourseRoleFromUserQuery(
   if (/^(tatlı|tatli|tatlılar|dessert|sweets?)\s*[.?]?$/i.test(q)) {
     return "dessert";
   }
-  if (/tatlı\s+var|var\s+mı.*tatlı|var\s+mi.*tatli|başka\s+tatlı|baska\s+tatli|daha\s+tatlı/i.test(q)) {
+  if (
+    /tatlı\s+var|var\s+mı.*tatlı|var\s+mi.*tatli|başka\s+tatlı|baska\s+tatli|daha\s+tatlı|tüm\s+tatlı|tum\s+tatli|tatlı\s+öner|tatli\s+oner/i.test(
+      q,
+    )
+  ) {
     return "dessert";
   }
   if (

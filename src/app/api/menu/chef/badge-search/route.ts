@@ -6,12 +6,11 @@ import { isUpsellBadgeId, upsellBadgeId, type MenuCourseRole } from "@/lib/chef/
 import { getChefChatPublicConfig } from "@/lib/chef/chef-chat-public-config";
 import type { ChefChatBadge } from "@/lib/chef/chef-chat-badges";
 import { mergeReplyWithPersuasion } from "@/lib/chef/chef-recommendation-copy";
-import { extractChefProductIds } from "@/lib/chef/extract-chef-product-ids";
 import { fetchPublicMenuProducts } from "@/lib/chef/fetch-public-menu-products-server";
 import { hydrateChefProductsForPublicMenu } from "@/lib/chef/hydrate-chef-products-server";
 import { isChefBadgeHybridAgentEnabled } from "@/lib/chef/chef-funnel-flags";
 import { refineChefBadgeProductsWithAgent } from "@/lib/chef/refine-chef-badge-with-agent";
-import { pickChefItemsForRawUserQuery } from "@/lib/chef/pick-catalog-for-raw-user-query";
+import { searchChefCatalogByUserQuery } from "@/lib/chef/chef-catalog-search";
 import { rankChefRecommendations } from "@/lib/chef/rank-chef-recommendations";
 import { selectProductsForChefBadgeFilter } from "@/lib/chef/resolve-chef-badge-products";
 import type { MenuProductApiItem } from "@/lib/api";
@@ -146,11 +145,9 @@ export async function POST(req: Request) {
       catalog: menuProducts,
     });
     const badgeQuery = parsed.data.userQuery?.trim() || badge.label;
-    const rawPicked = pickChefItemsForRawUserQuery(fullCatalog, badgeQuery, []);
-    if (rawPicked.length > 0) {
-      const allowed = new Set(rawPicked.map((item) => item.productId));
-      products = products.filter((item) => allowed.has(item.productId));
-      if (products.length === 0) products = rawPicked;
+    const catalogSearch = searchChefCatalogByUserQuery(fullCatalog, badgeQuery, []);
+    if (catalogSearch.kind !== "none" && catalogSearch.products.length > 0) {
+      products = catalogSearch.products;
     }
     products = rankChefRecommendations(
       products,
@@ -158,22 +155,14 @@ export async function POST(req: Request) {
       [],
       parsed.data.recentlyShownProductIds ?? [],
       [],
-      { maxPerMainCategory: 6 },
+      { maxPerMainCategory: 6, excludeRecentlyShown: catalogSearch.kind === "none" },
     );
-    const recentIds = parsed.data.recentlyShownProductIds ?? [];
-    if (recentIds.length > 0 && products.length > 0) {
-      const recentSet = new Set(recentIds);
-      const withoutRecent = products.filter((item) => !recentSet.has(item.productId));
-      if (withoutRecent.length > 0) {
-        products = withoutRecent;
-      }
-    }
     const baseReply = buildReply(badgeId, products.length);
     const reply = products.length > 0 ? mergeReplyWithPersuasion(baseReply, products) : baseReply;
 
     return NextResponse.json({
       reply,
-      productIds: extractChefProductIds({ productIds }),
+      productIds: products.map((item) => item.productId),
       products,
       menuSuggestions: [],
     });

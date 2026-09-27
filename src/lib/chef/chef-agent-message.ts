@@ -1,8 +1,5 @@
 import type { MenuProductApiItem } from "@/lib/api";
 
-import { isPairingUserQuery } from "@/lib/chef/chef-user-query-intent";
-import { findAnchorProductInUserQuery } from "@/lib/chef/chef-pairing-recommendations";
-
 export type ChefAgentRecommendationMode = "default" | "general" | "cart";
 
 function cartSummary(cartProductIds: number[], catalog: MenuProductApiItem[]): string {
@@ -13,46 +10,27 @@ function cartSummary(cartProductIds: number[], catalog: MenuProductApiItem[]): s
   return lines.join(", ");
 }
 
-const OUTPUT_RULES =
-  "[Yanıt kuralları: Ürün listesi veya fiyat dökümü yazma; en fazla 2 kısa Türkçe cümle. Ürünler UI kartlarında gösterilecek. En fazla 6 productId seç.]";
-
-const USER_QUERY_HINT =
-  "[Kullanıcı isteği `userQuery` alanında aynen verilmiştir; yalnızca `products` kataloğundan uygun productId seç.]";
-
 /**
- * Agent `message` alanı: bağlam + kurallar. Kullanıcı cümlesi `userQuery` ile ayrı gönderilir.
+ * Kısa host notu. Misafir cümlesi burada yok — ajan `userQuery` + kendi system prompt’unu kullanır.
  */
 export function buildChefAgentContextMessage(
   mode: ChefAgentRecommendationMode,
   cartProductIds: number[],
   catalog: MenuProductApiItem[],
-  userQuery?: string,
+  _userQuery?: string,
 ): string {
-  const lines: string[] = [USER_QUERY_HINT, OUTPUT_RULES];
-
-  const pairingQuery = userQuery?.trim();
-  if (pairingQuery && isPairingUserQuery(pairingQuery)) {
-    const anchor = findAnchorProductInUserQuery(catalog, pairingQuery);
-    const anchorHint = anchor
-      ? `${anchor.name} (productId:${anchor.productId})`
-      : "userQuery içindeki ürün adı";
-    lines.unshift(
-      `[İstek: Eşlik / pairing. ${anchorHint} için yanına uyumlu ürünler öner; anchor ürünü tekrarlama. İçecek veya tamamlayıcı yemek/tatlı düşün.]`,
-    );
-  }
+  const lines: string[] = [
+    "[Host: Misafir isteği `userQuery` alanındadır. Anlamı katalog satırlarından çıkar; productIds boş olmasın menüde uyum varsa.]",
+  ];
 
   if (mode === "general") {
-    lines.unshift(
-      "[İstek: Genel ürün önerisi. Sepete bakma; 2–4 çeşitli tek ürün öner. Menü paketi/kombinasyon önerme.]",
-    );
+    lines.push("[Mod: genel öneri. Sepete bakma; 2–4 çeşitli ürün. Menü paketi önerme.]");
   } else if (mode === "cart" && cartProductIds.length > 0) {
-    lines.unshift(
-      `[Müşteri sepeti: ${cartSummary(cartProductIds, catalog)}. Eksik kurs için tek tek ürün öner (yemek/içecek/tatlı); sepette olanları tekrarlama. Menü paketi önerme.]`,
+    lines.push(
+      `[Sepet: ${cartSummary(cartProductIds, catalog)}. Eksik kurs için tek ürün öner; sepettekileri tekrarlama.]`,
     );
   } else if (cartProductIds.length > 0) {
-    lines.unshift(
-      `[Müşteri sepeti: ${cartSummary(cartProductIds, catalog)}. Yanıtında sepeti dikkate al.]`,
-    );
+    lines.push(`[Sepet: ${cartSummary(cartProductIds, catalog)}. Sepettekileri tekrarlama.]`);
   }
 
   return lines.join("\n");

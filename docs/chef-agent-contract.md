@@ -34,15 +34,14 @@ Dashboard client → BFF: `chefSearchRequestBodySchema` (`message` + `userQuery`
 
 Zod: `chefAgentChatResponseSchema` — BFF `parseChefAgentChatResponse`.
 
-## BFF post-processing (no query normalize)
+## BFF post-processing (catalog-first)
 
 1. Validate agent response shape.
-2. Hydrate `productIds` from catalog; drop cart duplicates.
-3. Diet / price guards use **raw `userQuery`** only.
-4. If agent returns no valid ids → **fallback** `pickCatalogProductsForRawUserQuery` (substring match, `tr-TR` case only).
-5. Rank (category cap, recent dedup, prior orders).
-
-Agent is the primary recommender; BFF does not rewrite picks with synonym/stop-word pipelines.
+2. Diet / price guards use **raw `userQuery`** only.
+3. **Primary:** agent `productIds` from this menu’s `products` + raw `userQuery`.
+4. **Fallback only if agent is empty:** substring match against **this menu’s** category/product strings (no global dish lexicon).
+5. Pairing (`yanında`) uses a product name that appears on this menu.
+6. Rank and drop cart duplicates.
 
 ## Turn feedback (menu API)
 
@@ -52,15 +51,11 @@ Proxies to: `PATCH /menu/public/{publicId}/chef-chat/turns/{turnId}/feedback`
 
 Body: `{ "feedback": "LIKE" | "DISLIKE" }`
 
-## System prompt rules (qr-agent)
+## System prompt (qr-agent, source of truth)
 
-1. Read **`userQuery`** for what the guest wants; use **`products`** as the only id source.
-2. Only recommend `productId` values present in the request catalog.
-3. Never repeat items listed in `cartProductIds`.
-4. For `complete_meal` / cart context: prioritize missing course (food, drink, dessert).
-5. For `general`: diverse 2–4 products suitable as menu bundle anchors.
-6. Respect allergens/diet when **`userQuery`** mentions them.
-7. Do not invent prices or products.
+File: `qr-agent/src/reply/catalogReply.ts` → `CATALOG_SYSTEM_PROMPT`.
+
+Guest utterance is **`userQuery`**. Dashboard `message` is host notes only. `productIds` 1–6 from this catalog when anything fits; empty only if the menu has no match.
 
 ## Golden scenarios (regression)
 

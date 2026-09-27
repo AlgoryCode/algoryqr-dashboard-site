@@ -1,0 +1,142 @@
+{
+  "catalogId": "any-menu",
+  "description": "Ajan menüyü okur. BFF id/isim sözlüğü kullanmaz; ajan id’lerini korur. Yedek yalnızca bu menünün kendi kategori/ürün metni.",
+  "catalog": [
+    {
+      "productId": 101,
+      "menuId": 1,
+      "name": "Baklava",
+      "price": 180,
+      "currency": "TRY",
+      "mainCategoryId": 1,
+      "mainCategoryName": "After dinner"
+    },
+    {
+      "productId": 102,
+      "menuId": 1,
+      "name": "Cheesecake",
+      "price": 210,
+      "currency": "TRY",
+      "mainCategoryId": 1,
+      "mainCategoryName": "After dinner"
+    },
+    {
+      "productId": 201,
+      "menuId": 1,
+      "name": "Somon",
+      "price": 540,
+      "currency": "TRY",
+      "mainCategoryId": 2,
+      "mainCategoryName": "From the sea"
+    },
+    {
+      "productId": 301,
+      "menuId": 1,
+      "name": "Dana Köfte",
+      "price": 320,
+      "currency": "TRY",
+      "mainCategoryId": 3,
+      "mainCategoryName": "Grill"
+    },
+    {
+      "productId": 401,
+      "menuId": 1,
+      "name": "Mojito",
+      "price": 260,
+      "currency": "TRY",
+      "mainCategoryId": 4,
+      "mainCategoryName": "Bar"
+    },
+    {
+      "productId": 111,
+      "menuId": 1,
+      "name": "Sütlaç",
+      "price": 140,
+      "currency": "TRY",
+      "mainCategoryId": 11,
+      "mainCategoryName": "Tatlılar"
+    },
+    {
+      "productId": 112,
+      "menuId": 1,
+      "name": "Tiramisu",
+      "price": 220,
+      "currency": "TRY",
+      "mainCategoryId": 11,
+      "mainCategoryName": "Tatlılar"
+    }
+  ],
+  "turns": [
+    {
+      "id": "agent-reads-menu-dessert",
+      "userQuery": "Tatlı ne var",
+      "agentProductIds": [101, 102],
+      "expect": {
+        "kind": "agent",
+        "mustIncludeProductIds": [101, 102],
+        "mustNotIncludeProductIds": [401, 201],
+        "minCount": 2
+      }
+    },
+    {
+      "id": "agent-reads-menu-fish",
+      "userQuery": "Balık ne var",
+      "agentProductIds": [201],
+      "expect": {
+        "kind": "agent",
+        "mustIncludeProductIds": [201],
+        "mustNotIncludeProductIds": [101, 111],
+        "minCount": 1
+      }
+    },
+    {
+      "id": "bff-keeps-agent-not-rewriting",
+      "userQuery": "Tatlı öner",
+      "agentProductIds": [101],
+      "expect": {
+        "kind": "agent",
+        "mustIncludeProductIds": [101],
+        "maxCount": 1
+      }
+    },
+    {
+      "id": "menu-text-fallback-when-agent-empty",
+      "userQuery": "Tatlılar",
+      "agentProductIds": [],
+      "expect": {
+        "kind": "category",
+        "mustIncludeProductIds": [111, 112],
+        "minCount": 2
+      }
+    },
+    {
+      "id": "no-lexicon-when-menu-has-no-matching-text",
+      "userQuery": "Sushi öner",
+      "agentProductIds": [],
+      "expect": {
+        "kind": "none",
+        "maxCount": 0
+      }
+    },
+    {
+      "id": "product-name-on-this-menu",
+      "userQuery": "Baklava",
+      "agentProductIds": [],
+      "expect": {
+        "kind": "product",
+        "mustIncludeProductIds": [101],
+        "minCount": 1
+      }
+    },
+    {
+      "id": "pairing-uses-menu-product-name",
+      "userQuery": "Baklava yanında ne önerirsin",
+      "agentProductIds": [101],
+      "expect": {
+        "pairing": true,
+        "mustNotIncludeProductIds": [101],
+        "minCount": 1
+      }
+    }
+  ]
+}

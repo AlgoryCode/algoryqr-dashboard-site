@@ -80,8 +80,8 @@ Sohbet, katalog **hazır olmadan** öneri isteği göndermez (`catalogReady` gat
 2. `buildChefAgentContextMessage` sepet / mod bağlamını `message` alanına koyar; kullanıcı cümlesi **`userQuery`** olarak aynen gider (normalize yok).
 3. `POST /api/menu/chef/search` body: `userQuery`, `message`, `conversationId`, `menuProducts`, `cartProductIds`, …
 4. BFF agent’a katalog + `userQuery` + bağlam gönderir; yanıt `chefAgentChatResponseSchema` ile doğrulanır.
-5. Agent `reply` + `productIds` döner (birincil öneri kaynağı).
-6. BFF: agent seçimini korur; boşsa ham `userQuery` ile katalog yedek araması; sonra `rankChefRecommendations`.
+5. qr-agent `userQuery`’yi Guest satırı, `message`’ı host notu olarak okur (`CATALOG_SYSTEM_PROMPT`). `reply` + `productIds` ajan işidir.
+6. BFF yalnızca id hydrate + sepet/diyet/fiyat süzgeci. Katalogdan yeniden yazım yok.
 7. Ürünler hydrate edilir; `mergeReplyWithPersuasion` kısa metin bırakır.
 8. UI: assistant balonu + **Öneriler** altında yatay kompakt kartlar (`MenuChefProductCardGrid`).
 9. Uzun ürün listesi metni bastırılır → `assistantCaptionForProductReply`.
