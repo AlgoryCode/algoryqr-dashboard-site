@@ -571,7 +571,14 @@ export function MenuChefChat({
   ) => {
     const addUserMessage = options?.addUserMessage ?? true;
     const addAssistantToChat = options?.addAssistantToChat ?? true;
-    const baseAgentMessage = buildChefAgentContextMessage(mode, cartProductIds, chefMenuProducts);
+    const rawUserQueryForContext =
+      mode === "general" ? undefined : text.trim() ? text.trim() : undefined;
+    const baseAgentMessage = buildChefAgentContextMessage(
+      mode,
+      cartProductIds,
+      chefMenuProducts,
+      rawUserQueryForContext,
+    );
     const localeCode = (menuLocale?.locale ?? "tr") as ChefMenuLocale;
     const personalization = buildChefPersonalizationContext(localeCode, priorOrderProductIds);
     const agentMessage = `${chefPersonalizationPrefix(personalization)}\n${baseAgentMessage}`;

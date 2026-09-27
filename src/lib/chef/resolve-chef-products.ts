@@ -24,9 +24,16 @@ function catalogById(catalog: MenuProductApiItem[]): Map<number, MenuProductApiI
  * Build chef cards from canonical menu rows when product IDs are known.
  */
 export async function resolveChefProducts(input: ResolveChefProductsInput): Promise<ChefProductItem[]> {
+  const normalizedFromPayload = normalizeChefProducts(input.products);
   const productIds = extractChefProductIds(input);
+  if (
+    normalizedFromPayload.length > 0 &&
+    (productIds.length === 0 || normalizedFromPayload.length >= productIds.length)
+  ) {
+    return normalizedFromPayload;
+  }
   if (productIds.length === 0) {
-    return normalizeChefProducts(input.products);
+    return normalizedFromPayload;
   }
 
   const byId = catalogById(input.catalog ?? []);

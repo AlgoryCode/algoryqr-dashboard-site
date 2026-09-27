@@ -1,5 +1,14 @@
 import type { MenuCourseRole } from "@/lib/chef/chef-cart-coach";
 
+/** Belirli ürünün yanına / uyumlu eşlik önerisi. */
+export function isPairingUserQuery(userQuery?: string | null): boolean {
+  const q = userQuery?.trim().toLocaleLowerCase("tr-TR") ?? "";
+  if (!q) return false;
+  return /yanında|yanina|yanına|ile\s+birlikte|eşlik|eslik|uyumlu|tamamlayıcı|tamamlayici|pairing|goes\s+with|ne\s+önerirsin|onerirsin|what\s+goes|what\s+with/i.test(
+    q,
+  );
+}
+
 /** Misafir daha fazla / alternatif seçenek istiyor. */
 export function wantsMoreChefOptions(userQuery?: string | null): boolean {
   const q = userQuery?.trim().toLocaleLowerCase("tr-TR") ?? "";
@@ -15,7 +24,11 @@ export function inferChefCourseRoleFromUserQuery(
 ): MenuCourseRole | null {
   const q = userQuery?.trim().toLocaleLowerCase("tr-TR") ?? "";
   if (!q) return null;
-  if (/tatlı|tatli|tatlılar|dessert|sweet|sufle|souffle|dondurma|ice\s*cream|ayva\s*tatlı/i.test(q)) {
+  if (isPairingUserQuery(q)) return null;
+  if (/^(tatlı|tatli|tatlılar|dessert|sweets?)\s*[.?]?$/i.test(q)) {
+    return "dessert";
+  }
+  if (/tatlı\s+var|var\s+mı.*tatlı|var\s+mi.*tatli|başka\s+tatlı|baska\s+tatli|daha\s+tatlı/i.test(q)) {
     return "dessert";
   }
   if (
@@ -30,5 +43,6 @@ export function inferChefCourseRoleFromUserQuery(
 }
 
 export function shouldShowFullCourseCatalog(userQuery?: string | null): boolean {
+  if (isPairingUserQuery(userQuery)) return false;
   return Boolean(inferChefCourseRoleFromUserQuery(userQuery) || wantsMoreChefOptions(userQuery));
 }

@@ -45,4 +45,14 @@ describe("expandChefRecommendationsForUserQuery", () => {
     const result = expandChefRecommendationsForUserQuery(agentPicks, catalog, "Dessert", []);
     expect(result.length).toBe(5);
   });
+
+  it("does not treat pairing query as full dessert browse", () => {
+    const result = expandChefRecommendationsForUserQuery(
+      agentPicks,
+      catalog,
+      "Ayva Tatlısı yanında ne önerirsin",
+      [],
+    );
+    expect(result.length).toBe(2);
+  });
 });

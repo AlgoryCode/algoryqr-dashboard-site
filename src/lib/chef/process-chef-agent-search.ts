@@ -1,5 +1,13 @@
 import { alignChefRecommendationsWithUserQuery } from "@/lib/chef/align-chef-agent-recommendations";
-import { shouldShowFullCourseCatalog } from "@/lib/chef/chef-user-query-intent";
+import {
+  isPairingUserQuery,
+  shouldShowFullCourseCatalog,
+} from "@/lib/chef/chef-user-query-intent";
+import {
+  pairingFallbackReply,
+  resolveChefPairingRecommendations,
+  sanitizeChefAgentReply,
+} from "@/lib/chef/chef-pairing-recommendations";
 import { expandChefRecommendationsForUserQuery } from "@/lib/chef/expand-chef-recommendations-for-intent";
 import { mergeReplyWithPersuasion } from "@/lib/chef/chef-recommendation-copy";
 import { extractChefProductIds } from "@/lib/chef/extract-chef-product-ids";
@@ -64,12 +72,27 @@ export async function processChefAgentSearch(
     userQuery: input.userQuery,
     cartProductIds: input.cartProductIds,
   });
-  const expanded = expandChefRecommendationsForUserQuery(
-    aligned,
-    input.menuProducts,
-    input.userQuery,
-    input.cartProductIds,
-  );
+
+  const pairingQuery = isPairingUserQuery(input.userQuery);
+  let pairingAnchorName: string | undefined;
+  let expanded = aligned;
+  if (pairingQuery && input.userQuery?.trim()) {
+    const pairing = resolveChefPairingRecommendations(
+      aligned,
+      input.menuProducts,
+      input.userQuery,
+      input.cartProductIds,
+    );
+    expanded = pairing.products;
+    pairingAnchorName = pairing.anchorName;
+  } else {
+    expanded = expandChefRecommendationsForUserQuery(
+      aligned,
+      input.menuProducts,
+      input.userQuery,
+      input.cartProductIds,
+    );
+  }
   const specificQuery = isSpecificUserQuery(input.userQuery);
   const fullCourseBrowse = shouldShowFullCourseCatalog(input.userQuery);
   const products = rankChefRecommendations(
@@ -84,19 +107,30 @@ export async function processChefAgentSearch(
     },
   );
 
-  const baseReply = input.agent.reply ?? input.agent.message ?? "";
-  const reply =
+  const baseReply = sanitizeChefAgentReply(
+    input.agent.reply ?? input.agent.message,
+    input.userQuery,
+  );
+  let reply =
     products.length > 0
       ? mergeReplyWithPersuasion(baseReply, products)
       : specificQuery
         ? "Bu isteğe uygun ürün menüde bulamadım. Başka bir isim veya kategori deneyebilirsiniz."
         : baseReply;
 
+  if (pairingQuery && products.length > 0 && (!reply.trim() || reply === input.userQuery?.trim())) {
+    reply = pairingAnchorName
+      ? pairingFallbackReply(pairingAnchorName)
+      : "Yanına uygun birkaç seçenek hazırladım.";
+  }
+
+  const finalProductIds = products.map((item) => item.productId);
+
   return {
     reply,
     conversationId: input.agent.conversationId,
     turnId: input.agent.turnId,
-    productIds,
+    productIds: finalProductIds,
     products,
     searchComplete: input.agent.searchComplete,
   };

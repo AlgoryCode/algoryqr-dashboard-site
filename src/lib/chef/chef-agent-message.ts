@@ -1,5 +1,8 @@
 import type { MenuProductApiItem } from "@/lib/api";
 
+import { isPairingUserQuery } from "@/lib/chef/chef-user-query-intent";
+import { findAnchorProductInUserQuery } from "@/lib/chef/chef-pairing-recommendations";
+
 export type ChefAgentRecommendationMode = "default" | "general" | "cart";
 
 function cartSummary(cartProductIds: number[], catalog: MenuProductApiItem[]): string {
@@ -23,8 +26,20 @@ export function buildChefAgentContextMessage(
   mode: ChefAgentRecommendationMode,
   cartProductIds: number[],
   catalog: MenuProductApiItem[],
+  userQuery?: string,
 ): string {
   const lines: string[] = [USER_QUERY_HINT, OUTPUT_RULES];
+
+  const pairingQuery = userQuery?.trim();
+  if (pairingQuery && isPairingUserQuery(pairingQuery)) {
+    const anchor = findAnchorProductInUserQuery(catalog, pairingQuery);
+    const anchorHint = anchor
+      ? `${anchor.name} (productId:${anchor.productId})`
+      : "userQuery içindeki ürün adı";
+    lines.unshift(
+      `[İstek: Eşlik / pairing. ${anchorHint} için yanına uyumlu ürünler öner; anchor ürünü tekrarlama. İçecek veya tamamlayıcı yemek/tatlı düşün.]`,
+    );
+  }
 
   if (mode === "general") {
     lines.unshift(
