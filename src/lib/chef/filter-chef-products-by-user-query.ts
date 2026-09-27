@@ -138,17 +138,24 @@ export function scoreChefProductQueryMatch(
 }
 
 function menuProductToChefItem(product: MenuProductApiItem): ChefProductItem {
+  const price =
+    typeof product.price === "number"
+      ? product.price
+      : typeof product.price === "string"
+        ? Number.parseFloat(product.price)
+        : null;
+
   return {
     productId: product.productId,
     menuId: product.menuId,
     name: product.name,
-    description: product.description ?? undefined,
-    subCategoryId: product.subCategoryId ?? undefined,
-    subCategoryName: product.subCategoryName ?? undefined,
-    mainCategoryName: product.mainCategoryName ?? undefined,
-    price: product.price ?? undefined,
+    description: product.description ?? null,
+    subCategoryId: product.subCategoryId ?? null,
+    subCategoryName: product.subCategoryName ?? null,
+    mainCategoryName: product.mainCategoryName ?? null,
+    price: Number.isFinite(price) ? price : null,
     currency: product.currency ?? "TRY",
-    imageUrl: product.imageUrl ?? undefined,
+    imageUrl: product.imageUrl ?? null,
     available: product.available !== false,
     chefRecommended: product.chefRecommended === true,
     allergens: product.allergens?.map((a) => a.name).filter(Boolean),
