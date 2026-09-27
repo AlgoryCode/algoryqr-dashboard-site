@@ -1,32 +1,11 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 
 import { callChefAgentChat } from "@/lib/chef/call-chef-agent-chat";
+import { chefSearchRequestBodySchema } from "@/lib/chef/chef-search-request-schema";
 import { inferRecommendationIntent } from "@/lib/chef/infer-recommendation-intent";
 import { processChefAgentSearch } from "@/lib/chef/process-chef-agent-search";
 import { fetchPublicMenuProducts } from "@/lib/chef/fetch-public-menu-products-server";
 import type { MenuProductApiItem } from "@/lib/api";
-
-const menuProductBodySchema = z
-  .object({
-    productId: z.number().int().positive(),
-    menuId: z.number().int(),
-    name: z.string().trim().min(1),
-  })
-  .passthrough();
-
-const bodySchema = z.object({
-  publicId: z.string().trim().min(1).max(128),
-  message: z.string().trim().min(1).max(2000),
-  conversationId: z.string().trim().min(1).max(100).optional(),
-  menuProducts: z.array(menuProductBodySchema).min(1).max(400).optional(),
-  cartProductIds: z.array(z.number().int().positive()).max(40).optional(),
-  recentlyShownProductIds: z.array(z.number().int().positive()).max(60).optional(),
-  priorOrderProductIds: z.array(z.number().int().positive()).max(40).optional(),
-  conversationTranscript: z.string().trim().max(2000).optional(),
-  locale: z.enum(["tr", "en", "ru", "ar"]).optional(),
-  userQuery: z.string().trim().max(500).optional(),
-});
 
 function sseLine(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -35,7 +14,7 @@ function sseLine(event: string, data: unknown): string {
 export async function POST(req: Request) {
   try {
     const json = await req.json().catch(() => null);
-    const parsed = bodySchema.safeParse(json);
+    const parsed = chefSearchRequestBodySchema.safeParse(json);
     if (!parsed.success) {
       return NextResponse.json(
         { message: "Validation failed", details: parsed.error.flatten() },
@@ -55,11 +34,13 @@ export async function POST(req: Request) {
 
     const upstream = await callChefAgentChat({
       publicId: parsed.data.publicId,
+      userQuery: parsed.data.userQuery ?? null,
       message: agentMessage,
       conversationId: parsed.data.conversationId,
       products: menuProducts,
       cartProductIds: parsed.data.cartProductIds ?? [],
-      recommendationIntent: inferRecommendationIntent(parsed.data.message),
+      priorOrderProductIds: parsed.data.priorOrderProductIds ?? [],
+      recommendationIntent: inferRecommendationIntent(parsed.data.message, parsed.data.userQuery),
       locale: parsed.data.locale ?? "tr",
       conversationTranscript: parsed.data.conversationTranscript,
     });

@@ -49,7 +49,7 @@ export function buildUpsellBadges(missing: MenuCourseRole[]): ChefChatBadge[] {
 
 export function buildCartCoachMessage(missing: MenuCourseRole[]): string | null {
   if (missing.length === 0) {
-    return "Menünüz tamam görünüyor. Siparişi tamamlamak için aşağıdaki butona dokunabilirsiniz.";
+    return "Menünüz tamam görünüyor. Sepeti kontrol edebilir veya siparişi tamamlamak için aşağıdaki butonları kullanabilirsiniz.";
   }
   if (missing.length === 3) {
     return "Güzel bir başlangıç. Menünüzü ana yemek, serin bir içecek ve hafif bir tatlıyla tamamlamak ister misiniz? Aşağıdaki önerilere bakabilirsiniz.";

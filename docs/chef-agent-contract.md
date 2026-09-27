@@ -1,23 +1,28 @@
 # Chef chat — qr-agent API contract
 
-Dashboard BFF (`/api/menu/chef/search`) calls `POST {QR_AGENT_BASE_URL}/api/v1/chat`.
+Dashboard BFF (`/api/menu/chef/search`, `/search/stream`) calls `POST {QR_AGENT_BASE_URL}/api/v1/chat`.
 
-## Request (extended)
+## Request (input schema)
 
 | Field | Type | Notes |
 |--------|------|--------|
 | `publicId` | string | Menu public id |
-| `message` | string | User message (may include Turkish context prefixes from BFF) |
+| **`userQuery`** | string \| null | **Ham kullanıcı cümlesi; normalize edilmez, BFF aynen iletir.** |
+| `message` | string | Bağlam: sepet özeti, mod, yanıt kuralları (kullanıcı metni tekrarlanmaz) |
 | `conversationId` | string? | Continuation |
 | `products` | `AgentCatalogProduct[]` | Full or client-provided catalog |
-| `cartProductIds` | number[]? | Structured cart (optional, backward compatible) |
-| `recommendationIntent` | `general` \| `pairing` \| `complete_meal`? | Hint for ranking |
+| `cartProductIds` | number[]? | Structured cart |
+| `priorOrderProductIds` | number[]? | Guest order history hint |
+| `recommendationIntent` | `general` \| `pairing` \| `complete_meal` \| `specific`? | BFF hint |
 | `locale` | string? | Default `tr` |
 | `conversationTranscript` | string? | Last turns summary from BFF |
 | `candidateProductIds` | number[]? | Badge hybrid pool (subset selection) |
-| `priorOrderProductIds` | number[]? | Guest order history hint (ranking on BFF) |
 
-## Response
+Zod: `chefAgentUpstreamRequestSchema` (`src/lib/chef/chef-agent-schema.ts`).
+
+Dashboard client → BFF: `chefSearchRequestBodySchema` (`message` + `userQuery` + `menuProducts` + `cartProductIds` …).
+
+## Response (output schema)
 
 | Field | Type | Notes |
 |--------|------|--------|
@@ -27,6 +32,18 @@ Dashboard BFF (`/api/menu/chef/search`) calls `POST {QR_AGENT_BASE_URL}/api/v1/c
 | `turnId` | string? | Persisted chat turn id (for guest like/dislike) |
 | `searchComplete` | object? | Optional debug metadata |
 
+Zod: `chefAgentChatResponseSchema` — BFF `parseChefAgentChatResponse`.
+
+## BFF post-processing (no query normalize)
+
+1. Validate agent response shape.
+2. Hydrate `productIds` from catalog; drop cart duplicates.
+3. Diet / price guards use **raw `userQuery`** only.
+4. If agent returns no valid ids → **fallback** `pickCatalogProductsForRawUserQuery` (substring match, `tr-TR` case only).
+5. Rank (category cap, recent dedup, prior orders).
+
+Agent is the primary recommender; BFF does not rewrite picks with synonym/stop-word pipelines.
+
 ## Turn feedback (menu API)
 
 Dashboard BFF: `POST /api/menu/chef/turn-feedback`
@@ -35,26 +52,25 @@ Proxies to: `PATCH /menu/public/{publicId}/chef-chat/turns/{turnId}/feedback`
 
 Body: `{ "feedback": "LIKE" | "DISLIKE" }`
 
-Store on the chat turn row (column e.g. `feedback` or separate like/dislike flags).
-
 ## System prompt rules (qr-agent)
 
-1. Only recommend `productId` values present in the request catalog.
-2. Never repeat items listed in `cartProductIds`.
-3. For `complete_meal` / cart context: prioritize missing course (food, drink, dessert).
-4. For `general`: diverse 2–4 products suitable as menu bundle anchors.
-5. Respect allergens/diet when the user message mentions them.
-6. Do not invent prices or products.
+1. Read **`userQuery`** for what the guest wants; use **`products`** as the only id source.
+2. Only recommend `productId` values present in the request catalog.
+3. Never repeat items listed in `cartProductIds`.
+4. For `complete_meal` / cart context: prioritize missing course (food, drink, dessert).
+5. For `general`: diverse 2–4 products suitable as menu bundle anchors.
+6. Respect allergens/diet when **`userQuery`** mentions them.
+7. Do not invent prices or products.
 
 ## Golden scenarios (regression)
 
 - General recommendation with empty cart → 2–4 ids, short reply.
 - Cart with drink only → food and/or dessert ids, no duplicate drink.
-- Vegan / allergen user message → filtered ids only.
+- Vegan / allergen **userQuery** → filtered ids only.
 - All returned ids exist in catalog; none in cart.
 
 ## Deploy order
 
-1. Deploy qr-agent with optional new fields ignored if absent.
-2. Deploy dashboard-site BFF sending `cartProductIds` + `recommendationIntent`.
+1. Deploy qr-agent with **`userQuery`** field (ignore if absent for old BFF).
+2. Deploy dashboard-site BFF sending `userQuery` + structured `message`.
 3. Tighten agent prompt and run golden set.

@@ -11,7 +11,7 @@ import { fetchPublicMenuProducts } from "@/lib/chef/fetch-public-menu-products-s
 import { hydrateChefProductsForPublicMenu } from "@/lib/chef/hydrate-chef-products-server";
 import { isChefBadgeHybridAgentEnabled } from "@/lib/chef/chef-funnel-flags";
 import { refineChefBadgeProductsWithAgent } from "@/lib/chef/refine-chef-badge-with-agent";
-import { applyUserQueryToChefRecommendations } from "@/lib/chef/filter-chef-products-by-user-query";
+import { pickChefItemsForRawUserQuery } from "@/lib/chef/pick-catalog-for-raw-user-query";
 import { rankChefRecommendations } from "@/lib/chef/rank-chef-recommendations";
 import { selectProductsForChefBadgeFilter } from "@/lib/chef/resolve-chef-badge-products";
 import type { MenuProductApiItem } from "@/lib/api";
@@ -146,13 +146,12 @@ export async function POST(req: Request) {
       catalog: menuProducts,
     });
     const badgeQuery = parsed.data.userQuery?.trim() || badge.label;
-    products = applyUserQueryToChefRecommendations(
-      products,
-      fullCatalog,
-      badgeQuery,
-      [],
-      badgeQuery,
-    );
+    const rawPicked = pickChefItemsForRawUserQuery(fullCatalog, badgeQuery, []);
+    if (rawPicked.length > 0) {
+      const allowed = new Set(rawPicked.map((item) => item.productId));
+      products = products.filter((item) => allowed.has(item.productId));
+      if (products.length === 0) products = rawPicked;
+    }
     products = rankChefRecommendations(
       products,
       fullCatalog,

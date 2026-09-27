@@ -15,7 +15,7 @@ import {
 import type { ChefProductItem } from "@/lib/chef/chef-product-item";
 import type { ChefChatBadge } from "@/lib/chef/chef-chat-badges";
 import {
-  buildChefAgentUserMessage,
+  buildChefAgentContextMessage,
   type ChefAgentRecommendationMode,
 } from "@/lib/chef/chef-agent-message";
 import { useCartSheetHostOptional, useMenuLocaleOptional, useOrderingOptional } from "../shared";
@@ -208,6 +208,8 @@ function AssistantBubble({
   onBadgeSelect,
   onRecommendationFeedback,
   onQuickAddSuccess,
+  onCoachOpenCart,
+  onCoachCompleteOrder,
 }: {
   msg: Extract<ChefChatMessage, { role: "assistant" }>;
   animateEnter: boolean;
@@ -220,6 +222,8 @@ function AssistantBubble({
   onBadgeSelect: (badge: ChefChatBadge) => void;
   onRecommendationFeedback?: (feedback: ChefTurnFeedbackValue) => void;
   onQuickAddSuccess?: () => void;
+  onCoachOpenCart?: () => void;
+  onCoachCompleteOrder?: () => void;
 }) {
   const onEnteredRef = useRef(onEntered);
   onEnteredRef.current = onEntered;
@@ -230,6 +234,7 @@ function AssistantBubble({
     : msg.text;
   const upsellBadges = msg.upsellBadges?.length ? msg.upsellBadges : undefined;
   const showFeedback = Boolean(msg.showRecommendationFeedback && onRecommendationFeedback);
+  const coachActions = msg.coachActions;
 
   return (
     <motion.div
@@ -269,6 +274,29 @@ function AssistantBubble({
             ) : null}
             {displayText ? (
               <p className="whitespace-pre-wrap">{displayText}</p>
+            ) : null}
+            {coachActions?.openCart || coachActions?.completeOrder ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {coachActions.openCart && onCoachOpenCart ? (
+                  <button
+                    type="button"
+                    onClick={onCoachOpenCart}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[#1c2824]/10 bg-white px-3.5 text-[13px] font-medium text-[#2a3833] transition hover:bg-[#1c2824]/[0.04]"
+                  >
+                    <ShoppingBag className="h-3.5 w-3.5" aria-hidden />
+                    Sepeti göster
+                  </button>
+                ) : null}
+                {coachActions.completeOrder && onCoachCompleteOrder ? (
+                  <button
+                    type="button"
+                    onClick={onCoachCompleteOrder}
+                    className="inline-flex h-9 items-center rounded-full bg-[#2a3833] px-3.5 text-[13px] font-medium text-white transition hover:bg-[#1f2b27]"
+                  >
+                    Siparişi tamamla
+                  </button>
+                ) : null}
+              </div>
             ) : null}
             {upsellBadges ? (
               <MenuChefInlineBadges
@@ -543,7 +571,7 @@ export function MenuChefChat({
   ) => {
     const addUserMessage = options?.addUserMessage ?? true;
     const addAssistantToChat = options?.addAssistantToChat ?? true;
-    const baseAgentMessage = buildChefAgentUserMessage(text, mode, cartProductIds, chefMenuProducts);
+    const baseAgentMessage = buildChefAgentContextMessage(mode, cartProductIds, chefMenuProducts);
     const localeCode = (menuLocale?.locale ?? "tr") as ChefMenuLocale;
     const personalization = buildChefPersonalizationContext(localeCode, priorOrderProductIds);
     const agentMessage = `${chefPersonalizationPrefix(personalization)}\n${baseAgentMessage}`;
@@ -930,6 +958,22 @@ export function MenuChefChat({
                               : undefined
                           }
                           onQuickAddSuccess={showAddToast}
+                          onCoachOpenCart={
+                            ordering
+                              ? () => {
+                                  chefAnalytics.trackCartOpen("coach");
+                                  ordering.setCartOpen(true);
+                                }
+                              : undefined
+                          }
+                          onCoachCompleteOrder={
+                            ordering
+                              ? () => {
+                                  chefAnalytics.trackCartOpen("complete_cta");
+                                  ordering.setCartOpen(true);
+                                }
+                              : undefined
+                          }
                         />
                       );
                     }

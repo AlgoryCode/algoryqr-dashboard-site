@@ -77,11 +77,11 @@ Sohbet, katalog **hazır olmadan** öneri isteği göndermez (`catalogReady` gat
 ### 2.2 Serbest metin sorusu
 
 1. Misafir input’a yazıp gönderir → `runAgentSearch(text, "default")`.
-2. `buildChefAgentUserMessage` sepetteki ürünleri metin prefix’ine ekler (varsa).
-3. `POST /api/menu/chef/search` body: `message`, `conversationId`, `menuProducts`, `cartProductIds`.
-4. BFF agent’a katalog + yapılandırılmış sepet gönderir; `recommendationIntent` çıkarımı yapılır.
-5. Agent `reply` + `productIds` döner.
-6. BFF: sepette olan ID’leri atar, `rankChefRecommendations` (şef önerisi, rating, kategori çeşitliliği, max 6).
+2. `buildChefAgentContextMessage` sepet / mod bağlamını `message` alanına koyar; kullanıcı cümlesi **`userQuery`** olarak aynen gider (normalize yok).
+3. `POST /api/menu/chef/search` body: `userQuery`, `message`, `conversationId`, `menuProducts`, `cartProductIds`, …
+4. BFF agent’a katalog + `userQuery` + bağlam gönderir; yanıt `chefAgentChatResponseSchema` ile doğrulanır.
+5. Agent `reply` + `productIds` döner (birincil öneri kaynağı).
+6. BFF: agent seçimini korur; boşsa ham `userQuery` ile katalog yedek araması; sonra `rankChefRecommendations`.
 7. Ürünler hydrate edilir; `mergeReplyWithPersuasion` kısa metin bırakır.
 8. UI: assistant balonu + **Öneriler** altında yatay kompakt kartlar (`MenuChefProductCardGrid`).
 9. Uzun ürün listesi metni bastırılır → `assistantCaptionForProductReply`.

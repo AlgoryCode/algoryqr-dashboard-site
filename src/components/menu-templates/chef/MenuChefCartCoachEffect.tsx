@@ -60,6 +60,8 @@ export function MenuChefCartCoachEffect({
           role: "assistant",
           text,
           upsellBadges: badges.length > 0 ? badges : undefined,
+          coachActions:
+            missing.length === 0 ? { openCart: true, completeOrder: true } : undefined,
         },
       ];
     });

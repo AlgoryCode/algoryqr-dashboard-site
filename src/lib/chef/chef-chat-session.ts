@@ -20,6 +20,8 @@ export type ChefChatMessage =
       showEmptyStateBadges?: boolean;
       /** Like/dislike row for recommendation turns (not welcome / coach). */
       showRecommendationFeedback?: boolean;
+      /** Sepet koçu: tam sepet mesajında sepet / sipariş aksiyonları. */
+      coachActions?: { openCart?: boolean; completeOrder?: boolean };
     }
   | { id: string; role: "user"; text: string };
 

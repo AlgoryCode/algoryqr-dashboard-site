@@ -1,3 +1,4 @@
+import { alignChefRecommendationsWithUserQuery } from "@/lib/chef/align-chef-agent-recommendations";
 import { mergeReplyWithPersuasion } from "@/lib/chef/chef-recommendation-copy";
 import { extractChefProductIds } from "@/lib/chef/extract-chef-product-ids";
 import { filterChefProductsByDietMessage } from "@/lib/chef/filter-chef-products-by-diet-message";
@@ -5,10 +6,7 @@ import {
   filterChefProductsByPriceBand,
   inferChefPriceBandFromMessage,
 } from "@/lib/chef/infer-chef-price-band";
-import {
-  applyUserQueryToChefRecommendations,
-  isSpecificProductQuery,
-} from "@/lib/chef/filter-chef-products-by-user-query";
+import { isSpecificUserQuery } from "@/lib/chef/is-specific-user-query";
 import { filterChefProductIds, rankChefRecommendations } from "@/lib/chef/rank-chef-recommendations";
 import { hydrateChefProductsForPublicMenu } from "@/lib/chef/hydrate-chef-products-server";
 import type { ChefAgentChatResponse } from "@/lib/chef/call-chef-agent-chat";
@@ -50,23 +48,23 @@ export async function processChefAgentSearch(
     catalog: input.menuProducts,
   });
 
-  const priceBand = inferChefPriceBandFromMessage(input.message);
+  const priceContext = input.userQuery?.trim() || input.message;
+  const priceBand = inferChefPriceBandFromMessage(priceContext);
   const priceFiltered = filterChefProductsByPriceBand(hydrated, priceBand);
   const dietFiltered = filterChefProductsByDietMessage(
     priceFiltered,
     input.menuProducts,
-    input.message,
+    input.userQuery?.trim() ?? "",
   );
-  const queryAligned = applyUserQueryToChefRecommendations(
-    dietFiltered,
-    input.menuProducts,
-    input.message,
-    input.cartProductIds,
-    input.userQuery,
-  );
-  const specificQuery = isSpecificProductQuery(input.message, input.userQuery);
+  const aligned = alignChefRecommendationsWithUserQuery({
+    agentProducts: dietFiltered,
+    catalog: input.menuProducts,
+    userQuery: input.userQuery,
+    cartProductIds: input.cartProductIds,
+  });
+  const specificQuery = isSpecificUserQuery(input.userQuery);
   const products = rankChefRecommendations(
-    queryAligned,
+    aligned,
     input.menuProducts,
     input.cartProductIds,
     input.recentlyShownProductIds,
@@ -74,7 +72,7 @@ export async function processChefAgentSearch(
     specificQuery ? { maxPerMainCategory: 6 } : {},
   );
 
-  const baseReply = input.agent.reply ?? "";
+  const baseReply = input.agent.reply ?? input.agent.message ?? "";
   const reply =
     products.length > 0
       ? mergeReplyWithPersuasion(baseReply, products)
