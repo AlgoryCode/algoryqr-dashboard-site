@@ -13,6 +13,9 @@ Dashboard BFF (`/api/menu/chef/search`) calls `POST {QR_AGENT_BASE_URL}/api/v1/c
 | `cartProductIds` | number[]? | Structured cart (optional, backward compatible) |
 | `recommendationIntent` | `general` \| `pairing` \| `complete_meal`? | Hint for ranking |
 | `locale` | string? | Default `tr` |
+| `conversationTranscript` | string? | Last turns summary from BFF |
+| `candidateProductIds` | number[]? | Badge hybrid pool (subset selection) |
+| `priorOrderProductIds` | number[]? | Guest order history hint (ranking on BFF) |
 
 ## Response
 
@@ -21,7 +24,18 @@ Dashboard BFF (`/api/menu/chef/search`) calls `POST {QR_AGENT_BASE_URL}/api/v1/c
 | `reply` | string | **Max ~2 short Turkish sentences.** No bullet product lists. |
 | `productIds` | number[] | Up to **6** ids from `products` only |
 | `conversationId` | string? | |
+| `turnId` | string? | Persisted chat turn id (for guest like/dislike) |
 | `searchComplete` | object? | Optional debug metadata |
+
+## Turn feedback (menu API)
+
+Dashboard BFF: `POST /api/menu/chef/turn-feedback`
+
+Proxies to: `PATCH /menu/public/{publicId}/chef-chat/turns/{turnId}/feedback`
+
+Body: `{ "feedback": "LIKE" | "DISLIKE" }`
+
+Store on the chat turn row (column e.g. `feedback` or separate like/dislike flags).
 
 ## System prompt rules (qr-agent)
 

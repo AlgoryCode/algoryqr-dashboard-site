@@ -51,9 +51,10 @@ export function MenuChefCartCoachEffect({
 
     setMessages((prev) => {
       const coachId = `coach-${sig}`;
-      if (prev.some((msg) => msg.id === coachId)) return prev;
+      const withoutOlderCoach = prev.filter((msg) => !msg.id.startsWith("coach-"));
+      if (withoutOlderCoach.some((msg) => msg.id === coachId)) return prev;
       return [
-        ...prev,
+        ...withoutOlderCoach,
         {
           id: coachId,
           role: "assistant",

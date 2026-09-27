@@ -10,6 +10,7 @@
     "start:local": "cross-env API_BASE_URL=http://localhost:8055 next dev --port 3000",
     "lint": "eslint",
     "test": "vitest run",
+    "test:chef-golden": "vitest run src/lib/chef/chef-golden-scenarios.test.ts",
     "design": "npm run dev --prefix ../qr-storybook",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"

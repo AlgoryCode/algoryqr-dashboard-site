@@ -9,6 +9,9 @@ import { mergeReplyWithPersuasion } from "@/lib/chef/chef-recommendation-copy";
 import { extractChefProductIds } from "@/lib/chef/extract-chef-product-ids";
 import { fetchPublicMenuProducts } from "@/lib/chef/fetch-public-menu-products-server";
 import { hydrateChefProductsForPublicMenu } from "@/lib/chef/hydrate-chef-products-server";
+import { isChefBadgeHybridAgentEnabled } from "@/lib/chef/chef-funnel-flags";
+import { refineChefBadgeProductsWithAgent } from "@/lib/chef/refine-chef-badge-with-agent";
+import { rankChefRecommendations } from "@/lib/chef/rank-chef-recommendations";
 import { selectProductsForChefBadgeFilter } from "@/lib/chef/resolve-chef-badge-products";
 import type { MenuProductApiItem } from "@/lib/api";
 import { API_BASE_URL } from "@/lib/config";
@@ -18,6 +21,8 @@ const MAX_PRODUCTS = 10;
 const bodySchema = z.object({
   publicId: z.string().trim().min(1).max(128),
   badgeId: z.string().trim().min(1).max(64),
+  recentlyShownProductIds: z.array(z.number().int().positive()).max(60).optional(),
+  locale: z.enum(["tr", "en", "ru", "ar"]).optional(),
 });
 
 type ProductPageResponse = {
@@ -117,13 +122,36 @@ export async function POST(req: Request) {
     }
 
     const fullCatalog = await fetchPublicMenuProducts(publicId);
-    const menuProducts = selectProductsForChefBadgeFilter(filter, fullCatalog, fetched);
+    let menuProducts = selectProductsForChefBadgeFilter(filter, fullCatalog, fetched);
+
+    if (isChefBadgeHybridAgentEnabled()) {
+      const refinedIds = await refineChefBadgeProductsWithAgent(
+        publicId,
+        badge.label,
+        menuProducts,
+        parsed.data.locale ?? "tr",
+      );
+      if (refinedIds?.length) {
+        const refinedSet = new Set(refinedIds);
+        menuProducts = menuProducts.filter((product) => refinedSet.has(product.productId));
+      }
+    }
+
     const productIds = menuProducts.map((product) => product.productId);
 
-    const { products } = await hydrateChefProductsForPublicMenu(publicId, {
+    let { products } = await hydrateChefProductsForPublicMenu(publicId, {
       productIds,
       catalog: menuProducts,
     });
+    products = rankChefRecommendations(products, fullCatalog, [], parsed.data.recentlyShownProductIds ?? []);
+    const recentIds = parsed.data.recentlyShownProductIds ?? [];
+    if (recentIds.length > 0 && products.length > 0) {
+      const recentSet = new Set(recentIds);
+      const withoutRecent = products.filter((item) => !recentSet.has(item.productId));
+      if (withoutRecent.length > 0) {
+        products = withoutRecent;
+      }
+    }
     const baseReply = buildReply(badgeId, products.length);
     const reply = products.length > 0 ? mergeReplyWithPersuasion(baseReply, products) : baseReply;
 

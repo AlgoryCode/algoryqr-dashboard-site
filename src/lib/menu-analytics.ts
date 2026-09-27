@@ -16,7 +16,8 @@ export type MenuAnalyticsEventType =
   | "CHEF_CROSS_SELL_SHOWN"
   | "CHEF_CROSS_SELL_CLICK"
   | "CHEF_CROSS_SELL_ADD"
-  | "CHEF_CART_OPEN";
+  | "CHEF_CART_OPEN"
+  | "CHEF_RECOMMENDATION_FEEDBACK";
 
 export type MenuAnalyticsDeviceType = "MOBILE" | "TABLET" | "DESKTOP";
 

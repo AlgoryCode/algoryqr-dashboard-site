@@ -15,6 +15,7 @@ type MenuChefProductCardGridProps = {
   /** Üst panelde zaten "Ürünler" yazıyorsa kategori başlıkları yeter */
   showBlockTitle?: boolean;
   cardSource?: ChefProductCardSource;
+  onQuickAddSuccess?: () => void;
 };
 
 export function MenuChefProductCardGrid({
@@ -23,6 +24,7 @@ export function MenuChefProductCardGrid({
   blockTitle = "Öneriler",
   showBlockTitle = false,
   cardSource = "bubble",
+  onQuickAddSuccess,
 }: MenuChefProductCardGridProps) {
   if (products.length === 0) return null;
 
@@ -52,6 +54,7 @@ export function MenuChefProductCardGrid({
                       galleryProducts={galleryProducts}
                       galleryIndex={galleryIndex >= 0 ? galleryIndex : 0}
                       cardSource={cardSource}
+                      onQuickAddSuccess={onQuickAddSuccess}
                     />
                   </div>
                 );

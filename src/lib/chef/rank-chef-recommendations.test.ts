@@ -37,6 +37,14 @@ describe("rankChefRecommendations", () => {
     expect(rankChefRecommendations(products, catalog, [1])[0].productId).toBe(2);
   });
 
+  it("deprioritizes recently shown products when alternatives exist", () => {
+    const products = [item(1), item(2), item(3)];
+    const catalog = [catalogEntry(1), catalogEntry(2), catalogEntry(3)];
+    const ranked = rankChefRecommendations(products, catalog, [], [1]);
+    expect(ranked.some((p) => p.productId === 1)).toBe(false);
+    expect(ranked.length).toBeGreaterThan(0);
+  });
+
   it("limits duplicate main categories", () => {
     const products = [item(1, 10), item(2, 10), item(3, 20)];
     const catalog = [catalogEntry(1, 10), catalogEntry(2, 10), catalogEntry(3, 20)];

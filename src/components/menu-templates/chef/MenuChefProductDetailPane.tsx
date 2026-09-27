@@ -13,6 +13,7 @@ import { useMenuPriceDisplay } from "../shared/menu-currency";
 import { useChefChatAnalyticsOptional } from "./ChefChatAnalyticsContext";
 import { useChefChatCatalogProducts } from "./ChefChatCatalogContext";
 import { useChefProductGalleryOptional } from "./ChefProductGallery";
+import { MenuChefAddToast } from "./MenuChefAddToast";
 import { MenuChefCrossSellStrip } from "./MenuChefCrossSellStrip";
 
 type MenuChefProductDetailPaneProps = {
@@ -30,6 +31,7 @@ export function MenuChefProductDetailPane({ item }: MenuChefProductDetailPanePro
   const [error, setError] = useState<string | null>(null);
   const [added, setAdded] = useState(false);
   const [crossSellItems, setCrossSellItems] = useState<ChefProductItem[]>([]);
+  const [addToastOpen, setAddToastOpen] = useState(false);
   const addLabel = locale?.t.addToCart ?? "Sepete Ekle";
 
   const cartProductIds = useMemo(
@@ -51,6 +53,8 @@ export function MenuChefProductDetailPane({ item }: MenuChefProductDetailPanePro
       }
       analytics?.trackProductAdd(item.productId, "gallery");
       setAdded(true);
+      setAddToastOpen(true);
+      window.setTimeout(() => setAddToastOpen(false), 4500);
 
       if (isChefCrossSellEnabled() && catalog.length > 0) {
         const suggestions = pickCrossSellProducts({
@@ -150,6 +154,19 @@ export function MenuChefProductDetailPane({ item }: MenuChefProductDetailPanePro
         />
       ) : null}
       {error ? <p className="text-[12px] text-[#b42318]">{error}</p> : null}
+      <MenuChefAddToast
+        open={addToastOpen}
+        onDismiss={() => setAddToastOpen(false)}
+        onOpenCart={
+          ordering
+            ? () => {
+                analytics?.trackCartOpen("cross_sell");
+                ordering.setCartOpen(true);
+                setAddToastOpen(false);
+              }
+            : undefined
+        }
+      />
     </div>
   );
 }

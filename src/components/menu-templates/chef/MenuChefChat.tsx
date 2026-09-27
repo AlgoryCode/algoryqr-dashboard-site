@@ -18,11 +18,25 @@ import {
   buildChefAgentUserMessage,
   type ChefAgentRecommendationMode,
 } from "@/lib/chef/chef-agent-message";
-import { useCartSheetHostOptional, useOrderingOptional } from "../shared";
+import { useCartSheetHostOptional, useMenuLocaleOptional, useOrderingOptional } from "../shared";
+import { buildChefConversationTranscript } from "@/lib/chef/build-chef-conversation-transcript";
+import {
+  buildChefPersonalizationContext,
+  chefPersonalizationPrefix,
+  type ChefMenuLocale,
+} from "@/lib/chef/build-chef-personalization-context";
+import { consumeChefSearchSse } from "@/lib/chef/consume-chef-search-sse";
+import { isChefSearchStreamingEnabled } from "@/lib/chef/chef-funnel-flags";
+import { useChefPriorOrderProductIds } from "@/hooks/use-chef-prior-order-product-ids";
 
 import { ChefProductGalleryProvider } from "./ChefProductGallery";
 import { MenuChefInlineBadges } from "./MenuChefInlineBadges";
 import { assistantCaptionForProductReply } from "@/lib/chef/chef-recommendation-display";
+import { recentChefRecommendationProductIds } from "@/lib/chef/recent-chef-recommendation-ids";
+import {
+  submitChefTurnFeedback,
+  type ChefTurnFeedbackValue,
+} from "@/lib/chef/submit-chef-turn-feedback";
 import { useChefChatAnalytics } from "@/hooks/use-chef-chat-analytics";
 
 import { ChefChatAnalyticsContext } from "./ChefChatAnalyticsContext";
@@ -30,7 +44,9 @@ import { ChefChatCatalogProvider } from "./ChefChatCatalogContext";
 import { MenuChefCartCoachEffect } from "./MenuChefCartCoachEffect";
 import { MenuChefChatTrackedEffects } from "./MenuChefChatTrackedEffects";
 import { MenuChefProductCardGrid } from "./MenuChefProductCardGrid";
+import { MenuChefRecommendationFeedback } from "./MenuChefRecommendationFeedback";
 import { MenuChefQuickBadges } from "./MenuChefQuickBadges";
+import { MenuChefAddToast } from "./MenuChefAddToast";
 import { MenuChefSearchComplete } from "./MenuChefSearchComplete";
 import { useChefChatCatalog } from "./use-chef-chat-catalog";
 import { useResolveChefChatProducts } from "./use-resolve-chef-chat-products";
@@ -49,6 +65,9 @@ function nextId() {
   messageSeq += 1;
   return `chef-msg-${messageSeq}`;
 }
+
+const EMPTY_RECOMMENDATION_TEXT =
+  "Bu soruya uygun ürün bulamadım. Aşağıdaki hazır filtreleri deneyebilirsiniz.";
 
 function ChefAvatar({
   size = 36,
@@ -187,6 +206,8 @@ function AssistantBubble({
   publicId,
   badgesDisabled,
   onBadgeSelect,
+  onRecommendationFeedback,
+  onQuickAddSuccess,
 }: {
   msg: Extract<ChefChatMessage, { role: "assistant" }>;
   animateEnter: boolean;
@@ -197,6 +218,8 @@ function AssistantBubble({
   publicId: string;
   badgesDisabled: boolean;
   onBadgeSelect: (badge: ChefChatBadge) => void;
+  onRecommendationFeedback?: (feedback: ChefTurnFeedbackValue) => void;
+  onQuickAddSuccess?: () => void;
 }) {
   const onEnteredRef = useRef(onEntered);
   onEnteredRef.current = onEntered;
@@ -206,6 +229,7 @@ function AssistantBubble({
     ? assistantCaptionForProductReply(msg.text, products.length, msg.text)
     : msg.text;
   const upsellBadges = msg.upsellBadges?.length ? msg.upsellBadges : undefined;
+  const showFeedback = Boolean(msg.showRecommendationFeedback && onRecommendationFeedback);
 
   return (
     <motion.div
@@ -230,7 +254,7 @@ function AssistantBubble({
         />
       </motion.div>
       <div className="min-w-0 flex-1 space-y-2.5">
-        {displayText || msg.id === "welcome" ? (
+        {displayText || msg.id === "welcome" || msg.showEmptyStateBadges ? (
           <motion.div
             initial={animateEnter ? bubbleShellMotion.initial : false}
             animate={bubbleShellMotion.animate}
@@ -253,7 +277,7 @@ function AssistantBubble({
                 onSelect={onBadgeSelect}
               />
             ) : null}
-            {msg.id === "welcome" ? (
+            {msg.id === "welcome" || msg.showEmptyStateBadges ? (
               <MenuChefQuickBadges
                 publicId={publicId}
                 disabled={badgesDisabled}
@@ -268,8 +292,20 @@ function AssistantBubble({
             animate={{ opacity: 1, y: 0 }}
             transition={{ ...bubbleTransition, delay: 0.08 }}
           >
-            <MenuChefProductCardGrid products={products} showBlockTitle blockTitle="Öneriler" />
+            <MenuChefProductCardGrid
+              products={products}
+              showBlockTitle
+              blockTitle="Öneriler"
+              onQuickAddSuccess={onQuickAddSuccess}
+            />
           </motion.div>
+        ) : null}
+        {showFeedback ? (
+          <MenuChefRecommendationFeedback
+            value={msg.feedback}
+            disabled={badgesDisabled}
+            onSelect={(feedback) => onRecommendationFeedback?.(feedback)}
+          />
         ) : null}
         {msg.searchComplete ? (
           <MenuChefSearchComplete visible={isSearchCompleteVisible()} payload={msg.searchComplete} />
@@ -358,7 +394,9 @@ export function MenuChefChat({
   onClose,
 }: MenuChefChatProps) {
   const ordering = useOrderingOptional();
+  const menuLocale = useMenuLocaleOptional();
   const chefAnalytics = useChefChatAnalytics(publicId);
+  const priorOrderProductIds = useChefPriorOrderProductIds(publicId, open);
   const setChefChatCartHost = useCartSheetHostOptional()?.setChefChatActive;
   const {
     menuProducts: chefMenuProducts,
@@ -367,8 +405,6 @@ export function MenuChefChat({
     ready: catalogReady,
   } = useChefChatCatalog(publicId, open);
   const resolveChefChatProducts = useResolveChefChatProducts(publicId, chefMenuProducts);
-  const lastCartAgentSigRef = useRef("");
-  const cartAgentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saved = getChefChatSession(publicId);
   const [messages, setMessages] = useState<ChefChatMessage[]>(
     () => saved?.messages ?? [CHEF_WELCOME_MESSAGE],
@@ -381,6 +417,8 @@ export function MenuChefChat({
   const [sendPulse, setSendPulse] = useState(0);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [addToastOpen, setAddToastOpen] = useState(false);
+  const [streamingReply, setStreamingReply] = useState("");
   const [portalReady, setPortalReady] = useState(false);
   const listRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -419,29 +457,6 @@ export function MenuChefChat({
       cancelled = true;
     };
   }, [open, publicId]);
-
-  useEffect(() => {
-    if (!open || !catalogReady || !ordering) return;
-    const productIds = ordering.localItems.map((item) => item.productId);
-    const sig = productIds.join(",");
-    if (productIds.length === 0) {
-      lastCartAgentSigRef.current = "";
-      return;
-    }
-    if (sig === lastCartAgentSigRef.current) return;
-    if (cartAgentTimerRef.current) {
-      clearTimeout(cartAgentTimerRef.current);
-    }
-    cartAgentTimerRef.current = setTimeout(() => {
-      lastCartAgentSigRef.current = sig;
-      void runAgentSearch("", "cart", { addUserMessage: false, addAssistantToChat: false });
-    }, 900);
-    return () => {
-      if (cartAgentTimerRef.current) {
-        clearTimeout(cartAgentTimerRef.current);
-      }
-    };
-  }, [open, catalogReady, ordering, ordering?.localItems, chefMenuProducts]);
 
   useEffect(() => {
     if (!open) {
@@ -488,7 +503,6 @@ export function MenuChefChat({
     if (loading) return;
     clearChefChatSession(publicId);
     enteredIdsRef.current = new Set(["welcome"]);
-    lastCartAgentSigRef.current = "";
     setConversationId(undefined);
     setInput("");
     setMessages([{ ...CHEF_WELCOME_MESSAGE }]);
@@ -497,6 +511,31 @@ export function MenuChefChat({
 
   const cartProductIds = ordering?.localItems.map((item) => item.productId) ?? [];
 
+  const handleRecommendationFeedback = (
+    messageId: string,
+    feedback: ChefTurnFeedbackValue,
+  ) => {
+    const target = messages.find((entry) => entry.id === messageId);
+    if (!target || target.role !== "assistant" || target.feedback === feedback) return;
+
+    setMessages((prev) =>
+      prev.map((entry) =>
+        entry.id === messageId && entry.role === "assistant"
+          ? { ...entry, feedback }
+          : entry,
+      ),
+    );
+
+    chefAnalytics.trackRecommendationFeedback(feedback, {
+      turnId: target.turnId,
+      messageId,
+    });
+
+    if (target.turnId) {
+      void submitChefTurnFeedback(publicId, target.turnId, feedback).catch(() => undefined);
+    }
+  };
+
   const runAgentSearch = async (
     text: string,
     mode: ChefAgentRecommendationMode,
@@ -504,7 +543,10 @@ export function MenuChefChat({
   ) => {
     const addUserMessage = options?.addUserMessage ?? true;
     const addAssistantToChat = options?.addAssistantToChat ?? true;
-    const agentMessage = buildChefAgentUserMessage(text, mode, cartProductIds, chefMenuProducts);
+    const baseAgentMessage = buildChefAgentUserMessage(text, mode, cartProductIds, chefMenuProducts);
+    const localeCode = (menuLocale?.locale ?? "tr") as ChefMenuLocale;
+    const personalization = buildChefPersonalizationContext(localeCode, priorOrderProductIds);
+    const agentMessage = `${chefPersonalizationPrefix(personalization)}\n${baseAgentMessage}`;
     if (!agentMessage.trim() || loading || !catalogReady) return;
 
     chefAnalytics.trackRecommendationRequest(
@@ -522,42 +564,81 @@ export function MenuChefChat({
       setMessages((prev) => [...prev, { id: nextId(), role: "user", text: userLabel }]);
     }
 
+    const recentlyShownProductIds = recentChefRecommendationProductIds(messages);
+    const conversationTranscript = buildChefConversationTranscript(messages);
+    const searchBody = {
+      publicId,
+      message: agentMessage,
+      conversationId,
+      menuProducts: chefMenuProducts,
+      cartProductIds,
+      recentlyShownProductIds,
+      priorOrderProductIds,
+      conversationTranscript,
+      locale: localeCode,
+    };
+
     setLoading(true);
+    setStreamingReply("");
     try {
-      const res = await fetch("/api/menu/chef/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          publicId,
-          message: agentMessage,
-          conversationId,
-          menuProducts: chefMenuProducts,
-          cartProductIds,
-        }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
+      const useStream = isChefSearchStreamingEnabled();
+      let data: {
         reply?: string;
         conversationId?: string;
+        turnId?: string;
         message?: string;
         productIds?: number[];
         products?: ChefProductItem[];
         searchComplete?: SearchCompletePayload;
-      };
+      } = {};
+
+      if (useStream) {
+        const res = await fetch("/api/menu/chef/search/stream", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(searchBody),
+        });
+        if (!res.ok) {
+          data = (await res.json().catch(() => ({}))) as typeof data;
+          if (addAssistantToChat) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: nextId(),
+                role: "assistant",
+                text: data.message || "Öneri alınamadı. Lütfen tekrar deneyin.",
+              },
+            ]);
+          }
+          return;
+        }
+        data = await consumeChefSearchSse(res, (chunk) => {
+          setStreamingReply((prev) => prev + chunk);
+        });
+      } else {
+        const res = await fetch("/api/menu/chef/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(searchBody),
+        });
+        data = (await res.json().catch(() => ({}))) as typeof data;
+        if (!res.ok) {
+          if (addAssistantToChat) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: nextId(),
+                role: "assistant",
+                text: data.message || "Öneri alınamadı. Lütfen tekrar deneyin.",
+              },
+            ]);
+          }
+          return;
+        }
+      }
+
       if (data.conversationId) {
         setConversationId(data.conversationId);
-      }
-      if (!res.ok) {
-        if (addAssistantToChat) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: nextId(),
-              role: "assistant",
-              text: data.message || "Öneri alınamadı. Lütfen tekrar deneyin.",
-            },
-          ]);
-        }
-        return;
       }
       const reply = data.reply?.trim();
       const products = await resolveChefChatProducts({
@@ -570,32 +651,25 @@ export function MenuChefChat({
         chefAnalytics.trackRecommendationShown(productList.length, 0);
       }
       if (addAssistantToChat) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: nextId(),
-            role: "assistant",
-            text: productList?.length
-              ? assistantCaptionForProductReply(reply, productList.length)
-              : reply?.trim() || "Öneri hazırladım.",
-            products: productList,
-            ...(data.searchComplete ? { searchComplete: data.searchComplete } : {}),
-          },
-        ]);
-      } else if (productList?.length) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: nextId(),
-            role: "assistant",
-            text: assistantCaptionForProductReply(
-              reply,
-              productList.length,
-              "Sepetinize göre öneriler.",
-            ),
-            products: productList,
-          },
-        ]);
+        const assistantMsg: ChefChatMessage = productList?.length
+          ? {
+              id: nextId(),
+              role: "assistant",
+              text: assistantCaptionForProductReply(reply, productList.length),
+              products: productList,
+              turnId: data.turnId,
+              showRecommendationFeedback: true,
+              ...(data.searchComplete ? { searchComplete: data.searchComplete } : {}),
+            }
+          : {
+              id: nextId(),
+              role: "assistant",
+              text: reply?.trim() || EMPTY_RECOMMENDATION_TEXT,
+              showEmptyStateBadges: true,
+              showRecommendationFeedback: true,
+              turnId: data.turnId,
+            };
+        setMessages((prev) => [...prev, assistantMsg]);
       }
     } catch {
       if (addAssistantToChat) {
@@ -610,7 +684,13 @@ export function MenuChefChat({
       }
     } finally {
       setLoading(false);
+      setStreamingReply("");
     }
+  };
+
+  const showAddToast = () => {
+    setAddToastOpen(true);
+    window.setTimeout(() => setAddToastOpen(false), 4500);
   };
 
   const sendMessage = async (text: string) => {
@@ -630,12 +710,19 @@ export function MenuChefChat({
     chefAnalytics.trackRecommendationRequest("badge");
     setSendPulse((value) => value + 1);
     setMessages((prev) => [...prev, { id: nextId(), role: "user", text: badge.label }]);
+    const recentlyShownProductIds = recentChefRecommendationProductIds(messages);
+
     setLoading(true);
     try {
       const res = await fetch("/api/menu/chef/badge-search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ publicId, badgeId: badge.id }),
+        body: JSON.stringify({
+          publicId,
+          badgeId: badge.id,
+          recentlyShownProductIds,
+          locale: (menuLocale?.locale ?? "tr") as ChefMenuLocale,
+        }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         reply?: string;
@@ -665,18 +752,21 @@ export function MenuChefChat({
       }
       setMessages((prev) => [
         ...prev,
-        {
-          id: nextId(),
-          role: "assistant",
-          text: productList?.length
-            ? assistantCaptionForProductReply(
-                reply,
-                productList.length,
-                "Bu filtre için uygun ürün bulamadım.",
-              )
-            : reply?.trim() || "Bu filtre için uygun ürün bulamadım.",
-          products: productList,
-        },
+        productList?.length
+          ? {
+              id: nextId(),
+              role: "assistant",
+              text: assistantCaptionForProductReply(reply, productList.length),
+              products: productList,
+              showRecommendationFeedback: true,
+            }
+          : {
+              id: nextId(),
+              role: "assistant",
+              text: reply?.trim() || EMPTY_RECOMMENDATION_TEXT,
+              showEmptyStateBadges: true,
+              showRecommendationFeedback: true,
+            },
       ]);
     } catch {
       setMessages((prev) => [
@@ -834,6 +924,12 @@ export function MenuChefChat({
                           onBadgeSelect={(badge) => {
                             void sendBadge(badge);
                           }}
+                          onRecommendationFeedback={
+                            msg.showRecommendationFeedback
+                              ? (feedback) => handleRecommendationFeedback(msg.id, feedback)
+                              : undefined
+                          }
+                          onQuickAddSuccess={showAddToast}
                         />
                       );
                     }
@@ -877,10 +973,18 @@ export function MenuChefChat({
                         name={chefDisplayName}
                         onClick={() => setAvatarOpen(true)}
                       />
-                      <div className="flex items-center gap-1.5 rounded-[1.35rem] rounded-bl-md border border-white/70 bg-white/80 px-4 py-3.5 shadow-[0_8px_28px_rgba(28,40,36,0.05)] backdrop-blur-sm">
-                        <span className="animate-chef-typing-dot h-1.5 w-1.5 rounded-full bg-[#8a9a93] [animation-delay:0ms]" />
-                        <span className="animate-chef-typing-dot h-1.5 w-1.5 rounded-full bg-[#8a9a93] [animation-delay:140ms]" />
-                        <span className="animate-chef-typing-dot h-1.5 w-1.5 rounded-full bg-[#8a9a93] [animation-delay:280ms]" />
+                      <div className="max-w-[min(100%,28rem)] rounded-[1.35rem] rounded-bl-md border border-white/70 bg-white/80 px-4 py-3.5 shadow-[0_8px_28px_rgba(28,40,36,0.05)] backdrop-blur-sm">
+                        {streamingReply ? (
+                          <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-[#24302c]">
+                            {streamingReply}
+                          </p>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            <span className="animate-chef-typing-dot h-1.5 w-1.5 rounded-full bg-[#8a9a93] [animation-delay:0ms]" />
+                            <span className="animate-chef-typing-dot h-1.5 w-1.5 rounded-full bg-[#8a9a93] [animation-delay:140ms]" />
+                            <span className="animate-chef-typing-dot h-1.5 w-1.5 rounded-full bg-[#8a9a93] [animation-delay:280ms]" />
+                          </div>
+                        )}
                       </div>
                     </motion.div>
                   ) : null}
@@ -970,6 +1074,19 @@ export function MenuChefChat({
               open={resetConfirmOpen}
               onCancel={() => setResetConfirmOpen(false)}
               onConfirm={resetChat}
+            />
+            <MenuChefAddToast
+              open={addToastOpen}
+              onDismiss={() => setAddToastOpen(false)}
+              onOpenCart={
+                ordering
+                  ? () => {
+                      chefAnalytics.trackCartOpen("cross_sell");
+                      ordering.setCartOpen(true);
+                      setAddToastOpen(false);
+                    }
+                  : undefined
+              }
             />
           </div>
         </motion.div>

@@ -2,6 +2,7 @@ import type { ChefChatBadge } from "@/lib/chef/chef-chat-badges";
 import type { ChefMenuSuggestion } from "@/lib/chef/chef-menu-suggestion";
 import type { ChefProductItem } from "@/lib/chef/chef-product-item";
 import type { SearchCompletePayload } from "@/lib/chef/search-complete";
+import type { ChefTurnFeedbackValue } from "@/lib/chef/submit-chef-turn-feedback";
 
 export type ChefChatMessage =
   | {
@@ -12,6 +13,13 @@ export type ChefChatMessage =
       menuSuggestions?: ChefMenuSuggestion[];
       upsellBadges?: ChefChatBadge[];
       searchComplete?: SearchCompletePayload;
+      /** Server-stored chat turn id (qr-agent / menu API). */
+      turnId?: string;
+      feedback?: ChefTurnFeedbackValue;
+      /** Show quick-filter chips when no products matched. */
+      showEmptyStateBadges?: boolean;
+      /** Like/dislike row for recommendation turns (not welcome / coach). */
+      showRecommendationFeedback?: boolean;
     }
   | { id: string; role: "user"; text: string };
 

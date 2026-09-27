@@ -1,16 +1,12 @@
-import axios, { AxiosError } from "axios";
+import { AxiosError } from "axios";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { mergeReplyWithPersuasion } from "@/lib/chef/chef-recommendation-copy";
-import { extractChefProductIds } from "@/lib/chef/extract-chef-product-ids";
-import { mapMenuProductToAgentCatalog } from "@/lib/chef/agent-catalog-product";
+import { callChefAgentChat } from "@/lib/chef/call-chef-agent-chat";
 import { inferRecommendationIntent } from "@/lib/chef/infer-recommendation-intent";
-import { filterChefProductIds, rankChefRecommendations } from "@/lib/chef/rank-chef-recommendations";
+import { processChefAgentSearch } from "@/lib/chef/process-chef-agent-search";
 import { fetchPublicMenuProducts } from "@/lib/chef/fetch-public-menu-products-server";
-import { hydrateChefProductsForPublicMenu } from "@/lib/chef/hydrate-chef-products-server";
 import type { MenuProductApiItem } from "@/lib/api";
-import { QR_AGENT_BASE_URL } from "@/lib/config";
 
 const menuProductBodySchema = z
   .object({
@@ -26,26 +22,11 @@ const bodySchema = z.object({
   conversationId: z.string().trim().min(1).max(100).optional(),
   menuProducts: z.array(menuProductBodySchema).min(1).max(400).optional(),
   cartProductIds: z.array(z.number().int().positive()).max(40).optional(),
+  recentlyShownProductIds: z.array(z.number().int().positive()).max(60).optional(),
+  priorOrderProductIds: z.array(z.number().int().positive()).max(40).optional(),
+  conversationTranscript: z.string().trim().max(2000).optional(),
+  locale: z.enum(["tr", "en", "ru", "ar"]).optional(),
 });
-
-type ChatTiming = {
-  path: "agent";
-  totalMs: number;
-  moderationMs: number;
-  agentMs?: number;
-  mcpConnectMs?: number;
-  searchMs?: number;
-};
-
-type AgentChatResponse = {
-  reply?: string;
-  conversationId?: string;
-  message?: string;
-  productIds?: unknown;
-  products?: unknown;
-  searchComplete?: unknown;
-  timing?: ChatTiming;
-};
 
 export async function POST(req: Request) {
   const bffStarted = performance.now();
@@ -65,27 +46,21 @@ export async function POST(req: Request) {
       clientMenuProducts && clientMenuProducts.length > 0
         ? clientMenuProducts
         : await fetchPublicMenuProducts(parsed.data.publicId);
-    const catalog = menuProducts.map(mapMenuProductToAgentCatalog);
-    const cartProductIds = parsed.data.cartProductIds ?? [];
-    const recommendationIntent = inferRecommendationIntent(parsed.data.message);
 
-    const upstream = await axios.post<AgentChatResponse>(
-      `${QR_AGENT_BASE_URL}/api/v1/chat`,
-      {
-        publicId: parsed.data.publicId,
-        message: parsed.data.message,
-        conversationId: parsed.data.conversationId,
-        products: catalog,
-        cartProductIds,
-        recommendationIntent,
-        locale: "tr",
-      },
-      {
-        headers: { "Content-Type": "application/json" },
-        validateStatus: () => true,
-        timeout: 60_000,
-      },
-    );
+    const agentMessage = parsed.data.conversationTranscript
+      ? `${parsed.data.message}\n\n[Son sohbet özeti]\n${parsed.data.conversationTranscript}`
+      : parsed.data.message;
+
+    const upstream = await callChefAgentChat({
+      publicId: parsed.data.publicId,
+      message: agentMessage,
+      conversationId: parsed.data.conversationId,
+      products: menuProducts,
+      cartProductIds: parsed.data.cartProductIds ?? [],
+      recommendationIntent: inferRecommendationIntent(parsed.data.message),
+      locale: parsed.data.locale ?? "tr",
+      conversationTranscript: parsed.data.conversationTranscript,
+    });
 
     if (upstream.status >= 400) {
       const message =
@@ -112,30 +87,24 @@ export async function POST(req: Request) {
       );
     }
 
-    const idSource = {
-      productIds: upstream.data.productIds,
-      products: upstream.data.products,
-      searchComplete: upstream.data.searchComplete,
-    };
-    const rawProductIds = extractChefProductIds(idSource);
-    const productIds = filterChefProductIds(rawProductIds, cartProductIds);
-    const { products: hydrated } = await hydrateChefProductsForPublicMenu(parsed.data.publicId, {
-      ...idSource,
-      productIds,
-      catalog: menuProducts,
+    const processed = await processChefAgentSearch({
+      publicId: parsed.data.publicId,
+      message: parsed.data.message,
+      agent: upstream.data,
+      menuProducts,
+      cartProductIds: parsed.data.cartProductIds ?? [],
+      recentlyShownProductIds: parsed.data.recentlyShownProductIds ?? [],
+      priorOrderProductIds: parsed.data.priorOrderProductIds ?? [],
     });
-    const products = rankChefRecommendations(hydrated, menuProducts, cartProductIds);
-    const baseReply = upstream.data.reply ?? "";
-    const reply =
-      products.length > 0 ? mergeReplyWithPersuasion(baseReply, products) : baseReply;
 
     return NextResponse.json({
-      reply,
-      conversationId: upstream.data.conversationId,
-      productIds,
-      products,
+      reply: processed.reply,
+      conversationId: processed.conversationId,
+      turnId: processed.turnId,
+      productIds: processed.productIds,
+      products: processed.products,
       menuSuggestions: [],
-      ...(upstream.data.searchComplete ? { searchComplete: upstream.data.searchComplete } : {}),
+      ...(processed.searchComplete ? { searchComplete: processed.searchComplete } : {}),
       timing,
     });
   } catch (error) {

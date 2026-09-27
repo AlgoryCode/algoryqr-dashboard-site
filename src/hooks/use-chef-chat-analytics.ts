@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 
+import { crossSellAbVariant } from "@/lib/chef/chef-funnel-flags";
 import {
   detectMenuDeviceType,
   getOrCreateMenuSessionId,
@@ -28,6 +29,10 @@ export type ChefChatAnalytics = {
   trackCrossSellClick: (productId: number) => void;
   trackCrossSellAdd: (productId: number) => void;
   trackCartOpen: (from: ChefCartOpenSource) => void;
+  trackRecommendationFeedback: (
+    feedback: "like" | "dislike",
+    extras?: { turnId?: string; messageId?: string },
+  ) => void;
 };
 
 export function useChefChatAnalytics(publicId: string | null | undefined): ChefChatAnalytics {
@@ -115,12 +120,23 @@ export function useChefChatAnalytics(publicId: string | null | undefined): ChefC
     trackCrossSellShown: (anchorProductId, suggestedProductIds) =>
       enqueue("CHEF_CROSS_SELL_SHOWN", {
         productId: anchorProductId,
-        metadata: { suggestedProductIds: suggestedProductIds.join(",") },
+        metadata: {
+          suggestedProductIds: suggestedProductIds.join(","),
+          crossSellVariant: crossSellAbVariant(),
+        },
       }),
     trackCrossSellClick: (productId) =>
       enqueue("CHEF_CROSS_SELL_CLICK", { productId }),
     trackCrossSellAdd: (productId) =>
       enqueue("CHEF_CROSS_SELL_ADD", { productId }),
     trackCartOpen: (from) => enqueue("CHEF_CART_OPEN", { metadata: { from } }),
+    trackRecommendationFeedback: (feedback, extras) =>
+      enqueue("CHEF_RECOMMENDATION_FEEDBACK", {
+        metadata: {
+          feedback,
+          ...(extras?.turnId ? { turnId: extras.turnId } : {}),
+          ...(extras?.messageId ? { messageId: extras.messageId } : {}),
+        },
+      }),
   };
 }

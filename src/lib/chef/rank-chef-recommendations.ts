@@ -14,11 +14,16 @@ function ratingScore(product: MenuProductApiItem): number {
   return avg * 1000 + count;
 }
 
-function scoreItem(item: ChefProductItem, catalogById: Map<number, MenuProductApiItem>): number {
+function scoreItem(
+  item: ChefProductItem,
+  catalogById: Map<number, MenuProductApiItem>,
+  priorOrderSet: Set<number>,
+): number {
   const catalog = catalogById.get(item.productId);
   if (!catalog) return 0;
   let score = ratingScore(catalog);
   if (catalog.chefRecommended) score += 50_000;
+  if (priorOrderSet.has(item.productId)) score += 12_000;
   if (item.available === false) score -= 1_000_000;
   return score;
 }
@@ -26,20 +31,22 @@ function scoreItem(item: ChefProductItem, catalogById: Map<number, MenuProductAp
 /**
  * Drop cart duplicates, cap per main category, sort by chef pick + rating.
  */
-export function rankChefRecommendations(
+function pickRanked(
   products: ChefProductItem[],
   catalog: MenuProductApiItem[],
-  cartProductIds: number[] = [],
+  excludeProductIds: Set<number>,
+  priorOrderProductIds: number[] = [],
 ): ChefProductItem[] {
-  if (products.length === 0) return [];
-
-  const cartSet = new Set(cartProductIds);
   const catalogById = new Map(catalog.map((product) => [product.productId, product]));
   const categoryCounts = new Map<number, number>();
+  const priorOrderSet = new Set(priorOrderProductIds);
 
   const candidates = products
-    .filter((item) => !cartSet.has(item.productId))
-    .sort((a, b) => scoreItem(b, catalogById) - scoreItem(a, catalogById));
+    .filter((item) => !excludeProductIds.has(item.productId))
+    .sort(
+      (a, b) =>
+        scoreItem(b, catalogById, priorOrderSet) - scoreItem(a, catalogById, priorOrderSet),
+    );
 
   const picked: ChefProductItem[] = [];
   for (const item of candidates) {
@@ -55,6 +62,32 @@ export function rankChefRecommendations(
   }
 
   return picked;
+}
+
+export function rankChefRecommendations(
+  products: ChefProductItem[],
+  catalog: MenuProductApiItem[],
+  cartProductIds: number[] = [],
+  recentlyShownProductIds: number[] = [],
+  priorOrderProductIds: number[] = [],
+): ChefProductItem[] {
+  if (products.length === 0) return [];
+
+  const cartSet = new Set(cartProductIds);
+  const recentSet = new Set(recentlyShownProductIds);
+  const excludeWithRecent = new Set([...cartSet, ...recentSet]);
+
+  const withRecentDedup = pickRanked(
+    products,
+    catalog,
+    excludeWithRecent,
+    priorOrderProductIds,
+  );
+  if (withRecentDedup.length > 0 || recentSet.size === 0) {
+    return withRecentDedup;
+  }
+
+  return pickRanked(products, catalog, cartSet, priorOrderProductIds);
 }
 
 export function filterChefProductIds(

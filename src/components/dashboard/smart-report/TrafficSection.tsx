@@ -9,6 +9,8 @@ import { RankListCard } from "./charts/RadialProgressChart";
 import { SparkKpiStrip } from "./charts/SparkKpiStrip";
 import { GrossVolumeCard, RetentionStepChart } from "./charts/ZentraOverview";
 import { buildTrafficSparkKpis } from "./shadcn-spark";
+import { ChefFunnelReportSection } from "@/components/dashboard/menu/ChefFunnelReportSection";
+
 import { buildTrafficView } from "./traffic-view";
 
 export default function TrafficSection({ visits }: { visits: MenuAnalyticsReportResponse }) {
@@ -16,6 +18,7 @@ export default function TrafficSection({ visits }: { visits: MenuAnalyticsReport
 
   return (
     <div className="space-y-4">
+      <ChefFunnelReportSection visits={visits} />
       <SparkKpiStrip items={buildTrafficSparkKpis(visits)} />
       <div className="grid gap-3 lg:grid-cols-2">
         <GrossVolumeCard title="Cihaz" value={view.deviceTotal} rows={view.deviceRows} />
