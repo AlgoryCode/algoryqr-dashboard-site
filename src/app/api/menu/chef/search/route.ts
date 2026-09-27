@@ -3,7 +3,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { extractChefProductIds } from "@/lib/chef/extract-chef-product-ids";
-import { fetchPublicMenuCatalogForChef } from "@/lib/chef/fetch-public-menu-catalog-server";
+import { mapMenuProductToAgentCatalog } from "@/lib/chef/agent-catalog-product";
+import { buildChefMenuSuggestions } from "@/lib/chef/build-chef-menu-suggestions";
+import { fetchPublicMenuProducts } from "@/lib/chef/fetch-public-menu-products-server";
 import { hydrateChefProductsForPublicMenu } from "@/lib/chef/hydrate-chef-products-server";
 import { QR_AGENT_BASE_URL } from "@/lib/config";
 
@@ -45,7 +47,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const catalog = await fetchPublicMenuCatalogForChef(parsed.data.publicId);
+    const menuProducts = await fetchPublicMenuProducts(parsed.data.publicId);
+    const catalog = menuProducts.map(mapMenuProductToAgentCatalog);
 
     const upstream = await axios.post<AgentChatResponse>(
       `${QR_AGENT_BASE_URL}/api/v1/chat`,
@@ -93,13 +96,19 @@ export async function POST(req: Request) {
       searchComplete: upstream.data.searchComplete,
     };
     const productIds = extractChefProductIds(idSource);
-    const { products } = await hydrateChefProductsForPublicMenu(parsed.data.publicId, idSource);
+    const { products } = await hydrateChefProductsForPublicMenu(parsed.data.publicId, {
+      ...idSource,
+      catalog: menuProducts,
+    });
+    const menuSuggestions =
+      products.length > 0 ? buildChefMenuSuggestions(products, menuProducts) : [];
 
     return NextResponse.json({
       reply: upstream.data.reply ?? "",
       conversationId: upstream.data.conversationId,
       productIds,
       products,
+      menuSuggestions,
       ...(upstream.data.searchComplete ? { searchComplete: upstream.data.searchComplete } : {}),
       timing,
     });

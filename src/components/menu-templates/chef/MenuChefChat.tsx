@@ -12,11 +12,13 @@ import {
   setChefChatSession,
   type ChefChatMessage,
 } from "@/lib/chef/chef-chat-session";
+import type { ChefMenuSuggestion } from "@/lib/chef/chef-menu-suggestion";
 import type { ChefProductItem } from "@/lib/chef/chef-product-item";
 import type { ChefChatBadge } from "@/lib/chef/chef-chat-badges";
 import { stripProductListFromReply } from "@/lib/chef/strip-product-list-from-reply";
 import { useOrderingOptional } from "../shared";
 
+import { MenuChefMenuSuggestions } from "./MenuChefMenuSuggestions";
 import { MenuChefProductCard } from "./MenuChefProductCard";
 import { MenuChefQuickBadges } from "./MenuChefQuickBadges";
 import { MenuChefSearchComplete } from "./MenuChefSearchComplete";
@@ -242,6 +244,9 @@ function AssistantBubble({
             ) : null}
           </motion.div>
         ) : null}
+        {msg.menuSuggestions?.length ? (
+          <MenuChefMenuSuggestions suggestions={msg.menuSuggestions} animateEnter={animateEnter} />
+        ) : null}
         {products ? (
           <motion.div
             initial={animateEnter ? { opacity: 0, y: 10 } : false}
@@ -453,6 +458,7 @@ export function MenuChefChat({
         message?: string;
         productIds?: number[];
         products?: ChefProductItem[];
+        menuSuggestions?: ChefMenuSuggestion[];
         searchComplete?: SearchCompletePayload;
       };
       if (data.conversationId) {
@@ -482,6 +488,7 @@ export function MenuChefChat({
           role: "assistant",
           text: reply || "Menüde uygun ürün bulamadım. Başka bir şekilde sorabilir misiniz?",
           products: products?.length ? products : undefined,
+          menuSuggestions: data.menuSuggestions?.length ? data.menuSuggestions : undefined,
           ...(data.searchComplete ? { searchComplete: data.searchComplete } : {}),
         },
       ]);
@@ -515,6 +522,7 @@ export function MenuChefChat({
         message?: string;
         productIds?: number[];
         products?: ChefProductItem[];
+        menuSuggestions?: ChefMenuSuggestion[];
       };
       if (!res.ok) {
         setMessages((prev) => [
@@ -539,6 +547,7 @@ export function MenuChefChat({
           role: "assistant",
           text: reply || "Bu filtre için uygun ürün bulamadım.",
           products: products?.length ? products : undefined,
+          menuSuggestions: data.menuSuggestions?.length ? data.menuSuggestions : undefined,
         },
       ]);
     } catch {

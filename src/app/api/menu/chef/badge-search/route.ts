@@ -4,6 +4,8 @@ import { z } from "zod";
 
 import { DEFAULT_CHEF_CHAT_BADGES, type ChefChatBadgeFilter } from "@/lib/chef/chef-chat-badges";
 import { extractChefProductIds } from "@/lib/chef/extract-chef-product-ids";
+import { buildChefMenuSuggestions } from "@/lib/chef/build-chef-menu-suggestions";
+import { fetchPublicMenuProducts } from "@/lib/chef/fetch-public-menu-products-server";
 import { hydrateChefProductsForPublicMenu } from "@/lib/chef/hydrate-chef-products-server";
 import type { MenuProductApiItem } from "@/lib/api";
 import { API_BASE_URL } from "@/lib/config";
@@ -113,15 +115,19 @@ export async function POST(req: Request) {
     }
 
     const productIds = menuProducts.map((product) => product.productId);
+    const fullCatalog = await fetchPublicMenuProducts(publicId);
     const { products } = await hydrateChefProductsForPublicMenu(publicId, {
       productIds,
       catalog: menuProducts,
     });
+    const menuSuggestions =
+      products.length > 0 ? buildChefMenuSuggestions(products, fullCatalog) : [];
 
     return NextResponse.json({
       reply: buildReply(badgeId, products.length),
       productIds: extractChefProductIds({ productIds }),
       products,
+      menuSuggestions,
     });
   } catch (error) {
     return NextResponse.json(

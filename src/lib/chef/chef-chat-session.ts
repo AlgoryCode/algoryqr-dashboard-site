@@ -1,3 +1,4 @@
+import type { ChefMenuSuggestion } from "@/lib/chef/chef-menu-suggestion";
 import type { ChefProductItem } from "@/lib/chef/chef-product-item";
 import type { SearchCompletePayload } from "@/lib/chef/search-complete";
 
@@ -7,6 +8,7 @@ export type ChefChatMessage =
       role: "assistant";
       text: string;
       products?: ChefProductItem[];
+      menuSuggestions?: ChefMenuSuggestion[];
       searchComplete?: SearchCompletePayload;
     }
   | { id: string; role: "user"; text: string };
