@@ -34,6 +34,19 @@ function normalizeItem(raw: unknown): ChefProductItem | null {
   const subCategoryName = asString(item.subCategoryName);
   const mainCategoryName = asString(item.mainCategoryName);
   const available = typeof item.available === "boolean" ? item.available : true;
+  const chefRecommended = item.chefRecommended === true;
+  const allergens = Array.isArray(item.allergens)
+    ? item.allergens
+        .map((entry) => {
+          if (typeof entry === "string") return entry.trim();
+          if (entry && typeof entry === "object") {
+            const record = entry as { name?: string; slug?: string };
+            return (record.name || record.slug || "").trim();
+          }
+          return "";
+        })
+        .filter(Boolean)
+    : [];
 
   let nutrition: Record<string, unknown> | null = null;
   if (item.nutrition && typeof item.nutrition === "object" && !Array.isArray(item.nutrition)) {
@@ -52,6 +65,8 @@ function normalizeItem(raw: unknown): ChefProductItem | null {
     currency,
     imageUrl,
     available,
+    chefRecommended,
+    allergens,
     nutrition,
   };
 }

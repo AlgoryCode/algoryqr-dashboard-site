@@ -1,3 +1,4 @@
+import type { ChefChatBadge } from "@/lib/chef/chef-chat-badges";
 import type { ChefMenuSuggestion } from "@/lib/chef/chef-menu-suggestion";
 import type { ChefProductItem } from "@/lib/chef/chef-product-item";
 import type { SearchCompletePayload } from "@/lib/chef/search-complete";
@@ -9,6 +10,7 @@ export type ChefChatMessage =
       text: string;
       products?: ChefProductItem[];
       menuSuggestions?: ChefMenuSuggestion[];
+      upsellBadges?: ChefChatBadge[];
       searchComplete?: SearchCompletePayload;
     }
   | { id: string; role: "user"; text: string };
@@ -23,7 +25,7 @@ const sessions = new Map<string, ChefChatSession>();
 export const CHEF_WELCOME_MESSAGE: ChefChatMessage = {
   id: "welcome",
   role: "assistant",
-  text: "Size nasıl yardımcı olabilirim?",
+  text: "Merhaba! Menünüzden size en uygun lezzetleri birlikte seçelim.",
 };
 
 export function getChefChatSession(publicId: string): ChefChatSession | undefined {

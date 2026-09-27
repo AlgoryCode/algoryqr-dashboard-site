@@ -10,5 +10,7 @@ export type ChefProductItem = {
   currency: string;
   imageUrl: string | null;
   available: boolean;
+  chefRecommended?: boolean;
+  allergens?: string[];
   nutrition?: Record<string, unknown> | null;
 };

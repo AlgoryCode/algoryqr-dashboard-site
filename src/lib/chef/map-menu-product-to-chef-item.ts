@@ -24,6 +24,8 @@ export function mapMenuProductToChefItem(product: MenuProductApiItem): ChefProdu
     currency: product.currency || "TRY",
     imageUrl: product.imageUrl ?? null,
     available: product.available !== false,
+    chefRecommended: product.chefRecommended === true,
+    allergens: (product.allergens ?? []).map((entry) => entry.name || entry.slug).filter(Boolean),
     nutrition: (product.nutrition as Record<string, unknown> | null | undefined) ?? null,
   };
 }

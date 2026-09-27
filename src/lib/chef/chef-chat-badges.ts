@@ -1,7 +1,13 @@
+import type { MenuCourseRole } from "@/lib/chef/chef-cart-coach";
+
 export type ChefChatBadgeFilter =
   | { type: "chefRecommended" }
   | { type: "popularByRating" }
-  | { type: "tagSlug"; slug: string };
+  | { type: "tagSlug"; slug: string }
+  | { type: "mainCategoryId"; mainCategoryId: number }
+  | { type: "subCategoryId"; subCategoryId: number }
+  | { type: "productIds"; productIds: number[] }
+  | { type: "menuRole"; role: MenuCourseRole };
 
 export type ChefChatBadge = {
   id: string;
@@ -21,7 +27,3 @@ export const DEFAULT_CHEF_CHAT_BADGES: ChefChatBadge[] = [
     filter: { type: "popularByRating" },
   },
 ];
-
-export function getChefChatBadgesForMenu(_publicId: string): ChefChatBadge[] {
-  return DEFAULT_CHEF_CHAT_BADGES;
-}
