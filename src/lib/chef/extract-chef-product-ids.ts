@@ -1,6 +1,6 @@
 import type { SearchCompletePayload } from "@/lib/chef/search-complete";
 
-const MAX_IDS = 10;
+const MAX_IDS = 12;
 
 function asPositiveInt(value: unknown): number | null {
   if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;

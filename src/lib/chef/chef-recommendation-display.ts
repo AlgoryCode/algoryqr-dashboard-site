@@ -18,7 +18,7 @@ export function assistantCaptionForProductReply(
     return reply?.trim() || fallback;
   }
   const trimmed = reply?.trim();
-  if (trimmed && trimmed.length <= 100 && !looksLikeInlineProductList(trimmed)) {
+  if (trimmed && !looksLikeInlineProductList(trimmed)) {
     return trimmed;
   }
   return "Size özel seçtiklerim — detay için karta dokunun.";

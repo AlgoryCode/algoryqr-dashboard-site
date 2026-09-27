@@ -30,6 +30,11 @@ describe("chef-recommendation-display", () => {
     );
   });
 
+  it("keeps a two-sentence agent reply above cards", () => {
+    const reply = "Menüde beş tatlı var. Kartlarda hepsini gösteriyorum.";
+    expect(assistantCaptionForProductReply(reply, 5)).toBe(reply);
+  });
+
   it("uses short caption when menu combos are shown as cards", () => {
     expect(
       assistantCaptionForMenuReply(

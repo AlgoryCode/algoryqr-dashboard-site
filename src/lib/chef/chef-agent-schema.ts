@@ -22,7 +22,7 @@ export const chefAgentUpstreamRequestSchema = z.object({
 export type ChefAgentUpstreamRequest = z.infer<typeof chefAgentUpstreamRequestSchema>;
 
 const productIdsSchema = z.union([
-  z.array(z.number().int().positive()).max(6),
+  z.array(z.number().int().positive()).max(12),
   z.null(),
   z.undefined(),
 ]);
