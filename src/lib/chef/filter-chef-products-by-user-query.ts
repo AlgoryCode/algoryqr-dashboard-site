@@ -1,5 +1,7 @@
 import type { MenuProductApiItem } from "@/lib/api";
 
+import { classifyMenuProductRole } from "@/lib/chef/build-chef-menu-suggestions";
+
 import type { ChefProductItem } from "./chef-product-item";
 
 const QUERY_STOP_WORDS = new Set([
@@ -37,6 +39,15 @@ const QUERY_STOP_WORDS = new Set([
   "gelsin",
   "degil",
   "değil",
+  "bisi",
+  "bisey",
+  "birsey",
+  "sey",
+  "şey",
+  "bir",
+  "şeyi",
+  "seyi",
+  "bi",
 ]);
 
 const QUERY_SYNONYMS: Record<string, string[]> = {
@@ -49,6 +60,39 @@ const QUERY_SYNONYMS: Record<string, string[]> = {
 
 const COCKTAIL_PATTERN =
   /kokteyl|cocktail|\b5\s*cl\b|margarita|mojito|cosmopolitan|aperol|spritz|long\s*island|piña|pina\s*cola|white\s*russian|sex\s*on|tom\s*collins|sangria|martini|daiquiri|negroni|old\s*fashioned|whiskey\s*sour/i;
+
+const MEAT_INTENT_IN_QUERY =
+  /\betli\b|\bet\s+yem|\betli\s+bir|kirmizi\s+et|kırmızı\s+et|\bmeat\b|\bsteak\b|protein\s+yemek/i;
+
+const MEAT_CATALOG_HINTS = [
+  "kofte",
+  "köfte",
+  "pirzola",
+  "tavuk",
+  "dana",
+  "kuzu",
+  "bonfile",
+  "biftek",
+  "antrikot",
+  "steak",
+  "sis",
+  "şiş",
+  "kebap",
+  "doner",
+  "döner",
+  "lahmacun",
+  "burger",
+  "hamburger",
+  "izgara",
+  "kaburga",
+  "kemik",
+  "but",
+  "kanat",
+  "fileto",
+];
+
+const SEAFOOD_PATTERN =
+  /balik|balık|çupra|cupra|levrek|somon|karides|deniz\s*ürün|midye|kalamar|hamsi|lüfer|lufer|balıklar/i;
 
 function normalizeMatchText(value: string): string {
   return value
@@ -94,6 +138,38 @@ export function queryTermsForChefMatch(query: string): string[] {
   }
 
   return [...terms];
+}
+
+export function isMeatIntentQuery(query: string): boolean {
+  const normalized = normalizeMatchText(query);
+  if (MEAT_INTENT_IN_QUERY.test(normalized)) return true;
+  if (/\betli\b/.test(normalized)) return true;
+  return /\bet\b/.test(normalized) && /yok|var|öner|oner|ister|istiyor/i.test(normalized);
+}
+
+/** Kullanıcı "etli" dediğinde ürün adlarında köfte/pirzola vb. aranır. */
+export function catalogMatchTerms(query: string): string[] {
+  const base = queryTermsForChefMatch(query);
+  const expanded = new Set(base);
+
+  if (isMeatIntentQuery(query)) {
+    for (const hint of MEAT_CATALOG_HINTS) {
+      expanded.add(normalizeMatchText(hint));
+    }
+  }
+
+  return [...expanded];
+}
+
+function isSeafoodProduct(catalog: MenuProductApiItem): boolean {
+  return SEAFOOD_PATTERN.test(productMatchHaystack(catalog));
+}
+
+function isEligibleForMeatIntent(catalog: MenuProductApiItem): boolean {
+  if (isSeafoodProduct(catalog)) return false;
+  const role = classifyMenuProductRole(catalog);
+  if (role === "drink" || role === "dessert") return false;
+  return true;
 }
 
 function termVariants(term: string): string[] {
@@ -282,14 +358,16 @@ export function applyUserQueryToChefRecommendations(
   const queryText = resolveChefUserQuery(message, userQuery);
   if (!isSpecificProductQuery(message, userQuery)) return products;
 
-  const terms = queryTermsForChefMatch(queryText);
+  const terms = catalogMatchTerms(queryText);
   if (terms.length === 0) return products;
 
+  const meatIntent = isMeatIntentQuery(queryText);
   const cartSet = new Set(cartProductIds);
   const catalogById = new Map(catalog.map((entry) => [entry.productId, entry]));
 
   const catalogHits = catalog
     .filter((entry) => !cartSet.has(entry.productId))
+    .filter((entry) => !meatIntent || isEligibleForMeatIntent(entry))
     .map((entry) => ({ entry, score: scoreChefProductQueryMatch(entry, terms) }))
     .filter((row) => row.score > 0)
     .sort((a, b) => b.score - a.score);

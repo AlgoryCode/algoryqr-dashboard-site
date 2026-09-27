@@ -100,6 +100,29 @@ describe("applyUserQueryToChefRecommendations", () => {
     expect(result.some((item) => item.productId === 5)).toBe(true);
   });
 
+  it("maps etli bişi yok mu to köfte and pirzola from catalog", () => {
+    const meatCatalog = [
+      catalogItem(20, "Izgara Köfte", 50, "Et Yemekleri"),
+      catalogItem(21, "Tavuk Pirzola", 50, "Et Yemekleri"),
+      catalogItem(22, "Izgara Çupra", 60, "Balıklar"),
+      catalogItem(23, "Margarita 5 CL", 70, "Kokteyller"),
+    ];
+    const agentPicks = [
+      chefItem(22, "Izgara Çupra", "Balıklar"),
+      chefItem(23, "Margarita 5 CL", "Kokteyller"),
+    ];
+    const result = applyUserQueryToChefRecommendations(
+      agentPicks,
+      meatCatalog,
+      "Etli bişi yok mu",
+      [],
+      "Etli bişi yok mu",
+    );
+    expect(result.length).toBeGreaterThan(0);
+    expect(result.some((item) => item.productId === 20 || item.productId === 21)).toBe(true);
+    expect(result.every((item) => item.productId !== 22 && item.productId !== 23)).toBe(true);
+  });
+
   it("filters cocktails for serin içecek badge intent", () => {
     const drinkCatalog = [
       catalogItem(10, "Coca-Cola", 40, "Meşrubatlar"),

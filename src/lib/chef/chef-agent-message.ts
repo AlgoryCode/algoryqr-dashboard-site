@@ -1,6 +1,10 @@
 import type { MenuProductApiItem } from "@/lib/api";
 
-import { extractUserQueryForChefMatch, isSpecificProductQuery } from "./filter-chef-products-by-user-query";
+import {
+  extractUserQueryForChefMatch,
+  isMeatIntentQuery,
+  isSpecificProductQuery,
+} from "./filter-chef-products-by-user-query";
 
 export type ChefAgentRecommendationMode = "default" | "general" | "cart";
 
@@ -30,6 +34,10 @@ export function buildChefAgentUserMessage(
   }
   if (cartProductIds.length > 0) {
     return `[Müşteri sepeti: ${cartSummary(cartProductIds, catalog)}. Yanıtında sepeti dikkate al.]\n${OUTPUT_RULES}\n\n${trimmed}`;
+  }
+  if (isMeatIntentQuery(trimmed)) {
+    const focus = extractUserQueryForChefMatch(trimmed);
+    return `[İstek: Müşteri "${focus}" — etli / ana yemek (köfte, tavuk, pirzola, dana, kuzu, biftek vb.) istiyor. Balık, meze, tatlı, içecek productId önerme.]\n${OUTPUT_RULES}\n\n${trimmed}`;
   }
   if (isSpecificProductQuery(trimmed)) {
     const focus = extractUserQueryForChefMatch(trimmed);
