@@ -55,6 +55,10 @@ export default function DigitalMenuSettingsView({ qrId }: DigitalMenuSettingsVie
 
   const profile = menuQuery.data ?? null;
   const menuId = profile?.menuId ?? null;
+  const backHref =
+    profile?.branchId != null
+      ? DASHBOARD_ROUTES.branchDetail(profile.branchId)
+      : DASHBOARD_ROUTES.digitalMenu;
 
   useEffect(() => {
     if (!profile) return;
@@ -121,7 +125,7 @@ export default function DigitalMenuSettingsView({ qrId }: DigitalMenuSettingsVie
       await invalidatePackageUsage(queryClient);
       await invalidateSubscription(queryClient);
       notify("info", `"${profile?.businessName ?? "Menü"}" silindi.`);
-      router.push(DASHBOARD_ROUTES.digitalMenu);
+      router.push(backHref);
     } catch (error) {
       notify("danger", error instanceof ApiError ? error.message : "Menü silinemedi.");
     } finally {
@@ -136,11 +140,7 @@ export default function DigitalMenuSettingsView({ qrId }: DigitalMenuSettingsVie
           title="Menü Ayarları"
           hint="İşletme bilgileri, tema ve yayın ayarları"
           back={
-            <Link
-              href={DASHBOARD_ROUTES.digitalMenuEdit(qrId)}
-              aria-label="Menü düzenleyiciye dön"
-              className={DASHBOARD_BACK}
-            >
+            <Link href={backHref} aria-label="Geri" className={DASHBOARD_BACK}>
               <ArrowLeft className="h-4 w-4" />
             </Link>
           }
@@ -171,11 +171,7 @@ export default function DigitalMenuSettingsView({ qrId }: DigitalMenuSettingsVie
             : "İşletme bilgileri, tema ve yayın ayarları"
         }
         back={
-          <Link
-            href={DASHBOARD_ROUTES.digitalMenuEdit(qrId)}
-            aria-label="Menü düzenleyiciye dön"
-            className={DASHBOARD_BACK}
-          >
+          <Link href={backHref} aria-label="Geri" className={DASHBOARD_BACK}>
             <ArrowLeft className="h-4 w-4" />
           </Link>
         }
