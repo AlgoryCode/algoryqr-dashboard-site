@@ -16,7 +16,7 @@ describe("buildChefAgentUserMessage", () => {
 
   it("uses general mode without requiring cart", () => {
     const message = buildChefAgentUserMessage("", "general", [1], [...catalog]);
-    expect(message).toContain("Genel menü önerisi");
+    expect(message).toContain("Genel ürün önerisi");
     expect(message).toContain("Sepete bakma");
   });
 });

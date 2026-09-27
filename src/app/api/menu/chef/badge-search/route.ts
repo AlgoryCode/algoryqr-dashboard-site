@@ -2,7 +2,6 @@ import axios from "axios";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { buildChefMenuSuggestions } from "@/lib/chef/build-chef-menu-suggestions";
 import { isUpsellBadgeId, upsellBadgeId, type MenuCourseRole } from "@/lib/chef/chef-cart-coach";
 import { getChefChatPublicConfig } from "@/lib/chef/chef-chat-public-config";
 import type { ChefChatBadge } from "@/lib/chef/chef-chat-badges";
@@ -125,9 +124,6 @@ export async function POST(req: Request) {
       productIds,
       catalog: menuProducts,
     });
-    const menuSuggestions =
-      products.length > 0 ? buildChefMenuSuggestions(products, fullCatalog) : [];
-
     const baseReply = buildReply(badgeId, products.length);
     const reply = products.length > 0 ? mergeReplyWithPersuasion(baseReply, products) : baseReply;
 
@@ -135,7 +131,7 @@ export async function POST(req: Request) {
       reply,
       productIds: extractChefProductIds({ productIds }),
       products,
-      menuSuggestions,
+      menuSuggestions: [],
     });
   } catch (error) {
     return NextResponse.json(

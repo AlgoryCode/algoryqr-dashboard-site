@@ -21,10 +21,10 @@ export function buildChefAgentUserMessage(
 ): string {
   const trimmed = userMessage.trim();
   if (mode === "general") {
-    return `[İstek: Genel menü önerisi. Sepete bakma; 2–4 çeşitli ürün ve menü paketi için uygun anchor seç.]\n${OUTPUT_RULES}\n\n${trimmed || "Genel öneri ver."}`;
+    return `[İstek: Genel ürün önerisi. Sepete bakma; 2–4 çeşitli tek ürün öner. Menü paketi/kombinasyon önerme.]\n${OUTPUT_RULES}\n\n${trimmed || "Genel öneri ver."}`;
   }
   if (mode === "cart" && cartProductIds.length > 0) {
-    return `[Müşteri sepeti: ${cartSummary(cartProductIds, catalog)}. Eksik kursu tamamla (yemek/içecek/tatlı); sepette olanları tekrarlama.]\n${OUTPUT_RULES}\n\n${trimmed || "Sepetime uygun öneriler ver."}`;
+    return `[Müşteri sepeti: ${cartSummary(cartProductIds, catalog)}. Eksik kurs için tek tek ürün öner (yemek/içecek/tatlı); sepette olanları tekrarlama. Menü paketi önerme.]\n${OUTPUT_RULES}\n\n${trimmed || "Sepetime uygun öneriler ver."}`;
   }
   if (cartProductIds.length > 0) {
     return `[Müşteri sepeti: ${cartSummary(cartProductIds, catalog)}. Yanıtında sepeti dikkate al.]\n${OUTPUT_RULES}\n\n${trimmed}`;

@@ -61,7 +61,11 @@ type OrderingContextValue = {
   loading: boolean;
   submitting: boolean;
   error: string | null;
-  beginAddProduct: (product: MenuProductApiItem, quantity?: number) => Promise<string | null>;
+  beginAddProduct: (
+    product: MenuProductApiItem,
+    quantity?: number,
+    options?: { openCart?: boolean },
+  ) => Promise<string | null>;
   addProduct: (
     product: MenuProductApiItem,
     quantity?: number,
@@ -358,14 +362,19 @@ export function OrderingProvider({ identifier, publicId, children }: OrderingPro
   );
 
   const beginAddProduct = useCallback(
-    async (product: MenuProductApiItem, quantity = 1): Promise<string | null> => {
+    async (
+      product: MenuProductApiItem,
+      quantity = 1,
+      options?: { openCart?: boolean },
+    ): Promise<string | null> => {
+      const openCart = options?.openCart ?? true;
       if (productHasOptions(product)) {
         setOptionsProduct(product);
         setOptionsOpen(true);
         return null;
       }
       const failure = await addProduct(product, quantity);
-      if (!failure) setCartOpen(true);
+      if (!failure && openCart) setCartOpen(true);
       return failure;
     },
     [addProduct],

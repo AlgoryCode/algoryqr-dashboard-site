@@ -12,7 +12,6 @@ import {
   setChefChatSession,
   type ChefChatMessage,
 } from "@/lib/chef/chef-chat-session";
-import type { ChefMenuSuggestion } from "@/lib/chef/chef-menu-suggestion";
 import type { ChefProductItem } from "@/lib/chef/chef-product-item";
 import type { ChefChatBadge } from "@/lib/chef/chef-chat-badges";
 import {
@@ -23,17 +22,13 @@ import { useCartSheetHostOptional, useOrderingOptional } from "../shared";
 
 import { ChefProductGalleryProvider } from "./ChefProductGallery";
 import { MenuChefInlineBadges } from "./MenuChefInlineBadges";
-import {
-  assistantCaptionForMenuReply,
-  assistantCaptionForProductReply,
-} from "@/lib/chef/chef-recommendation-display";
+import { assistantCaptionForProductReply } from "@/lib/chef/chef-recommendation-display";
 import { useChefChatAnalytics } from "@/hooks/use-chef-chat-analytics";
 
 import { ChefChatAnalyticsContext } from "./ChefChatAnalyticsContext";
 import { ChefChatCatalogProvider } from "./ChefChatCatalogContext";
 import { MenuChefCartCoachEffect } from "./MenuChefCartCoachEffect";
 import { MenuChefChatTrackedEffects } from "./MenuChefChatTrackedEffects";
-import { MenuChefMenuSuggestions } from "./MenuChefMenuSuggestions";
 import { MenuChefProductCardGrid } from "./MenuChefProductCardGrid";
 import { MenuChefQuickBadges } from "./MenuChefQuickBadges";
 import { MenuChefSearchComplete } from "./MenuChefSearchComplete";
@@ -207,12 +202,9 @@ function AssistantBubble({
   onEnteredRef.current = onEntered;
 
   const products = msg.products?.length ? msg.products : undefined;
-  const menuSuggestions = msg.menuSuggestions?.length ? msg.menuSuggestions : undefined;
   const displayText = products
     ? assistantCaptionForProductReply(msg.text, products.length, msg.text)
-    : menuSuggestions
-      ? assistantCaptionForMenuReply(msg.text, menuSuggestions.length, msg.text)
-      : msg.text;
+    : msg.text;
   const upsellBadges = msg.upsellBadges?.length ? msg.upsellBadges : undefined;
 
   return (
@@ -277,15 +269,6 @@ function AssistantBubble({
             transition={{ ...bubbleTransition, delay: 0.08 }}
           >
             <MenuChefProductCardGrid products={products} showBlockTitle blockTitle="Öneriler" />
-          </motion.div>
-        ) : null}
-        {menuSuggestions ? (
-          <motion.div
-            initial={animateEnter ? { opacity: 0, y: 8 } : false}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ ...bubbleTransition, delay: 0.1 }}
-          >
-            <MenuChefMenuSuggestions suggestions={menuSuggestions} showSectionTitle />
           </motion.div>
         ) : null}
         {msg.searchComplete ? (
@@ -558,7 +541,6 @@ export function MenuChefChat({
         message?: string;
         productIds?: number[];
         products?: ChefProductItem[];
-        menuSuggestions?: ChefMenuSuggestion[];
         searchComplete?: SearchCompletePayload;
       };
       if (data.conversationId) {
@@ -584,9 +566,8 @@ export function MenuChefChat({
         searchComplete: data.searchComplete,
       });
       const productList = products?.length ? products : undefined;
-      const menuList = data.menuSuggestions?.length ? data.menuSuggestions : undefined;
-      if (productList?.length || menuList?.length) {
-        chefAnalytics.trackRecommendationShown(productList?.length ?? 0, menuList?.length ?? 0);
+      if (productList?.length) {
+        chefAnalytics.trackRecommendationShown(productList.length, 0);
       }
       if (addAssistantToChat) {
         setMessages((prev) => [
@@ -594,31 +575,25 @@ export function MenuChefChat({
           {
             id: nextId(),
             role: "assistant",
-            text:
-              productList?.length
-                ? assistantCaptionForProductReply(reply, productList.length)
-                : menuList?.length
-                  ? assistantCaptionForMenuReply(reply, menuList.length)
-                  : reply?.trim() || "Öneri hazırladım.",
+            text: productList?.length
+              ? assistantCaptionForProductReply(reply, productList.length)
+              : reply?.trim() || "Öneri hazırladım.",
             products: productList,
-            menuSuggestions: menuList,
             ...(data.searchComplete ? { searchComplete: data.searchComplete } : {}),
           },
         ]);
-      } else if (productList?.length || menuList?.length) {
+      } else if (productList?.length) {
         setMessages((prev) => [
           ...prev,
           {
             id: nextId(),
             role: "assistant",
-            text:
-              productList?.length
-                ? assistantCaptionForProductReply(reply, productList.length)
-                : menuList?.length
-                  ? assistantCaptionForMenuReply(reply, menuList.length)
-                  : reply?.trim() || "Sepetinize göre öneriler.",
+            text: assistantCaptionForProductReply(
+              reply,
+              productList.length,
+              "Sepetinize göre öneriler.",
+            ),
             products: productList,
-            menuSuggestions: menuList,
           },
         ]);
       }
@@ -647,7 +622,7 @@ export function MenuChefChat({
 
   const sendGeneralRecommendation = async () => {
     if (loading || !catalogReady) return;
-    await runAgentSearch("Bugün için genel menü ve ürün önerileri sun.", "general");
+    await runAgentSearch("Bugün için genel ürün önerileri sun.", "general");
   };
 
   const sendBadge = async (badge: ChefChatBadge) => {
@@ -667,7 +642,6 @@ export function MenuChefChat({
         message?: string;
         productIds?: number[];
         products?: ChefProductItem[];
-        menuSuggestions?: ChefMenuSuggestion[];
       };
       if (!res.ok) {
         setMessages((prev) => [
@@ -686,23 +660,22 @@ export function MenuChefChat({
         products: data.products,
       });
       const productList = products?.length ? products : undefined;
-      const menuList = data.menuSuggestions?.length ? data.menuSuggestions : undefined;
-      if (productList?.length || menuList?.length) {
-        chefAnalytics.trackRecommendationShown(productList?.length ?? 0, menuList?.length ?? 0);
+      if (productList?.length) {
+        chefAnalytics.trackRecommendationShown(productList.length, 0);
       }
       setMessages((prev) => [
         ...prev,
         {
           id: nextId(),
           role: "assistant",
-          text:
-            productList?.length
-              ? assistantCaptionForProductReply(reply, productList.length, "Bu filtre için uygun ürün bulamadım.")
-              : menuList?.length
-                ? assistantCaptionForMenuReply(reply, menuList.length)
-                : reply?.trim() || "Bu filtre için uygun ürün bulamadım.",
+          text: productList?.length
+            ? assistantCaptionForProductReply(
+                reply,
+                productList.length,
+                "Bu filtre için uygun ürün bulamadım.",
+              )
+            : reply?.trim() || "Bu filtre için uygun ürün bulamadım.",
           products: productList,
-          menuSuggestions: menuList,
         },
       ]);
     } catch {

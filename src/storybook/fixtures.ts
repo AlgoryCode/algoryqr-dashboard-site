@@ -2,7 +2,6 @@ import {
   MENU_THEME_PREVIEW_CATEGORIES,
   MENU_THEME_PREVIEW_PRODUCTS,
 } from "@/components/menu-templates/preview-data";
-import { buildChefMenuSuggestions } from "@/lib/chef/build-chef-menu-suggestions";
 import { mapMenuProductToChefItem } from "@/lib/chef/map-menu-product-to-chef-item";
 
 import { catalogPackages, catalogProducts } from "./catalog-fixtures";
@@ -236,12 +235,10 @@ function chefBadgesPreview() {
 function chefAgentPreview() {
   const catalog = MENU_THEME_PREVIEW_PRODUCTS;
   const products = catalog.slice(1, 5).map(mapMenuProductToChefItem);
-  const menuSuggestions = buildChefMenuSuggestions(products, catalog, { maxSuggestions: 2 });
   return {
-    reply:
-      "Akşam için harika bir tabak seçtim. Aşağıda tam menü paketleri (yemek + içecek + tatlı) ve tek tek ürün önerileri var — beğendiğinizi sepete ekleyebilirsiniz.",
+    reply: "Akşam için birkaç ürün seçtim — kartlara dokunarak inceleyebilirsiniz.",
     conversationId: "storybook-chef-preview",
     products,
-    menuSuggestions,
+    menuSuggestions: [],
   };
 }

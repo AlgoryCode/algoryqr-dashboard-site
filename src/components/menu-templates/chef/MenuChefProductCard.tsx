@@ -52,7 +52,9 @@ export function MenuChefProductCard({
     setAddBusy(true);
     setLocalError(null);
     try {
-      const failure = await ordering.beginAddProduct(chefItemToMenuProduct(item), 1);
+      const failure = await ordering.beginAddProduct(chefItemToMenuProduct(item), 1, {
+        openCart: false,
+      });
       if (failure) setLocalError(failure);
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : "Sepete eklenemedi");

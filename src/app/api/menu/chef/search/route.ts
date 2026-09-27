@@ -5,7 +5,6 @@ import { z } from "zod";
 import { mergeReplyWithPersuasion } from "@/lib/chef/chef-recommendation-copy";
 import { extractChefProductIds } from "@/lib/chef/extract-chef-product-ids";
 import { mapMenuProductToAgentCatalog } from "@/lib/chef/agent-catalog-product";
-import { buildChefMenuSuggestions } from "@/lib/chef/build-chef-menu-suggestions";
 import { inferRecommendationIntent } from "@/lib/chef/infer-recommendation-intent";
 import { filterChefProductIds, rankChefRecommendations } from "@/lib/chef/rank-chef-recommendations";
 import { fetchPublicMenuProducts } from "@/lib/chef/fetch-public-menu-products-server";
@@ -126,9 +125,6 @@ export async function POST(req: Request) {
       catalog: menuProducts,
     });
     const products = rankChefRecommendations(hydrated, menuProducts, cartProductIds);
-    const menuSuggestions =
-      products.length > 0 ? buildChefMenuSuggestions(products, menuProducts) : [];
-
     const baseReply = upstream.data.reply ?? "";
     const reply =
       products.length > 0 ? mergeReplyWithPersuasion(baseReply, products) : baseReply;
@@ -138,7 +134,7 @@ export async function POST(req: Request) {
       conversationId: upstream.data.conversationId,
       productIds,
       products,
-      menuSuggestions,
+      menuSuggestions: [],
       ...(upstream.data.searchComplete ? { searchComplete: upstream.data.searchComplete } : {}),
       timing,
     });

@@ -42,7 +42,9 @@ export function MenuChefProductDetailPane({ item }: MenuChefProductDetailPanePro
     setAddBusy(true);
     setError(null);
     try {
-      const failure = await ordering.beginAddProduct(chefItemToMenuProduct(item), 1);
+      const failure = await ordering.beginAddProduct(chefItemToMenuProduct(item), 1, {
+        openCart: false,
+      });
       if (failure) {
         setError(failure);
         return;
@@ -78,7 +80,9 @@ export function MenuChefProductDetailPane({ item }: MenuChefProductDetailPanePro
     setAddBusy(true);
     setError(null);
     try {
-      const failure = await ordering.beginAddProduct(chefItemToMenuProduct(product), 1);
+      const failure = await ordering.beginAddProduct(chefItemToMenuProduct(product), 1, {
+        openCart: false,
+      });
       if (failure) {
         setError(failure);
         return;
