@@ -1,7 +1,5 @@
 "use client";
 
-import { ShoppingBag } from "lucide-react";
-
 import { useMenuPriceDisplay } from "../shared/menu-currency";
 import { useOrderingOptional } from "../shared";
 
@@ -32,11 +30,7 @@ export function MenuChefChatCartPanel() {
       className="rounded-[1.1rem] border border-white/80 bg-white/85 p-3 shadow-[0_8px_24px_rgba(28,40,36,0.06)] backdrop-blur-sm"
       aria-label="Sepet"
     >
-      <div className="flex items-center justify-between gap-2">
-        <p className="flex items-center gap-2 text-[13px] font-semibold tracking-[-0.01em] text-[#1c2824]">
-          <ShoppingBag className="h-4 w-4 text-[#5f7a6d]" strokeWidth={2} aria-hidden />
-          Sepet
-        </p>
+      <div className="flex items-center justify-end gap-2">
         {items.length > 0 ? (
           <button
             type="button"

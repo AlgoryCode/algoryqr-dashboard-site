@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUp, Bell, Hand, RotateCcw, ShoppingBag, Sparkles, X } from "lucide-react";
+import { ArrowUp, Hand, RotateCcw, ShoppingBag, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -25,11 +25,17 @@ import {
   cartCourseRoles,
   missingCourseRoles,
 } from "@/lib/chef/chef-cart-coach";
-import { useOrderingOptional } from "../shared";
+import { useCartSheetHostOptional, useOrderingOptional } from "../shared";
 
 import { ChefProductGalleryProvider } from "./ChefProductGallery";
 import { MenuChefInlineBadges } from "./MenuChefInlineBadges";
+import {
+  assistantCaptionForMenuReply,
+  assistantCaptionForProductReply,
+} from "@/lib/chef/chef-recommendation-display";
 import { MenuChefChatStickyPanels } from "./MenuChefChatStickyPanels";
+import { MenuChefMenuSuggestions } from "./MenuChefMenuSuggestions";
+import { MenuChefProductCardGrid } from "./MenuChefProductCardGrid";
 import { MenuChefQuickBadges } from "./MenuChefQuickBadges";
 import { MenuChefSearchComplete } from "./MenuChefSearchComplete";
 import { useChefChatCatalog } from "./use-chef-chat-catalog";
@@ -42,6 +48,8 @@ type MenuChefChatProps = {
   chefAvatarUrl: string;
   open: boolean;
   onClose: () => void;
+  /** Storybook: üstteki ürün paneli önizlemesi */
+  initialPanelProducts?: ChefProductItem[];
 };
 
 let messageSeq = 0;
@@ -201,7 +209,13 @@ function AssistantBubble({
   const onEnteredRef = useRef(onEntered);
   onEnteredRef.current = onEntered;
 
-  const displayText = msg.text;
+  const products = msg.products?.length ? msg.products : undefined;
+  const menuSuggestions = msg.menuSuggestions?.length ? msg.menuSuggestions : undefined;
+  const displayText = products
+    ? assistantCaptionForProductReply(msg.text, products.length, msg.text)
+    : menuSuggestions
+      ? assistantCaptionForMenuReply(msg.text, menuSuggestions.length, msg.text)
+      : msg.text;
   const upsellBadges = msg.upsellBadges?.length ? msg.upsellBadges : undefined;
 
   return (
@@ -236,8 +250,8 @@ function AssistantBubble({
           >
             {msg.id === "welcome" ? (
               <p className="mb-2 flex items-center gap-2 text-[15px] font-semibold text-[#1c2824]">
-                <Hand className="h-5 w-5 animate-chef-hand-wave text-[#5f7a6d]" aria-hidden />
                 <span>Merhaba!</span>
+                <Hand className="h-5 w-5 animate-chef-hand-wave text-[#5f7a6d]" aria-hidden />
               </p>
             ) : null}
             {displayText ? (
@@ -257,6 +271,24 @@ function AssistantBubble({
                 onSelect={onBadgeSelect}
               />
             ) : null}
+          </motion.div>
+        ) : null}
+        {products ? (
+          <motion.div
+            initial={animateEnter ? { opacity: 0, y: 8 } : false}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...bubbleTransition, delay: 0.08 }}
+          >
+            <MenuChefProductCardGrid products={products} showBlockTitle blockTitle="Öneriler" />
+          </motion.div>
+        ) : null}
+        {menuSuggestions ? (
+          <motion.div
+            initial={animateEnter ? { opacity: 0, y: 8 } : false}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...bubbleTransition, delay: 0.1 }}
+          >
+            <MenuChefMenuSuggestions suggestions={menuSuggestions} showSectionTitle />
           </motion.div>
         ) : null}
         {msg.searchComplete ? (
@@ -344,8 +376,10 @@ export function MenuChefChat({
   chefAvatarUrl,
   open,
   onClose,
+  initialPanelProducts = [],
 }: MenuChefChatProps) {
   const ordering = useOrderingOptional();
+  const setChefChatCartHost = useCartSheetHostOptional()?.setChefChatActive;
   const {
     menuProducts: chefMenuProducts,
     loading: catalogLoading,
@@ -356,9 +390,7 @@ export function MenuChefChat({
   const lastCoachCartSigRef = useRef("");
   const lastCartAgentSigRef = useRef("");
   const cartAgentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const showProductIdOnCards = isSearchCompleteVisible();
-  const [panelMenuSuggestions, setPanelMenuSuggestions] = useState<ChefMenuSuggestion[]>([]);
-  const [panelProducts, setPanelProducts] = useState<ChefProductItem[]>([]);
+  const [panelProducts, setPanelProducts] = useState<ChefProductItem[]>(() => initialPanelProducts);
   const saved = getChefChatSession(publicId);
   const [messages, setMessages] = useState<ChefChatMessage[]>(
     () => saved?.messages ?? [CHEF_WELCOME_MESSAGE],
@@ -381,6 +413,13 @@ export function MenuChefChat({
   useEffect(() => {
     setChefChatSession(publicId, { messages, conversationId });
   }, [publicId, messages, conversationId]);
+
+  useEffect(() => {
+    setChefChatCartHost?.(open);
+    return () => {
+      setChefChatCartHost?.(false);
+    };
+  }, [open, setChefChatCartHost]);
 
   useEffect(() => {
     if (!open) return;
@@ -492,7 +531,7 @@ export function MenuChefChat({
   useEffect(() => {
     if (!open) return;
     scrollToBottom();
-  }, [messages, loading, open, panelMenuSuggestions, panelProducts]);
+  }, [messages, loading, open, panelProducts]);
 
   const canReset =
     Boolean(conversationId) || messages.some((msg) => msg.id !== "welcome");
@@ -505,7 +544,6 @@ export function MenuChefChat({
     lastCartAgentSigRef.current = "";
     setConversationId(undefined);
     setInput("");
-    setPanelMenuSuggestions([]);
     setPanelProducts([]);
     setMessages([{ ...CHEF_WELCOME_MESSAGE }]);
     setResetConfirmOpen(false);
@@ -513,16 +551,10 @@ export function MenuChefChat({
 
   const cartProductIds = ordering?.localItems.map((item) => item.productId) ?? [];
 
-  const applyAgentPanels = (
-    menuSuggestions: ChefMenuSuggestion[] | undefined,
+  const applyAgentProductPanel = (
     products: ChefProductItem[] | undefined,
     mode: ChefAgentRecommendationMode,
   ) => {
-    if (menuSuggestions?.length) {
-      setPanelMenuSuggestions(menuSuggestions);
-    } else if (mode === "general") {
-      setPanelMenuSuggestions([]);
-    }
     if (products?.length) {
       setPanelProducts(products);
     } else if (mode === "general") {
@@ -595,15 +627,42 @@ export function MenuChefChat({
         products: data.products,
         searchComplete: data.searchComplete,
       });
-      applyAgentPanels(data.menuSuggestions, products, mode);
+      applyAgentProductPanel(products, mode);
       if (addAssistantToChat) {
+        const productList = products?.length ? products : undefined;
+        const menuList = data.menuSuggestions?.length ? data.menuSuggestions : undefined;
         setMessages((prev) => [
           ...prev,
           {
             id: nextId(),
             role: "assistant",
-            text: reply || "Menüde uygun ürün bulamadım. Başka bir şekilde sorabilir misiniz?",
+            text:
+              productList?.length
+                ? assistantCaptionForProductReply(reply, productList.length)
+                : menuList?.length
+                  ? assistantCaptionForMenuReply(reply, menuList.length)
+                  : reply?.trim() || "Öneri hazırladım.",
+            products: productList,
+            menuSuggestions: menuList,
             ...(data.searchComplete ? { searchComplete: data.searchComplete } : {}),
+          },
+        ]);
+      } else if (data.menuSuggestions?.length || products?.length) {
+        const productList = products?.length ? products : undefined;
+        const menuList = data.menuSuggestions?.length ? data.menuSuggestions : undefined;
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: nextId(),
+            role: "assistant",
+            text:
+              productList?.length
+                ? assistantCaptionForProductReply(reply, productList.length)
+                : menuList?.length
+                  ? assistantCaptionForMenuReply(reply, menuList.length)
+                  : reply?.trim() || "Sepetinize göre öneriler.",
+            products: productList,
+            menuSuggestions: menuList,
           },
         ]);
       }
@@ -669,13 +728,22 @@ export function MenuChefChat({
         productIds: data.productIds,
         products: data.products,
       });
-      applyAgentPanels(data.menuSuggestions, products, "default");
+      applyAgentProductPanel(products, "default");
+      const productList = products?.length ? products : undefined;
+      const menuList = data.menuSuggestions?.length ? data.menuSuggestions : undefined;
       setMessages((prev) => [
         ...prev,
         {
           id: nextId(),
           role: "assistant",
-          text: reply || "Bu filtre için uygun ürün bulamadım.",
+          text:
+            productList?.length
+              ? assistantCaptionForProductReply(reply, productList.length, "Bu filtre için uygun ürün bulamadım.")
+              : menuList?.length
+                ? assistantCaptionForMenuReply(reply, menuList.length)
+                : reply?.trim() || "Bu filtre için uygun ürün bulamadım.",
+          products: productList,
+          menuSuggestions: menuList,
         },
       ]);
     } catch {
@@ -760,9 +828,9 @@ export function MenuChefChat({
                       type="button"
                       onClick={() => ordering.setCartOpen(true)}
                       className="relative inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#1c2824]/[0.04] text-[#3d4a45] transition hover:bg-[#1c2824]/[0.08] hover:text-[#1c2824]"
-                      aria-label="Sipariş"
+                      aria-label="Sepet"
                     >
-                      <Bell className="h-4 w-4" strokeWidth={2.25} />
+                      <ShoppingBag className="h-4 w-4" strokeWidth={2.1} aria-hidden />
                       {ordering.cartCount > 0 ? (
                         <span className="absolute -right-0.5 -top-0.5 inline-flex h-[1.1rem] min-w-[1.1rem] items-center justify-center rounded-full bg-[#2a3833] px-1 text-[10px] font-semibold leading-none text-white">
                           {ordering.cartCount > 99 ? "99+" : ordering.cartCount}
@@ -801,11 +869,6 @@ export function MenuChefChat({
               className="relative z-10 flex-1 overflow-y-auto overscroll-contain px-4 py-5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
             >
               <div className="mx-auto flex max-w-2xl flex-col gap-4">
-                <MenuChefChatStickyPanels
-                  menuSuggestions={panelMenuSuggestions}
-                  products={panelProducts}
-                  showProductIdOnCards={showProductIdOnCards}
-                />
                 <AnimatePresence mode="popLayout">
                   {messages.map((msg) => {
                     const shouldEnter = !enteredIdsRef.current.has(msg.id);
@@ -853,6 +916,8 @@ export function MenuChefChat({
                     );
                   })}
                 </AnimatePresence>
+
+                <MenuChefChatStickyPanels products={panelProducts} />
 
                 <AnimatePresence>
                   {loading ? (

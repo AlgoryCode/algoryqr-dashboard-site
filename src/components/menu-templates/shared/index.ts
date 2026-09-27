@@ -4,6 +4,7 @@ export { MenuViewportFrame } from "./MenuViewportFrame";
 export { AddToOrderButton } from "./AddToOrderButton";
 export { CartFab } from "./CartFab";
 export { CartSheet } from "./CartSheet";
+export { CartSheetHostProvider, useCartSheetHostOptional } from "./cart-sheet-host-context";
 export { CampaignCartPreview } from "./CampaignCartPreview";
 export { CampaignDetailDialog } from "./CampaignDetailDialog";
 export {

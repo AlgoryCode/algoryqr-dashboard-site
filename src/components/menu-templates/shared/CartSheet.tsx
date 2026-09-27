@@ -15,10 +15,15 @@ import { useMenuLocaleOptional } from "./menu-locale";
 import { Tx } from "@/components/google-translate-provider";
 import { OrderSuccessOverlay } from "./OrderSuccessOverlay";
 import { CampaignCartPreview } from "./CampaignCartPreview";
+import { useCartSheetHostOptional } from "./cart-sheet-host-context";
 import { useOrdering } from "./ordering-context";
 import { usePublicMenuTheme } from "./public-menu-theme";
 
 export function CartSheet() {
+  const cartSheetHost = useCartSheetHostOptional();
+  const chefChatActive = cartSheetHost?.chefChatActive ?? false;
+  const side = chefChatActive ? "left" : "right";
+  const stackZ = chefChatActive ? "z-[110]" : "z-[80]";
   const {
     identifier,
     sessionToken,
@@ -50,9 +55,11 @@ export function CartSheet() {
     <>
     <Sheet open={cartOpen} onOpenChange={setCartOpen}>
       <SheetContent
-        side="right"
-        overlayClassName="z-[80]"
-        className={`${theme.rootClassName} z-[80] h-full w-[min(100%,24rem)] overflow-y-auto border-l border-[var(--lx-border)] bg-[var(--lx-bg)] p-0 text-[var(--lx-fg)]`}
+        side={side}
+        overlayClassName={stackZ}
+        className={`${theme.rootClassName} ${stackZ} h-full w-[min(100%,24rem)] overflow-y-auto ${
+          side === "left" ? "border-r" : "border-l"
+        } border-[var(--lx-border)] bg-[var(--lx-bg)] p-0 text-[var(--lx-fg)]`}
         dir={locale?.dir}
       >
         <div className="space-y-4 px-4 pb-8 pt-4">

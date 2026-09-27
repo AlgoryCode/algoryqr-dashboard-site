@@ -1,3 +1,10 @@
+import {
+  MENU_THEME_PREVIEW_CATEGORIES,
+  MENU_THEME_PREVIEW_PRODUCTS,
+} from "@/components/menu-templates/preview-data";
+import { buildChefMenuSuggestions } from "@/lib/chef/build-chef-menu-suggestions";
+import { mapMenuProductToChefItem } from "@/lib/chef/map-menu-product-to-chef-item";
+
 import { catalogPackages, catalogProducts } from "./catalog-fixtures";
 
 export type ApiFixtureMode = "ready" | "setup";
@@ -54,6 +61,11 @@ function normalizePath(url: string): string {
 }
 
 function exactBody(path: string): unknown | undefined {
+  if (path.includes("/menu/public/") && path.includes("/products")) return publicMenuProductsPage();
+  if (path.includes("/menu/public/") && path.includes("/categories")) return publicMenuCategoriesPage();
+  if (path.startsWith("/menu/chef/search")) return chefAgentPreview();
+  if (path.startsWith("/menu/chef/badge-search")) return chefAgentPreview();
+  if (path.startsWith("/menu/chef/badges")) return chefBadgesPreview();
   if (path.startsWith("/access/context")) return sessionContext();
   if (path.startsWith("/account/payment-methods")) return paymentMethods();
   if (path.startsWith("/purchases/my/entitlements")) return [];
@@ -183,4 +195,53 @@ function emptyQuota() {
 
 function emptyMenuQuota() {
   return { extraUsed: 0, extraAllowed: 3, extraRemaining: 3, canCreateExtra: true };
+}
+
+function publicMenuProductsPage() {
+  const content = MENU_THEME_PREVIEW_PRODUCTS;
+  return {
+    content,
+    page: 0,
+    size: content.length,
+    totalElements: content.length,
+    totalPages: 1,
+    hasNext: false,
+  };
+}
+
+function publicMenuCategoriesPage() {
+  const content = MENU_THEME_PREVIEW_CATEGORIES;
+  return {
+    content,
+    page: 0,
+    size: content.length,
+    totalElements: content.length,
+    totalPages: 1,
+    hasNext: false,
+  };
+}
+
+function chefBadgesPreview() {
+  return {
+    welcomeMessage:
+      "Merhaba! Menünüzden size en uygun lezzetleri birlikte seçelim. İsterseniz hazır menü paketlerini de önerebilirim.",
+    badges: [
+      { id: "chef_recommended", label: "Şefin önerisi", filter: { type: "chefRecommended" } },
+      { id: "popular", label: "En popüler", filter: { type: "popularByRating" } },
+      { id: "meat", label: "Deniz ürünleri", filter: { type: "mainCategoryId", mainCategoryId: 2 } },
+    ],
+  };
+}
+
+function chefAgentPreview() {
+  const catalog = MENU_THEME_PREVIEW_PRODUCTS;
+  const products = catalog.slice(1, 5).map(mapMenuProductToChefItem);
+  const menuSuggestions = buildChefMenuSuggestions(products, catalog, { maxSuggestions: 2 });
+  return {
+    reply:
+      "Akşam için harika bir tabak seçtim. Aşağıda tam menü paketleri (yemek + içecek + tatlı) ve tek tek ürün önerileri var — beğendiğinizi sepete ekleyebilirsiniz.",
+    conversationId: "storybook-chef-preview",
+    products,
+    menuSuggestions,
+  };
 }

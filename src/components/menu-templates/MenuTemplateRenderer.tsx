@@ -25,6 +25,7 @@ import {
   OrderingProvider,
   PublicMenuDataProvider,
   PublicMenuThemeProvider,
+  CartSheetHostProvider,
   SharedMenuChrome,
   useMenuLocale,
   useMenuProductFeed,
@@ -119,26 +120,28 @@ function MenuShell({
           <MenuProductNavigatorProvider>
             <Suspense fallback={null}>
               <OrderingProvider identifier={publicId} publicId={publicId}>
-                <CampaignProductIdsProvider identifier={publicId}>
-                  <CustomerAccountMenu publicId={publicId}>
-                    <MenuTemplateBody
-                      menu={menu}
-                      themeId={themeId}
-                      analytics={analytics}
-                    />
-                    <SharedMenuChrome publicId={publicId} />
-                    {themeId !== "maison-noir" &&
-                    themeId !== "modern-bistro" &&
-                    themeId !== "kahve-sokagi" ? (
-                      <MenuChefFab
-                        publicId={publicId}
-                        chefName={menu.chefName}
-                        chefDisplayName={menu.chefDisplayName}
-                        chefAvatarUrl={menu.chefAvatarUrl}
+                <CartSheetHostProvider>
+                  <CampaignProductIdsProvider identifier={publicId}>
+                    <CustomerAccountMenu publicId={publicId}>
+                      <MenuTemplateBody
+                        menu={menu}
+                        themeId={themeId}
+                        analytics={analytics}
                       />
-                    ) : null}
-                  </CustomerAccountMenu>
-                </CampaignProductIdsProvider>
+                      <SharedMenuChrome publicId={publicId} />
+                      {themeId !== "maison-noir" &&
+                      themeId !== "modern-bistro" &&
+                      themeId !== "kahve-sokagi" ? (
+                        <MenuChefFab
+                          publicId={publicId}
+                          chefName={menu.chefName}
+                          chefDisplayName={menu.chefDisplayName}
+                          chefAvatarUrl={menu.chefAvatarUrl}
+                        />
+                      ) : null}
+                    </CustomerAccountMenu>
+                  </CampaignProductIdsProvider>
+                </CartSheetHostProvider>
               </OrderingProvider>
             </Suspense>
           </MenuProductNavigatorProvider>
