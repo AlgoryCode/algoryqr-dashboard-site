@@ -26,6 +26,7 @@ const bodySchema = z.object({
   priorOrderProductIds: z.array(z.number().int().positive()).max(40).optional(),
   conversationTranscript: z.string().trim().max(2000).optional(),
   locale: z.enum(["tr", "en", "ru", "ar"]).optional(),
+  userQuery: z.string().trim().max(500).optional(),
 });
 
 export async function POST(req: Request) {
@@ -95,6 +96,7 @@ export async function POST(req: Request) {
       cartProductIds: parsed.data.cartProductIds ?? [],
       recentlyShownProductIds: parsed.data.recentlyShownProductIds ?? [],
       priorOrderProductIds: parsed.data.priorOrderProductIds ?? [],
+      userQuery: parsed.data.userQuery,
     });
 
     return NextResponse.json({

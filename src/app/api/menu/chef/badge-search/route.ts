@@ -11,6 +11,7 @@ import { fetchPublicMenuProducts } from "@/lib/chef/fetch-public-menu-products-s
 import { hydrateChefProductsForPublicMenu } from "@/lib/chef/hydrate-chef-products-server";
 import { isChefBadgeHybridAgentEnabled } from "@/lib/chef/chef-funnel-flags";
 import { refineChefBadgeProductsWithAgent } from "@/lib/chef/refine-chef-badge-with-agent";
+import { applyUserQueryToChefRecommendations } from "@/lib/chef/filter-chef-products-by-user-query";
 import { rankChefRecommendations } from "@/lib/chef/rank-chef-recommendations";
 import { selectProductsForChefBadgeFilter } from "@/lib/chef/resolve-chef-badge-products";
 import type { MenuProductApiItem } from "@/lib/api";
@@ -23,6 +24,7 @@ const bodySchema = z.object({
   badgeId: z.string().trim().min(1).max(64),
   recentlyShownProductIds: z.array(z.number().int().positive()).max(60).optional(),
   locale: z.enum(["tr", "en", "ru", "ar"]).optional(),
+  userQuery: z.string().trim().max(500).optional(),
 });
 
 type ProductPageResponse = {
@@ -143,7 +145,22 @@ export async function POST(req: Request) {
       productIds,
       catalog: menuProducts,
     });
-    products = rankChefRecommendations(products, fullCatalog, [], parsed.data.recentlyShownProductIds ?? []);
+    const badgeQuery = parsed.data.userQuery?.trim() || badge.label;
+    products = applyUserQueryToChefRecommendations(
+      products,
+      fullCatalog,
+      badgeQuery,
+      [],
+      badgeQuery,
+    );
+    products = rankChefRecommendations(
+      products,
+      fullCatalog,
+      [],
+      parsed.data.recentlyShownProductIds ?? [],
+      [],
+      { maxPerMainCategory: 6 },
+    );
     const recentIds = parsed.data.recentlyShownProductIds ?? [];
     if (recentIds.length > 0 && products.length > 0) {
       const recentSet = new Set(recentIds);

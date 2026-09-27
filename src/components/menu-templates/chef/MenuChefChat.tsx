@@ -566,9 +566,13 @@ export function MenuChefChat({
 
     const recentlyShownProductIds = recentChefRecommendationProductIds(messages);
     const conversationTranscript = buildChefConversationTranscript(messages);
+    const userQuery =
+      mode === "general" ? undefined : text.trim() ? text.trim() : undefined;
+
     const searchBody = {
       publicId,
       message: agentMessage,
+      userQuery,
       conversationId,
       menuProducts: chefMenuProducts,
       cartProductIds,
@@ -715,6 +719,7 @@ export function MenuChefChat({
         body: JSON.stringify({
           publicId,
           badgeId: badge.id,
+          userQuery: badge.label,
           recentlyShownProductIds,
           locale: (menuLocale?.locale ?? "tr") as ChefMenuLocale,
         }),

@@ -22,6 +22,7 @@ export type ProcessChefSearchInput = {
   cartProductIds: number[];
   recentlyShownProductIds: number[];
   priorOrderProductIds: number[];
+  userQuery?: string;
 };
 
 export type ProcessChefSearchResult = {
@@ -61,8 +62,9 @@ export async function processChefAgentSearch(
     input.menuProducts,
     input.message,
     input.cartProductIds,
+    input.userQuery,
   );
-  const specificQuery = isSpecificProductQuery(input.message);
+  const specificQuery = isSpecificProductQuery(input.message, input.userQuery);
   const products = rankChefRecommendations(
     queryAligned,
     input.menuProducts,
@@ -73,7 +75,12 @@ export async function processChefAgentSearch(
   );
 
   const baseReply = input.agent.reply ?? "";
-  const reply = products.length > 0 ? mergeReplyWithPersuasion(baseReply, products) : baseReply;
+  const reply =
+    products.length > 0
+      ? mergeReplyWithPersuasion(baseReply, products)
+      : specificQuery
+        ? "Bu isteğe uygun ürün menüde bulamadım. Başka bir isim veya kategori deneyebilirsiniz."
+        : baseReply;
 
   return {
     reply,

@@ -14,6 +14,7 @@ const QUERY_STOP_WORDS = new Set([
   "tane",
   "adet",
   "var",
+  "yok",
   "mi",
   "mı",
   "mu",
@@ -34,18 +35,27 @@ const QUERY_STOP_WORDS = new Set([
   "olsun",
   "getir",
   "gelsin",
+  "degil",
+  "değil",
 ]);
 
 const QUERY_SYNONYMS: Record<string, string[]> = {
   hamburger: ["burger", "hamburger"],
   burger: ["burger", "hamburger"],
+  kola: ["kola", "cola", "coca"],
+  cola: ["kola", "cola", "coca"],
+  coca: ["kola", "cola", "coca"],
 };
+
+const COCKTAIL_PATTERN =
+  /kokteyl|cocktail|\b5\s*cl\b|margarita|mojito|cosmopolitan|aperol|spritz|long\s*island|piña|pina\s*cola|white\s*russian|sex\s*on|tom\s*collins|sangria|martini|daiquiri|negroni|old\s*fashioned|whiskey\s*sour/i;
 
 function normalizeMatchText(value: string): string {
   return value
     .toLocaleLowerCase("tr-TR")
     .normalize("NFD")
-    .replace(/\p{M}/gu, "");
+    .replace(/\p{M}/gu, "")
+    .replace(/[-_/]/g, " ");
 }
 
 /** Son gerçek kullanıcı cümlesi (BFF prefix’lerini atlar). */
@@ -65,6 +75,12 @@ export function extractUserQueryForChefMatch(message: string): string {
   }
 
   return lines[lines.length - 1] ?? message;
+}
+
+export function resolveChefUserQuery(message: string, userQuery?: string): string {
+  const direct = userQuery?.trim();
+  if (direct) return direct;
+  return extractUserQueryForChefMatch(message);
 }
 
 export function queryTermsForChefMatch(query: string): string[] {
@@ -94,15 +110,29 @@ function scoreTermAgainstProduct(haystack: string, nameHay: string, term: string
   return best;
 }
 
-export function isSpecificProductQuery(message: string): boolean {
+export function isSpecificProductQuery(message: string, userQuery?: string): boolean {
   if (/genel ürün önerisi|genel öneri|genel menü/i.test(message)) return false;
-  if (/müşteri sepeti:|sepetime uygun/i.test(message) && !/istiyorum|isterim/i.test(message)) {
+  if (
+    !userQuery?.trim() &&
+    /müşteri sepeti:|sepetime uygun/i.test(message) &&
+    !/istiyorum|isterim/i.test(message)
+  ) {
     return false;
   }
 
-  const query = extractUserQueryForChefMatch(message);
+  const query = resolveChefUserQuery(message, userQuery);
   const terms = queryTermsForChefMatch(query);
-  return terms.length > 0 && terms.length <= 5;
+  if (terms.length === 0 || terms.length > 5) return false;
+  if (/genel öneri|genel ürün/i.test(query)) return false;
+  return true;
+}
+
+export function prefersSoftDrinkQuery(query: string): boolean {
+  const normalized = normalizeMatchText(query);
+  if (/kokteyl|cocktail|alkol|bira|şarap|sarap|wine/.test(normalized)) return false;
+  return /serin|soguk|soğuk|mesrubat|meşrubat|kola|cola|soda|gazoz|ayran|limonata|ice\s*cek|içecek|meyve\s*suyu/.test(
+    normalized,
+  );
 }
 
 function productMatchHaystack(catalog: MenuProductApiItem): string {
@@ -118,6 +148,27 @@ function productMatchHaystack(catalog: MenuProductApiItem): string {
     ]
       .filter(Boolean)
       .join(" "),
+  );
+}
+
+function isLikelyCocktailProduct(catalog: MenuProductApiItem | undefined, item?: ChefProductItem): boolean {
+  const hay = normalizeMatchText(
+    [item?.name, catalog?.name, catalog?.mainCategoryName, catalog?.subCategoryName]
+      .filter(Boolean)
+      .join(" "),
+  );
+  return COCKTAIL_PATTERN.test(hay) || hay.includes("kokteyl");
+}
+
+export function filterSoftDrinkProducts(
+  products: ChefProductItem[],
+  catalog: MenuProductApiItem[],
+  query: string,
+): ChefProductItem[] {
+  if (!prefersSoftDrinkQuery(query)) return products;
+  const catalogById = new Map(catalog.map((entry) => [entry.productId, entry]));
+  return products.filter(
+    (item) => !isLikelyCocktailProduct(catalogById.get(item.productId), item),
   );
 }
 
@@ -162,30 +213,13 @@ function menuProductToChefItem(product: MenuProductApiItem): ChefProductItem {
   };
 }
 
-/**
- * Belirli ürün isteğinde agent’ın alakasız kategorilerini budar; gerekirse katalogdan doğru ürünleri seçer.
- */
-export function applyUserQueryToChefRecommendations(
+function pickFromCatalogHits(
+  catalogHits: { entry: MenuProductApiItem; score: number }[],
   products: ChefProductItem[],
-  catalog: MenuProductApiItem[],
-  message: string,
-  cartProductIds: number[] = [],
+  catalogById: Map<number, MenuProductApiItem>,
+  terms: string[],
 ): ChefProductItem[] {
-  if (!isSpecificProductQuery(message)) return products;
-
-  const terms = queryTermsForChefMatch(extractUserQueryForChefMatch(message));
-  if (terms.length === 0) return products;
-
-  const cartSet = new Set(cartProductIds);
-  const catalogById = new Map(catalog.map((entry) => [entry.productId, entry]));
-
-  const catalogHits = catalog
-    .filter((entry) => !cartSet.has(entry.productId))
-    .map((entry) => ({ entry, score: scoreChefProductQueryMatch(entry, terms) }))
-    .filter((row) => row.score > 0)
-    .sort((a, b) => b.score - a.score);
-
-  if (catalogHits.length === 0) return products;
+  if (catalogHits.length === 0) return [];
 
   const topScore = catalogHits[0].score;
   const minScore = Math.max(50, topScore * 0.55);
@@ -233,4 +267,41 @@ export function applyUserQueryToChefRecommendations(
   }
 
   return focusedPool.slice(0, 6).map((row) => menuProductToChefItem(row.entry));
+}
+
+/**
+ * Belirli ürün isteğinde agent’ın alakasız kategorilerini budar; katalogdan doğru ürünleri seçer.
+ */
+export function applyUserQueryToChefRecommendations(
+  products: ChefProductItem[],
+  catalog: MenuProductApiItem[],
+  message: string,
+  cartProductIds: number[] = [],
+  userQuery?: string,
+): ChefProductItem[] {
+  const queryText = resolveChefUserQuery(message, userQuery);
+  if (!isSpecificProductQuery(message, userQuery)) return products;
+
+  const terms = queryTermsForChefMatch(queryText);
+  if (terms.length === 0) return products;
+
+  const cartSet = new Set(cartProductIds);
+  const catalogById = new Map(catalog.map((entry) => [entry.productId, entry]));
+
+  const catalogHits = catalog
+    .filter((entry) => !cartSet.has(entry.productId))
+    .map((entry) => ({ entry, score: scoreChefProductQueryMatch(entry, terms) }))
+    .filter((row) => row.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (catalogHits.length === 0) {
+    if (prefersSoftDrinkQuery(queryText)) {
+      return filterSoftDrinkProducts(products, catalog, queryText).slice(0, 6);
+    }
+    return [];
+  }
+
+  const picked = pickFromCatalogHits(catalogHits, products, catalogById, terms);
+  const withSoftDrink = filterSoftDrinkProducts(picked, catalog, queryText);
+  return withSoftDrink.slice(0, 6);
 }
