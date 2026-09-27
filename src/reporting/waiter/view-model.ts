@@ -117,9 +117,10 @@ export function buildWaiterPerformanceReportView(
     const orderCount = waiterPerformanceOrderCount(row.orderCount);
     const itemCount = waiterPerformanceItemCount(row.itemCount);
     const rowRevenue = waiterPerformanceRevenue(row.revenue);
+    const staffId = row.staffId ?? row.waiterId ?? null;
     return {
-      key: row.waiterId != null ? String(row.waiterId) : "unassigned",
-      waiterId: row.waiterId ?? null,
+      key: staffId != null ? String(staffId) : "unassigned",
+      waiterId: staffId,
       displayName: row.displayName,
       orderCount,
       itemCount,
@@ -132,7 +133,7 @@ export function buildWaiterPerformanceReportView(
       orderSharePercent: row.orderSharePercent ?? 0,
       itemSharePercent: row.itemSharePercent ?? 0,
       active: row.active ?? true,
-      unassigned: row.waiterId == null,
+      unassigned: staffId == null,
       topProducts: (row.topProducts ?? []).map(mapProductRow),
     };
   });

@@ -194,7 +194,7 @@ export default function SmartReportsView() {
           description="Analitik sayfasından ilk akıllı raporunuzu oluşturabilirsiniz."
           action={
             <Link
-              href={DASHBOARD_ROUTES.analytics}
+              href={DASHBOARD_ROUTES.reportsHub}
               className="text-sm font-medium text-primary hover:underline"
             >
               Raporlardan akıllı rapor oluştur

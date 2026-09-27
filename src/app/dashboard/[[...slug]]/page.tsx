@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 
 const LEGACY_DASHBOARD_REDIRECTS: Record<string, string> = {
+  analitik: DASHBOARD_ROUTES.reportsHub,
+  "dijital-menu/analitik": DASHBOARD_ROUTES.reportsHub,
   "dijital-menu/restoran-duzeni": DASHBOARD_ROUTES.restaurantLayout,
   "dijital-menu/garson": DASHBOARD_ROUTES.waiter,
   "dijital-menu/waiter-orders": DASHBOARD_ROUTES.waiter,

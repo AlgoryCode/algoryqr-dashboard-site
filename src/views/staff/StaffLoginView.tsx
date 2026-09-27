@@ -11,14 +11,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   parseStaffRole,
-  STAFF_APP_HEADER,
+  rememberStaffApp,
+  resolveStaffSession,
+  staffAppForRole,
   staffHomePath,
-  type StaffApp,
 } from "@/lib/waiter-api";
 
-const STAFF_APPS: StaffApp[] = ["kitchen", "courier", "waiter"];
+type StaffLoginViewProps = {
+  onAuthenticated?: () => void;
+};
 
-export default function StaffLoginView() {
+export default function StaffLoginView({ onAuthenticated }: StaffLoginViewProps) {
   const router = useRouter();
   const [merchantId, setMerchantId] = useState("");
   const [username, setUsername] = useState("");
@@ -30,20 +33,19 @@ export default function StaffLoginView() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      for (const app of STAFF_APPS) {
-        try {
-          const response = await fetch("/api/waiter/auth/me", {
-            credentials: "same-origin",
-            headers: { Accept: "application/json", [STAFF_APP_HEADER]: app },
-          });
-          if (!response.ok) continue;
-          const data = (await response.json()) as { staffRole?: string };
-          if (cancelled) return;
-          router.replace(staffHomePath(parseStaffRole(data.staffRole)));
+      try {
+        const session = await resolveStaffSession();
+        if (cancelled) return;
+        if (session) {
+          if (onAuthenticated) {
+            onAuthenticated();
+          } else {
+            router.replace(staffHomePath(parseStaffRole(session.me.staffRole)));
+          }
           return;
-        } catch {
-          // Try the next staff cookie.
         }
+      } catch {
+        // Oturum yok.
       }
       if (!cancelled) setChecking(false);
     })();
@@ -80,7 +82,13 @@ export default function StaffLoginView() {
         setError(data.message || "Giriş başarısız");
         return;
       }
-      router.replace(staffHomePath(parseStaffRole(data.staffRole)));
+      const role = parseStaffRole(data.staffRole);
+      rememberStaffApp(staffAppForRole(role));
+      if (onAuthenticated) {
+        onAuthenticated();
+      } else {
+        router.replace(staffHomePath(role));
+      }
     } catch {
       setError("Giriş yapılamadı");
     } finally {
@@ -101,8 +109,7 @@ export default function StaffLoginView() {
           <div className="space-y-2 text-center">
             <h1 className="text-2xl font-bold">Personel girişi</h1>
             <p className="text-sm text-muted-foreground">
-              İşletme ID, kullanıcı adı ve şifre ile girin. Hesabınız garson, mutfak veya kurye ekranına
-              yönlendirilir.
+              İşletme ID, kullanıcı adı ve şifre ile girin. Rolünüze göre personel paneli açılır.
             </p>
           </div>
           {checking ? (

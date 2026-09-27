@@ -264,7 +264,7 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
         <TrialReminderDialog />
         <DashboardCommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
         {isFullScreenGate || isLiveOpsHome ? (
-          <div className="h-svh overflow-hidden bg-[#f8f9fb]">{children}</div>
+          <div className="h-svh overflow-hidden bg-background">{children}</div>
         ) : (
       <div className="flex h-svh overflow-hidden bg-background">
         <aside

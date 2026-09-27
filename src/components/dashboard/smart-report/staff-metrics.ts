@@ -76,14 +76,19 @@ export function readStaffCompare(waiter: MenuWaiterPerformanceReportResponse): S
   };
 }
 
+function staffKey(row: { waiterId?: number | null; staffId?: number | null }): number | null {
+  const id = row.staffId ?? row.waiterId;
+  return id == null ? null : id;
+}
+
 export function filterStaffReport(
   report: MenuWaiterPerformanceReportResponse,
   waiterId: number | null,
 ): MenuWaiterPerformanceReportResponse {
   if (waiterId == null) return report;
-  const row = (report.waiters ?? []).find((item) => item.waiterId === waiterId);
+  const row = (report.waiters ?? []).find((item) => staffKey(item) === waiterId);
   if (!row) {
-    return { ...report, waiters: [], daily: [], hourly: [], kpis: { ...report.kpis, totalRevenue: 0, totalTip: 0, itemCount: 0, billsClosedCount: 0 } };
+    return { ...report, waiters: [], daily: [], hourly: [], kpis: { ...report.kpis, totalRevenue: 0, totalTip: 0, itemCount: 0, billsClosedCount: 0, activeWaiterCount: 0 } };
   }
   return {
     ...report,
@@ -102,6 +107,7 @@ export function filterStaffReport(
       totalTip: row.tipAmount,
       itemCount: row.itemCount,
       billsClosedCount: row.billsClosedCount || row.orderCount,
+      activeWaiterCount: row.active === false ? 0 : 1,
     },
   };
 }

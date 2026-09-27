@@ -371,7 +371,7 @@ function PersonnelMobileList({ rows, currency }: { rows: MenuRevenuePersonnelRow
       </div>
       <ul className="divide-y divide-border">
         {visible.map((row) => (
-          <li key={row.waiterId ?? row.displayName} className="px-4 py-3">
+          <li key={row.staffId ?? row.waiterId ?? row.displayName} className="px-4 py-3">
             <div className="flex items-baseline justify-between gap-3">
               <p className="min-w-0 truncate text-sm font-medium text-foreground">
                 {row.displayName}
@@ -424,7 +424,7 @@ function PersonnelDesktopTable({ rows, currency }: { rows: MenuRevenuePersonnelR
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.waiterId ?? row.displayName} className="border-b border-border last:border-0">
+              <tr key={row.staffId ?? row.waiterId ?? row.displayName} className="border-b border-border last:border-0">
                 <td className="px-4 py-2 font-medium text-foreground">
                   {row.displayName}
                   {row.active === false ? (

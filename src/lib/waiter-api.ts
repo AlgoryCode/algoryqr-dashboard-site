@@ -240,11 +240,36 @@ function isWaiterPublicAuthPath(url: string): boolean {
   return WAITER_PUBLIC_AUTH_PATHS.some((path) => url.includes(path));
 }
 
+const STAFF_APP_STORAGE_KEY = "algory-staff-app";
+
+export function rememberStaffApp(app: StaffApp): void {
+  if (typeof window === "undefined") return;
+  sessionStorage.setItem(STAFF_APP_STORAGE_KEY, app);
+}
+
 export function currentStaffApp(): StaffApp {
   if (typeof window === "undefined") return "waiter";
+  const stored = sessionStorage.getItem(STAFF_APP_STORAGE_KEY);
+  if (stored === "kitchen" || stored === "courier" || stored === "waiter") return stored;
   if (window.location.pathname.startsWith("/mutfak")) return "kitchen";
   if (window.location.pathname.startsWith("/kurye")) return "courier";
   return "waiter";
+}
+
+const STAFF_APP_TRY_ORDER: StaffApp[] = ["waiter", "kitchen", "courier"];
+
+export async function resolveStaffSession(): Promise<{ me: WaiterMe; app: StaffApp } | null> {
+  for (const app of STAFF_APP_TRY_ORDER) {
+    const response = await fetch("/api/waiter/auth/me", {
+      credentials: "same-origin",
+      headers: { Accept: "application/json", [STAFF_APP_HEADER]: app },
+    });
+    if (!response.ok) continue;
+    const me = await parseJson<WaiterMe>(response);
+    rememberStaffApp(app);
+    return { me, app };
+  }
+  return null;
 }
 
 function withStaffAppHeaders(init?: RequestInit, app?: StaffApp): RequestInit {
@@ -492,11 +517,11 @@ export async function listWaiterTodayOrders(): Promise<OrderResponse[]> {
     headers: { Accept: "application/json" },
     credentials: "same-origin",
   });
-  const data = await parseJson<OrderResponse[] | { message?: string }>(response);
+  const data = await parseJson<unknown>(response);
   if (!response.ok) {
     throw new WaiterApiError(response.status, messageFromUnknown(data, "Siparişler alınamadı"));
   }
-  return Array.isArray(data) ? data : [];
+  return asKitchenTickets(data);
 }
 
 export async function listWaiterTables(): Promise<WaiterTableSummary[]> {
@@ -641,7 +666,8 @@ export async function listWaiterReadyOrders(): Promise<OrderResponse[]> {
   return Array.isArray(data) ? data : [];
 }
 
-export async function markWaiterOrderServed(orderId: number): Promise<OrderResponse> {
+/** Mutfaktan teslim alındı (READY → SERVED); mutfak kuyruğunda garson adı görünür. */
+export async function markWaiterOrderPickedFromKitchen(orderId: number): Promise<OrderResponse> {
   const response = await waiterFetch(`/api/waiter/orders/${orderId}/served`, {
     method: "POST",
     headers: { Accept: "application/json" },
@@ -649,9 +675,14 @@ export async function markWaiterOrderServed(orderId: number): Promise<OrderRespo
   });
   const data = await parseJson<OrderResponse & { message?: string }>(response);
   if (!response.ok) {
-    throw new WaiterApiError(response.status, data.message || "Müşteriye teslim işaretlenemedi");
+    throw new WaiterApiError(response.status, data.message || "Mutfaktan teslim alınamadı");
   }
   return data;
+}
+
+/** @deprecated Aynı uç nokta; yeni kod `markWaiterOrderPickedFromKitchen` kullansın. */
+export async function markWaiterOrderServed(orderId: number): Promise<OrderResponse> {
+  return markWaiterOrderPickedFromKitchen(orderId);
 }
 
 export async function listKitchenQueue(): Promise<OrderResponse[]> {
@@ -800,10 +831,8 @@ export function staffAppMismatchMessage(expected: StaffRole, actual?: StaffRole 
   return "Bu hesap mutfak içindir. Mutfak girişini kullanın.";
 }
 
-export function staffHomePath(staffRole?: StaffRole | null): string {
-  if (isKitchenRole(staffRole)) return "/mutfak";
-  if (isCourierRole(staffRole)) return "/kurye";
-  return "/waiter";
+export function staffHomePath(_staffRole?: StaffRole | null): string {
+  return STAFF_GATE_PATH;
 }
 
 export const STAFF_GATE_PATH = "/personel";

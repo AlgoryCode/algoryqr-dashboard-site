@@ -1475,6 +1475,7 @@ export interface RevenueChannelDailyPoint {
 }
 
 export interface MenuRevenuePersonnelRow {
+  staffId?: number | null;
   waiterId?: number | null;
   displayName: string;
   revenue?: number | string | null;
@@ -1599,6 +1600,7 @@ export interface MenuWaiterPerformanceProductRow {
 
 export interface MenuWaiterPerformanceRow {
   waiterId?: number | null;
+  staffId?: number | null;
   displayName: string;
   orderCount?: number;
   itemCount?: number;
@@ -1812,6 +1814,7 @@ export interface FullAnalyticsResponse {
     kpis: MenuWaiterPerformanceKpis;
     rows: MenuWaiterPerformanceRow[];
     ranking: {
+      staffId?: number | null;
       waiterId?: number | null;
       displayName: string;
       revenue?: number | string | null;
@@ -1884,6 +1887,7 @@ export interface FullAnalyticsResponse {
   cancellations: {
     byStatus: { status: string; count: number }[];
     byWaiter: {
+      staffId?: number | null;
       waiterId?: number | null;
       displayName: string;
       cancelCount: number;
@@ -1934,6 +1938,7 @@ export interface FullAnalyticsResponse {
     billId?: number | null;
     orderId?: number | null;
     tableId?: number | null;
+    staffId?: number | null;
     waiterId?: number | null;
     productId?: number | null;
     paidAt?: string | null;

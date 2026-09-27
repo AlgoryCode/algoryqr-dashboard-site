@@ -4,8 +4,11 @@ import { COURIER_APP_ORIGIN, KITCHEN_APP_ORIGIN, WAITER_APP_ORIGIN } from "@/lib
 export const DASHBOARD_ROUTES = {
   root: "/dashboard",
   overview: "/dashboard/genel-bakis",
-  analytics: "/dashboard/dijital-menu/analitik",
+  /** Canonical reports URL (same as {@link DASHBOARD_ROUTES.reportsHub}). */
+  analytics: "/dashboard/raporlar",
   analyticsLegacy: "/dashboard/analitik",
+  /** Old menu-nested reports path; kept for redirects and bookmarks. */
+  analyticsMenuLegacy: "/dashboard/dijital-menu/analitik",
   digitalMenu: "/dashboard/dijital-menu",
   digitalMenuMenus: "/dashboard/dijital-menu/menuler",
   digitalMenuProducts: "/dashboard/dijital-menu/urunler",
@@ -57,7 +60,7 @@ export const DASHBOARD_ROUTES = {
   digitalMenuCategoriesForQr: (qrId: number | string) =>
     `/dashboard/dijital-menu/kategoriler?qr=${qrId}`,
   digitalMenuAnalytics: (qrId: number | string) =>
-    `/dashboard/dijital-menu/analitik?qr=${qrId}`,
+    `${DASHBOARD_ROUTES.reportsHub}?qr=${qrId}`,
   digitalMenuAnalyticsForBranch: (
     branchId: number | string,
     qrId?: number | string | null,
@@ -65,7 +68,7 @@ export const DASHBOARD_ROUTES = {
     const params = new URLSearchParams();
     params.set("branch", String(branchId));
     if (qrId != null && qrId !== "") params.set("qr", String(qrId));
-    return `/dashboard/dijital-menu/analitik?${params.toString()}`;
+    return `${DASHBOARD_ROUTES.reportsHub}?${params.toString()}`;
   },
   smartReports: "/dashboard/dijital-menu/akilli-raporlar",
   smartReportDetail: (jobId: string) =>
@@ -394,8 +397,11 @@ export function buildDashboardBreadcrumbs(
       crumbs[crumbs.length - 1] = { label: "Raporlar" };
       return crumbs;
     }
-    if (pathname === DASHBOARD_ROUTES.analytics || pathname === DASHBOARD_ROUTES.analyticsLegacy) {
-      crumbs.push({ label: "Menü Analitiği" });
+    if (
+      pathname === DASHBOARD_ROUTES.analyticsLegacy ||
+      pathname === DASHBOARD_ROUTES.analyticsMenuLegacy
+    ) {
+      crumbs.push({ label: "Raporlar" });
       return crumbs;
     }
     if (pathname === DASHBOARD_ROUTES.smartReports) {
@@ -650,9 +656,9 @@ export function isDashboardNavActive(pathname: string, href: string): boolean {
 export function isReportsSectionActive(pathname: string): boolean {
   return (
     pathname === DASHBOARD_ROUTES.reportsHub ||
-    pathname === DASHBOARD_ROUTES.analytics ||
-    pathname.startsWith(`${DASHBOARD_ROUTES.analytics}/`) ||
     pathname === DASHBOARD_ROUTES.analyticsLegacy ||
+    pathname === DASHBOARD_ROUTES.analyticsMenuLegacy ||
+    pathname.startsWith(`${DASHBOARD_ROUTES.analyticsMenuLegacy}/`) ||
     pathname === DASHBOARD_ROUTES.smartReports ||
     pathname.startsWith(`${DASHBOARD_ROUTES.smartReports}/`)
   );

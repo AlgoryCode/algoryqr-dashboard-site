@@ -40,10 +40,10 @@ describe("staff role routing", () => {
     expect(staffRoleMatchesApp("WAITER", "COURIER")).toBe(false);
   });
 
-  it("sends each role to its own home path", () => {
-    expect(staffHomePath("KITCHEN")).toBe("/mutfak");
-    expect(staffHomePath("WAITER")).toBe("/waiter");
-    expect(staffHomePath("COURIER")).toBe("/kurye");
+  it("sends every role to the personel app", () => {
+    expect(staffHomePath("KITCHEN")).toBe("/personel");
+    expect(staffHomePath("WAITER")).toBe("/personel");
+    expect(staffHomePath("COURIER")).toBe("/personel");
     expect(staffLoginPath("courier")).toBe("/personel");
     expect(staffLoginPath("kitchen")).toBe("/personel");
     expect(staffLoginPath("waiter")).toBe("/personel");

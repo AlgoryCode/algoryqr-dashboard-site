@@ -1,12 +1,5 @@
-import type { Metadata } from "next";
-
-import StaffWaiterView from "@/views/staff/StaffWaiterView";
-
-export const metadata: Metadata = {
-  title: "Garson",
-  robots: { index: false, follow: false },
-};
+import { redirect } from "next/navigation";
 
 export default function WaiterStaffPage() {
-  return <StaffWaiterView />;
+  redirect("/personel");
 }

@@ -1,12 +1,5 @@
-import type { Metadata } from "next";
-
-import StaffKitchenView from "@/views/staff/StaffKitchenView";
-
-export const metadata: Metadata = {
-  title: "Mutfak",
-  robots: { index: false, follow: false },
-};
+import { redirect } from "next/navigation";
 
 export default function KitchenStaffPage() {
-  return <StaffKitchenView />;
+  redirect("/personel");
 }

@@ -484,7 +484,9 @@ function KitchenOrderCard({
         </div>
         {columnId === "SERVED" ? (
           <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
-            Teslim edildi
+            {mode === "kitchen"
+              ? order.waiterName?.trim() || "Garsona teslim"
+              : order.waiterName?.trim() || "Teslim edildi"}
           </span>
         ) : delayed ? (
           <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600">

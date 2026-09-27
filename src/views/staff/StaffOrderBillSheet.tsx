@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import type { ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Printer } from "lucide-react";
 
@@ -53,11 +54,15 @@ async function autoServeReadyOrders(
   }
 }
 
+type SheetPanel = "bill" | "process";
+
 type StaffOrderBillSheetProps = {
   order: OrderResponse | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onBillUpdated?: () => void;
+  processPanel?: ReactNode;
+  defaultPanel?: SheetPanel;
 };
 
 export function StaffOrderBillSheet({
@@ -65,6 +70,8 @@ export function StaffOrderBillSheet({
   open,
   onOpenChange,
   onBillUpdated,
+  processPanel,
+  defaultPanel = "bill",
 }: StaffOrderBillSheetProps) {
   const queryClient = useQueryClient();
   const tableId = order?.tableId ?? null;
@@ -88,6 +95,11 @@ export function StaffOrderBillSheet({
   const [payItem, setPayItem] = useState<WaiterBillItem | null>(null);
   const [reversingPaymentId, setReversingPaymentId] = useState<number | null>(null);
   const [billError, setBillError] = useState<string | null>(null);
+  const [sheetPanel, setSheetPanel] = useState<SheetPanel>(defaultPanel);
+
+  useEffect(() => {
+    if (open) setSheetPanel(defaultPanel);
+  }, [open, defaultPanel, order?.id]);
 
   const billQuery = useQuery({
     queryKey: ["staff-waiter-bill", tableId, order?.id ?? null],
@@ -224,8 +236,8 @@ export function StaffOrderBillSheet({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="right" className="flex w-full flex-col overflow-y-auto sm:max-w-md">
-          <SheetHeader>
+        <SheetContent side="right" className="flex w-full flex-col overflow-hidden sm:max-w-md">
+          <SheetHeader className="shrink-0">
             <SheetTitle>Adisyon</SheetTitle>
             <SheetDescription>
               {tableLabel}
@@ -233,11 +245,50 @@ export function StaffOrderBillSheet({
             </SheetDescription>
           </SheetHeader>
 
-          {tableId == null ? (
+          {processPanel ? (
+            <div
+              className="mt-3 flex shrink-0 rounded-lg border border-border bg-muted/30 p-0.5"
+              role="tablist"
+              aria-label="Adisyon panelleri"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={sheetPanel === "bill"}
+                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  sheetPanel === "bill"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                onClick={() => setSheetPanel("bill")}
+              >
+                Hesap
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={sheetPanel === "process"}
+                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  sheetPanel === "process"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                onClick={() => setSheetPanel("process")}
+              >
+                Süreç
+              </button>
+            </div>
+          ) : null}
+
+          {sheetPanel === "process" && processPanel ? (
+            <div className="mt-4 min-h-0 flex-1 overflow-y-auto pb-6">{processPanel}</div>
+          ) : null}
+
+          {sheetPanel === "bill" && tableId == null ? (
             <p className="text-sm text-muted-foreground">
               Bu sipariş masa adisyonuna bağlı değil.
             </p>
-          ) : billQuery.isLoading ? (
+          ) : sheetPanel !== "bill" ? null : billQuery.isLoading ? (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               Adisyon yükleniyor…
@@ -249,7 +300,7 @@ export function StaffOrderBillSheet({
                 : "Adisyon alınamadı"}
             </p>
           ) : bill ? (
-            <div className="mt-4 flex flex-1 flex-col gap-4 pb-6">
+            <div className="mt-4 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pb-6">
               <BillSummaryBar
                 total={bill.totalAmount}
                 paid={bill.paidTotal}

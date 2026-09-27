@@ -1168,6 +1168,7 @@ export type SalonWaiterGroup = {
   waiterName: string;
   initials: string;
   tableLabels: string[];
+  activeTableCount: number;
   orders: OrderResponse[];
 };
 
@@ -1202,6 +1203,123 @@ function waiterInitials(name: string): string {
   return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toLocaleUpperCase("tr-TR");
 }
 
+function salonTableKey(order: OrderResponse): string {
+  if (order.tableId != null) return `id:${order.tableId}`;
+  const name = order.tableName?.trim();
+  if (name) return `name:${name.toLocaleLowerCase("tr-TR")}`;
+  return `order:${order.id}`;
+}
+
+function orderWaiterNameField(order: OrderResponse): string | null {
+  const direct = order.waiterName?.trim();
+  if (direct) return direct;
+  const extra = order as OrderResponse & {
+    assignedWaiterName?: string | null;
+    billWaiterName?: string | null;
+    openedByWaiterName?: string | null;
+    staffName?: string | null;
+  };
+  for (const value of [
+    extra.assignedWaiterName,
+    extra.billWaiterName,
+    extra.openedByWaiterName,
+    extra.staffName,
+  ]) {
+    const trimmed = value?.trim();
+    if (trimmed) return trimmed;
+  }
+  return null;
+}
+
+type SalonWaiterRef = { waiterId: number | null; waiterName: string };
+
+function orderStaffId(order: OrderResponse): number | null {
+  const id = order.staffId ?? order.waiterId;
+  return typeof id === "number" ? id : null;
+}
+
+function indexSalonWaitersByTable(orders: OrderResponse[]): Map<string, SalonWaiterRef> {
+  const map = new Map<string, SalonWaiterRef>();
+  for (const order of orders) {
+    const name = orderWaiterNameField(order);
+    if (!name) continue;
+    const tableKey = salonTableKey(order);
+    const next: SalonWaiterRef = { waiterId: orderStaffId(order), waiterName: name };
+    const current = map.get(tableKey);
+    if (!current || (next.waiterId != null && current.waiterId == null)) {
+      map.set(tableKey, next);
+    }
+  }
+  return map;
+}
+
+function salonWaiterGroupKey(ref: SalonWaiterRef, tableKey: string): string {
+  if (ref.waiterId != null) return `id:${ref.waiterId}`;
+  if (ref.waiterName) return `name:${ref.waiterName.toLocaleLowerCase("tr-TR")}`;
+  return `table:${tableKey}`;
+}
+
+function resolveSalonWaiterForOrder(
+  order: OrderResponse,
+  waitersByTable: Map<string, SalonWaiterRef>,
+): SalonWaiterRef & { groupKey: string } {
+  const tableKey = salonTableKey(order);
+  const directName = orderWaiterNameField(order);
+  const staffId = orderStaffId(order);
+  if (staffId != null) {
+    const waiterName = directName ?? waitersByTable.get(tableKey)?.waiterName ?? orderLocationLabel(order);
+    const ref = { waiterId: staffId, waiterName };
+    return { ...ref, groupKey: salonWaiterGroupKey(ref, tableKey) };
+  }
+  if (directName) {
+    const ref = { waiterId: null, waiterName: directName };
+    return { ...ref, groupKey: salonWaiterGroupKey(ref, tableKey) };
+  }
+  const fromTable = waitersByTable.get(tableKey);
+  if (fromTable) {
+    return { ...fromTable, groupKey: salonWaiterGroupKey(fromTable, tableKey) };
+  }
+  const tableLabel = orderLocationLabel(order);
+  const ref = { waiterId: null, waiterName: tableLabel };
+  return { ...ref, groupKey: `table:${tableKey}` };
+}
+
+export function resolveOrderWaiterName(order: OrderResponse, contextOrders: OrderResponse[]): string {
+  const tableOrders = contextOrders.filter(
+    (item) => isTableChannel(orderChannel(item)) || item.tableName || item.tableId != null,
+  );
+  const waitersByTable = indexSalonWaitersByTable(tableOrders);
+  return resolveSalonWaiterForOrder(order, waitersByTable).waiterName;
+}
+
+/** Garson / salon satırında durum metni (mutfak teslimi vs müşteri teslimi). */
+export function salonTableOrderStatusLabel(
+  order: OrderResponse,
+  contextOrders: OrderResponse[],
+): string {
+  if (order.status === "READY") return "Mutfaktan alınacak";
+  if (order.status === "SERVED") {
+    const waiter = orderWaiterNameField(order) ?? resolveOrderWaiterName(order, contextOrders);
+    const table = orderLocationLabel(order);
+    if (waiter && waiter !== table) return waiter;
+    return "Müşteriye teslim";
+  }
+  return orderStatusLabel(order.status);
+}
+
+function finalizeSalonWaiterGroup(group: Omit<SalonWaiterGroup, "activeTableCount">): SalonWaiterGroup {
+  const tableKeys = new Set(group.orders.map((order) => salonTableKey(order)));
+  const hideTableLabels =
+    tableKeys.size === 1 &&
+    group.tableLabels.length === 1 &&
+    group.tableLabels[0] === group.waiterName;
+  return {
+    ...group,
+    tableLabels: hideTableLabels ? [] : group.tableLabels,
+    activeTableCount: tableKeys.size,
+  };
+}
+
 /** Salon kolonunda gösterilecek siparişler: masa kanalı + açık / yeni teslim edilmiş. */
 export function salonBoardOrders(
   orders: OrderResponse[],
@@ -1217,27 +1335,44 @@ export function salonBoardOrders(
   return sortOrdersNewestFirst([...lanes.waiter, ...servedToday.slice(0, 8)]);
 }
 
-export function groupSalonByWaiter(orders: OrderResponse[]): SalonWaiterGroup[] {
-  const map = new Map<string, SalonWaiterGroup>();
-  for (const order of orders) {
-    if (!isTableChannel(orderChannel(order)) && !order.tableName && order.tableId == null) continue;
-    const waiterName = order.waiterName?.trim() || "Atanmamış";
-    const key = order.waiterId != null ? `id:${order.waiterId}` : `name:${waiterName}`;
+export function groupSalonByWaiter(
+  orders: OrderResponse[],
+  options?: { waiterIndexOrders?: OrderResponse[] },
+): SalonWaiterGroup[] {
+  const salonOrders = orders.filter(
+    (order) => isTableChannel(orderChannel(order)) || order.tableName || order.tableId != null,
+  );
+  const indexSource = options?.waiterIndexOrders ?? orders;
+  const tableOrdersForIndex = indexSource.filter(
+    (order) => isTableChannel(orderChannel(order)) || order.tableName || order.tableId != null,
+  );
+  const waitersByTable = indexSalonWaitersByTable(tableOrdersForIndex);
+  const map = new Map<string, Omit<SalonWaiterGroup, "activeTableCount">>();
+  for (const order of salonOrders) {
+    const resolved = resolveSalonWaiterForOrder(order, waitersByTable);
+    const key = resolved.groupKey;
     const current = map.get(key) ?? {
       key,
-      waiterName,
-      initials: waiterInitials(waiterName),
+      waiterName: resolved.waiterName,
+      initials: waiterInitials(resolved.waiterName),
       tableLabels: [],
       orders: [],
     };
     current.orders.push(order);
     const table = orderLocationLabel(order);
-    if (table && !current.tableLabels.includes(table)) current.tableLabels.push(table);
+    if (table && table !== resolved.waiterName && !current.tableLabels.includes(table)) {
+      current.tableLabels.push(table);
+    }
     map.set(key, current);
   }
-  return [...map.values()].sort(
-    (a, b) => b.orders.length - a.orders.length || a.waiterName.localeCompare(b.waiterName, "tr"),
-  );
+  return [...map.values()]
+    .map(finalizeSalonWaiterGroup)
+    .sort(
+      (a, b) =>
+        b.activeTableCount - a.activeTableCount ||
+        b.orders.length - a.orders.length ||
+        a.waiterName.localeCompare(b.waiterName, "tr"),
+    );
 }
 
 export function courierChannelCounts(orders: OrderResponse[]): LiveOpsChannelCount[] {

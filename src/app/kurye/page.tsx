@@ -1,12 +1,5 @@
-import type { Metadata } from "next";
-
-import StaffCourierView from "@/views/staff/StaffCourierView";
-
-export const metadata: Metadata = {
-  title: "Kurye",
-  robots: { index: false, follow: false },
-};
+import { redirect } from "next/navigation";
 
 export default function CourierStaffPage() {
-  return <StaffCourierView />;
+  redirect("/personel");
 }

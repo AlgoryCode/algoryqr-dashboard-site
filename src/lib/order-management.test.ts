@@ -15,6 +15,8 @@ import {
   buildOpsLaneSnapshots,
   canMarkServedToCustomer,
   groupOpsLaneOrders,
+  groupSalonByWaiter,
+  salonTableOrderStatusLabel,
   integrationEarnings,
   isOpenOrderStatus,
   itemSummary,
@@ -316,6 +318,105 @@ describe("manager dashboard attention helpers", () => {
     expect(formatOrderHistoryDate("2026-09-21T12:00:00")).toMatch(/21/);
     expect(formatOrderHistoryDate("2026-09-21T12:00:00")).toMatch(/2026/);
     expect(formatOrderHistoryDate(null)).toBe("—");
+  });
+});
+
+describe("salon waiter grouping", () => {
+  it("groups by assigned waiter instead of a single unassigned bucket", () => {
+    const groups = groupSalonByWaiter([
+      order({
+        id: 1,
+        status: "PREPARING",
+        orderSource: "QR",
+        tableName: "masa-1",
+      }),
+      order({
+        id: 2,
+        status: "READY",
+        orderSource: "QR",
+        tableName: "masa-2",
+        waiterName: "Ayşe",
+        waiterId: 7,
+      }),
+      order({
+        id: 3,
+        status: "CONFIRMED",
+        orderSource: "QR",
+        tableName: "masa-2",
+      }),
+    ]);
+    expect(groups.map((group) => group.waiterName)).toEqual(["Ayşe", "masa-1"]);
+    expect(groups.every((group) => group.waiterName !== "Atanmamış")).toBe(true);
+    expect(groups.find((group) => group.waiterName === "Ayşe")?.activeTableCount).toBe(1);
+  });
+
+  it("inherits waiter from another order on the same table", () => {
+    const groups = groupSalonByWaiter([
+      order({
+        id: 1,
+        status: "PREPARING",
+        orderSource: "WAITER",
+        tableId: 4,
+        tableName: "masa-1",
+        waiterName: "Mehmet",
+        waiterId: 3,
+      }),
+      order({
+        id: 2,
+        status: "READY",
+        orderSource: "QR",
+        tableId: 4,
+        tableName: "masa-1",
+      }),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.waiterName).toBe("Mehmet");
+    expect(groups[0]?.activeTableCount).toBe(1);
+  });
+
+  it("inherits waiter from kitchen-lane orders when indexing the full branch list", () => {
+    const kitchenOrder = order({
+      id: 10,
+      status: "PREPARING",
+      orderSource: "QR",
+      tableId: 4,
+      tableName: "masa-1",
+      waiterName: "Mehmet",
+      waiterId: 3,
+    });
+    const readySalon = order({
+      id: 2,
+      status: "READY",
+      orderSource: "QR",
+      tableId: 4,
+      tableName: "masa-1",
+    });
+    const groups = groupSalonByWaiter([readySalon], { waiterIndexOrders: [kitchenOrder, readySalon] });
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.waiterName).toBe("Mehmet");
+  });
+});
+
+describe("salon table order labels", () => {
+  it("labels ready tickets for kitchen pickup and served tickets with the waiter name", () => {
+    const context = [
+      order({
+        id: 1,
+        status: "READY",
+        orderSource: "QR",
+        tableName: "masa-1",
+      }),
+      order({
+        id: 2,
+        status: "SERVED",
+        orderSource: "QR",
+        tableName: "masa-1",
+        waiterName: "Ayşe",
+        waiterId: 7,
+      }),
+    ];
+    expect(salonTableOrderStatusLabel(context[0], context)).toBe("Mutfaktan alınacak");
+    expect(salonTableOrderStatusLabel(context[1], context)).toBe("Ayşe");
   });
 });
 

@@ -23,7 +23,7 @@ import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { DASHBOARD_BACK } from "@/lib/dashboard-surface";
 import { hasScope } from "@/lib/auth-user";
 import { SlidingTabSelect } from "@/components/ui/sliding-tab-select";
-import { listMenuUsers } from "@/lib/waiter-api";
+import { listMenuUsers, STAFF_ROLE_LABEL } from "@/lib/waiter-api";
 import { filterStaffReport } from "@/components/dashboard/smart-report/staff-metrics";
 import {
   reportingPeriodRange,
@@ -128,9 +128,19 @@ export default function AnalyticsTab() {
       .map((row) => ({ id: row.id, name: row.displayName }));
     if (fromRoster.length > 0) return fromRoster;
     return (personnelQuery.data?.waiters ?? [])
-      .filter((row) => row.waiterId != null)
-      .map((row) => ({ id: row.waiterId as number, name: row.displayName }));
+      .map((row) => ({ id: row.staffId ?? row.waiterId, name: row.displayName }))
+      .filter((row): row is { id: number; name: string } => row.id != null);
   }, [personnelQuery.data, waitersQuery.data]);
+  const staffRoles = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const row of waitersQuery.data?.waiters ?? []) {
+      if (!row.staffRole) continue;
+      const label = row.staffRole === "KITCHEN" ? "Aşçı" : STAFF_ROLE_LABEL[row.staffRole];
+      map[row.displayName] = label;
+      map[String(row.id)] = label;
+    }
+    return map;
+  }, [waitersQuery.data]);
   const staffReport = useMemo(
     () =>
       personnelQuery.data ? filterStaffReport(personnelQuery.data, waiterId) : undefined,
@@ -156,19 +166,17 @@ export default function AnalyticsTab() {
 
   useEffect(() => {
     if (branchId == null) return;
-    const urlBranch = searchParams.get("branch");
-    const urlQr = searchParams.get("qr");
-    if (activeReportView === "menu") {
-      if (qrId == null) return;
-      if (urlBranch === String(branchId) && urlQr === String(qrId)) return;
-      router.replace(DASHBOARD_ROUTES.digitalMenuAnalyticsForBranch(branchId, qrId), {
-        scroll: false,
-      });
-      return;
-    }
-    if (urlBranch === String(branchId) && urlQr == null) return;
-    router.replace(DASHBOARD_ROUTES.digitalMenuAnalyticsForBranch(branchId), { scroll: false });
-  }, [activeReportView, branchId, qrId, router, searchParams]);
+    if (activeReportView === "menu" && qrId == null) return;
+    const target =
+      activeReportView === "menu" && qrId != null
+        ? DASHBOARD_ROUTES.digitalMenuAnalyticsForBranch(branchId, qrId)
+        : DASHBOARD_ROUTES.digitalMenuAnalyticsForBranch(branchId);
+    const targetUrl = new URL(target, "http://dashboard.local");
+    const currentQuery = searchParams.toString();
+    const targetQuery = targetUrl.searchParams.toString();
+    if (pathname === targetUrl.pathname && currentQuery === targetQuery) return;
+    router.replace(target, { scroll: false });
+  }, [activeReportView, branchId, pathname, qrId, router, searchParams]);
 
   useEffect(() => {
     if (activeReportView !== "menu" || branchId == null || qrId != null) return;
@@ -407,6 +415,7 @@ export default function AnalyticsTab() {
             waiter={staffReport}
             allowedTabs={["staff"]}
             initialTab="staff"
+            staffRoles={staffRoles}
           />
         ) : (
           <AnalyticsWaiterPerformancePanel

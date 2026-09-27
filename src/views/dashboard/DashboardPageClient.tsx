@@ -265,8 +265,8 @@ export default function DashboardPageClient({ initialUser = null }: DashboardPag
   }
 
   if (
-    pathname === DASHBOARD_ROUTES.analytics ||
-    pathname === DASHBOARD_ROUTES.analyticsLegacy
+    pathname === DASHBOARD_ROUTES.analyticsLegacy ||
+    pathname === DASHBOARD_ROUTES.analyticsMenuLegacy
   ) {
     return (
       <Suspense fallback={null}>

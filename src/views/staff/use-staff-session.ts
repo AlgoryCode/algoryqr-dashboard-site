@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 
 import {
   parseStaffRole,
+  resolveStaffSession,
   staffHomePath,
   staffRoleMatchesApp,
-  waiterMe,
   type StaffRole,
   type WaiterMe,
 } from "@/lib/waiter-api";
@@ -18,19 +18,19 @@ export function useStaffSession(expected: StaffRole) {
 
   useEffect(() => {
     let cancelled = false;
-    waiterMe()
-      .then((profile) => {
+    resolveStaffSession()
+      .then((session) => {
         if (cancelled) return;
-        if (!profile) {
+        if (!session) {
           router.replace("/personel");
           return;
         }
-        const role = parseStaffRole(profile.staffRole);
+        const role = parseStaffRole(session.me.staffRole);
         if (!staffRoleMatchesApp(role, expected)) {
           router.replace(staffHomePath(role));
           return;
         }
-        setMe(profile);
+        setMe(session.me);
       })
       .catch(() => {
         if (!cancelled) router.replace("/personel");

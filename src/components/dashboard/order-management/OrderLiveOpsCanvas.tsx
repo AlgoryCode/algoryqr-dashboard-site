@@ -11,6 +11,7 @@ import {
   formatOrderWhenCompact,
   groupOpsLaneOrders,
   groupSalonByWaiter,
+  salonTableOrderStatusLabel,
   hourlyOrderSeries,
   isDeliveryOrder,
   managedOrderKey,
@@ -82,6 +83,30 @@ const KPI_TONE = {
   emerald: "bg-emerald-50 text-emerald-600",
 } as const;
 
+const TOP_NAV_LINK =
+  "flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[11px] font-semibold leading-none transition-colors";
+
+function topNavLinkClass(active: boolean) {
+  return cn(
+    TOP_NAV_LINK,
+    active
+      ? "bg-primary text-primary-foreground shadow-sm"
+      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+  );
+}
+
+const SIDE_NAV_LINK =
+  "flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] transition-colors";
+
+function sideNavLinkClass(active: boolean) {
+  return cn(
+    SIDE_NAV_LINK,
+    active
+      ? "bg-primary font-semibold text-primary-foreground"
+      : "font-medium text-muted-foreground hover:bg-muted hover:text-foreground",
+  );
+}
+
 function KpiCard({
   label,
   icon,
@@ -96,15 +121,15 @@ function KpiCard({
   footer: ReactNode;
 }) {
   return (
-    <article className="flex h-full flex-col rounded-3xl border border-[#d3c5ac]/35 bg-white ambient-shadow">
+    <article className="flex h-full flex-col rounded-3xl border border-border bg-card shadow-sm">
       <header className="flex items-center justify-between gap-3 px-4 pt-4">
-        <h3 className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#615e57]">{label}</h3>
+        <h3 className="text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{label}</h3>
         <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-full", KPI_TONE[tone])}>
           <Icon name={icon} className="text-[18px]" />
         </span>
       </header>
       <div className="flex flex-1 flex-col px-4 pb-3 pt-3">{children}</div>
-      <footer className="mt-auto flex min-h-[76px] flex-col justify-center border-t border-[#ebe8e2] bg-[#f6f3ed]/90 px-4 py-3">
+      <footer className="mt-auto flex min-h-[76px] flex-col justify-center border-t border-border bg-muted/30 px-4 py-3">
         {footer}
       </footer>
     </article>
@@ -123,10 +148,10 @@ function KpiValue({
   return (
     <>
       <div className="flex items-baseline gap-1.5">
-        <p className="font-epilogue text-[32px] font-extrabold leading-none tracking-tight text-[#1c1c18] tabular-nums">
+        <p className="font-epilogue text-[32px] font-extrabold leading-none tracking-tight text-foreground tabular-nums">
           {value}
         </p>
-        {suffix ? <span className="text-[12px] font-medium text-[#615e57]">{suffix}</span> : null}
+        {suffix ? <span className="text-[12px] font-medium text-muted-foreground">{suffix}</span> : null}
       </div>
       {caption ? <div className="mt-2 text-[12px] leading-5">{caption}</div> : null}
     </>
@@ -160,7 +185,7 @@ export function OrderLiveOpsCanvas({
 }: OrderLiveOpsCanvasProps) {
   const [courierChannel, setCourierChannel] = useState<OrderChannel | null>(null);
   const salonOrders = salonBoardOrders(orders, kitchenEnabled);
-  const waiterGroups = groupSalonByWaiter(salonOrders);
+  const waiterGroups = groupSalonByWaiter(salonOrders, { waiterIndexOrders: orders });
   const lanes = groupOpsLaneOrders(orders, kitchenEnabled);
   const kitchenTickets = kitchenEnabled
     ? [
@@ -216,15 +241,12 @@ export function OrderLiveOpsCanvas({
   const kpiCount = 3 + Number(kitchenEnabled) + Number(courierEnabled);
 
   return (
-    <div
-      className="flex h-svh flex-col overflow-hidden bg-[#fcf9f3] text-[#1c1c18] antialiased selection:bg-[#ffc72c] selection:text-[#251a00]"
-      style={{ fontFamily: '"Plus Jakarta Sans", sans-serif' }}
-    >
+    <div className="flex h-svh flex-col overflow-hidden bg-background text-foreground antialiased">
       {/* ===== TOP BAR ===== */}
-      <header className="sticky top-0 z-50 flex h-16 w-full items-center justify-between border-b border-[#d3c5ac]/35 bg-[#fcf9f3] px-4 shadow-sm md:px-6">
+      <header className="sticky top-0 z-50 flex h-16 w-full items-center justify-between border-b border-border bg-card px-4 shadow-sm md:px-6">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-[#ba0a06] text-white shadow-md">
+            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-primary text-primary-foreground shadow-sm">
               {brandLogoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={brandLogoUrl} alt="" className="h-full w-full object-cover" />
@@ -232,14 +254,14 @@ export function OrderLiveOpsCanvas({
                 <Icon name="restaurant" className="text-[20px] font-bold" />
               )}
             </div>
-            <span className="font-epilogue max-w-[12rem] truncate text-[18px] font-bold tracking-tight text-[#1c1c18]">
+            <span className="max-w-[12rem] truncate text-[18px] font-bold tracking-tight text-foreground">
               {brandName}
             </span>
           </div>
-          <div className="flex max-w-[16rem] items-center gap-1 rounded-full border border-[#d3c5ac]/45 bg-[#f6f3ed] px-3 py-1.5 text-[#615e57]">
-            <span className="h-2 w-2 shrink-0 rounded-full bg-[#16a34a]" />
+          <div className="flex max-w-[16rem] items-center gap-1 rounded-full border border-border bg-muted/60 px-3 py-1.5 text-muted-foreground">
+            <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
             {branchControl ?? (
-              <span className="truncate text-[13px] font-medium text-[#1c1c18]">Şube: {branchLabel}</span>
+              <span className="truncate text-[13px] font-medium text-foreground">Şube: {branchLabel}</span>
             )}
           </div>
           {menuPicker ? <div className="hidden lg:block">{menuPicker}</div> : null}
@@ -249,7 +271,7 @@ export function OrderLiveOpsCanvas({
           <Link
             href={ordersHref}
             title="Sipariş Yönetimine dön"
-            className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1.5 text-[11px] font-semibold leading-none text-[#4f4633] transition-colors hover:bg-[#f0eee8] hover:text-[#1c1c18]"
+            className={topNavLinkClass(false)}
           >
             <Icon name="arrow_back" className="text-[15px]" />
             <span className="hidden 2xl:inline">Sipariş Yönetimi</span>
@@ -260,12 +282,7 @@ export function OrderLiveOpsCanvas({
               key={item.label}
               href={item.href}
               title={item.label}
-              className={cn(
-                "flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-1 text-[11px] font-semibold leading-none transition-colors",
-                item.active
-                  ? "rounded-full bg-[#ffc72c] text-[#251a00] shadow-sm"
-                  : "rounded-full text-[#4f4633] hover:bg-[#f0eee8] hover:text-[#1c1c18]",
-              )}
+              className={topNavLinkClass(item.active)}
             >
               <Icon name={item.icon} className="text-[15px]" />
               <span className="hidden 2xl:inline">{item.label}</span>
@@ -283,23 +300,35 @@ export function OrderLiveOpsCanvas({
             <span className="text-[12px] font-semibold text-emerald-700">Normal Tolerans (0.4s)</span>
           </div>
           <div className="flex items-center gap-1">
-            <button type="button" className="rounded-lg p-2 text-[#615e57] transition-colors hover:bg-[#f0eee8] hover:text-[#1c1c18]" title="Ses">
+            <button
+              type="button"
+              className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              title="Ses"
+            >
               <Icon name="volume_up" className="text-[22px]" />
             </button>
-            <button type="button" className="relative rounded-lg p-2 text-[#615e57] transition-colors hover:bg-[#f0eee8] hover:text-[#1c1c18]" title="Bildirimler">
+            <button
+              type="button"
+              className="relative rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              title="Bildirimler"
+            >
               <Icon name="notifications" className="text-[22px]" />
               {delayedCount > 0 ? (
-                <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#df2d1f]" />
+                <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-destructive" />
               ) : null}
             </button>
-            <button type="button" className="rounded-lg p-2 text-[#ba1a1a] transition-colors hover:bg-[#ffdad6]" title="Acil">
+            <button
+              type="button"
+              className="rounded-lg p-2 text-destructive transition-colors hover:bg-destructive/10"
+              title="Acil"
+            >
               <Icon name="emergency_home" className="text-[22px]" />
             </button>
           </div>
           <button
             type="button"
             onClick={onNewOrder}
-            className="hidden shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-[#ffc72c] px-4 py-2 text-[13px] font-bold text-[#251a00] shadow-sm transition-transform active:scale-95 hover:bg-[#f6bf22] sm:flex"
+            className="hidden shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-primary px-4 py-2 text-[13px] font-bold text-primary-foreground shadow-sm transition-transform active:scale-95 hover:bg-primary/90 sm:flex"
           >
             <Icon name="add_circle" className="text-[18px]" />
             Yeni Sipariş Girişi
@@ -309,29 +338,20 @@ export function OrderLiveOpsCanvas({
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* ===== SIDEBAR ===== */}
-        <aside className="fixed bottom-0 left-0 top-16 z-40 hidden w-64 flex-col justify-between border-r border-[#d3c5ac]/35 bg-white p-4 xl:flex">
+        <aside className="fixed bottom-0 left-0 top-16 z-40 hidden w-64 flex-col justify-between border-r border-border bg-card p-4 xl:flex">
           <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-2 border-b border-[#ebe8e2] pb-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#ffdf99]">
-                <Icon name="storefront" className="text-[18px] text-[#5a4300]" />
+            <div className="flex items-center gap-2 border-b border-border pb-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-muted text-foreground">
+                <Icon name="storefront" className="text-[18px]" />
               </div>
               <div>
-                <div className="truncate text-[13px] font-bold text-[#1c1c18]">{brandName}</div>
-                <div className="text-[11px] font-medium text-[#615e57]">Terminal #04</div>
+                <div className="truncate text-[13px] font-bold text-foreground">{brandName}</div>
+                <div className="text-[11px] font-medium text-muted-foreground">Terminal #04</div>
               </div>
             </div>
             <nav className="flex flex-col gap-1">
               {sideNav.map((item) => (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] transition-colors",
-                    item.active
-                      ? "rounded-2xl bg-[#ffc72c] font-bold text-[#251a00]"
-                      : "rounded-2xl font-medium text-[#4f4633] hover:bg-[#f6f3ed] hover:text-[#1c1c18]",
-                  )}
-                >
+                <Link key={item.label} href={item.href} className={sideNavLinkClass(item.active)}>
                   <Icon name={item.icon} className="text-[18px]" />
                   {item.label}
                 </Link>
@@ -339,29 +359,32 @@ export function OrderLiveOpsCanvas({
             </nav>
           </div>
 
-          <div className="my-4 flex flex-col gap-2 rounded-2xl border border-[#d3c5ac]/35 bg-[#f6f3ed] p-3">
-            <div className="flex items-center justify-between text-[#615e57]">
+          <div className="my-4 flex flex-col gap-2 rounded-2xl border border-border bg-muted/50 p-3">
+            <div className="flex items-center justify-between text-muted-foreground">
               <span className="text-[11px] font-semibold uppercase tracking-wider">Terminal Durumu</span>
-              <span className="h-2 w-2 rounded-full bg-[#16a34a]" />
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
             </div>
             <button
               type="button"
-              className="flex w-full items-center justify-center gap-1.5 rounded-full border border-[#d3c5ac]/45 bg-white px-3 py-2 text-[12px] font-semibold text-[#4f4633] transition-colors hover:bg-[#f0eee8]"
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-[12px] font-semibold text-foreground transition-colors hover:bg-muted"
             >
-              <Icon name="coffee" className="text-[16px] text-[#4f4633]" />
+              <Icon name="coffee" className="text-[16px] text-muted-foreground" />
               Mola Modu
             </button>
           </div>
 
-          <div className="flex flex-col gap-1 border-t border-[#ebe8e2] pt-3">
-            <a className="flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-medium text-emerald-700 transition-colors hover:bg-emerald-50" href={homeHref}>
+          <div className="flex flex-col gap-1 border-t border-border pt-3">
+            <a
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-medium text-emerald-700 transition-colors hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+              href={homeHref}
+            >
               <Icon name="check_circle" className="text-[18px] text-emerald-600" />
               Sistem Durumu
             </a>
             <button
               type="button"
               onClick={onLogout}
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] font-medium text-[#ba1a1a] transition-colors hover:bg-[#ffdad6]"
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] font-medium text-destructive transition-colors hover:bg-destructive/10"
             >
               <Icon name="logout" className="text-[18px]" />
               Çıkış
@@ -370,10 +393,10 @@ export function OrderLiveOpsCanvas({
         </aside>
 
         {/* ===== MAIN ===== */}
-        <main className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-[#fcf9f3] p-3 md:p-6 xl:ml-64">
+        <main className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-background p-3 md:p-6 xl:ml-64">
           {error}
           {loading ? (
-            <div className="rounded-3xl border border-[#d3c5ac]/35 bg-white p-10 text-center text-sm text-[#615e57] ambient-shadow">
+            <div className="rounded-3xl border border-border bg-card p-10 text-center text-sm text-muted-foreground shadow-sm">
               Operasyon paneli yükleniyor...
             </div>
           ) : null}
@@ -599,7 +622,7 @@ export function OrderLiveOpsCanvas({
                           </div>
                         </div>
                         <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
-                          {group.orders.length} Masa Aktif
+                          {group.activeTableCount} Masa Aktif
                         </span>
                       </div>
                       <div className="space-y-1.5 pt-1">
@@ -633,7 +656,7 @@ export function OrderLiveOpsCanvas({
                                     tone === "empty" && "bg-[#f0eee8] text-[#4f4633]",
                                   )}
                                 >
-                                  {orderStatusLabel(order.status)}
+                                  {salonTableOrderStatusLabel(order, orders)}
                                 </span>
                               </div>
                               <div className="flex items-center gap-2">
@@ -642,7 +665,7 @@ export function OrderLiveOpsCanvas({
                                 </span>
                                 {order.status === "READY" ? (
                                   <span className="rounded-full bg-[#ffc72c] px-2.5 py-1 text-[11px] font-bold text-[#251a00]">
-                                    POS Hazır
+                                    Mutfak hazır
                                   </span>
                                 ) : (
                                   <span className="text-[11px] text-[#615e57]">

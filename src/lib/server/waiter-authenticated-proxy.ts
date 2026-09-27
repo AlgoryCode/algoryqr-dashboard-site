@@ -35,7 +35,7 @@ async function tryRefreshStaffTokens(app: StaffApp): Promise<RefreshedWaiterToke
 
   const data = (typeof upstream.data === "object" && upstream.data != null
     ? upstream.data
-    : {}) as { accessToken?: string; refreshToken?: string; waiterId?: number };
+    : {}) as { accessToken?: string; refreshToken?: string; staffId?: number; waiterId?: number };
 
   if (upstream.status < 200 || upstream.status >= 300) {
     return null;
@@ -47,7 +47,7 @@ async function tryRefreshStaffTokens(app: StaffApp): Promise<RefreshedWaiterToke
   return {
     accessToken: data.accessToken,
     refreshToken: typeof data.refreshToken === "string" ? data.refreshToken : undefined,
-    waiterId: typeof data.waiterId === "number" ? data.waiterId : undefined,
+    waiterId: typeof data.staffId === "number" ? data.staffId : typeof data.waiterId === "number" ? data.waiterId : undefined,
   };
 }
 

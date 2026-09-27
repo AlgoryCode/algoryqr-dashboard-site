@@ -60,6 +60,18 @@ describe("readStaffCompare", () => {
     expect(source).not.toContain("unassignedOrderCount");
   });
 
+  it("filterStaffReport_matchesStaffId", () => {
+    const filtered = filterStaffReport(
+      waiterReport({
+        waiters: [{ staffId: 11, displayName: "garson2", revenue: 6360, orderCount: 9, billsClosedCount: 9 }],
+      }),
+      11,
+    );
+    expect(filtered.waiters).toHaveLength(1);
+    expect(filtered.waiters[0].displayName).toBe("garson2");
+    expect(filtered.kpis.billsClosedCount).toBe(9);
+  });
+
   it("filterStaffReport_keepsSingleWaiter", () => {
     const filtered = filterStaffReport(
       waiterReport({
@@ -76,6 +88,7 @@ describe("readStaffCompare", () => {
     expect(filtered.waiters[0].displayName).toBe("Ayşe");
     expect(filtered.kpis.totalRevenue).toBe(700);
     expect(filtered.kpis.itemCount).toBe(12);
+    expect(filtered.kpis.activeWaiterCount).toBe(1);
     expect(readStaffCompare(filtered).teamItems).toBe(12);
     expect(readStaffCompare(filtered).avgItemRevenue).toBe(58.33);
     expect(filtered.daily).toEqual([]);

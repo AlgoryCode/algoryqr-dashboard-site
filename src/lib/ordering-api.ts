@@ -73,6 +73,7 @@ export type OrderResponse = {
   totalAmount?: number | string | null;
   currency?: string | null;
   note?: string | null;
+  staffId?: number | null;
   waiterId?: number | null;
   waiterName?: string | null;
   waiterNote?: string | null;

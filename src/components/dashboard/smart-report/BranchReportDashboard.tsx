@@ -66,6 +66,7 @@ export default function BranchReportDashboard({
   loading,
   initialTab,
   allowedTabs,
+  staffRoles,
 }: {
   revenue?: MenuRevenueReportResponse | null;
   visits?: MenuAnalyticsReportResponse | null;
@@ -75,6 +76,7 @@ export default function BranchReportDashboard({
   loading?: boolean;
   initialTab?: TabId;
   allowedTabs?: TabId[];
+  staffRoles?: Record<string, string>;
 }) {
   const tabs = useMemo(() => {
     if (allowedTabs?.length) {
@@ -161,7 +163,7 @@ export default function BranchReportDashboard({
           ) : null}
           {activeTab === "staff" ? (
             waiter ? (
-              <StaffPage waiter={waiter} money={m} />
+              <StaffPage waiter={waiter} money={m} roles={staffRoles} />
             ) : (
               <ReportEmpty text="Personel verisi yok." />
             )

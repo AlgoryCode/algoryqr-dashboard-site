@@ -12,7 +12,10 @@ const meta = {
 export default meta;
 
 export const Raporlar = dashboardPage("Raporlar", DASHBOARD_ROUTES.reportsHub);
-export const Analitik = dashboardPage("Analitik", DASHBOARD_ROUTES.analytics, { qr: "34" });
+export const Analitik = dashboardPage("Raporlar", DASHBOARD_ROUTES.reportsHub, {
+  branch: "4",
+  qr: "34",
+});
 export const AkilliRaporlar = dashboardPage("Akıllı raporlar", DASHBOARD_ROUTES.smartReports);
 export const AkilliRaporDetay = dashboardPage("Akıllı rapor detay", DASHBOARD_ROUTES.smartReportDetail(JOB_ID));
 export const GeriBildirimler = dashboardPage("Geri bildirimler", DASHBOARD_ROUTES.feedback, { qr: "34" });

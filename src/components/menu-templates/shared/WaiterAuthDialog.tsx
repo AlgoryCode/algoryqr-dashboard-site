@@ -48,7 +48,7 @@ export function WaiterAuthDialog({ open, onOpenChange }: WaiterAuthDialogProps) 
     setError(null);
     try {
       await waiterLogin({ merchantId: merchant, username: username.trim(), password, app: "waiter" });
-      window.location.href = "/waiter";
+      window.location.href = "/personel";
     } catch (err) {
       setError(
         err instanceof WaiterApiError
