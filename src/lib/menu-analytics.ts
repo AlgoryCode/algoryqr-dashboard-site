@@ -7,14 +7,28 @@ export type MenuAnalyticsEventType =
   | "ADD_TO_CART"
   | "REMOVE_FROM_CART"
   | "CHECKOUT_START"
-  | "ORDER_SUBMITTED";
+  | "ORDER_SUBMITTED"
+  | "CHEF_CHAT_OPEN"
+  | "CHEF_RECOMMENDATION_REQUEST"
+  | "CHEF_RECOMMENDATION_SHOWN"
+  | "CHEF_PRODUCT_CARD_CLICK"
+  | "CHEF_PRODUCT_ADD"
+  | "CHEF_CROSS_SELL_SHOWN"
+  | "CHEF_CROSS_SELL_CLICK"
+  | "CHEF_CROSS_SELL_ADD"
+  | "CHEF_CART_OPEN";
+
 export type MenuAnalyticsDeviceType = "MOBILE" | "TABLET" | "DESKTOP";
+
+/** String values only — safe for analytics ingest. */
+export type MenuAnalyticsMetadata = Record<string, string | number>;
 
 export type MenuAnalyticsEventItem = {
   type: MenuAnalyticsEventType;
   categoryId?: number;
   productId?: number;
   servesPeople?: number;
+  metadata?: MenuAnalyticsMetadata;
   sequence: number;
   occurredAt: string;
 };
@@ -118,7 +132,12 @@ export function postMenuAnalyticsEvents(
 export function trackMenuAnalyticsEvent(
   publicId: string,
   type: MenuAnalyticsEventType,
-  extras?: { categoryId?: number; productId?: number; servesPeople?: number },
+  extras?: {
+    categoryId?: number;
+    productId?: number;
+    servesPeople?: number;
+    metadata?: MenuAnalyticsMetadata;
+  },
 ): void {
   if (!publicId) {
     return;
@@ -130,8 +149,9 @@ export function trackMenuAnalyticsEvent(
       categoryId: extras?.categoryId,
       productId: extras?.productId,
       servesPeople: extras?.servesPeople,
+      metadata: extras?.metadata,
       sequence: nextMenuEventSequence(publicId),
-      occurredAt: new Date().toISOString(),
+      occurredAt: new Date().toISOString().slice(0, 19),
     },
   ]);
 }

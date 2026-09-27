@@ -1,5 +1,6 @@
 "use client";
 
+import type { ChefProductCardSource } from "@/hooks/use-chef-chat-analytics";
 import type { ChefProductItem } from "@/lib/chef/chef-product-item";
 import { groupChefProductsByCategory } from "@/lib/chef/group-chef-products-by-category";
 
@@ -13,6 +14,7 @@ type MenuChefProductCardGridProps = {
   blockTitle?: string;
   /** Üst panelde zaten "Ürünler" yazıyorsa kategori başlıkları yeter */
   showBlockTitle?: boolean;
+  cardSource?: ChefProductCardSource;
 };
 
 export function MenuChefProductCardGrid({
@@ -20,6 +22,7 @@ export function MenuChefProductCardGrid({
   className,
   blockTitle = "Öneriler",
   showBlockTitle = false,
+  cardSource = "bubble",
 }: MenuChefProductCardGridProps) {
   if (products.length === 0) return null;
 
@@ -48,6 +51,7 @@ export function MenuChefProductCardGrid({
                       item={product}
                       galleryProducts={galleryProducts}
                       galleryIndex={galleryIndex >= 0 ? galleryIndex : 0}
+                      cardSource={cardSource}
                     />
                   </div>
                 );

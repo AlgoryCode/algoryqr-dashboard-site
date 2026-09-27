@@ -26,9 +26,15 @@ export function buildChefPersuasionText(products: ChefProductItem[]): string {
 }
 
 export function mergeReplyWithPersuasion(reply: string, products: ChefProductItem[]): string {
-  const persuasion = buildChefPersuasionText(products);
   const trimmed = reply.trim();
-  if (!trimmed) return persuasion;
-  if (trimmed.length > 280) return trimmed;
-  return `${trimmed}\n\n${persuasion}`;
+  if (products.length === 0) {
+    return trimmed;
+  }
+  if (!trimmed) {
+    return "Size özel birkaç seçenek hazırladım — kartlara dokunarak inceleyebilirsiniz.";
+  }
+  if (trimmed.length > 120) {
+    return trimmed.slice(0, 117).trimEnd() + "…";
+  }
+  return trimmed;
 }

@@ -10,6 +10,9 @@ function cartSummary(cartProductIds: number[], catalog: MenuProductApiItem[]): s
   return lines.join(", ");
 }
 
+const OUTPUT_RULES =
+  "[Yanıt kuralları: Ürün listesi veya fiyat dökümü yazma; en fazla 2 kısa Türkçe cümle. Ürünler UI kartlarında gösterilecek. En fazla 6 productId seç.]";
+
 export function buildChefAgentUserMessage(
   userMessage: string,
   mode: ChefAgentRecommendationMode,
@@ -18,13 +21,13 @@ export function buildChefAgentUserMessage(
 ): string {
   const trimmed = userMessage.trim();
   if (mode === "general") {
-    return `[İstek: Genel menü önerisi. Sepete bakma; menüde popüler ve dengeli seçenekler ve mümkünse hazır menü kombinasyonları sun.]\n\n${trimmed || "Genel öneri ver."}`;
+    return `[İstek: Genel menü önerisi. Sepete bakma; 2–4 çeşitli ürün ve menü paketi için uygun anchor seç.]\n${OUTPUT_RULES}\n\n${trimmed || "Genel öneri ver."}`;
   }
   if (mode === "cart" && cartProductIds.length > 0) {
-    return `[Müşteri sepeti: ${cartSummary(cartProductIds, catalog)}. Sepettekilere uyumlu tamamlayıcı ürünler öner; sepette olanları tekrarlama. Gerekirse menü kombinasyonu da öner.]\n\n${trimmed || "Sepetime uygun öneriler ver."}`;
+    return `[Müşteri sepeti: ${cartSummary(cartProductIds, catalog)}. Eksik kursu tamamla (yemek/içecek/tatlı); sepette olanları tekrarlama.]\n${OUTPUT_RULES}\n\n${trimmed || "Sepetime uygun öneriler ver."}`;
   }
   if (cartProductIds.length > 0) {
-    return `[Müşteri sepeti: ${cartSummary(cartProductIds, catalog)}. Yanıtında sepeti dikkate al.]\n\n${trimmed}`;
+    return `[Müşteri sepeti: ${cartSummary(cartProductIds, catalog)}. Yanıtında sepeti dikkate al.]\n${OUTPUT_RULES}\n\n${trimmed}`;
   }
-  return trimmed;
+  return `${OUTPUT_RULES}\n\n${trimmed}`;
 }

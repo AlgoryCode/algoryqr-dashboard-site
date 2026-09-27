@@ -1,12 +1,19 @@
 "use client";
 
 import { Loader2, Plus } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import type { ChefProductItem } from "@/lib/chef/chef-product-item";
+import { chefCrossSellMaxItems, isChefCrossSellEnabled } from "@/lib/chef/chef-funnel-flags";
+import { pickCrossSellProducts } from "@/lib/chef/pick-cross-sell-products";
 
 import { chefItemToMenuProduct, useMenuLocaleOptional, useOrderingOptional } from "../shared";
 import { useMenuPriceDisplay } from "../shared/menu-currency";
+
+import { useChefChatAnalyticsOptional } from "./ChefChatAnalyticsContext";
+import { useChefChatCatalogProducts } from "./ChefChatCatalogContext";
+import { useChefProductGalleryOptional } from "./ChefProductGallery";
+import { MenuChefCrossSellStrip } from "./MenuChefCrossSellStrip";
 
 type MenuChefProductDetailPaneProps = {
   item: ChefProductItem;
@@ -15,10 +22,20 @@ type MenuChefProductDetailPaneProps = {
 export function MenuChefProductDetailPane({ item }: MenuChefProductDetailPaneProps) {
   const ordering = useOrderingOptional();
   const locale = useMenuLocaleOptional();
+  const catalog = useChefChatCatalogProducts();
+  const analytics = useChefChatAnalyticsOptional();
+  const gallery = useChefProductGalleryOptional();
   const priceLabel = useMenuPriceDisplay(item.price ?? undefined, item.currency || "TRY");
   const [addBusy, setAddBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [added, setAdded] = useState(false);
+  const [crossSellItems, setCrossSellItems] = useState<ChefProductItem[]>([]);
   const addLabel = locale?.t.addToCart ?? "Sepete Ekle";
+
+  const cartProductIds = useMemo(
+    () => ordering?.localItems.map((line) => line.productId) ?? [],
+    [ordering?.localItems],
+  );
 
   const handleAdd = async () => {
     if (!ordering || item.available === false) return;
@@ -26,7 +43,49 @@ export function MenuChefProductDetailPane({ item }: MenuChefProductDetailPanePro
     setError(null);
     try {
       const failure = await ordering.beginAddProduct(chefItemToMenuProduct(item), 1);
-      if (failure) setError(failure);
+      if (failure) {
+        setError(failure);
+        return;
+      }
+      analytics?.trackProductAdd(item.productId, "gallery");
+      setAdded(true);
+
+      if (isChefCrossSellEnabled() && catalog.length > 0) {
+        const suggestions = pickCrossSellProducts({
+          anchorProductId: item.productId,
+          catalog,
+          cartProductIds: [...cartProductIds, item.productId],
+          maxItems: chefCrossSellMaxItems(),
+        });
+        setCrossSellItems(suggestions);
+        if (suggestions.length > 0) {
+          analytics?.markCrossSellInteraction();
+          analytics?.trackCrossSellShown(
+            item.productId,
+            suggestions.map((product) => product.productId),
+          );
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sepete eklenemedi");
+    } finally {
+      setAddBusy(false);
+    }
+  };
+
+  const handleCrossSellAdd = async (product: ChefProductItem) => {
+    if (!ordering) return;
+    setAddBusy(true);
+    setError(null);
+    try {
+      const failure = await ordering.beginAddProduct(chefItemToMenuProduct(product), 1);
+      if (failure) {
+        setError(failure);
+        return;
+      }
+      analytics?.trackCrossSellAdd(product.productId);
+      analytics?.markCrossSellInteraction();
+      setCrossSellItems((prev) => prev.filter((entry) => entry.productId !== product.productId));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sepete eklenemedi");
     } finally {
@@ -56,6 +115,11 @@ export function MenuChefProductDetailPane({ item }: MenuChefProductDetailPanePro
           </p>
         ) : null}
       </div>
+      {added ? (
+        <p className="rounded-[0.7rem] bg-emerald-50 px-3 py-2 text-[13px] font-medium text-emerald-900">
+          Sepete eklendi
+        </p>
+      ) : null}
       {ordering && item.available !== false ? (
         <button
           type="button"
@@ -70,6 +134,16 @@ export function MenuChefProductDetailPane({ item }: MenuChefProductDetailPanePro
           )}
           {addLabel}
         </button>
+      ) : null}
+      {crossSellItems.length > 0 ? (
+        <MenuChefCrossSellStrip
+          suggestions={crossSellItems}
+          onSelectProduct={(product, index) => {
+            analytics?.trackCrossSellClick(product.productId);
+            gallery?.openGallery(crossSellItems, index);
+          }}
+          onAddProduct={(product) => void handleCrossSellAdd(product)}
+        />
       ) : null}
       {error ? <p className="text-[12px] text-[#b42318]">{error}</p> : null}
     </div>

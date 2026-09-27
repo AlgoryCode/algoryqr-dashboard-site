@@ -6,6 +6,8 @@ import { mergeReplyWithPersuasion } from "@/lib/chef/chef-recommendation-copy";
 import { extractChefProductIds } from "@/lib/chef/extract-chef-product-ids";
 import { mapMenuProductToAgentCatalog } from "@/lib/chef/agent-catalog-product";
 import { buildChefMenuSuggestions } from "@/lib/chef/build-chef-menu-suggestions";
+import { inferRecommendationIntent } from "@/lib/chef/infer-recommendation-intent";
+import { filterChefProductIds, rankChefRecommendations } from "@/lib/chef/rank-chef-recommendations";
 import { fetchPublicMenuProducts } from "@/lib/chef/fetch-public-menu-products-server";
 import { hydrateChefProductsForPublicMenu } from "@/lib/chef/hydrate-chef-products-server";
 import type { MenuProductApiItem } from "@/lib/api";
@@ -65,6 +67,8 @@ export async function POST(req: Request) {
         ? clientMenuProducts
         : await fetchPublicMenuProducts(parsed.data.publicId);
     const catalog = menuProducts.map(mapMenuProductToAgentCatalog);
+    const cartProductIds = parsed.data.cartProductIds ?? [];
+    const recommendationIntent = inferRecommendationIntent(parsed.data.message);
 
     const upstream = await axios.post<AgentChatResponse>(
       `${QR_AGENT_BASE_URL}/api/v1/chat`,
@@ -73,6 +77,9 @@ export async function POST(req: Request) {
         message: parsed.data.message,
         conversationId: parsed.data.conversationId,
         products: catalog,
+        cartProductIds,
+        recommendationIntent,
+        locale: "tr",
       },
       {
         headers: { "Content-Type": "application/json" },
@@ -111,11 +118,14 @@ export async function POST(req: Request) {
       products: upstream.data.products,
       searchComplete: upstream.data.searchComplete,
     };
-    const productIds = extractChefProductIds(idSource);
-    const { products } = await hydrateChefProductsForPublicMenu(parsed.data.publicId, {
+    const rawProductIds = extractChefProductIds(idSource);
+    const productIds = filterChefProductIds(rawProductIds, cartProductIds);
+    const { products: hydrated } = await hydrateChefProductsForPublicMenu(parsed.data.publicId, {
       ...idSource,
+      productIds,
       catalog: menuProducts,
     });
+    const products = rankChefRecommendations(hydrated, menuProducts, cartProductIds);
     const menuSuggestions =
       products.length > 0 ? buildChefMenuSuggestions(products, menuProducts) : [];
 

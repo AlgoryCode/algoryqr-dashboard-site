@@ -49,10 +49,10 @@ export function buildUpsellBadges(missing: MenuCourseRole[]): ChefChatBadge[] {
 
 export function buildCartCoachMessage(missing: MenuCourseRole[]): string | null {
   if (missing.length === 0) {
-    return "Harika bir menü oluşturdunuz. Siparişi tamamlamak için aşağıdaki butonu kullanabilirsiniz.";
+    return "Menünüz tamam görünüyor. Siparişi tamamlamak için aşağıdaki butona dokunabilirsiniz.";
   }
   if (missing.length === 3) {
-    return "Sepetinize harika bir başlangıç yaptınız. Menünüzü tamamlamak için ana yemek, buz gibi bir içecek ve hafif bir tatlı eklemek ister misiniz?";
+    return "Güzel bir başlangıç. Menünüzü ana yemek, serin bir içecek ve hafif bir tatlıyla tamamlamak ister misiniz? Aşağıdaki önerilere bakabilirsiniz.";
   }
   const parts: string[] = [];
   if (missing.includes("dessert")) parts.push("hafif bir tatlı");

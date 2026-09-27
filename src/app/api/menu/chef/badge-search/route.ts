@@ -3,7 +3,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { buildChefMenuSuggestions } from "@/lib/chef/build-chef-menu-suggestions";
+import { isUpsellBadgeId, upsellBadgeId, type MenuCourseRole } from "@/lib/chef/chef-cart-coach";
 import { getChefChatPublicConfig } from "@/lib/chef/chef-chat-public-config";
+import type { ChefChatBadge } from "@/lib/chef/chef-chat-badges";
 import { mergeReplyWithPersuasion } from "@/lib/chef/chef-recommendation-copy";
 import { extractChefProductIds } from "@/lib/chef/extract-chef-product-ids";
 import { fetchPublicMenuProducts } from "@/lib/chef/fetch-public-menu-products-server";
@@ -74,7 +76,24 @@ export async function POST(req: Request) {
 
     const { publicId, badgeId } = parsed.data;
     const config = await getChefChatPublicConfig(publicId);
-    const badge = config.badges.find((entry) => entry.id === badgeId);
+    let badge: ChefChatBadge | undefined = config.badges.find((entry) => entry.id === badgeId);
+
+    if (!badge && isUpsellBadgeId(badgeId)) {
+      const role = badgeId.replace(/^upsell_/, "") as MenuCourseRole;
+      if (role === "food" || role === "drink" || role === "dessert") {
+        const labels: Record<MenuCourseRole, string> = {
+          food: "Ana yemek öner",
+          drink: "Serin içecek öner",
+          dessert: "Tatlı öner",
+        };
+        badge = {
+          id: upsellBadgeId(role),
+          label: labels[role],
+          filter: { type: "menuRole", role },
+        };
+      }
+    }
+
     if (!badge) {
       return NextResponse.json({ message: "Badge bulunamadı" }, { status: 404 });
     }

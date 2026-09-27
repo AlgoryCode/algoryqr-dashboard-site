@@ -19,12 +19,6 @@ import {
   buildChefAgentUserMessage,
   type ChefAgentRecommendationMode,
 } from "@/lib/chef/chef-agent-message";
-import {
-  buildCartCoachMessage,
-  buildUpsellBadges,
-  cartCourseRoles,
-  missingCourseRoles,
-} from "@/lib/chef/chef-cart-coach";
 import { useCartSheetHostOptional, useOrderingOptional } from "../shared";
 
 import { ChefProductGalleryProvider } from "./ChefProductGallery";
@@ -33,7 +27,12 @@ import {
   assistantCaptionForMenuReply,
   assistantCaptionForProductReply,
 } from "@/lib/chef/chef-recommendation-display";
-import { MenuChefChatStickyPanels } from "./MenuChefChatStickyPanels";
+import { useChefChatAnalytics } from "@/hooks/use-chef-chat-analytics";
+
+import { ChefChatAnalyticsContext } from "./ChefChatAnalyticsContext";
+import { ChefChatCatalogProvider } from "./ChefChatCatalogContext";
+import { MenuChefCartCoachEffect } from "./MenuChefCartCoachEffect";
+import { MenuChefChatTrackedEffects } from "./MenuChefChatTrackedEffects";
 import { MenuChefMenuSuggestions } from "./MenuChefMenuSuggestions";
 import { MenuChefProductCardGrid } from "./MenuChefProductCardGrid";
 import { MenuChefQuickBadges } from "./MenuChefQuickBadges";
@@ -48,8 +47,6 @@ type MenuChefChatProps = {
   chefAvatarUrl: string;
   open: boolean;
   onClose: () => void;
-  /** Storybook: üstteki ürün paneli önizlemesi */
-  initialPanelProducts?: ChefProductItem[];
 };
 
 let messageSeq = 0;
@@ -376,9 +373,9 @@ export function MenuChefChat({
   chefAvatarUrl,
   open,
   onClose,
-  initialPanelProducts = [],
 }: MenuChefChatProps) {
   const ordering = useOrderingOptional();
+  const chefAnalytics = useChefChatAnalytics(publicId);
   const setChefChatCartHost = useCartSheetHostOptional()?.setChefChatActive;
   const {
     menuProducts: chefMenuProducts,
@@ -387,10 +384,8 @@ export function MenuChefChat({
     ready: catalogReady,
   } = useChefChatCatalog(publicId, open);
   const resolveChefChatProducts = useResolveChefChatProducts(publicId, chefMenuProducts);
-  const lastCoachCartSigRef = useRef("");
   const lastCartAgentSigRef = useRef("");
   const cartAgentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [panelProducts, setPanelProducts] = useState<ChefProductItem[]>(() => initialPanelProducts);
   const saved = getChefChatSession(publicId);
   const [messages, setMessages] = useState<ChefChatMessage[]>(
     () => saved?.messages ?? [CHEF_WELCOME_MESSAGE],
@@ -441,36 +436,6 @@ export function MenuChefChat({
       cancelled = true;
     };
   }, [open, publicId]);
-
-  useEffect(() => {
-    if (!open || !ordering || ordering.localItems.length === 0 || chefMenuProducts.length === 0) {
-      return;
-    }
-    const productIds = ordering.localItems.map((item) => item.productId);
-    const sig = productIds.join(",");
-    if (sig === lastCoachCartSigRef.current) return;
-    lastCoachCartSigRef.current = sig;
-
-    const present = cartCourseRoles(productIds, chefMenuProducts);
-    const missing = missingCourseRoles(present);
-    const text = buildCartCoachMessage(missing);
-    const badges = buildUpsellBadges(missing);
-    if (!text) return;
-
-    setMessages((prev) => {
-      const coachId = `coach-${sig}`;
-      if (prev.some((msg) => msg.id === coachId)) return prev;
-      return [
-        ...prev,
-        {
-          id: coachId,
-          role: "assistant",
-          text,
-          upsellBadges: badges.length > 0 ? badges : undefined,
-        },
-      ];
-    });
-  }, [open, ordering, ordering?.localItems, chefMenuProducts]);
 
   useEffect(() => {
     if (!open || !catalogReady || !ordering) return;
@@ -531,7 +496,7 @@ export function MenuChefChat({
   useEffect(() => {
     if (!open) return;
     scrollToBottom();
-  }, [messages, loading, open, panelProducts]);
+  }, [messages, loading, open]);
 
   const canReset =
     Boolean(conversationId) || messages.some((msg) => msg.id !== "welcome");
@@ -540,27 +505,14 @@ export function MenuChefChat({
     if (loading) return;
     clearChefChatSession(publicId);
     enteredIdsRef.current = new Set(["welcome"]);
-    lastCoachCartSigRef.current = "";
     lastCartAgentSigRef.current = "";
     setConversationId(undefined);
     setInput("");
-    setPanelProducts([]);
     setMessages([{ ...CHEF_WELCOME_MESSAGE }]);
     setResetConfirmOpen(false);
   };
 
   const cartProductIds = ordering?.localItems.map((item) => item.productId) ?? [];
-
-  const applyAgentProductPanel = (
-    products: ChefProductItem[] | undefined,
-    mode: ChefAgentRecommendationMode,
-  ) => {
-    if (products?.length) {
-      setPanelProducts(products);
-    } else if (mode === "general") {
-      setPanelProducts([]);
-    }
-  };
 
   const runAgentSearch = async (
     text: string,
@@ -571,6 +523,10 @@ export function MenuChefChat({
     const addAssistantToChat = options?.addAssistantToChat ?? true;
     const agentMessage = buildChefAgentUserMessage(text, mode, cartProductIds, chefMenuProducts);
     if (!agentMessage.trim() || loading || !catalogReady) return;
+
+    chefAnalytics.trackRecommendationRequest(
+      mode === "general" ? "general" : mode === "cart" ? "cart" : "default",
+    );
 
     if (addUserMessage) {
       setSendPulse((value) => value + 1);
@@ -627,10 +583,12 @@ export function MenuChefChat({
         products: data.products,
         searchComplete: data.searchComplete,
       });
-      applyAgentProductPanel(products, mode);
+      const productList = products?.length ? products : undefined;
+      const menuList = data.menuSuggestions?.length ? data.menuSuggestions : undefined;
+      if (productList?.length || menuList?.length) {
+        chefAnalytics.trackRecommendationShown(productList?.length ?? 0, menuList?.length ?? 0);
+      }
       if (addAssistantToChat) {
-        const productList = products?.length ? products : undefined;
-        const menuList = data.menuSuggestions?.length ? data.menuSuggestions : undefined;
         setMessages((prev) => [
           ...prev,
           {
@@ -647,9 +605,7 @@ export function MenuChefChat({
             ...(data.searchComplete ? { searchComplete: data.searchComplete } : {}),
           },
         ]);
-      } else if (data.menuSuggestions?.length || products?.length) {
-        const productList = products?.length ? products : undefined;
-        const menuList = data.menuSuggestions?.length ? data.menuSuggestions : undefined;
+      } else if (productList?.length || menuList?.length) {
         setMessages((prev) => [
           ...prev,
           {
@@ -696,6 +652,7 @@ export function MenuChefChat({
 
   const sendBadge = async (badge: ChefChatBadge) => {
     if (loading || !catalogReady) return;
+    chefAnalytics.trackRecommendationRequest("badge");
     setSendPulse((value) => value + 1);
     setMessages((prev) => [...prev, { id: nextId(), role: "user", text: badge.label }]);
     setLoading(true);
@@ -728,9 +685,11 @@ export function MenuChefChat({
         productIds: data.productIds,
         products: data.products,
       });
-      applyAgentProductPanel(products, "default");
       const productList = products?.length ? products : undefined;
       const menuList = data.menuSuggestions?.length ? data.menuSuggestions : undefined;
+      if (productList?.length || menuList?.length) {
+        chefAnalytics.trackRecommendationShown(productList?.length ?? 0, menuList?.length ?? 0);
+      }
       setMessages((prev) => [
         ...prev,
         {
@@ -769,7 +728,16 @@ export function MenuChefChat({
   if (!portalReady) return null;
 
   return createPortal(
-    <ChefProductGalleryProvider>
+    <ChefChatAnalyticsContext.Provider value={chefAnalytics}>
+      <ChefChatCatalogProvider catalog={chefMenuProducts}>
+        <ChefProductGalleryProvider>
+          <MenuChefChatTrackedEffects open={open} conversationId={conversationId} />
+          <MenuChefCartCoachEffect
+            open={open}
+            ordering={ordering}
+            chefMenuProducts={chefMenuProducts}
+            setMessages={setMessages}
+          />
     <AnimatePresence>
       {open ? (
         <motion.div
@@ -826,7 +794,10 @@ export function MenuChefChat({
                   {ordering ? (
                     <button
                       type="button"
-                      onClick={() => ordering.setCartOpen(true)}
+                      onClick={() => {
+                        chefAnalytics.trackCartOpen("header");
+                        ordering.setCartOpen(true);
+                      }}
                       className="relative inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#1c2824]/[0.04] text-[#3d4a45] transition hover:bg-[#1c2824]/[0.08] hover:text-[#1c2824]"
                       aria-label="Sepet"
                     >
@@ -917,8 +888,6 @@ export function MenuChefChat({
                   })}
                 </AnimatePresence>
 
-                <MenuChefChatStickyPanels products={panelProducts} />
-
                 <AnimatePresence>
                   {loading ? (
                     <motion.div
@@ -951,7 +920,10 @@ export function MenuChefChat({
                 <div className="mx-auto max-w-2xl">
                   <button
                     type="button"
-                    onClick={() => ordering.setCartOpen(true)}
+                    onClick={() => {
+                      chefAnalytics.trackCartOpen("complete_cta");
+                      ordering.setCartOpen(true);
+                    }}
                     className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#2a3833] px-4 py-2.5 text-[13.5px] font-semibold text-white shadow-[0_8px_24px_rgba(28,40,36,0.12)] transition hover:bg-[#1f2b27]"
                   >
                     <ShoppingBag className="h-4 w-4" strokeWidth={2.1} />
@@ -1030,7 +1002,9 @@ export function MenuChefChat({
         </motion.div>
       ) : null}
     </AnimatePresence>
-    </ChefProductGalleryProvider>,
+        </ChefProductGalleryProvider>
+      </ChefChatCatalogProvider>
+    </ChefChatAnalyticsContext.Provider>,
     document.body,
   );
 }

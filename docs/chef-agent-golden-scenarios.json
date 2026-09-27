@@ -1,0 +1,20 @@
+[
+  {
+    "name": "general_empty_cart",
+    "message": "[İstek: Genel menü önerisi...]\n\nGenel öneri ver.",
+    "cartProductIds": [],
+    "expect": { "maxProductIds": 6, "replyMaxChars": 200 }
+  },
+  {
+    "name": "cart_drink_only",
+    "message": "[Müşteri sepeti: Kola (productId:2)...]\n\nSepetime uygun öneriler ver.",
+    "cartProductIds": [2],
+    "expect": { "mustNotIncludeProductIds": [2], "preferRoles": ["food", "dessert"] }
+  },
+  {
+    "name": "vegan_filter",
+    "message": "Vegan seçenekler öner",
+    "cartProductIds": [],
+    "expect": { "replyMentionsDiet": true }
+  }
+]

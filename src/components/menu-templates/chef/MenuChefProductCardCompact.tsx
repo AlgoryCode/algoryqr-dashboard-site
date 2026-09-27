@@ -4,6 +4,9 @@ import type { ChefProductItem } from "@/lib/chef/chef-product-item";
 
 import { useMenuPriceDisplay } from "../shared/menu-currency";
 
+import type { ChefProductCardSource } from "@/hooks/use-chef-chat-analytics";
+
+import { useChefChatAnalyticsOptional } from "./ChefChatAnalyticsContext";
 import { useChefProductGalleryOptional } from "./ChefProductGallery";
 
 type MenuChefProductCardCompactProps = {
@@ -12,6 +15,8 @@ type MenuChefProductCardCompactProps = {
   galleryIndex: number;
   size?: "default" | "sm";
   caption?: string;
+  cardSource?: ChefProductCardSource;
+  onCardClick?: () => void;
 };
 
 export function MenuChefProductCardCompact({
@@ -20,11 +25,19 @@ export function MenuChefProductCardCompact({
   galleryIndex,
   size = "default",
   caption,
+  cardSource = "bubble",
+  onCardClick,
 }: MenuChefProductCardCompactProps) {
   const gallery = useChefProductGalleryOptional();
+  const analytics = useChefChatAnalyticsOptional();
   const priceLabel = useMenuPriceDisplay(item.price ?? undefined, item.currency || "TRY");
 
   const openDetail = () => {
+    analytics?.trackProductCardClick(item.productId, cardSource);
+    if (onCardClick) {
+      onCardClick();
+      return;
+    }
     gallery?.openGallery(galleryProducts, galleryIndex);
   };
 

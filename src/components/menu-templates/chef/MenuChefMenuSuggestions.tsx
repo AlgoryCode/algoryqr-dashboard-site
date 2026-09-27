@@ -82,6 +82,7 @@ function MenuChefMenuSuggestionCard({
                 galleryIndex={galleryIndex >= 0 ? galleryIndex : 0}
                 size="sm"
                 caption={CHEF_MENU_ROLE_LABELS[line.role]}
+                cardSource="menu_suggestion"
               />
             </div>
           );
