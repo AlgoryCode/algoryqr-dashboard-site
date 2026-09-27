@@ -5,6 +5,10 @@ import type { ChefProductItem } from "./chef-product-item";
 const MAX_RECOMMENDATIONS = 6;
 const MAX_PER_MAIN_CATEGORY = 2;
 
+export type RankChefRecommendationsOptions = {
+  maxPerMainCategory?: number;
+};
+
 function ratingScore(product: MenuProductApiItem): number {
   const avg =
     typeof product.ratingAvg === "number" ? product.ratingAvg : Number(product.ratingAvg ?? 0);
@@ -36,6 +40,7 @@ function pickRanked(
   catalog: MenuProductApiItem[],
   excludeProductIds: Set<number>,
   priorOrderProductIds: number[] = [],
+  maxPerMainCategory = MAX_PER_MAIN_CATEGORY,
 ): ChefProductItem[] {
   const catalogById = new Map(catalog.map((product) => [product.productId, product]));
   const categoryCounts = new Map<number, number>();
@@ -55,7 +60,7 @@ function pickRanked(
     const mainCategoryId = catalogProduct?.mainCategoryId;
     if (mainCategoryId != null) {
       const count = categoryCounts.get(mainCategoryId) ?? 0;
-      if (count >= MAX_PER_MAIN_CATEGORY) continue;
+      if (count >= maxPerMainCategory) continue;
       categoryCounts.set(mainCategoryId, count + 1);
     }
     picked.push(item);
@@ -70,9 +75,11 @@ export function rankChefRecommendations(
   cartProductIds: number[] = [],
   recentlyShownProductIds: number[] = [],
   priorOrderProductIds: number[] = [],
+  options: RankChefRecommendationsOptions = {},
 ): ChefProductItem[] {
   if (products.length === 0) return [];
 
+  const maxPerMainCategory = options.maxPerMainCategory ?? MAX_PER_MAIN_CATEGORY;
   const cartSet = new Set(cartProductIds);
   const recentSet = new Set(recentlyShownProductIds);
   const excludeWithRecent = new Set([...cartSet, ...recentSet]);
@@ -82,12 +89,13 @@ export function rankChefRecommendations(
     catalog,
     excludeWithRecent,
     priorOrderProductIds,
+    maxPerMainCategory,
   );
   if (withRecentDedup.length > 0 || recentSet.size === 0) {
     return withRecentDedup;
   }
 
-  return pickRanked(products, catalog, cartSet, priorOrderProductIds);
+  return pickRanked(products, catalog, cartSet, priorOrderProductIds, maxPerMainCategory);
 }
 
 export function filterChefProductIds(

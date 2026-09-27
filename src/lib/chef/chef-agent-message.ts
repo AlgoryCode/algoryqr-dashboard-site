@@ -1,5 +1,7 @@
 import type { MenuProductApiItem } from "@/lib/api";
 
+import { extractUserQueryForChefMatch, isSpecificProductQuery } from "./filter-chef-products-by-user-query";
+
 export type ChefAgentRecommendationMode = "default" | "general" | "cart";
 
 function cartSummary(cartProductIds: number[], catalog: MenuProductApiItem[]): string {
@@ -28,6 +30,10 @@ export function buildChefAgentUserMessage(
   }
   if (cartProductIds.length > 0) {
     return `[Müşteri sepeti: ${cartSummary(cartProductIds, catalog)}. Yanıtında sepeti dikkate al.]\n${OUTPUT_RULES}\n\n${trimmed}`;
+  }
+  if (isSpecificProductQuery(trimmed)) {
+    const focus = extractUserQueryForChefMatch(trimmed);
+    return `[İstek: Müşteri "${focus}" istiyor. Yalnızca bu isteğe uyan productId seç; alakasız kategori (içecek, meze, tatlı vb.) önerme. Tek ana kategori yeterli.]\n${OUTPUT_RULES}\n\n${trimmed}`;
   }
   return `${OUTPUT_RULES}\n\n${trimmed}`;
 }

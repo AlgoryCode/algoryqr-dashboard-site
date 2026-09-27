@@ -5,6 +5,10 @@ import {
   filterChefProductsByPriceBand,
   inferChefPriceBandFromMessage,
 } from "@/lib/chef/infer-chef-price-band";
+import {
+  applyUserQueryToChefRecommendations,
+  isSpecificProductQuery,
+} from "@/lib/chef/filter-chef-products-by-user-query";
 import { filterChefProductIds, rankChefRecommendations } from "@/lib/chef/rank-chef-recommendations";
 import { hydrateChefProductsForPublicMenu } from "@/lib/chef/hydrate-chef-products-server";
 import type { ChefAgentChatResponse } from "@/lib/chef/call-chef-agent-chat";
@@ -52,12 +56,20 @@ export async function processChefAgentSearch(
     input.menuProducts,
     input.message,
   );
-  const products = rankChefRecommendations(
+  const queryAligned = applyUserQueryToChefRecommendations(
     dietFiltered,
+    input.menuProducts,
+    input.message,
+    input.cartProductIds,
+  );
+  const specificQuery = isSpecificProductQuery(input.message);
+  const products = rankChefRecommendations(
+    queryAligned,
     input.menuProducts,
     input.cartProductIds,
     input.recentlyShownProductIds,
     input.priorOrderProductIds,
+    specificQuery ? { maxPerMainCategory: 6 } : {},
   );
 
   const baseReply = input.agent.reply ?? "";

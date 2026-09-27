@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUp, Hand, RotateCcw, ShoppingBag, Sparkles, X } from "lucide-react";
+import { ArrowUp, Hand, RotateCcw, ShoppingBag, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -700,11 +700,6 @@ export function MenuChefChat({
     await runAgentSearch(trimmed, "default");
   };
 
-  const sendGeneralRecommendation = async () => {
-    if (loading || !catalogReady) return;
-    await runAgentSearch("Bugün için genel ürün önerileri sun.", "general");
-  };
-
   const sendBadge = async (badge: ChefChatBadge) => {
     if (loading || !catalogReady) return;
     chefAnalytics.trackRecommendationRequest("badge");
@@ -992,29 +987,6 @@ export function MenuChefChat({
               </div>
             </div>
 
-            {ordering ? (
-              <div className="relative z-10 border-t border-[#1c2824]/[0.06] bg-white/70 px-4 pt-2 backdrop-blur-xl">
-                <div className="mx-auto max-w-2xl">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      chefAnalytics.trackCartOpen("complete_cta");
-                      ordering.setCartOpen(true);
-                    }}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#2a3833] px-4 py-2.5 text-[13.5px] font-semibold text-white shadow-[0_8px_24px_rgba(28,40,36,0.12)] transition hover:bg-[#1f2b27]"
-                  >
-                    <ShoppingBag className="h-4 w-4" strokeWidth={2.1} />
-                    Siparişi tamamla
-                    {ordering.cartCount > 0 ? (
-                      <span className="rounded-full bg-white/15 px-2 py-0.5 text-[12px] tabular-nums">
-                        {ordering.cartCount}
-                      </span>
-                    ) : null}
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
             <form
               className="relative z-10 border-t border-[#1c2824]/[0.06] bg-white/60 px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl"
               onSubmit={(e) => {
@@ -1022,17 +994,6 @@ export function MenuChefChat({
                 void send();
               }}
             >
-              <div className="mx-auto mb-2 flex max-w-2xl justify-start">
-                <button
-                  type="button"
-                  disabled={loading || !catalogReady}
-                  onClick={() => void sendGeneralRecommendation()}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-[#1c2824]/10 bg-white/90 px-3 py-1.5 text-[12.5px] font-medium text-[#2a3833] shadow-sm transition hover:bg-white disabled:opacity-40"
-                >
-                  <Sparkles className="h-3.5 w-3.5 text-[#5f7a6d]" strokeWidth={2} aria-hidden />
-                  Öneri
-                </button>
-              </div>
               <div className="mx-auto flex max-w-2xl items-center gap-2 rounded-full border border-[#1c2824]/[0.08] bg-white/90 p-1.5 shadow-[0_10px_30px_rgba(28,40,36,0.06)]">
                 <input
                   ref={inputRef}
