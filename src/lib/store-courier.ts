@@ -14,6 +14,7 @@ export type CourierTicketItem = {
 
 export type CourierTicket = {
   id: number;
+  branchId?: number | null;
   orderNo: string;
   status: (typeof STORE_COURIER_STATUSES)[number] | string;
   customerName: string;
@@ -107,6 +108,10 @@ export function storeOrderToCourierTicket(order: StoreOrderSummary | StoreOrderD
 
   return {
     id: order.id,
+    branchId:
+      typeof (detail as { branchId?: number | null }).branchId === "number"
+        ? (detail as { branchId: number }).branchId
+        : null,
     orderNo: order.orderNo,
     status: order.status,
     customerName: order.customerName,
@@ -168,8 +173,12 @@ export function asCourierTicket(raw: unknown): CourierTicket | null {
       })
     : [];
 
+  const branchId =
+    typeof raw.branchId === "number" && Number.isFinite(raw.branchId) ? raw.branchId : null;
+
   return {
     id,
+    branchId,
     orderNo:
       (typeof raw.orderNo === "string" && raw.orderNo) ||
       (typeof raw.orderNumber === "string" && raw.orderNumber) ||

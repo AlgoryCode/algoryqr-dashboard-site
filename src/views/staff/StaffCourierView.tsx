@@ -1,10 +1,12 @@
 "use client";
 
+import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { CourierDisplayBoard } from "@/components/courier/CourierDisplayBoard";
 import { ordersForStaffBranch } from "@/lib/branch-scope";
 import { formatBranchCode } from "@/lib/branch";
+import type { CourierTicket } from "@/lib/store-courier";
 import {
   listCourierQueue,
   markCourierDelivered,
@@ -24,6 +26,14 @@ export default function StaffCourierView() {
     queryFn: listCourierQueue,
     refetchInterval: 6_000,
   });
+
+  const branchOrders = useMemo(
+    () =>
+      me
+        ? ordersForStaffBranch<CourierTicket>(queueQuery.data ?? [], me.branchId)
+        : ([] as CourierTicket[]),
+    [me, queueQuery.data],
+  );
 
   const action = useMutation({
     mutationFn: async (payload: { orderId: number; kind: "dispatch" | "deliver" }) => {
@@ -49,7 +59,7 @@ export default function StaffCourierView() {
           </p>
         </div>
         <CourierDisplayBoard
-          orders={ordersForStaffBranch(queueQuery.data ?? [], me.branchId)}
+          orders={branchOrders}
           loading={queueQuery.isLoading}
           error={
             queueQuery.error instanceof WaiterApiError
