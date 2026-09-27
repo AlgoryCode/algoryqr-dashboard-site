@@ -740,7 +740,7 @@ export function MenuChefChat({
   };
 
   const sendBadge = async (badge: ChefChatBadge) => {
-    await runAgentSearch(badge.label);
+    await runAgentSearch(badge.label, "default");
   };
 
   const send = async () => {
