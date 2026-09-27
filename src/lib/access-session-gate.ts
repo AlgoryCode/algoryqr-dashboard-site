@@ -25,6 +25,8 @@ const PURCHASE_ALLOWLIST_PREFIXES = [
 ] as const;
 
 const START_ALLOWLIST_PREFIXES = [
+  DASHBOARD_ROUTES.demoLanding,
+  DASHBOARD_ROUTES.demoRegister,
   DASHBOARD_ROUTES.trialStart,
 ] as const;
 
@@ -52,7 +54,7 @@ export function destinationForDecision(
     if (returnPath && isStartAllowlistedPath(pathname)) {
       return returnPath;
     }
-    return DASHBOARD_ROUTES.trialStart;
+    return DASHBOARD_ROUTES.demoRegister;
   }
   if (returnPath && isPurchaseAllowlistedPath(pathname)) {
     return returnPath;

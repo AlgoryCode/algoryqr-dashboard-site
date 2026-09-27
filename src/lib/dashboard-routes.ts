@@ -174,6 +174,8 @@ export const DASHBOARD_ROUTES = {
   accountBillingAddresses: "/dashboard/hesabim/fatura-adreslerim",
   trialStart: "/dashboard/deneme/baslat",
   trialExpired: "/dashboard/deneme/bitti",
+  demoLanding: "/demo",
+  demoRegister: "/demo/register",
   welcomeOnboarding: "/dashboard/karsilama",
 } as const;
 

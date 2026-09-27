@@ -6,7 +6,7 @@ import { Check, Crown, Loader2, Sparkles } from "lucide-react";
 import { DigitalMenuIcon } from "@/components/icons/DigitalMenuIcon";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { useAccessSession, useEligibleTrialPackages } from "@/hooks/use-commerce";
+import { useAccessSession } from "@/hooks/use-commerce";
 import { useActivePackages } from "@/hooks/use-subscription";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { filterCatalogPackages } from "@/lib/package-display";
@@ -21,7 +21,6 @@ const FEATURES = [
 export function DigitalMenuPaywall() {
   const router = useRouter();
   const trial = useAccessSession(true);
-  const eligibleTrials = useEligibleTrialPackages(true);
   const packages = useActivePackages(true);
 
   const status = trial.data?.decision ?? "START_PACKAGE";
@@ -30,8 +29,7 @@ export function DigitalMenuPaywall() {
     pkg.items?.some((item) => item.productCode === "QR_MENU"),
   );
   const packageId = menuPackage?.id ?? null;
-  const eligiblePackages = filterCatalogPackages(eligibleTrials.data ?? []);
-  const canStartTrial = !needsRenewal && status === "START_PACKAGE" && eligiblePackages.length > 0;
+  const canStartDemo = !needsRenewal && status === "START_PACKAGE";
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -87,21 +85,21 @@ export function DigitalMenuPaywall() {
             </div>
 
             <div className="flex flex-col justify-center gap-5 border-t border-border bg-muted/30 p-6 lg:border-l lg:border-t-0 lg:p-8">
-              {trial.isLoading || eligibleTrials.isLoading ? (
+              {trial.isLoading ? (
                 <Button disabled className="w-full gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Durum yükleniyor
                 </Button>
               ) : (
                 <div className="space-y-3">
-                  {canStartTrial ? (
+                  {canStartDemo ? (
                     <Button
                       variant="hero"
                       className="w-full gap-2"
-                      onClick={() => router.push(DASHBOARD_ROUTES.trialStart)}
+                      onClick={() => router.push(DASHBOARD_ROUTES.demoRegister)}
                     >
                       <Sparkles className="h-4 w-4" />
-                      Deneme sürümünü başlat
+                      Demoyu başlat
                     </Button>
                   ) : null}
                   <Button

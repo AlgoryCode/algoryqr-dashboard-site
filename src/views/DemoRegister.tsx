@@ -51,9 +51,9 @@ const DemoRegister = () => {
       }
       toast({
         title: "Demo hesap hazır",
-        description: "15 günlük Ultimate denemeniz başlatıldı.",
+        description: "Algory Cafe, menü ve örnek veriler panelinizde hazır.",
       });
-      router.push(pathForSession(session, DASHBOARD_ROUTES.root));
+      router.push(pathForSession(session, DASHBOARD_ROUTES.overview));
       router.refresh();
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Demo kayıt başarısız";
@@ -70,9 +70,11 @@ const DemoRegister = () => {
           <Link href="/" className="inline-flex justify-center">
             <BrandLogo className="h-10" />
           </Link>
-          <h1 className="text-2xl font-bold">Demo hesap oluştur</h1>
+          <h1 className="text-2xl font-bold">Demoyu başlat</h1>
           <p className="text-sm text-muted-foreground">
-            Kullanıcı adı ve şifre ile kayıt olun; 15 gün Ultimate deneme otomatik tanımlanır.
+            Kayıt sonrası <strong className="font-medium text-foreground">Algory Cafe</strong> şubesi,{" "}
+            <strong className="font-medium text-foreground">Algory Menü</strong>, ürünler ve örnek satış verileri
+            otomatik hazırlanır; paneli kredi kartı olmadan deneyimleyin.
           </p>
         </div>
 
@@ -109,12 +111,12 @@ const DemoRegister = () => {
             />
           </div>
           <Button variant="hero" size="lg" className="w-full" type="submit" disabled={loading}>
-            {loading ? "Hesap oluşturuluyor..." : "Demo hesap oluştur"}
+            {loading ? "Demo hazırlanıyor..." : "Demoyu başlat"}
           </Button>
         </form>
 
         <p className="text-center text-xs text-muted-foreground">
-          Zaten hesabınız var mı?{" "}
+          Zaten üye misiniz?{" "}
           <Link href="/login" className="text-primary hover:underline font-medium">
             Giriş yap
           </Link>

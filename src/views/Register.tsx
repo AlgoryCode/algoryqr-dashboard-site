@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { ToastAction } from "@/components/ui/toast";
 import { BrandLogo } from "@/components/BrandLogo";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { authService } from "@/lib/auth-service";
 import { ApiError } from "@/lib/api";
@@ -17,14 +17,8 @@ import {
   buildVerificationLoginUrl,
   persistPendingVerificationEmail,
 } from "@/lib/pending-verification";
-import {
-  buildGoogleAuthStartUrl,
-  buildLoginTrialReturnUrl,
-  buildTrialStartUrl,
-  isTrialRegisterIntent,
-  persistTrialIntent,
-  readTrialPackageFromSearch,
-} from "@/lib/trial-flow";
+import { buildGoogleAuthStartUrl, isTrialRegisterIntent } from "@/lib/trial-flow";
+import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 
 const REGISTER_SUCCESS_DESCRIPTION =
   "Doğrulama kodu e-posta adresinize gönderildi. Girişten önce kodu onaylayın.";
@@ -43,20 +37,15 @@ const Register = () => {
     passwordConfirm: "",
   });
 
-  const trialPackage = useMemo(
-    () => readTrialPackageFromSearch(searchParams),
-    [searchParams],
-  );
   const isTrialFlow = isTrialRegisterIntent(searchParams.get("intent"));
-  const trialStartPath = buildTrialStartUrl(trialPackage);
-  const googleAuthHref = buildGoogleAuthStartUrl("register", trialStartPath);
-  const loginHref = isTrialFlow ? buildLoginTrialReturnUrl(trialPackage) : "/login";
+  const googleAuthHref = buildGoogleAuthStartUrl("register", DASHBOARD_ROUTES.demoRegister);
+  const loginHref = "/login";
 
   useEffect(() => {
     if (isTrialFlow) {
-      persistTrialIntent(trialPackage);
+      router.replace(DASHBOARD_ROUTES.demoRegister);
     }
-  }, [isTrialFlow, trialPackage]);
+  }, [isTrialFlow, router]);
 
   useEffect(() => {
     const registered = searchParams.get("registered") === "1";
@@ -88,11 +77,11 @@ const Register = () => {
           action: isEmailTaken ? loginAction : undefined,
         });
       }
-      router.replace(isTrialFlow ? `/register?intent=trial&package=${trialPackage}` : "/register");
+      router.replace("/register");
     }, 0);
 
     return () => window.clearTimeout(show);
-  }, [isTrialFlow, loginHref, router, searchParams, toast, trialPackage]);
+  }, [loginHref, router, searchParams, toast]);
 
   const update = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
@@ -166,12 +155,8 @@ const Register = () => {
 
         <div className="glass rounded-2xl p-8 space-y-6 glow-card">
           <div className="text-center space-y-2">
-            <h1 className="text-2xl font-bold">{isTrialFlow ? "Ultimate denemesi için kayıt ol" : "Kayıt Ol"}</h1>
-            <p className="text-sm text-muted-foreground">
-              {isTrialFlow
-                ? "15 gün ücretsiz denemeye başlamak için hesap oluşturun"
-                : "Ücretsiz hesabınızı oluşturun"}
-            </p>
+            <h1 className="text-2xl font-bold">Kayıt Ol</h1>
+            <p className="text-sm text-muted-foreground">Ücretli hesabınızı oluşturun</p>
           </div>
 
           <Button variant="outline" size="lg" className="w-full" asChild>

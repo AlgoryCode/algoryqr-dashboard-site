@@ -5,7 +5,7 @@ import { DASHBOARD_ROUTES } from "./dashboard-routes";
 
 describe("access-session-gate", () => {
   it("maps decisions to dashboard paths", () => {
-    expect(destinationForDecision("START_PACKAGE", null)).toBe(DASHBOARD_ROUTES.trialStart);
+    expect(destinationForDecision("START_PACKAGE", null)).toBe(DASHBOARD_ROUTES.demoRegister);
     expect(destinationForDecision("REQUIRE_PURCHASE", null)).toBe(DASHBOARD_ROUTES.accountPackages);
     expect(destinationForDecision("REQUIRE_PAYMENT", null)).toBe(DASHBOARD_ROUTES.accountPackages);
     expect(destinationForDecision("ALLOW", "/dashboard/dijital-menu")).toBe("/dashboard/dijital-menu");

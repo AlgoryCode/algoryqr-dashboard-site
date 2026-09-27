@@ -22,10 +22,10 @@ export type SetupStats = {
 export function buildSetupSteps(stats: SetupStats): SetupStep[] {
   const cardHref = stats.hasActiveSubscription
     ? DASHBOARD_ROUTES.accountPaymentMethods
-    : DASHBOARD_ROUTES.trialStart;
+    : DASHBOARD_ROUTES.accountPackages;
   const cardHint = stats.hasActiveSubscription
     ? "Yenileme ve ödemeler için kayıtlı kart"
-    : "Deneme bitince bu karttan çekilir";
+    : "Ücretli paket için ödeme yöntemi ekleyin";
 
   return [
     {

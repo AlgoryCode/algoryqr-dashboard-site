@@ -1,16 +1,9 @@
 import { MENU_APP_ORIGIN } from "@/lib/config";
 import { publicMenuContentPath } from "@/lib/public-menu-paths";
 
-/** Public menus moved onto the dashboard app; API may still return these hosts. */
-const LEGACY_MENU_HOSTS = new Set([
-  "qr.algorycode.com",
-  "www.qr.algorycode.com",
-  "stage.qr.algorycode.com",
-]);
-
 function shouldRewriteMenuOrigin(hostname: string): boolean {
   const host = hostname.toLowerCase();
-  return host === "localhost" || host === "127.0.0.1" || LEGACY_MENU_HOSTS.has(host);
+  return host === "localhost" || host === "127.0.0.1";
 }
 
 function withContentPath(url: string): string {
@@ -20,16 +13,32 @@ function withContentPath(url: string): string {
   return trimmed;
 }
 
+/** Public menu host (qr.algorycode.com); separate from dashboard APP_URL. */
 function menuOriginForClient(): string {
+  const configured = MENU_APP_ORIGIN?.trim().replace(/\/$/, "") || "";
   if (typeof window !== "undefined") {
+    if (configured) return configured;
     return window.location.origin;
   }
-  return MENU_APP_ORIGIN || "";
+  return configured;
+}
+
+function absoluteMenuHref(path: string): string {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  if (typeof window === "undefined") {
+    const origin = MENU_APP_ORIGIN?.trim().replace(/\/$/, "");
+    return origin ? `${origin}${normalized}` : normalized;
+  }
+  const origin = menuOriginForClient();
+  if (!origin || origin === window.location.origin) {
+    return normalized;
+  }
+  return `${origin}${normalized}`;
 }
 
 /**
- * Builds a working "open menu" href for dashboard actions.
- * Rewrites broken localhost URLs from stage API config and ensures /content path.
+ * Builds "Menüyü aç" href: keeps API qr.algorycode.com URLs, adds /content when needed.
+ * Only rewrites localhost API URLs to MENU_APP_ORIGIN.
  */
 export function resolvePublicMenuHref(options: {
   publicUrl?: string | null;
@@ -56,18 +65,9 @@ export function resolvePublicMenuHref(options: {
     }
     const path = raw.startsWith("/") ? raw : `/${raw}`;
     const contentPath = path.includes("/content") ? path : withContentPath(path);
-    if (typeof window !== "undefined") {
-      return contentPath;
-    }
-    const origin = MENU_APP_ORIGIN?.trim();
-    return origin ? `${origin.replace(/\/$/, "")}${contentPath}` : contentPath;
+    return absoluteMenuHref(contentPath);
   }
 
   if (!publicId) return "";
-  const contentPath = publicMenuContentPath(publicId);
-  if (typeof window !== "undefined") {
-    return contentPath;
-  }
-  const origin = MENU_APP_ORIGIN?.trim();
-  return origin ? `${origin.replace(/\/$/, "")}${contentPath}` : contentPath;
+  return absoluteMenuHref(publicMenuContentPath(publicId));
 }

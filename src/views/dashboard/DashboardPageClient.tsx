@@ -47,7 +47,7 @@ import PaymentHistoryView from "@/views/dashboard/PaymentHistoryView";
 import PaymentMethodsView from "@/views/dashboard/PaymentMethodsView";
 import PlanChangeView from "@/views/dashboard/PlanChangeView";
 import PurchaseDetailView from "@/views/dashboard/PurchaseDetailView";
-import TrialStartView from "@/views/dashboard/TrialStartView";
+import TrialStartRedirect from "@/views/dashboard/TrialStartRedirect";
 import WelcomeOnboardingView from "@/views/dashboard/WelcomeOnboardingView";
 import TrialExpiredGateView from "@/views/dashboard/TrialExpiredGateView";
 import FeedbackView from "@/views/dashboard/FeedbackView";
@@ -245,11 +245,7 @@ export default function DashboardPageClient({ initialUser = null }: DashboardPag
   }
 
   if (pathname === DASHBOARD_ROUTES.trialStart) {
-    return (
-      <Suspense fallback={null}>
-        <TrialStartView />
-      </Suspense>
-    );
+    return <TrialStartRedirect />;
   }
 
   if (pathname === DASHBOARD_ROUTES.welcomeOnboarding) {

@@ -32,11 +32,11 @@ export function DemoModeBanner() {
   const daysLeft = personalDemo ? demoDaysRemaining(demo.data?.expiresAt) : null;
   const subtitle = personalDemo
     ? daysLeft == null
-      ? "15 günlük Ultimate demo hesabınız aktif."
+      ? "Demo hesabınız aktif; veriler sunum amaçlıdır."
       : daysLeft === 0
         ? "Demo süreniz bugün sona eriyor."
-        : `15 günlük Ultimate demo hesabınız · ${daysLeft} gün kaldı`
-    : "Paylaşımlı deneme hesabındasınız.";
+        : `Demo hesabınız aktif · ${daysLeft} gün kaldı`
+    : "Paylaşımlı demo hesabındasınız.";
 
   return (
     <div className="mb-6 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-900 dark:bg-amber-950/30">

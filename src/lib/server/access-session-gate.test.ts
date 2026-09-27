@@ -42,13 +42,13 @@ describe("resolveDashboardPathForRequest", () => {
     expect(next).toBe(DASHBOARD_ROUTES.accountPackages);
   });
 
-  it("redirects to trial start when START_PACKAGE", async () => {
+  it("redirects to demo register when START_PACKAGE", async () => {
     mockFetchOk({ decision: "START_PACKAGE" });
     const next = await resolveDashboardPathForRequest(
       DASHBOARD_ROUTES.overview,
       "token",
     );
-    expect(next).toBe(DASHBOARD_ROUTES.trialStart);
+    expect(next).toBe(DASHBOARD_ROUTES.demoRegister);
   });
 
   it("keeps overview when ALLOW", async () => {

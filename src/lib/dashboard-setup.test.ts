@@ -14,7 +14,7 @@ describe("buildSetupSteps", () => {
       liveMenus: 0,
     });
     expect(nextSetupStep(steps)?.id).toBe("card");
-    expect(nextSetupStep(steps)?.href).toBe(DASHBOARD_ROUTES.trialStart);
+    expect(nextSetupStep(steps)?.href).toBe(DASHBOARD_ROUTES.accountPackages);
     expect(isSetupComplete(steps)).toBe(false);
   });
 

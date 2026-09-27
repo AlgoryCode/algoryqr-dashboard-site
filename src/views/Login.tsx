@@ -15,9 +15,9 @@ import { getGoogleAuthErrorMessage } from "@/lib/google-auth-error";
 import { GoogleIcon } from "@/components/icons/GoogleIcon";
 import {
   buildGoogleAuthStartUrl,
-  buildRegisterTrialUrl,
   resolveSafeReturnUrl,
 } from "@/lib/trial-flow";
+import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { fetchSessionContextClient, pathForSession } from "@/lib/session-context";
 import { SESSION_CONTEXT_QUERY_KEY } from "@/hooks/use-session-context";
 import {
@@ -49,9 +49,7 @@ const Login = () => {
     [searchParams],
   );
   const googleAuthHref = buildGoogleAuthStartUrl("login", returnPath);
-  const registerHref = returnPath?.includes("/deneme/baslat")
-    ? buildRegisterTrialUrl()
-    : "/register";
+  const registerHref = "/register";
 
   const redirectAfterAuth = async () => {
     const session = await fetchSessionContextClient();
@@ -406,12 +404,12 @@ const Login = () => {
               <span className="block">
                 Hesabınız yok mu?{" "}
                 <Link href={registerHref} className="text-primary hover:underline font-medium">
-                  Kayıt Ol
+                  Kayıt ol
                 </Link>
               </span>
               <span className="block">
-                <Link href="/demo/register" className="text-primary hover:underline font-medium">
-                  Demo hesap oluştur
+                <Link href={DASHBOARD_ROUTES.demoRegister} className="text-primary hover:underline font-medium">
+                  Demoyu başlat
                 </Link>
               </span>
             </p>
