@@ -244,7 +244,7 @@ function AssistantBubble({
       exit={assistantMotion.exit}
       transition={bubbleTransition}
       onAnimationComplete={() => onEnteredRef.current()}
-      className="flex max-w-[min(100%,34rem)] items-end gap-2.5 origin-bottom-left"
+      className="flex max-w-[min(100%,40rem)] items-end gap-2.5 origin-bottom-left"
     >
       <motion.div
         initial={animateEnter ? { opacity: 0, scale: 0.55 } : false}

@@ -15,13 +15,10 @@ describe("chef-recommendation-display", () => {
     ).toBe(true);
   });
 
-  it("uses short caption when products are shown as cards", () => {
-    expect(
-      assistantCaptionForProductReply(
-        "Kokteyller: Margarita, Mojito, Aperol Spritz. Yemekler: Izgara Levrek.",
-        3,
-      ),
-    ).toBe("Size özel seçtiklerim — detay için karta dokunun.");
+  it("keeps a chef-style recommendation above the cards", () => {
+    const reply =
+      "Menünüzdeki 5 tatlı arasından: Sıcak ve çikolatalı için Soufflé. Çıtır geleneksel için Katmer. Hafif meyve için Quince Dessert.";
+    expect(assistantCaptionForProductReply(reply, 5)).toBe(reply);
   });
 
   it("keeps a normal Turkish reply that mentions a course", () => {
@@ -35,12 +32,8 @@ describe("chef-recommendation-display", () => {
     expect(assistantCaptionForProductReply(reply, 5)).toBe(reply);
   });
 
-  it("uses short caption when menu combos are shown as cards", () => {
-    expect(
-      assistantCaptionForMenuReply(
-        "Yemek: Izgara Levrek. İçecek: Küçük Su. Tatlı: Karışık Meyve.",
-        1,
-      ),
-    ).toBe("Tam menü önerilerim aşağıda — sepete tek dokunuşla ekleyebilirsiniz.");
+  it("keeps a chef menu reply above combo cards", () => {
+    const reply = "Yemek: Izgara Levrek. İçecek: Küçük Su. Tatlı: Karışık Meyve.";
+    expect(assistantCaptionForMenuReply(reply, 1)).toBe(reply);
   });
 });

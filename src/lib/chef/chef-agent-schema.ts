@@ -29,8 +29,8 @@ const productIdsSchema = z.union([
 
 /** qr-agent yanıtı — BFF doğrulaması. */
 export const chefAgentChatResponseSchema = z.object({
-  reply: z.string().max(2000).optional(),
-  message: z.string().max(2000).optional(),
+  reply: z.string().max(4000).optional(),
+  message: z.string().max(4000).optional(),
   conversationId: z.string().max(100).optional(),
   turnId: z.string().max(128).optional(),
   productIds: productIdsSchema,

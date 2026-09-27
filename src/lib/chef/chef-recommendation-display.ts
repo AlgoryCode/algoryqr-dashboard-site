@@ -1,12 +1,13 @@
-/** Avoid showing long agent product lists when we render product cards. */
+/** Raw "Yemekler: A, B" dumps only — not a chef paragraph that happens to use a colon. */
 export function looksLikeInlineProductList(text: string): boolean {
   const trimmed = text.trim();
-  if (trimmed.length > 160) return true;
-  if (/(Yemekler|Kokteyller|İçecekler|Tatlılar)\s*:/i.test(trimmed) && trimmed.includes(",")) {
+  if (!trimmed) return false;
+  if (/—/.test(trimmed) || trimmed.length > 220) return false;
+  if (/(Yemekler|Kokteyller|İçecekler|Tatlılar|Desserts)\s*:\s*.+,.+/i.test(trimmed)) {
     return true;
   }
-  const colonLists = trimmed.split(/[.!?\n]/).filter((part) => /:\s*.+,/.test(part));
-  return colonLists.length >= 1;
+  const colonLists = trimmed.split(/[.!?\n]/).filter((part) => /:\s*[^:]+\s*,\s*[^:]+/.test(part));
+  return colonLists.length >= 1 && trimmed.length <= 160;
 }
 
 export function assistantCaptionForProductReply(
@@ -14,14 +15,11 @@ export function assistantCaptionForProductReply(
   productCount: number,
   fallback = "Menüde uygun ürün bulamadım. Başka bir şekilde sorabilir misiniz?",
 ): string {
-  if (productCount === 0) {
-    return reply?.trim() || fallback;
-  }
   const trimmed = reply?.trim();
-  if (trimmed && !looksLikeInlineProductList(trimmed)) {
-    return trimmed;
+  if (productCount === 0) {
+    return trimmed || fallback;
   }
-  return "Size özel seçtiklerim — detay için karta dokunun.";
+  return trimmed || "Kartlarda uygun seçenekleri gösteriyorum.";
 }
 
 function looksLikeInlineMenuComboList(text: string): boolean {
@@ -42,11 +40,10 @@ export function assistantCaptionForMenuReply(
   const trimmed = reply?.trim();
   if (
     trimmed &&
-    trimmed.length <= 100 &&
     !looksLikeInlineProductList(trimmed) &&
     !looksLikeInlineMenuComboList(trimmed)
   ) {
     return trimmed;
   }
-  return "Tam menü önerilerim aşağıda — sepete tek dokunuşla ekleyebilirsiniz.";
+  return trimmed || fallback;
 }
