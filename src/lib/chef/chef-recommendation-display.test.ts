@@ -24,6 +24,12 @@ describe("chef-recommendation-display", () => {
     ).toBe("Size özel seçtiklerim — detay için karta dokunun.");
   });
 
+  it("keeps a normal Turkish reply that mentions a course", () => {
+    expect(assistantCaptionForProductReply("Tatlı olarak dondurma ve sufle var.", 2)).toBe(
+      "Tatlı olarak dondurma ve sufle var.",
+    );
+  });
+
   it("uses short caption when menu combos are shown as cards", () => {
     expect(
       assistantCaptionForMenuReply(

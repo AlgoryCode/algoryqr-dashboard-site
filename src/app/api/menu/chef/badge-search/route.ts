@@ -10,7 +10,6 @@ import { fetchPublicMenuProducts } from "@/lib/chef/fetch-public-menu-products-s
 import { hydrateChefProductsForPublicMenu } from "@/lib/chef/hydrate-chef-products-server";
 import { isChefBadgeHybridAgentEnabled } from "@/lib/chef/chef-funnel-flags";
 import { refineChefBadgeProductsWithAgent } from "@/lib/chef/refine-chef-badge-with-agent";
-import { searchChefCatalogByUserQuery } from "@/lib/chef/chef-catalog-search";
 import { rankChefRecommendations } from "@/lib/chef/rank-chef-recommendations";
 import { selectProductsForChefBadgeFilter } from "@/lib/chef/resolve-chef-badge-products";
 import type { MenuProductApiItem } from "@/lib/api";
@@ -144,18 +143,13 @@ export async function POST(req: Request) {
       productIds,
       catalog: menuProducts,
     });
-    const badgeQuery = parsed.data.userQuery?.trim() || badge.label;
-    const catalogSearch = searchChefCatalogByUserQuery(fullCatalog, badgeQuery, []);
-    if (catalogSearch.kind !== "none" && catalogSearch.products.length > 0) {
-      products = catalogSearch.products;
-    }
     products = rankChefRecommendations(
       products,
       fullCatalog,
       [],
       parsed.data.recentlyShownProductIds ?? [],
       [],
-      { maxPerMainCategory: 6, excludeRecentlyShown: catalogSearch.kind === "none" },
+      { maxPerMainCategory: 6, excludeRecentlyShown: false },
     );
     const baseReply = buildReply(badgeId, products.length);
     const reply = products.length > 0 ? mergeReplyWithPersuasion(baseReply, products) : baseReply;

@@ -1,11 +1,11 @@
 /** Avoid showing long agent product lists when we render product cards. */
 export function looksLikeInlineProductList(text: string): boolean {
   const trimmed = text.trim();
-  if (trimmed.length > 100) return true;
-  if (/Dengeli kombinasyon|Kokteyl|Yemekler:|İçecek|tatlı/i.test(trimmed) && trimmed.includes(",")) {
+  if (trimmed.length > 160) return true;
+  if (/(Yemekler|Kokteyller|İçecekler|Tatlılar)\s*:/i.test(trimmed) && trimmed.includes(",")) {
     return true;
   }
-  const colonLists = trimmed.split(/[.!?\n]/).filter((part) => part.includes(":") && part.includes(","));
+  const colonLists = trimmed.split(/[.!?\n]/).filter((part) => /:\s*.+,/.test(part));
   return colonLists.length >= 1;
 }
 

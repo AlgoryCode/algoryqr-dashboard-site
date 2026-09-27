@@ -28,14 +28,10 @@ export async function POST(req: Request) {
         ? clientMenuProducts
         : await fetchPublicMenuProducts(parsed.data.publicId);
 
-    const agentMessage = parsed.data.conversationTranscript
-      ? `${parsed.data.message}\n\n[Son sohbet özeti]\n${parsed.data.conversationTranscript}`
-      : parsed.data.message;
-
     const upstream = await callChefAgentChat({
       publicId: parsed.data.publicId,
       userQuery: parsed.data.userQuery ?? null,
-      message: agentMessage,
+      message: parsed.data.message,
       conversationId: parsed.data.conversationId,
       products: menuProducts,
       cartProductIds: parsed.data.cartProductIds ?? [],
