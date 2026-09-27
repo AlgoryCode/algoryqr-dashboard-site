@@ -1,6 +1,6 @@
 "use client";
 
-import { Bike, QrCode, ShoppingBag, Store, UtensilsCrossed, type LucideIcon } from "lucide-react";
+import { Bike, Phone, QrCode, ShoppingBag, Store, UtensilsCrossed, type LucideIcon } from "lucide-react";
 
 import { formatMenuPrice } from "@/components/menu-templates/types";
 import {
@@ -28,6 +28,10 @@ const CHANNEL_ICON: Record<OrderChannel, { icon: LucideIcon; well: string }> = {
   ONLINE: {
     icon: ShoppingBag,
     well: "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300",
+  },
+  PHONE: {
+    icon: Phone,
+    well: "bg-amber-500/15 text-amber-900 dark:text-amber-200",
   },
   UBER_EATS: {
     icon: Bike,

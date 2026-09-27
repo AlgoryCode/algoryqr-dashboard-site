@@ -107,6 +107,27 @@ export function kitchenPrepProgress(
 
 export type KitchenQueueGroups = Record<KitchenColumnId, OrderResponse[]>;
 
+/** Served tickets whose bill is already closed leave the board. Other tables stay. */
+export function servedBillIds(orders: OrderResponse[]): number[] {
+  const ids = new Set<number>();
+  for (const order of orders) {
+    if (order.status !== "SERVED" || order.billId == null || order.billId <= 0) continue;
+    ids.add(order.billId);
+  }
+  return [...ids].sort((a, b) => a - b);
+}
+
+export function withoutClosedBillTickets(
+  orders: OrderResponse[],
+  closedBillIds: ReadonlySet<number>,
+): OrderResponse[] {
+  if (closedBillIds.size === 0) return orders;
+  return orders.filter((order) => {
+    if (order.status !== "SERVED") return true;
+    return order.billId == null || !closedBillIds.has(order.billId);
+  });
+}
+
 export function groupKitchenOrders(orders: OrderResponse[]): KitchenQueueGroups {
   const groups: KitchenQueueGroups = {
     CONFIRMED: [],
@@ -136,7 +157,7 @@ export function kitchenTableLabel(order: Pick<OrderResponse, "tableName" | "tabl
   return "Masa";
 }
 
-export type KitchenOrderOrigin = "TABLE" | "ONLINE" | "UBER_EATS" | "YEMEKSEPETI";
+export type KitchenOrderOrigin = "TABLE" | "ONLINE" | "PHONE" | "UBER_EATS" | "YEMEKSEPETI";
 
 function normalizeKitchenSource(value?: string | null): string {
   return (value ?? "").trim().toUpperCase().replace(/[\s-]+/g, "_");
@@ -152,6 +173,7 @@ export function kitchenOrderOrigin(
   if (source === "YEMEKSEPETI" || source === "YEMEK_SEPETI" || source === "YS") {
     return "YEMEKSEPETI";
   }
+  if (source === "PHONE") return "PHONE";
   if (
     source === "STORE" ||
     source === "ONLINE" ||
@@ -178,6 +200,8 @@ export function kitchenOrderOriginLabel(origin: KitchenOrderOrigin): string {
       return "Yemeksepeti";
     case "ONLINE":
       return "Online";
+    case "PHONE":
+      return "Telefon";
     default:
       return "Masa";
   }
@@ -190,7 +214,7 @@ function isPickupDelivery(deliveryType?: string | null): boolean {
 
 export function kitchenUsesCourier(origin: KitchenOrderOrigin, deliveryType?: string | null): boolean {
   if (origin === "TABLE") return false;
-  if (origin === "ONLINE" && isPickupDelivery(deliveryType)) return false;
+  if ((origin === "ONLINE" || origin === "PHONE") && isPickupDelivery(deliveryType)) return false;
   return true;
 }
 
@@ -199,7 +223,7 @@ export function kitchenSkipsPreparing(origin: KitchenOrderOrigin): boolean {
 }
 
 export function kitchenAllowsNote(origin: KitchenOrderOrigin): boolean {
-  return origin === "TABLE" || origin === "ONLINE";
+  return origin === "TABLE" || origin === "ONLINE" || origin === "PHONE";
 }
 
 export function kitchenReadyHandoverLabel(origin: KitchenOrderOrigin, deliveryType?: string | null): string {

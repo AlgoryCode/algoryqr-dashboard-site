@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildEscPosBuffer, foldReceiptAscii } from "./receipt-escpos";
-import { formatReceiptText, marketplaceOrderToReceipt } from "./receipt-ticket";
+import { billToReceipt, formatReceiptText, marketplaceOrderToReceipt } from "./receipt-ticket";
 
 describe("receipt ticket", () => {
   it("builds marketplace receipt fields", () => {
@@ -22,6 +22,29 @@ describe("receipt ticket", () => {
     expect(text).toContain("YS-100");
     expect(text).toContain("2x Adana");
     expect(text).toContain("Acılı");
+  });
+
+  it("prints closed bill payment lines", () => {
+    const text = formatReceiptText(
+      billToReceipt({
+        tableLabel: "masa-1",
+        orderNumber: "127",
+        currency: "TRY",
+        totalAmount: 150,
+        paidTotal: 160,
+        items: [{ quantity: 1, productName: "Çorba" }],
+        payments: [
+          { amount: 150, paymentMethod: "CARD", itemSummary: "Çorba x1" },
+          { amount: 10, paymentMethod: "CASH", tip: true },
+        ],
+      }),
+    );
+    expect(text).toContain("masa-1");
+    expect(text).toContain("Siparis: 127");
+    expect(text).toContain("Odeme: Kredi karti, Nakit");
+    expect(text).toContain("Odeme detayi");
+    expect(text).toContain("Çorba x1 · Kredi karti");
+    expect(text).toContain("Bahsis · Nakit");
   });
 
   it("encodes ESC/POS init and cut", () => {

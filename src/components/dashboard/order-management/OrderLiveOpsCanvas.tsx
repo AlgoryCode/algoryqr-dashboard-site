@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import {
   formatMenuPrice,
@@ -15,6 +16,7 @@ import {
   managedOrderKey,
   orderAmount,
   orderChannel,
+  type OrderChannel,
   ORDER_CHANNEL_LABEL,
   orderLocationLabel,
   orderStatusLabel,
@@ -36,6 +38,7 @@ import { cn } from "@/lib/utils";
 
 type OrderLiveOpsCanvasProps = {
   branchLabel: string;
+  branchControl?: ReactNode;
   kitchenEnabled: boolean;
   courierEnabled: boolean;
   currency: string;
@@ -74,8 +77,8 @@ function Icon({ name, className }: { name: string; className?: string }) {
 }
 
 const KPI_TONE = {
-  orange: "bg-orange-50 text-[#c2410c]",
-  sky: "bg-sky-50 text-sky-600",
+  orange: "bg-[#ffdf99]/80 text-[#775a00]",
+  sky: "bg-[#ffdad4]/70 text-[#930001]",
   emerald: "bg-emerald-50 text-emerald-600",
 } as const;
 
@@ -93,15 +96,15 @@ function KpiCard({
   footer: ReactNode;
 }) {
   return (
-    <article className="flex h-full flex-col rounded-xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+    <article className="flex h-full flex-col rounded-3xl border border-[#d3c5ac]/35 bg-white ambient-shadow">
       <header className="flex items-center justify-between gap-3 px-4 pt-4">
-        <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</h3>
-        <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-md", KPI_TONE[tone])}>
+        <h3 className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#615e57]">{label}</h3>
+        <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-full", KPI_TONE[tone])}>
           <Icon name={icon} className="text-[18px]" />
         </span>
       </header>
       <div className="flex flex-1 flex-col px-4 pb-3 pt-3">{children}</div>
-      <footer className="mt-auto flex min-h-[76px] flex-col justify-center border-t border-slate-100 bg-slate-50/70 px-4 py-3">
+      <footer className="mt-auto flex min-h-[76px] flex-col justify-center border-t border-[#ebe8e2] bg-[#f6f3ed]/90 px-4 py-3">
         {footer}
       </footer>
     </article>
@@ -120,10 +123,10 @@ function KpiValue({
   return (
     <>
       <div className="flex items-baseline gap-1.5">
-        <p className="text-[28px] font-semibold leading-none tracking-tight text-slate-900 tabular-nums">
+        <p className="font-epilogue text-[32px] font-extrabold leading-none tracking-tight text-[#1c1c18] tabular-nums">
           {value}
         </p>
-        {suffix ? <span className="text-[12px] font-medium text-slate-500">{suffix}</span> : null}
+        {suffix ? <span className="text-[12px] font-medium text-[#615e57]">{suffix}</span> : null}
       </div>
       {caption ? <div className="mt-2 text-[12px] leading-5">{caption}</div> : null}
     </>
@@ -132,6 +135,7 @@ function KpiValue({
 
 export function OrderLiveOpsCanvas({
   branchLabel,
+  branchControl,
   kitchenEnabled,
   courierEnabled,
   currency,
@@ -154,6 +158,7 @@ export function OrderLiveOpsCanvas({
   loading,
   error,
 }: OrderLiveOpsCanvasProps) {
+  const [courierChannel, setCourierChannel] = useState<OrderChannel | null>(null);
   const salonOrders = salonBoardOrders(orders, kitchenEnabled);
   const waiterGroups = groupSalonByWaiter(salonOrders);
   const lanes = groupOpsLaneOrders(orders, kitchenEnabled);
@@ -164,7 +169,10 @@ export function OrderLiveOpsCanvas({
       ]
     : [];
   const preparing = kitchenTickets.filter((o) => o.status !== "READY");
-  const courierTickets = lanes.courier;
+  const courierLane = lanes.courier;
+  const courierTickets = courierChannel
+    ? courierLane.filter((order) => orderChannel(order) === courierChannel)
+    : courierLane;
   const channels = courierChannelCounts(orders);
   const products = topProductShares(orders, 5);
   const hourly = hourlyOrderSeries(orders).slice(12, 23);
@@ -209,14 +217,14 @@ export function OrderLiveOpsCanvas({
 
   return (
     <div
-      className="flex h-svh flex-col overflow-hidden bg-[#f8f9fb] text-slate-900 antialiased"
-      style={{ fontFamily: '"Plus Jakarta Sans", Manrope, sans-serif' }}
+      className="flex h-svh flex-col overflow-hidden bg-[#fcf9f3] text-[#1c1c18] antialiased selection:bg-[#ffc72c] selection:text-[#251a00]"
+      style={{ fontFamily: '"Plus Jakarta Sans", sans-serif' }}
     >
       {/* ===== TOP BAR ===== */}
-      <header className="sticky top-0 z-50 flex h-16 w-full items-center justify-between border-b border-slate-200 bg-white px-6 shadow-[0_1px_3px_0_rgba(0,0,0,0.03)]">
+      <header className="sticky top-0 z-50 flex h-16 w-full items-center justify-between border-b border-[#d3c5ac]/35 bg-[#fcf9f3] px-4 shadow-sm md:px-6">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg bg-[#c2410c] text-white shadow-sm">
+            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-[#ba0a06] text-white shadow-md">
               {brandLogoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={brandLogoUrl} alt="" className="h-full w-full object-cover" />
@@ -224,23 +232,24 @@ export function OrderLiveOpsCanvas({
                 <Icon name="restaurant" className="text-[20px] font-bold" />
               )}
             </div>
-            <span className="max-w-[12rem] truncate text-[15px] font-bold tracking-tight text-slate-900">
+            <span className="font-epilogue max-w-[12rem] truncate text-[18px] font-bold tracking-tight text-[#1c1c18]">
               {brandName}
             </span>
           </div>
-          <div className="hidden items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-slate-500 xl:flex">
-            <span className="h-2 w-2 rounded-full bg-[#16a34a]" />
-            <span className="text-[13px] font-medium text-slate-900">Şube: {branchLabel}</span>
-            <Icon name="expand_more" className="text-[18px] text-slate-400" />
+          <div className="flex max-w-[16rem] items-center gap-1 rounded-full border border-[#d3c5ac]/45 bg-[#f6f3ed] px-3 py-1.5 text-[#615e57]">
+            <span className="h-2 w-2 shrink-0 rounded-full bg-[#16a34a]" />
+            {branchControl ?? (
+              <span className="truncate text-[13px] font-medium text-[#1c1c18]">Şube: {branchLabel}</span>
+            )}
           </div>
           {menuPicker ? <div className="hidden lg:block">{menuPicker}</div> : null}
         </div>
 
-        <nav className="hidden h-full min-w-0 flex-nowrap items-center gap-0.5 lg:flex">
+        <nav className="no-scrollbar hidden h-full min-w-0 flex-1 flex-nowrap items-center gap-0.5 overflow-x-auto lg:flex">
           <Link
             href={ordersHref}
             title="Sipariş Yönetimine dön"
-            className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-1.5 py-1 text-[11px] font-medium leading-none text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+            className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1.5 text-[11px] font-semibold leading-none text-[#4f4633] transition-colors hover:bg-[#f0eee8] hover:text-[#1c1c18]"
           >
             <Icon name="arrow_back" className="text-[15px]" />
             <span className="hidden 2xl:inline">Sipariş Yönetimi</span>
@@ -252,10 +261,10 @@ export function OrderLiveOpsCanvas({
               href={item.href}
               title={item.label}
               className={cn(
-                "flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-1.5 py-1 text-[11px] font-medium leading-none transition-colors",
+                "flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-1 text-[11px] font-semibold leading-none transition-colors",
                 item.active
-                  ? "bg-[#c2410c] text-white shadow-sm"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+                  ? "rounded-full bg-[#ffc72c] text-[#251a00] shadow-sm"
+                  : "rounded-full text-[#4f4633] hover:bg-[#f0eee8] hover:text-[#1c1c18]",
               )}
             >
               <Icon name={item.icon} className="text-[15px]" />
@@ -265,7 +274,7 @@ export function OrderLiveOpsCanvas({
           ))}
         </nav>
 
-        <div className="flex items-center gap-4">
+        <div className="flex shrink-0 items-center gap-2">
           <div className="hidden items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 2xl:flex">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#16a34a] opacity-75" />
@@ -274,23 +283,23 @@ export function OrderLiveOpsCanvas({
             <span className="text-[12px] font-semibold text-emerald-700">Normal Tolerans (0.4s)</span>
           </div>
           <div className="flex items-center gap-1">
-            <button type="button" className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800" title="Ses">
+            <button type="button" className="rounded-lg p-2 text-[#615e57] transition-colors hover:bg-[#f0eee8] hover:text-[#1c1c18]" title="Ses">
               <Icon name="volume_up" className="text-[22px]" />
             </button>
-            <button type="button" className="relative rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800" title="Bildirimler">
+            <button type="button" className="relative rounded-lg p-2 text-[#615e57] transition-colors hover:bg-[#f0eee8] hover:text-[#1c1c18]" title="Bildirimler">
               <Icon name="notifications" className="text-[22px]" />
               {delayedCount > 0 ? (
-                <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#c2410c]" />
+                <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#df2d1f]" />
               ) : null}
             </button>
-            <button type="button" className="rounded-lg p-2 text-rose-600 transition-colors hover:bg-rose-50" title="Acil">
+            <button type="button" className="rounded-lg p-2 text-[#ba1a1a] transition-colors hover:bg-[#ffdad6]" title="Acil">
               <Icon name="emergency_home" className="text-[22px]" />
             </button>
           </div>
           <button
             type="button"
             onClick={onNewOrder}
-            className="hidden items-center gap-1 rounded-lg bg-[#c2410c] px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition-transform active:scale-95 hover:bg-orange-700 sm:flex"
+            className="hidden shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-[#ffc72c] px-4 py-2 text-[13px] font-bold text-[#251a00] shadow-sm transition-transform active:scale-95 hover:bg-[#f6bf22] sm:flex"
           >
             <Icon name="add_circle" className="text-[18px]" />
             Yeni Sipariş Girişi
@@ -300,15 +309,15 @@ export function OrderLiveOpsCanvas({
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* ===== SIDEBAR ===== */}
-        <aside className="fixed bottom-0 left-0 top-16 z-40 hidden w-64 flex-col justify-between border-r border-slate-200 bg-white p-4 xl:flex">
+        <aside className="fixed bottom-0 left-0 top-16 z-40 hidden w-64 flex-col justify-between border-r border-[#d3c5ac]/35 bg-white p-4 xl:flex">
           <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-orange-200 bg-orange-50">
-                <Icon name="storefront" className="text-[18px] text-[#c2410c]" />
+            <div className="flex items-center gap-2 border-b border-[#ebe8e2] pb-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#ffdf99]">
+                <Icon name="storefront" className="text-[18px] text-[#5a4300]" />
               </div>
               <div>
-                <div className="truncate text-[13px] font-bold text-slate-900">{brandName}</div>
-                <div className="text-[11px] font-medium text-slate-500">Terminal #04</div>
+                <div className="truncate text-[13px] font-bold text-[#1c1c18]">{brandName}</div>
+                <div className="text-[11px] font-medium text-[#615e57]">Terminal #04</div>
               </div>
             </div>
             <nav className="flex flex-col gap-1">
@@ -319,8 +328,8 @@ export function OrderLiveOpsCanvas({
                   className={cn(
                     "flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] transition-colors",
                     item.active
-                      ? "border border-orange-200 bg-orange-50 font-bold text-[#c2410c]"
-                      : "font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+                      ? "rounded-2xl bg-[#ffc72c] font-bold text-[#251a00]"
+                      : "rounded-2xl font-medium text-[#4f4633] hover:bg-[#f6f3ed] hover:text-[#1c1c18]",
                   )}
                 >
                   <Icon name={item.icon} className="text-[18px]" />
@@ -330,21 +339,21 @@ export function OrderLiveOpsCanvas({
             </nav>
           </div>
 
-          <div className="my-4 flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <div className="flex items-center justify-between text-slate-500">
+          <div className="my-4 flex flex-col gap-2 rounded-2xl border border-[#d3c5ac]/35 bg-[#f6f3ed] p-3">
+            <div className="flex items-center justify-between text-[#615e57]">
               <span className="text-[11px] font-semibold uppercase tracking-wider">Terminal Durumu</span>
               <span className="h-2 w-2 rounded-full bg-[#16a34a]" />
             </div>
             <button
               type="button"
-              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-100"
+              className="flex w-full items-center justify-center gap-1.5 rounded-full border border-[#d3c5ac]/45 bg-white px-3 py-2 text-[12px] font-semibold text-[#4f4633] transition-colors hover:bg-[#f0eee8]"
             >
-              <Icon name="coffee" className="text-[16px] text-slate-600" />
+              <Icon name="coffee" className="text-[16px] text-[#4f4633]" />
               Mola Modu
             </button>
           </div>
 
-          <div className="flex flex-col gap-1 border-t border-slate-100 pt-3">
+          <div className="flex flex-col gap-1 border-t border-[#ebe8e2] pt-3">
             <a className="flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-medium text-emerald-700 transition-colors hover:bg-emerald-50" href={homeHref}>
               <Icon name="check_circle" className="text-[18px] text-emerald-600" />
               Sistem Durumu
@@ -352,7 +361,7 @@ export function OrderLiveOpsCanvas({
             <button
               type="button"
               onClick={onLogout}
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] font-medium text-rose-600 transition-colors hover:bg-rose-50"
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] font-medium text-[#ba1a1a] transition-colors hover:bg-[#ffdad6]"
             >
               <Icon name="logout" className="text-[18px]" />
               Çıkış
@@ -361,10 +370,10 @@ export function OrderLiveOpsCanvas({
         </aside>
 
         {/* ===== MAIN ===== */}
-        <main className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-[#f8f9fb] p-3 md:p-6 xl:ml-64">
+        <main className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-[#fcf9f3] p-3 md:p-6 xl:ml-64">
           {error}
           {loading ? (
-            <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
+            <div className="rounded-3xl border border-[#d3c5ac]/35 bg-white p-10 text-center text-sm text-[#615e57] ambient-shadow">
               Operasyon paneli yükleniyor...
             </div>
           ) : null}
@@ -385,15 +394,15 @@ export function OrderLiveOpsCanvas({
               footer={
                 <div>
                   <div className="mb-2 flex items-center justify-between text-[11px]">
-                    <span className="text-slate-500">
+                    <span className="text-[#615e57]">
                       Hedef {formatMenuPrice(revenueTarget, currency) || "₺0"}
                     </span>
-                    <span className="font-semibold tabular-nums text-slate-900">
+                    <span className="font-semibold tabular-nums text-[#1c1c18]">
                       %{revenuePct.toLocaleString("tr-TR", { maximumFractionDigits: 1, minimumFractionDigits: 1 })}
                     </span>
                   </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-slate-200/80">
-                    <div className="h-full rounded-full bg-[#c2410c]" style={{ width: `${revenuePct}%` }} />
+                  <div className="h-1.5 overflow-hidden rounded-full bg-[#e5e2dc]">
+                    <div className="h-full rounded-full bg-[#ffc72c]" style={{ width: `${revenuePct}%` }} />
                   </div>
                 </div>
               }
@@ -415,24 +424,24 @@ export function OrderLiveOpsCanvas({
               tone="sky"
               footer={
                 <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="rounded-md bg-orange-50 px-1 py-1.5">
-                    <span className="block text-[15px] font-semibold tabular-nums text-[#c2410c]">{kpis.tableOrders}</span>
-                    <span className="text-[10px] font-medium text-slate-500">Masa içi</span>
+                  <div className="rounded-xl bg-[#ffdf99] px-1 py-1.5">
+                    <span className="block text-[15px] font-semibold tabular-nums text-[#775a00]">{kpis.tableOrders}</span>
+                    <span className="text-[10px] font-medium text-[#615e57]">Masa içi</span>
                   </div>
-                  <div className="rounded-md bg-sky-50 px-1 py-1.5">
-                    <span className="block text-[15px] font-semibold tabular-nums text-sky-700">{kpis.deliveryOrders}</span>
-                    <span className="text-[10px] font-medium text-slate-500">Paket</span>
+                  <div className="rounded-xl bg-[#ffdad4] px-1 py-1.5">
+                    <span className="block text-[15px] font-semibold tabular-nums text-[#930001]">{kpis.deliveryOrders}</span>
+                    <span className="text-[10px] font-medium text-[#615e57]">Paket</span>
                   </div>
-                  <div className="rounded-md bg-emerald-50 px-1 py-1.5">
+                  <div className="rounded-xl bg-emerald-50 px-1 py-1.5">
                     <span className="block text-[15px] font-semibold tabular-nums text-emerald-700">{kpis.pickupOrders}</span>
-                    <span className="text-[10px] font-medium text-slate-500">Gel-al</span>
+                    <span className="text-[10px] font-medium text-[#615e57]">Gel-al</span>
                   </div>
                 </div>
               }
             >
               <KpiValue
                 value={kpis.openOrders}
-                caption={<span className="text-slate-500">Operasyondaki toplam akış</span>}
+                caption={<span className="text-[#615e57]">Operasyondaki toplam akış</span>}
               />
             </KpiCard>
 
@@ -443,8 +452,8 @@ export function OrderLiveOpsCanvas({
               tone="emerald"
               footer={
                 <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-slate-500">Canlı mutfak ortalaması</span>
-                  <span className="font-semibold text-slate-700">{preparing.length} aktif bilet</span>
+                  <span className="text-[#615e57]">Canlı mutfak ortalaması</span>
+                  <span className="font-semibold text-[#4f4633]">{preparing.length} aktif bilet</span>
                 </div>
               }
             >
@@ -464,10 +473,10 @@ export function OrderLiveOpsCanvas({
                       "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
                       kpis.kitchenOnTarget
                         ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                        : "border-rose-200 bg-rose-50 text-rose-700",
+                        : "border-[#ffb4a8] bg-[#ffdad6] text-[#93000a]",
                     )}
                   >
-                    <span className={cn("h-1.5 w-1.5 rounded-full", kpis.kitchenOnTarget ? "bg-emerald-600" : "bg-rose-600")} />
+                    <span className={cn("h-1.5 w-1.5 rounded-full", kpis.kitchenOnTarget ? "bg-emerald-600" : "bg-[#ba1a1a]")} />
                     Hedef &lt;{kpis.kitchenTargetMinutes} dk
                     <span className="font-medium opacity-80">
                       {kpis.kitchenOnTarget ? "Başarılı" : "Aşım"}
@@ -486,7 +495,7 @@ export function OrderLiveOpsCanvas({
               footer={
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="font-semibold text-emerald-700">Aktif filo %{fleetActivePct}</span>
-                  <span className="text-slate-500">{courierTickets.length} aktif paket</span>
+                  <span className="text-[#615e57]">{courierTickets.length} aktif paket</span>
                 </div>
               }
             >
@@ -494,7 +503,7 @@ export function OrderLiveOpsCanvas({
                 value={kpis.courierOnRoad}
                 suffix="yolda"
                 caption={
-                  <span className="text-slate-500">
+                  <span className="text-[#615e57]">
                     {kpis.courierWaiting} beklemede
                     {kpis.courierAvgMinutes != null
                       ? ` · ort. ${kpis.courierAvgMinutes.toLocaleString("tr-TR", { maximumFractionDigits: 0 })} dk`
@@ -519,13 +528,13 @@ export function OrderLiveOpsCanvas({
                       return (
                         <span
                           key={i}
-                          className={cn("h-1.5 flex-1 rounded-full", filled ? "bg-[#c2410c]" : "bg-slate-200")}
+                          className={cn("h-1.5 flex-1 rounded-full", filled ? "bg-[#ffc72c]" : "bg-[#e5e2dc]")}
                         />
                       );
                     })}
                   </div>
                   <div className="mt-2 flex items-center justify-between text-[11px]">
-                    <span className="text-slate-500">{kpis.emptyTables} masa boş</span>
+                    <span className="text-[#615e57]">{kpis.emptyTables} masa boş</span>
                     <span className="font-medium text-emerald-700">{kpis.tableOrders} aktif sipariş</span>
                   </div>
                 </div>
@@ -535,7 +544,7 @@ export function OrderLiveOpsCanvas({
                 value={kpis.tableOccupancyPercent != null ? `%${kpis.tableOccupancyPercent}` : "—"}
                 suffix="doluluk"
                 caption={
-                  <span className="text-slate-500">
+                  <span className="text-[#615e57]">
                     {kpis.totalTables > 0
                       ? `${kpis.occupiedTables} / ${kpis.totalTables} masa dolu`
                       : "Masa verisi yok"}
@@ -548,15 +557,15 @@ export function OrderLiveOpsCanvas({
           {/* 3 COLUMN OPS */}
           <section className="grid grid-cols-1 gap-4 lg:grid-cols-12">
             {/* SALON */}
-            <div className={cn("flex min-h-[32rem] flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm", opsColClass)}>
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className={cn("flex min-h-[32rem] flex-col rounded-3xl border border-[#d3c5ac]/35 bg-white p-4 ambient-shadow", opsColClass)}>
+              <div className="flex items-center justify-between border-b border-[#ebe8e2] pb-3">
                 <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
                     <Icon name="person_apron" className="text-[20px]" />
                   </div>
                   <div>
-                    <h2 className="text-[15px] font-bold text-slate-900">Salon &amp; Masa Akışı</h2>
-                    <span className="text-[11px] font-medium text-slate-500">
+                    <h2 className="font-epilogue text-[18px] font-bold text-[#1c1c18]">Salon &amp; Masa Akışı</h2>
+                    <span className="text-[11px] font-medium text-[#615e57]">
                       Görevli Servis Personeli ({waiterGroups.length} Garson)
                     </span>
                   </div>
@@ -568,22 +577,22 @@ export function OrderLiveOpsCanvas({
 
               <div className="mt-4 flex-1 space-y-4 overflow-y-auto pr-1">
                 {waiterGroups.length === 0 ? (
-                  <p className="py-10 text-center text-xs text-slate-500">Aktif salon siparişi yok.</p>
+                  <p className="py-10 text-center text-xs text-[#615e57]">Aktif salon siparişi yok.</p>
                 ) : (
                   waiterGroups.map((group) => (
                     <div
                       key={group.key}
-                      className="space-y-1.5 rounded-xl border border-slate-200 bg-slate-50/70 p-2.5"
+                      className="space-y-1.5 rounded-2xl border border-[#d3c5ac]/35 bg-[#f6f3ed]/90 p-2.5"
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-orange-100 text-xs font-bold text-[#c2410c]">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#ffdf99] text-xs font-bold text-[#775a00]">
                             {group.initials}
                           </div>
                           <div>
-                            <span className="text-[13px] font-bold text-slate-900">{group.waiterName}</span>
+                            <span className="text-[13px] font-bold text-[#1c1c18]">{group.waiterName}</span>
                             {group.tableLabels.length > 0 ? (
-                              <span className="ml-1.5 text-[11px] text-slate-500">
+                              <span className="ml-1.5 text-[11px] text-[#615e57]">
                                 ({group.tableLabels.slice(0, 4).join(", ")})
                               </span>
                             ) : null}
@@ -602,41 +611,41 @@ export function OrderLiveOpsCanvas({
                               type="button"
                               onClick={() => onSelectOrder(order)}
                               className={cn(
-                                "flex w-full items-center justify-between rounded-lg border border-slate-200 border-l-4 bg-white p-2.5 text-left shadow-sm",
-                                tone === "occupied" && "border-l-[#c2410c]",
+                                "flex w-full items-center justify-between rounded-lg border border-[#d3c5ac]/45 border-l-4 bg-white p-2.5 text-left shadow-sm",
+                                tone === "occupied" && "border-l-[#775a00]",
                                 tone === "serving" && "border-l-emerald-500",
-                                tone === "waiting" && "border-l-sky-500",
-                                tone === "delayed" && "border-l-rose-500",
-                                tone === "empty" && "border-l-slate-400",
+                                tone === "waiting" && "border-l-[#df2d1f]",
+                                tone === "delayed" && "border-l-[#ba1a1a]",
+                                tone === "empty" && "border-l-[#d3c5ac]",
                               )}
                             >
                               <div className="flex items-center gap-2">
-                                <span className="text-[13px] font-bold text-slate-900">
+                                <span className="text-[13px] font-bold text-[#1c1c18]">
                                   {orderLocationLabel(order)}
                                 </span>
                                 <span
                                   className={cn(
                                     "rounded-full px-2 py-0.5 text-[10px] font-semibold",
-                                    tone === "occupied" && "bg-orange-100 text-orange-900",
+                                    tone === "occupied" && "bg-[#ffdf99] text-[#5a4300]",
                                     tone === "serving" && "bg-emerald-100 text-emerald-800",
-                                    tone === "waiting" && "bg-sky-100 text-sky-800",
-                                    tone === "delayed" && "bg-rose-100 text-rose-800",
-                                    tone === "empty" && "bg-slate-100 text-slate-700",
+                                    tone === "waiting" && "bg-[#ffdad4] text-[#930001]",
+                                    tone === "delayed" && "bg-[#ffdad6] text-[#93000a]",
+                                    tone === "empty" && "bg-[#f0eee8] text-[#4f4633]",
                                   )}
                                 >
                                   {orderStatusLabel(order.status)}
                                 </span>
                               </div>
                               <div className="flex items-center gap-2">
-                                <span className="text-[12px] font-bold text-slate-900">
+                                <span className="text-[12px] font-bold text-[#1c1c18]">
                                   {formatMenuPrice(order.totalAmount ?? undefined, currency)}
                                 </span>
                                 {order.status === "READY" ? (
-                                  <span className="rounded-lg bg-[#c2410c] px-2.5 py-1 text-[11px] font-semibold text-white">
+                                  <span className="rounded-full bg-[#ffc72c] px-2.5 py-1 text-[11px] font-bold text-[#251a00]">
                                     POS Hazır
                                   </span>
                                 ) : (
-                                  <span className="text-[11px] text-slate-500">
+                                  <span className="text-[11px] text-[#615e57]">
                                     {formatOrderWhenCompact(order.submittedAt || order.createdAt)}
                                   </span>
                                 )}
@@ -649,8 +658,8 @@ export function OrderLiveOpsCanvas({
                   ))
                 )}
 
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5">
-                  <span className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <div className="rounded-2xl border border-[#d3c5ac]/35 bg-[#f6f3ed] p-2.5">
+                  <span className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-[#615e57]">
                     Hızlı Masa Durum Dağılımı
                   </span>
                   <div className="grid grid-cols-6 gap-1.5 text-center">
@@ -660,7 +669,7 @@ export function OrderLiveOpsCanvas({
                           return (
                             <span
                               key={`empty-${i}`}
-                              className="rounded-lg border border-slate-200 bg-white p-1.5 text-[12px] font-semibold text-slate-500"
+                              className="rounded-lg border border-[#d3c5ac]/45 bg-white p-1.5 text-[12px] font-semibold text-[#615e57]"
                             >
                               M{i + 1}
                             </span>
@@ -674,11 +683,11 @@ export function OrderLiveOpsCanvas({
                             onClick={() => onSelectOrder(order)}
                             className={cn(
                               "rounded-lg border p-1.5 text-[12px] font-bold",
-                              tone === "occupied" && "border-orange-200 bg-orange-100 text-[#c2410c]",
+                              tone === "occupied" && "border-[#f6bf22]/70 bg-[#ffdf99] text-[#775a00]",
                               tone === "serving" && "border-emerald-200 bg-emerald-100 text-emerald-800",
-                              tone === "waiting" && "border-sky-200 bg-sky-100 text-sky-800",
-                              tone === "delayed" && "border-rose-200 bg-rose-100 text-rose-800",
-                              tone === "empty" && "border-slate-200 bg-white text-slate-500",
+                              tone === "waiting" && "border-[#ffb4a8] bg-[#ffdad4] text-[#930001]",
+                              tone === "delayed" && "border-[#ffb4a8] bg-[#ffdad6] text-[#93000a]",
+                              tone === "empty" && "border-[#d3c5ac]/45 bg-white text-[#615e57]",
                             )}
                           >
                             {orderLocationLabel(order).replace(/^Masa\s+/i, "M").slice(0, 3)}
@@ -687,18 +696,18 @@ export function OrderLiveOpsCanvas({
                       },
                     )}
                   </div>
-                  <div className="mt-3 flex items-center justify-between text-[10px] font-medium text-slate-500">
+                  <div className="mt-3 flex items-center justify-between text-[10px] font-medium text-[#615e57]">
                     <span className="flex items-center gap-1.5">
-                      <span className="h-2 w-2 rounded-full bg-[#c2410c]" /> Dolu
+                      <span className="h-2 w-2 rounded-full bg-[#ffc72c]" /> Dolu
                     </span>
                     <span className="flex items-center gap-1.5">
                       <span className="h-2 w-2 rounded-full bg-emerald-600" /> Serviste
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <span className="h-2 w-2 rounded-full bg-slate-300" /> Boş
+                      <span className="h-2 w-2 rounded-full bg-[#d3c5ac]" /> Boş
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <span className="h-2 w-2 rounded-full bg-rose-500" /> Gecikme
+                      <span className="h-2 w-2 rounded-full bg-[#ffdad6]0" /> Gecikme
                     </span>
                   </div>
                 </div>
@@ -706,26 +715,26 @@ export function OrderLiveOpsCanvas({
             </div>
 
             {kitchenEnabled ? (
-            <div className={cn("flex min-h-[32rem] flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm", opsColClass)}>
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className={cn("flex min-h-[32rem] flex-col rounded-3xl border border-[#d3c5ac]/35 bg-white p-4 ambient-shadow", opsColClass)}>
+              <div className="flex items-center justify-between border-b border-[#ebe8e2] pb-3">
                 <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-orange-200 bg-orange-50 text-[#c2410c]">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#ffdf99] text-[#5a4300]">
                     <Icon name="skillet" className="text-[20px]" />
                   </div>
                   <div>
-                    <h2 className="text-[15px] font-bold text-slate-900">Mutfak KDS Ekranı</h2>
-                    <span className="text-[11px] font-medium text-slate-500">Canlı mutfak kuyruğu</span>
+                    <h2 className="font-epilogue text-[18px] font-bold text-[#1c1c18]">Mutfak KDS Ekranı</h2>
+                    <span className="text-[11px] font-medium text-[#615e57]">Canlı mutfak kuyruğu</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
-                  <span className="h-2 w-2 rounded-full bg-[#c2410c]" />
+                <div className="flex items-center gap-1.5 rounded-full bg-[#f0eee8] px-2 py-0.5 text-[11px] font-semibold text-[#4f4633]">
+                  <span className="h-2 w-2 rounded-full bg-[#ffc72c]" />
                   {kitchenTickets.length} Bilet
                 </div>
               </div>
 
               <div className="mt-3 flex-1 space-y-3 overflow-y-auto pr-1">
                     {kitchenTickets.length === 0 ? (
-                      <p className="py-10 text-center text-xs text-slate-500">Mutfak kuyruğu boş.</p>
+                      <p className="py-10 text-center text-xs text-[#615e57]">Mutfak kuyruğu boş.</p>
                     ) : (
                       kitchenTickets.slice(0, 6).map((order) => {
                         const now = Date.now();
@@ -733,27 +742,33 @@ export function OrderLiveOpsCanvas({
                         const late = delayedKeys.has(managedOrderKey(order)) || isKitchenTicketDelayed(order, now);
                         const ready = order.status === "READY";
                         const items = order.items ?? [];
+                        const channel = orderChannel(order);
+                        const offTable = channel !== "QR" && channel !== "WAITER";
+                        const customer = order.customerName?.trim();
+                        const phone = order.customerPhone?.trim();
+                        const address = order.deliveryAddress?.trim();
+                        const note = order.note?.trim();
                         return (
                           <div
                             key={managedOrderKey(order)}
                             className={cn(
-                              "rounded-xl border p-2.5",
-                              late && "border-rose-200 bg-rose-50/40 shadow-[0_0_12px_rgba(239,68,68,0.08)]",
+                              "rounded-2xl border p-2.5",
+                              late && "border-[#ffb4a8] bg-[#ffdad6]/80 shadow-[0_0_12px_rgba(239,68,68,0.08)]",
                               ready && !late && "border-emerald-200 bg-emerald-50/50",
-                              !late && !ready && "border-slate-200 bg-slate-50/70",
+                              !late && !ready && "border-[#d3c5ac]/45 bg-[#f6f3ed]/90",
                             )}
                           >
                             <div
                               className={cn(
                                 "flex items-center justify-between border-b pb-1.5",
-                                late ? "border-rose-200" : ready ? "border-emerald-200" : "border-slate-200/80",
+                                late ? "border-[#ffb4a8]" : ready ? "border-emerald-200" : "border-[#d3c5ac]/55",
                               )}
                             >
                               <div className="flex items-center gap-2">
                                 <span
                                   className={cn(
                                     "text-[14px] font-bold",
-                                    late ? "text-rose-600" : ready ? "text-emerald-700" : "text-[#c2410c]",
+                                    late ? "text-[#ba1a1a]" : ready ? "text-emerald-700" : "text-[#775a00]",
                                   )}
                                 >
                                   #{order.orderNumber || order.id}
@@ -762,24 +777,26 @@ export function OrderLiveOpsCanvas({
                                   className={cn(
                                     "rounded-full px-2 py-0.5 text-[10px] font-semibold",
                                     late
-                                      ? "bg-rose-100 font-bold text-rose-800"
+                                      ? "bg-[#ffdad6] font-bold text-[#93000a]"
                                       : ready
                                         ? "bg-emerald-100 font-bold text-emerald-800"
-                                        : "border border-slate-200 bg-white text-slate-800",
+                                        : "border border-[#d3c5ac]/45 bg-white text-[#1c1c18]",
                                   )}
                                 >
-                                  {orderLocationLabel(order)}
+                                  {channel === "PHONE"
+                                    ? `Telefon · ${orderLocationLabel(order)}`
+                                    : orderLocationLabel(order)}
                                 </span>
                               </div>
                               <div
                                 className={cn(
                                   "flex items-center gap-1 text-[11px] font-semibold",
-                                  late ? "font-bold text-rose-600" : ready ? "text-emerald-700" : "text-slate-600",
+                                  late ? "font-bold text-[#ba1a1a]" : ready ? "text-emerald-700" : "text-[#4f4633]",
                                 )}
                               >
                                 <Icon
                                   name={late ? "warning" : ready ? "check_circle" : "schedule"}
-                                  className={cn("text-[14px]", !late && !ready && "text-[#c2410c]")}
+                                  className={cn("text-[14px]", !late && !ready && "text-[#775a00]")}
                                 />
                                 <span>
                                   {late
@@ -790,32 +807,57 @@ export function OrderLiveOpsCanvas({
                                 </span>
                               </div>
                             </div>
-                            <div className="space-y-1 py-2 text-[12px] text-slate-800">
-                              {items.slice(0, 3).map((item) => (
-                                <div
-                                  key={`${managedOrderKey(order)}-${item.id ?? item.productId}`}
-                                  className="flex items-center justify-between"
-                                >
-                                  <span>
-                                    <strong>{item.quantity}x</strong>{" "}
-                                    {item.productName?.trim() || "ürün"}
-                                  </span>
-                                </div>
-                              ))}
+                            {offTable && (customer || phone || address || note) ? (
+                              <div className="space-y-0.5 border-b border-[#d3c5ac]/35 py-1.5 text-[11px] leading-snug text-[#4f4633]">
+                                {customer || phone ? (
+                                  <p className="font-semibold text-[#1c1c18]">
+                                    {[customer, phone].filter(Boolean).join(" · ")}
+                                  </p>
+                                ) : null}
+                                {address ? <p>{address}</p> : null}
+                                {note ? <p>Not: {note}</p> : null}
+                              </div>
+                            ) : null}
+                            <div className="space-y-1 py-2 text-[12px] text-[#1c1c18]">
+                              {items.slice(0, 4).map((item) => {
+                                const options = item.selectedOptions
+                                  ?.map((option) => option.optionName)
+                                  .filter(Boolean)
+                                  .join(", ");
+                                const name = item.productName?.trim();
+                                return (
+                                  <div
+                                    key={`${managedOrderKey(order)}-${item.id ?? item.productId}`}
+                                    className="flex items-start justify-between gap-2"
+                                  >
+                                    <span>
+                                      <strong>{item.quantity}x</strong> {name || "ürün"}
+                                      {options ? (
+                                        <span className="block text-[11px] font-normal text-[#615e57]">{options}</span>
+                                      ) : null}
+                                      {item.note?.trim() ? (
+                                        <span className="block text-[11px] font-normal text-[#615e57]">
+                                          Not: {item.note.trim()}
+                                        </span>
+                                      ) : null}
+                                    </span>
+                                  </div>
+                                );
+                              })}
                             </div>
                             {late ? (
                               <div className="mt-1 grid grid-cols-2 gap-1.5">
                                 <button
                                   type="button"
                                   onClick={() => onSelectOrder(order)}
-                                  className="rounded-lg bg-rose-600 py-1.5 text-center text-[11px] font-bold text-white shadow-sm hover:bg-rose-700"
+                                  className="rounded-full bg-[#df2d1f] py-1.5 text-center text-[11px] font-bold text-white shadow-sm hover:bg-[#ba0a06]"
                                 >
                                   ŞEFİ UYAR
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => onSelectOrder(order)}
-                                  className="rounded-lg border border-slate-200 bg-white py-1.5 text-center text-[11px] font-bold text-slate-700 hover:bg-slate-100"
+                                  className="rounded-lg border border-[#d3c5ac]/45 bg-white py-1.5 text-center text-[11px] font-bold text-[#4f4633] hover:bg-[#f0eee8]"
                                 >
                                   FIRINDAN ÇIKAR
                                 </button>
@@ -825,10 +867,10 @@ export function OrderLiveOpsCanvas({
                                 type="button"
                                 onClick={() => onSelectOrder(order)}
                                 className={cn(
-                                  "mt-1 flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-[11px] font-bold shadow-sm",
+                                  "mt-1 flex w-full items-center justify-center gap-1 rounded-full py-2 text-[11px] font-bold",
                                   ready
-                                    ? "bg-emerald-700 text-white hover:bg-emerald-800"
-                                    : "border border-slate-200 bg-white text-[#c2410c] hover:bg-slate-100",
+                                    ? "bg-[#ffc72c] text-[#251a00] hover:bg-[#f6bf22]"
+                                    : "border border-[#d3c5ac]/45 bg-white text-[#775a00] hover:bg-[#f6f3ed]",
                                 )}
                               >
                                 <Icon name={ready ? "notifications_active" : "check"} className="text-xs" />
@@ -845,7 +887,7 @@ export function OrderLiveOpsCanvas({
 
                   <Link
                     href={detailHref("kitchen")}
-                    className="mt-3 flex w-full items-center justify-center gap-1 rounded-lg bg-emerald-700 py-2 text-[11px] font-bold text-white shadow-sm hover:bg-emerald-800"
+                    className="mt-3 flex w-full items-center justify-center gap-1 rounded-full bg-[#ffc72c] py-2.5 text-[12px] font-bold text-[#251a00] hover:bg-[#f6bf22]"
                   >
                     <Icon name="notifications_active" className="text-xs" />
                     GARSONA ÇAĞRI BİLDİRİMİ GÖNDER
@@ -854,44 +896,66 @@ export function OrderLiveOpsCanvas({
             ) : null}
 
             {courierEnabled ? (
-            <div className={cn("flex min-h-[32rem] flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm", opsColClass)}>
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className={cn("flex min-h-[32rem] flex-col rounded-3xl border border-[#d3c5ac]/35 bg-white p-4 ambient-shadow", opsColClass)}>
+              <div className="flex items-center justify-between border-b border-[#ebe8e2] pb-3">
                 <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-sky-200 bg-sky-50 text-sky-700">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#ffdad4] text-[#930001]">
                     <Icon name="two_wheeler" className="text-[20px]" />
                   </div>
                   <div>
-                    <h2 className="text-[15px] font-bold text-slate-900">Kurye &amp; Paket Filosu</h2>
-                    <span className="text-[11px] font-medium text-slate-500">Entegre Kanallar &amp; GPS İzleme</span>
+                    <h2 className="font-epilogue text-[18px] font-bold text-[#1c1c18]">Kurye &amp; Paket Filosu</h2>
+                    <span className="text-[11px] font-medium text-[#615e57]">Entegre Kanallar &amp; GPS İzleme</span>
                   </div>
                 </div>
-                <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-[11px] font-semibold text-sky-700">
-                  {courierTickets.length} Aktif
+                <span className="rounded-full border border-[#ffb4a8] bg-[#ffdad4]/70 px-2.5 py-0.5 text-[11px] font-semibold text-[#930001]">
+                  {courierLane.length} Aktif
                 </span>
               </div>
 
               <div className="mt-3 grid grid-cols-4 gap-1.5 text-center">
-                {channels.map((ch, idx) => (
-                  <div key={ch.key} className="rounded-lg border border-slate-200 bg-slate-50 p-1.5">
-                    <span
+                {channels.map((ch, idx) => {
+                  const selected = courierChannel === ch.key;
+                  return (
+                    <button
+                      key={ch.key}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() =>
+                        setCourierChannel((current) =>
+                          current === ch.key ? null : (ch.key as OrderChannel),
+                        )
+                      }
                       className={cn(
-                        "block text-[13px] font-bold",
-                        idx === 0 && "text-[#c2410c]",
-                        idx === 1 && "text-sky-700",
-                        idx === 2 && "text-emerald-700",
-                        idx === 3 && "text-slate-800",
+                        "rounded-lg border p-1.5 transition-colors",
+                        selected
+                          ? "border-[#ffc72c] bg-[#ffc72c] text-[#251a00]"
+                          : "border-[#d3c5ac]/45 bg-[#f6f3ed] hover:border-[#ffc72c]",
                       )}
                     >
-                      {ch.count}
-                    </span>
-                    <span className="text-[10px] font-medium text-slate-500">{ch.label}</span>
-                  </div>
-                ))}
+                      <span
+                        className={cn(
+                          "block text-[13px] font-bold",
+                          !selected && idx === 0 && "text-[#775a00]",
+                          !selected && idx === 1 && "text-[#930001]",
+                          !selected && idx === 2 && "text-emerald-700",
+                          !selected && idx === 3 && "text-[#1c1c18]",
+                        )}
+                      >
+                        {ch.count}
+                      </span>
+                      <span className={cn("text-[10px] font-medium", selected ? "text-[#251a00]" : "text-[#615e57]")}>
+                        {ch.label}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="mt-4 flex-1 space-y-3 overflow-y-auto pr-1">
                 {courierTickets.length === 0 ? (
-                  <p className="py-10 text-center text-xs text-slate-500">Aktif paket siparişi yok.</p>
+                  <p className="py-10 text-center text-xs text-[#615e57]">
+                    {courierChannel ? "Bu kanalda aktif paket siparişi yok." : "Aktif paket siparişi yok."}
+                  </p>
                 ) : (
                   courierTickets.slice(0, 6).map((order) => {
                     const channel = orderChannel(order);
@@ -906,25 +970,25 @@ export function OrderLiveOpsCanvas({
                     return (
                       <div
                         key={managedOrderKey(order)}
-                        className="space-y-1.5 rounded-xl border border-slate-200 bg-slate-50/70 p-2.5"
+                        className="space-y-1.5 rounded-2xl border border-[#d3c5ac]/35 bg-[#f6f3ed]/90 p-2.5"
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <div
                               className={cn(
                                 "flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold",
-                                onRoad && "bg-sky-100 text-sky-700",
-                                waiting && "bg-orange-100 text-[#c2410c]",
-                                !onRoad && !waiting && "bg-slate-200 text-slate-600",
+                                onRoad && "bg-[#ffdad4] text-[#930001]",
+                                waiting && "bg-[#ffdf99] text-[#775a00]",
+                                !onRoad && !waiting && "bg-[#e5e2dc] text-[#4f4633]",
                               )}
                             >
                               {initials || "PK"}
                             </div>
                             <div>
-                              <span className="text-[13px] font-bold text-slate-900">
+                              <span className="text-[13px] font-bold text-[#1c1c18]">
                                 {order.customerName?.trim() || ORDER_CHANNEL_LABEL[channel]}
                               </span>
-                              <span className="ml-1 font-mono text-[10px] text-slate-500">
+                              <span className="ml-1 font-mono text-[10px] text-[#615e57]">
                                 ({ORDER_CHANNEL_LABEL[channel]})
                               </span>
                             </div>
@@ -932,24 +996,24 @@ export function OrderLiveOpsCanvas({
                           <span
                             className={cn(
                               "rounded-full px-2 py-0.5 text-[10px] font-semibold",
-                              onRoad && "bg-sky-100 text-sky-800",
-                              waiting && "bg-orange-100 text-[#c2410c]",
+                              onRoad && "bg-[#ffdad4] text-[#930001]",
+                              waiting && "bg-[#ffdf99] text-[#775a00]",
                               !onRoad && !waiting && "bg-emerald-100 text-emerald-800",
                             )}
                           >
                             {onRoad ? "Teslimatta" : waiting ? "Şubede Bekliyor" : orderStatusLabel(order.status)}
                           </span>
                         </div>
-                        <div className="space-y-1 rounded-lg border border-slate-200 bg-white p-2.5 text-[12px] shadow-sm">
+                        <div className="space-y-1 rounded-lg border border-[#d3c5ac]/45 bg-white p-2.5 text-[12px] shadow-sm">
                           <div className="flex items-center justify-between">
-                            <span className="font-medium text-slate-900">
+                            <span className="font-medium text-[#1c1c18]">
                               Sipariş #{order.orderNumber || order.id} ({ORDER_CHANNEL_LABEL[channel]})
                             </span>
-                            <span className={cn("text-[11px] font-bold", onRoad ? "text-sky-700" : "text-[#c2410c]")}>
+                            <span className={cn("text-[11px] font-bold", onRoad ? "text-[#930001]" : "text-[#775a00]")}>
                               {formatMenuPrice(orderAmount(order.totalAmount), currency)}
                             </span>
                           </div>
-                          <div className="flex items-center justify-between text-[11px] text-slate-500">
+                          <div className="flex items-center justify-between text-[11px] text-[#615e57]">
                             <span className="truncate">
                               {order.deliveryAddress?.trim() || orderLocationLabel(order)}
                             </span>
@@ -957,12 +1021,12 @@ export function OrderLiveOpsCanvas({
                           </div>
                         </div>
                         {waiting ? (
-                          <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-2">
-                            <span className="text-[11px] text-slate-500">Hazır siparişe atanmayı bekliyor</span>
+                          <div className="flex items-center justify-between rounded-lg border border-[#d3c5ac]/45 bg-white p-2">
+                            <span className="text-[11px] text-[#615e57]">Hazır siparişe atanmayı bekliyor</span>
                             <button
                               type="button"
                               onClick={() => onSelectOrder(order)}
-                              className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-800 hover:bg-slate-200"
+                              className="rounded-lg border border-[#d3c5ac]/45 bg-[#f0eee8] px-3 py-1 text-[11px] font-semibold text-[#1c1c18] hover:bg-[#e5e2dc]"
                             >
                               Sipariş Ata
                             </button>
@@ -979,41 +1043,41 @@ export function OrderLiveOpsCanvas({
 
           {/* BOTTOM INSIGHTS */}
           <section className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:col-span-7">
-              <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="rounded-3xl border border-[#d3c5ac]/35 bg-white p-4 ambient-shadow lg:col-span-7">
+              <div className="mb-3 flex items-center justify-between border-b border-[#ebe8e2] pb-3">
                 <div className="flex items-center gap-2">
-                  <Icon name="leaderboard" className="text-[#c2410c]" />
-                  <h3 className="text-[15px] font-bold text-slate-900">Günün En Çok Satan Ürünleri</h3>
+                  <Icon name="leaderboard" className="text-[22px] text-[#775a00]" />
+                  <h3 className="font-epilogue text-[18px] font-bold text-[#1c1c18]">Günün En Çok Satan Ürünleri</h3>
                 </div>
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-[#615e57]">
                   Top 5 Performans
                 </span>
               </div>
               <div className="space-y-2">
                 {products.length === 0 ? (
-                  <p className="py-8 text-center text-xs text-slate-500">Henüz ürün satışı yok.</p>
+                  <p className="py-8 text-center text-xs text-[#615e57]">Henüz ürün satışı yok.</p>
                 ) : (
                   products.map((product, index) => (
                     <div
                       key={product.name}
-                      className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-3 transition-colors hover:bg-slate-100/70"
+                      className="flex items-center justify-between rounded-2xl border border-[#d3c5ac]/35 bg-[#f6f3ed]/90 p-3 transition-colors hover:border-[#ffc72c]"
                     >
                       <div className="flex items-center gap-3">
                         <span
                           className={cn(
                             "w-5 text-[13px] font-extrabold",
-                            index === 0 ? "text-[#c2410c]" : "text-slate-400",
+                            index === 0 ? "text-[#775a00]" : "text-[#817661]",
                           )}
                         >
                           {String(index + 1).padStart(2, "0")}
                         </span>
                         <div>
-                          <div className="text-[13px] font-bold text-slate-900">{product.name}</div>
-                          <div className="text-[11px] text-slate-500">Pay: %{product.share.toFixed(0)}</div>
+                          <div className="text-[13px] font-bold text-[#1c1c18]">{product.name}</div>
+                          <div className="text-[11px] text-[#615e57]">Pay: %{product.share.toFixed(0)}</div>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-[13px] font-bold text-slate-900">
+                        <div className="text-[13px] font-bold text-[#1c1c18]">
                           {formatMenuPrice(product.revenue, currency) || "0 ₺"}
                         </div>
                         <div className="text-[11px] font-semibold text-emerald-700">
@@ -1026,20 +1090,20 @@ export function OrderLiveOpsCanvas({
               </div>
             </div>
 
-            <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:col-span-5">
+            <div className="flex flex-col justify-between rounded-3xl border border-[#d3c5ac]/35 bg-white p-4 ambient-shadow lg:col-span-5">
               <div>
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center justify-between border-b border-[#ebe8e2] pb-3">
                   <div className="flex items-center gap-2">
-                    <Icon name="insights" className="text-[#c2410c]" />
-                    <h3 className="text-[15px] font-bold text-slate-900">Saatlik Yoğunluk &amp; Güvenlik</h3>
+                    <Icon name="insights" className="text-[22px] text-[#775a00]" />
+                    <h3 className="font-epilogue text-[18px] font-bold text-[#1c1c18]">Saatlik Yoğunluk &amp; Güvenlik</h3>
                   </div>
-                  <span className="text-[11px] font-semibold text-slate-500">12:00 - 23:00</span>
+                  <span className="text-[11px] font-semibold text-[#615e57]">12:00 - 23:00</span>
                 </div>
                 <div className="mt-4 space-y-2">
-                  <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  <span className="block text-[11px] font-bold uppercase tracking-wider text-[#615e57]">
                     Sipariş Yoğunluk Dağılımı (Saatlik)
                   </span>
-                  <div className="flex h-28 items-end justify-between gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 pt-4">
+                  <div className="flex h-28 items-end justify-between gap-1.5 rounded-2xl border border-[#d3c5ac]/35 bg-[#f6f3ed] px-3 pt-4">
                     {hourly.map((point) => {
                       const hourNum = Number(point.hour.slice(0, 2));
                       const height = Math.max(10, Math.round((point.orders / maxHourly) * 100));
@@ -1050,17 +1114,17 @@ export function OrderLiveOpsCanvas({
                           <div
                             className={cn(
                               "w-full rounded-t",
-                              isPeak && "bg-[#c2410c] shadow-sm",
-                              isCurrent && !isPeak && "bg-sky-500",
-                              !isPeak && !isCurrent && point.orders > maxHourly * 0.55 && "bg-orange-300",
-                              !isPeak && !isCurrent && point.orders <= maxHourly * 0.55 && "bg-slate-200",
+                              isPeak && "bg-[#ffc72c]",
+                              isCurrent && !isPeak && "bg-[#775a00]",
+                              !isPeak && !isCurrent && point.orders > maxHourly * 0.55 && "bg-[#f6bf22]",
+                              !isPeak && !isCurrent && point.orders <= maxHourly * 0.55 && "bg-[#e5e2dc]",
                             )}
                             style={{ height: `${height}%` }}
                           />
                           <span
                             className={cn(
                               "text-[9px] font-semibold",
-                              isPeak ? "font-bold text-[#c2410c]" : isCurrent ? "font-bold text-sky-700" : "text-slate-400",
+                              isPeak ? "font-bold text-[#775a00]" : isCurrent ? "font-bold text-[#930001]" : "text-[#817661]",
                             )}
                           >
                             {String(hourNum).padStart(2, "0")}
@@ -1071,24 +1135,24 @@ export function OrderLiveOpsCanvas({
                   </div>
                 </div>
               </div>
-              <div className="mt-4 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
-                <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/70 p-2.5">
+              <div className="mt-4 grid grid-cols-2 gap-2 border-t border-[#ebe8e2] pt-3">
+                <div className="flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50/70 p-2.5">
                   <div>
-                    <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    <span className="block text-[10px] font-bold uppercase tracking-wider text-[#615e57]">
                       İptal / İade Oranı
                     </span>
                     <span className="text-[14px] font-bold text-emerald-800">{cancelledCount} İptal</span>
                   </div>
                   <Icon name="verified" className="text-emerald-600" />
                 </div>
-                <div className="flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50/70 p-2.5">
+                <div className="flex items-center justify-between rounded-2xl border border-[#ffb4a8] bg-[#ffdad6]/80 p-2.5">
                   <div>
-                    <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    <span className="block text-[10px] font-bold uppercase tracking-wider text-[#615e57]">
                       Gecikme Uyarısı
                     </span>
-                    <span className="text-[14px] font-bold text-rose-600">{delayedCount} Sipariş</span>
+                    <span className="text-[14px] font-bold text-[#ba1a1a]">{delayedCount} Sipariş</span>
                   </div>
-                  <Icon name="notifications_paused" className="text-rose-600" />
+                  <Icon name="notifications_paused" className="text-[#ba1a1a]" />
                 </div>
               </div>
             </div>

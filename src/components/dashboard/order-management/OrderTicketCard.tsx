@@ -1,7 +1,9 @@
 "use client";
 
 import { formatMenuPrice } from "@/components/menu-templates/types";
+import { Button } from "@/components/ui/button";
 import {
+  canMarkServedToCustomer,
   formatOrderWhenCompact,
   isFreshOrder,
   managedOrderKey,
@@ -20,25 +22,38 @@ type OrderTicketCardProps = {
   order: OrderResponse;
   includeTips?: boolean;
   delayed?: boolean;
+  delivering?: boolean;
   onSelect: (order: OrderResponse) => void;
+  onMarkServed?: (order: OrderResponse) => void;
 };
 
-export function OrderTicketCard({ order, includeTips, delayed, onSelect }: OrderTicketCardProps) {
+export function OrderTicketCard({
+  order,
+  includeTips,
+  delayed,
+  delivering,
+  onSelect,
+  onMarkServed,
+}: OrderTicketCardProps) {
   const tip = orderAmount(order.tipAmount);
   const fresh = isFreshOrder(order);
   const items = order.items ?? [];
   const currency = order.currency || "TRY";
+  const showServed = Boolean(onMarkServed) && canMarkServedToCustomer(order);
 
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(order)}
+    <div
       className={cn(
-        "w-full rounded-2xl border border-border bg-card p-3.5 text-left transition-colors hover:bg-muted/50",
-        delayed && "border-destructive/30 bg-destructive/5 hover:bg-destructive/10",
+        "w-full rounded-2xl border border-border bg-card p-3.5 text-left transition-colors",
+        delayed && "border-destructive/30 bg-destructive/5",
         (order.status === "CANCELLED" || order.status === "REJECTED") && "opacity-70",
       )}
     >
+      <button
+        type="button"
+        onClick={() => onSelect(order)}
+        className="w-full rounded-xl text-left transition-colors hover:bg-muted/50"
+      >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{orderLocationLabel(order)}</p>
@@ -87,6 +102,17 @@ export function OrderTicketCard({ order, includeTips, delayed, onSelect }: Order
           </p>
         </div>
       </div>
-    </button>
+      </button>
+      {showServed ? (
+        <Button
+          type="button"
+          className="mt-3 h-10 w-full"
+          disabled={delivering}
+          onClick={() => onMarkServed?.(order)}
+        >
+          {delivering ? "İşleniyor…" : "Müşteriye teslim edildi"}
+        </Button>
+      ) : null}
+    </div>
   );
 }

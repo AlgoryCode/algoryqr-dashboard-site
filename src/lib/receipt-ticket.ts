@@ -20,6 +20,7 @@ export type ReceiptPayload = {
   items: ReceiptLine[];
   totalAmount?: number | null;
   currency?: string | null;
+  footerLines?: string[];
 };
 
 export type MarketplaceLikeOrder = {
@@ -169,7 +170,72 @@ export function formatReceiptText(payload: ReceiptPayload): string {
     lines.push("----------------");
     lines.push(`Toplam: ${total}`);
   }
+  if (payload.footerLines?.length) {
+    lines.push("----------------");
+    lines.push("Odeme detayi");
+    for (const line of payload.footerLines) lines.push(line);
+  }
   return lines.join("\n");
+}
+
+export type BillReceiptSource = {
+  tableLabel: string;
+  orderNumber: string;
+  closedAt?: string | null;
+  currency?: string | null;
+  totalAmount?: number | string | null;
+  paidTotal?: number | string | null;
+  items?: Array<{
+    quantity: number;
+    productName: string;
+    note?: string | null;
+  }>;
+  payments?: Array<{
+    amount?: number | string | null;
+    paymentMethod?: string | null;
+    tip?: boolean;
+    itemSummary?: string | null;
+  }>;
+};
+
+function receiptMethodLabel(method?: string | null): string {
+  if (method === "CARD") return "Kredi karti";
+  if (method === "CASH") return "Nakit";
+  return method?.trim() || "";
+}
+
+export function billToReceipt(source: BillReceiptSource): ReceiptPayload {
+  const currency = source.currency ?? "TRY";
+  const payments = source.payments ?? [];
+  const methods = [
+    ...new Set(payments.map((payment) => receiptMethodLabel(payment.paymentMethod)).filter(Boolean)),
+  ];
+  const footerLines = payments.map((payment) =>
+    [
+      payment.tip ? "Bahsis" : payment.itemSummary?.trim() || "Odeme",
+      receiptMethodLabel(payment.paymentMethod),
+      formatAmount(payment.amount, currency),
+    ]
+      .filter(Boolean)
+      .join(" · "),
+  );
+  const paid = formatAmount(source.paidTotal, currency);
+  if (paid) footerLines.push(`Odenen: ${paid}`);
+
+  return {
+    platformLabel: source.tableLabel.trim() || "Adisyon",
+    orderNumber: source.orderNumber,
+    createdAt: source.closedAt,
+    paymentMethod: methods.join(", ") || null,
+    items: (source.items ?? []).map((item) => ({
+      quantity: item.quantity,
+      name: item.productName?.trim() || "Urun",
+      detail: item.note,
+    })),
+    totalAmount: source.totalAmount != null ? Number(source.totalAmount) : null,
+    currency,
+    footerLines,
+  };
 }
 
 export function receiptToHtml(payload: ReceiptPayload): string {

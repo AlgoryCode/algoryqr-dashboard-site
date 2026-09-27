@@ -56,6 +56,7 @@ export type OrderCampaignSummary = {
 export type OrderResponse = {
   id: number;
   menuId?: number;
+  branchId?: number | null;
   tableId?: number;
   tableName?: string | null;
   tableSessionId?: string | null;

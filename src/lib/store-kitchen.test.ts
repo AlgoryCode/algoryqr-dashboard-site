@@ -6,7 +6,7 @@ import {
   isOnlineKitchenSource,
   storeOrderToKitchenTicket,
 } from "./store-kitchen";
-import type { StoreOrderDetail } from "./store-api";
+import { isPhoneCustomerName, markPhoneCustomerName } from "./phone-order";
 
 function storeOrder(partial: Partial<StoreOrderDetail> & Pick<StoreOrderDetail, "id" | "status">): StoreOrderDetail {
   return {
@@ -86,5 +86,20 @@ describe("store kitchen mapping", () => {
     expect(ticket).toMatchObject({ id: 99, tableName: "Masa", status: "SERVED" });
     expect(isOnlineKitchenSource(ticket?.orderSource)).toBe(false);
     expect(isOnlineKitchenSource("STORE")).toBe(true);
+    expect(isOnlineKitchenSource("PHONE")).toBe(true);
+  });
+
+  it("tags phone orders separately from online orders", () => {
+    const ticket = storeOrderToKitchenTicket(
+      storeOrder({
+        id: 12,
+        status: "CONFIRMED",
+        customerName: markPhoneCustomerName("Ali Veli"),
+      }),
+    );
+    expect(isPhoneCustomerName(markPhoneCustomerName("Ali Veli"))).toBe(true);
+    expect(ticket.orderSource).toBe("PHONE");
+    expect(ticket.customerName).toBe("Ali Veli");
+    expect(isOnlineKitchenSource(ticket.orderSource)).toBe(true);
   });
 });

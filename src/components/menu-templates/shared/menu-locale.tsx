@@ -58,6 +58,8 @@ export type MenuStrings = {
   waiterLogin: string;
   waiterLoginTitle: string;
   waiterLoginDescription: string;
+  merchantId: string;
+  merchantIdInvalid: string;
   username: string;
   searchCategories: string;
   poweredBy: string;
@@ -160,7 +162,9 @@ const STRINGS: Record<MenuLocaleCode, MenuStrings> = {
     failed: "İşlem başarısız",
     waiterLogin: "Garson girişi",
     waiterLoginTitle: "Garson girişi",
-    waiterLoginDescription: "Kullanıcı adı ve şifrenizle giriş yapın.",
+    waiterLoginDescription: "İşletme ID, kullanıcı adı ve şifrenizle giriş yapın.",
+    merchantId: "İşletme ID",
+    merchantIdInvalid: "İşletme ID sayı olmalı",
     username: "Kullanıcı adı",
     searchCategories: "Kategori ara...",
     poweredBy: "Powered by AlgoryQR",
@@ -261,7 +265,9 @@ const STRINGS: Record<MenuLocaleCode, MenuStrings> = {
     failed: "Something went wrong",
     waiterLogin: "Waiter login",
     waiterLoginTitle: "Waiter login",
-    waiterLoginDescription: "Sign in with your username and password.",
+    waiterLoginDescription: "Sign in with your merchant ID, username, and password.",
+    merchantId: "Merchant ID",
+    merchantIdInvalid: "Merchant ID must be a number",
     username: "Username",
     searchCategories: "Search categories...",
     poweredBy: "Powered by AlgoryQR",
@@ -361,7 +367,9 @@ const STRINGS: Record<MenuLocaleCode, MenuStrings> = {
     failed: "Не удалось выполнить",
     waiterLogin: "Вход официанта",
     waiterLoginTitle: "Вход официанта",
-    waiterLoginDescription: "Войдите с именем пользователя и паролем.",
+    waiterLoginDescription: "Войдите с ID заведения, именем пользователя и паролем.",
+    merchantId: "ID заведения",
+    merchantIdInvalid: "ID заведения должен быть числом",
     username: "Имя пользователя",
     searchCategories: "Поиск категорий...",
     poweredBy: "Powered by AlgoryQR",
@@ -461,7 +469,9 @@ const STRINGS: Record<MenuLocaleCode, MenuStrings> = {
     failed: "فشلت العملية",
     waiterLogin: "دخول النادل",
     waiterLoginTitle: "دخول النادل",
-    waiterLoginDescription: "سجّل الدخول باسم المستخدم وكلمة المرور.",
+    waiterLoginDescription: "سجّل الدخول بمعرّف المنشأة واسم المستخدم وكلمة المرور.",
+    merchantId: "معرّف المنشأة",
+    merchantIdInvalid: "يجب أن يكون معرّف المنشأة رقمًا",
     username: "اسم المستخدم",
     searchCategories: "البحث في الفئات...",
     poweredBy: "Powered by AlgoryQR",

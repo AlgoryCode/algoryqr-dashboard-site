@@ -13,12 +13,14 @@ import {
   formatOrderHistoryDate,
   formatOrderWhenCompact,
   buildOpsLaneSnapshots,
+  canMarkServedToCustomer,
   groupOpsLaneOrders,
   integrationEarnings,
   isOpenOrderStatus,
   itemSummary,
   matchesOrderSearch,
   mergeManagedOrders,
+  overlayStoreKitchenDetails,
   needsApprovalOrders,
   opsLaneForOrder,
   orderChannel,
@@ -54,6 +56,9 @@ describe("order management channel + search", () => {
     expect(orderChannel(order({ id: 4, status: "CONFIRMED", orderSource: "UBER_EATS" }))).toBe("UBER_EATS");
     expect(orderChannel(order({ id: 5, status: "CONFIRMED", orderSource: "YEMEKSEPETI" }))).toBe(
       "YEMEKSEPETI",
+    );
+    expect(orderChannel(order({ id: 6, status: "CONFIRMED", orderSource: "PHONE", deliveryType: "DELIVERY" }))).toBe(
+      "PHONE",
     );
   });
 
@@ -155,7 +160,7 @@ describe("order management filters and metrics", () => {
     expect(kpis.revenue).toBe(220);
 
     const channels = channelFlowRows(sample);
-    expect(channels).toHaveLength(5);
+    expect(channels).toHaveLength(6);
     expect(channels.find((row) => row.channel === "YEMEKSEPETI")?.total).toBe(0);
     expect(channels.find((row) => row.channel === "UBER_EATS")?.stages.PREPARING).toBe(1);
 
@@ -240,6 +245,32 @@ describe("store orders on the management board", () => {
     expect(merged).toHaveLength(1);
     expect(merged[0].customerName).toBe("Ayşe Demir");
     expect(itemSummary(merged[0])).toBe("4 ürün");
+  });
+
+  it("replaces a phone summary with the kitchen ticket that has item and address details", () => {
+    const summary = storeOrderToManagedOrder(
+      storeSummary({
+        id: 14,
+        status: "CONFIRMED",
+        customerName: "Ali Veli\u2060",
+        itemCount: 1,
+      }),
+    );
+    const detailed = order({
+      id: 14,
+      status: "CONFIRMED",
+      orderSource: "PHONE",
+      customerName: "Ali Veli",
+      customerPhone: "0555 111 22 33",
+      deliveryType: "DELIVERY",
+      deliveryAddress: "Bağdat Cad. 12",
+      items: [{ productId: 8, productName: "Keremacun", quantity: 1 }],
+    });
+    const [ticket] = overlayStoreKitchenDetails([summary], [detailed]);
+    expect(ticket.orderSource).toBe("PHONE");
+    expect(ticket.deliveryAddress).toBe("Bağdat Cad. 12");
+    expect(itemSummary(ticket)).toBe("1× Keremacun");
+    expect(orderChannel(ticket)).toBe("PHONE");
   });
 });
 
@@ -411,6 +442,34 @@ describe("earnings mix, top products and ops lanes", () => {
     const snapshotsOff = buildOpsLaneSnapshots([preparing, confirmed], false);
     expect(snapshotsOff.kitchen.primary.count).toBe(0);
     expect(snapshotsOff.waiter.primary.orders.map((item) => item.id).sort()).toEqual([21, 22]);
+  });
+
+  it("lets the waiter hand a ready table or pickup order to the customer", () => {
+    expect(
+      canMarkServedToCustomer(order({ id: 1, status: "READY", orderSource: "QR", tableName: "masa-1" })),
+    ).toBe(true);
+    expect(
+      canMarkServedToCustomer(
+        order({ id: 2, status: "READY", orderSource: "STORE", deliveryType: "PICKUP" }),
+      ),
+    ).toBe(true);
+    expect(
+      canMarkServedToCustomer(
+        order({ id: 3, status: "READY", orderSource: "STORE", deliveryType: "DELIVERY" }),
+      ),
+    ).toBe(false);
+    expect(opsLaneForOrder(order({ id: 6, status: "CONFIRMED", orderSource: "PHONE", deliveryType: "DELIVERY" }))).toBe(
+      "kitchen",
+    );
+    expect(opsLaneForOrder(order({ id: 7, status: "READY", orderSource: "PHONE", deliveryType: "DELIVERY" }))).toBe(
+      "courier",
+    );
+    expect(
+      canMarkServedToCustomer(order({ id: 4, status: "PREPARING", orderSource: "QR", tableName: "masa-1" })),
+    ).toBe(false);
+    expect(
+      canMarkServedToCustomer(order({ id: 5, status: "SERVED", orderSource: "QR", tableName: "masa-1" })),
+    ).toBe(false);
   });
 
   it("counts dishes waiting and ready, waiter handoff, and courier delivery", () => {

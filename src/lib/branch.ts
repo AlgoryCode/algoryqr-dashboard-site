@@ -189,8 +189,16 @@ export function isBranchPrintKitchenEnabled(branch?: Pick<BranchItem, "printKitc
   return Boolean(branch?.printKitchenEnabled);
 }
 
+export function formatBranchCode(branchId: number) {
+  return `#${branchId}`;
+}
+
+export function formatBranchCodeLabel(branch: Pick<BranchItem, "id" | "name">) {
+  return `${formatBranchCode(branch.id)} · ${branch.name}`;
+}
+
 export function formatBranchListLabel(branch: Pick<BranchItem, "id" | "name">) {
-  return `${branch.name} · #${branch.id}`;
+  return `${branch.name} · ${formatBranchCode(branch.id)}`;
 }
 
 export function anyBranchHasKitchen(branches: Array<Pick<BranchItem, "kitchenEnabled">> | null | undefined) {

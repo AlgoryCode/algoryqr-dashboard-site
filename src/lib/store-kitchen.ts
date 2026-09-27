@@ -1,4 +1,5 @@
 import { kitchenOrderOrigin, readKitchenOrderList } from "@/lib/kitchen-queue";
+import { isPhoneCustomerName, stripPhoneCustomerName } from "@/lib/phone-order";
 import type { OrderItemResponse, OrderResponse } from "@/lib/ordering-api";
 import type { StoreOrderDetail, StoreOrderPage, StoreOrderSummary } from "@/lib/store-api";
 import { formatStoreAddress } from "@/lib/store-ui";
@@ -81,11 +82,12 @@ export function storeOrderToKitchenTicket(order: StoreOrderSummary | StoreOrderD
   const detail = order as Partial<StoreOrderDetail>;
   const address = detail.address ? formatStoreAddress(detail.address) : null;
 
+  const phoneOrder = isPhoneCustomerName(order.customerName);
   return {
     id: order.id,
-    customerName: order.customerName,
+    customerName: stripPhoneCustomerName(order.customerName) || order.customerName,
     customerPhone: order.customerPhone,
-    orderSource: "STORE",
+    orderSource: phoneOrder ? "PHONE" : "STORE",
     orderNumber: order.orderNo,
     deliveryType: order.deliveryType,
     deliveryAddress: address && address !== "-" ? address : null,
@@ -119,7 +121,8 @@ export function asKitchenTickets(data: unknown): OrderResponse[] {
 }
 
 export function isOnlineKitchenSource(orderSource?: string | null): boolean {
-  return kitchenOrderOrigin({ orderSource }) === "ONLINE";
+  const origin = kitchenOrderOrigin({ orderSource });
+  return origin === "ONLINE" || origin === "PHONE";
 }
 
 export async function listStoreKitchenQueue(): Promise<OrderResponse[]> {

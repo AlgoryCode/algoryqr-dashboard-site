@@ -4,10 +4,10 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { BranchScopeFilter } from "@/components/dashboard/BranchScopeFilter";
 import {
-  DigitalMenuPicker,
   useDigitalMenuAccess,
   useDigitalMenuSelection,
 } from "@/components/dashboard/menu/DigitalMenuPicker";
@@ -16,6 +16,7 @@ import { OrderLiveOpsCanvas } from "@/components/dashboard/order-management/Orde
 import { OrderOpsTracker } from "@/components/dashboard/order-management/OrderOpsTracker";
 import { OrderOpsLaneDetail } from "@/components/dashboard/order-management/OrderOpsLaneDetail";
 import { OrderPeekSheet } from "@/components/dashboard/order-management/OrderPeekSheet";
+import { PhoneOrderEntryDialog } from "@/components/dashboard/order-management/PhoneOrderEntryDialog";
 import { useWaiterPanelAccess } from "@/components/dashboard/waiter/WaiterPanelAccess";
 import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
@@ -23,10 +24,12 @@ import {
   comparePeriodsFromRange,
   type ChartComparePeriod,
 } from "@/components/ui/date-range-filter";
+import { useDashboardBanners } from "@/contexts/dashboard-banners";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useListQueryState } from "@/hooks/use-list-query-state";
 import { useBranches } from "@/hooks/use-branches";
-import { useMyStore, useStoreOrders } from "@/hooks/use-store";
+import { STORE_QUERY_KEYS, useMyStore, useStoreOrders } from "@/hooks/use-store";
+import { handoffErrorMessage, markOrderDeliveredToCustomer } from "@/lib/order-handoff";
 import {
   anyBranchHasCourier,
   anyBranchHasKitchen,
@@ -46,6 +49,7 @@ import {
   filterManagedOrders,
   managedOrderKey,
   mergeManagedOrders,
+  overlayStoreKitchenDetails,
   opsLaneFromPanel,
   opsLanePanel,
   orderManagementHomeHref,
@@ -58,10 +62,16 @@ import {
   type OrderStatusFilter,
 } from "@/lib/order-management";
 import {
-  listMerchantOrders,
+  listScopedMenuOrders,
+  menusInBranchScope,
+  parseBranchScope,
+  type BranchScope,
+} from "@/lib/branch-scope";
+import {
   OrderingApiError,
   type OrderResponse,
 } from "@/lib/ordering-api";
+import { listStoreKitchenQueue } from "@/lib/store-kitchen";
 import IntegrationsHubView from "@/views/dashboard/IntegrationsHubView";
 import KitchenMonitorView from "@/views/dashboard/KitchenMonitorView";
 import OnlineOrderOrdersView from "@/views/dashboard/OnlineOrderOrdersView";
@@ -118,6 +128,8 @@ function WaiterOrdersHome({
   laneDetail?: OpsLane | null;
 }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const { notify } = useDashboardBanners();
   const { searchParams, setQuery } = useListQueryState();
   const backHref = orderManagementHomeHref(searchParams);
   const ordersHref = orderManagementClassicHref(searchParams);
@@ -138,6 +150,7 @@ function WaiterOrdersHome({
   const [customerQuery, setCustomerQuery] = useState(() => searchParams.get("q") ?? "");
   const [includeTips, setIncludeTips] = useState(() => searchParams.get("tips") === "1");
   const [peekOrder, setPeekOrder] = useState<OrderResponse | null>(null);
+  const [phoneOrderOpen, setPhoneOrderOpen] = useState(false);
   const statusFilter = parseStatusFilter(searchParams.get("status"));
   const channelFilter = parseChannelFilter(searchParams.get("channel"));
   const debouncedCustomer = useDebouncedValue(customerQuery);
@@ -150,36 +163,65 @@ function WaiterOrdersHome({
   const { accessLoading: waiterAccessLoading, canUseWaiterPanel } = useWaiterPanelAccess();
   const { accessLoading: menuAccessLoading, canUseDigitalMenu } = useDigitalMenuAccess();
   const accessLoading = waiterAccessLoading || menuAccessLoading;
-  const { menuQrs, selection, loading, error, selectQrId } = useDigitalMenuSelection(
+  const { selection, loading, error } = useDigitalMenuSelection(
     initialQrId,
     canUseWaiterPanel && canUseDigitalMenu && !accessLoading,
   );
   const branchesQuery = useBranches(canUseWaiterPanel && canUseDigitalMenu && !accessLoading);
-  const selectedBranchId = selection?.menu.branchId ?? null;
+  const branches = branchesQuery.data?.content ?? [];
+  const branchScope = useMemo(() => {
+    const parsed = parseBranchScope(searchParams.get("branch"));
+    if (parsed === "all" || branchesQuery.isLoading) return parsed;
+    return branches.some((branch) => branch.id === parsed) ? parsed : "all";
+  }, [branches, branchesQuery.isLoading, searchParams]);
+  const setBranchScope = (next: BranchScope) => {
+    setQuery({ branch: next === "all" ? null : String(next) });
+  };
+  const scopedMenus = useMemo(
+    () => menusInBranchScope(branches, branchScope),
+    [branchScope, branches],
+  );
+  const scopedMenuKey = scopedMenus.map((menu) => menu.menuId).join(",");
   const kitchenEnabled = useMemo(() => {
-    const branches = branchesQuery.data?.content ?? [];
-    if (selectedBranchId != null) {
-      const branch = branches.find((item) => item.id === selectedBranchId);
-      if (branch) return isBranchKitchenEnabled(branch);
-    }
-    return anyBranchHasKitchen(branches);
-  }, [branchesQuery.data?.content, selectedBranchId]);
+    if (branchScope === "all") return anyBranchHasKitchen(branches);
+    return isBranchKitchenEnabled(branches.find((item) => item.id === branchScope));
+  }, [branchScope, branches]);
   const courierEnabled = useMemo(() => {
-    const branches = branchesQuery.data?.content ?? [];
-    if (selectedBranchId != null) {
-      const branch = branches.find((item) => item.id === selectedBranchId);
-      if (branch) return isBranchCourierEnabled(branch);
-    }
-    return anyBranchHasCourier(branches);
-  }, [branchesQuery.data?.content, selectedBranchId]);
+    if (branchScope === "all") return anyBranchHasCourier(branches);
+    return isBranchCourierEnabled(branches.find((item) => item.id === branchScope));
+  }, [branchScope, branches]);
+  const phoneMenuId =
+    (selection?.menu.menuId != null &&
+    scopedMenus.some((menu) => menu.menuId === selection.menu.menuId)
+      ? selection.menu.menuId
+      : null) ??
+    scopedMenus[0]?.menuId ??
+    null;
+  const hasScope = scopedMenus.length > 0 || branchScope === "all";
 
-  const menuId = selection?.menu.menuId ?? null;
-  const qrId = selection?.qr.id ?? null;
+  const serveMutation = useMutation({
+    mutationFn: (order: OrderResponse) => markOrderDeliveredToCustomer(order.menuId ?? phoneMenuId, order),
+    onSuccess: async () => {
+      notify("info", "Sipariş müşteriye teslim edildi.");
+      setPeekOrder(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["menu-orders-scope"] }),
+        queryClient.invalidateQueries({ queryKey: STORE_QUERY_KEYS.orders }),
+      ]);
+    },
+    onError: (error) => {
+      notify("danger", handoffErrorMessage(error));
+    },
+  });
+  const markingOrderKey =
+    serveMutation.isPending && serveMutation.variables
+      ? managedOrderKey(serveMutation.variables)
+      : null;
 
   const ordersQuery = useQuery({
-    queryKey: ["menu-orders", menuId],
-    enabled: menuId != null,
-    queryFn: () => listMerchantOrders(menuId!, "ALL"),
+    queryKey: ["menu-orders-scope", scopedMenuKey],
+    enabled: scopedMenus.length > 0,
+    queryFn: () => listScopedMenuOrders(scopedMenus),
     refetchInterval: 6_000,
   });
   const { merchant, isLoading: storeMerchantLoading, canUseOnlineOrder } = useMyStore();
@@ -188,25 +230,35 @@ function WaiterOrdersHome({
     to: range.to || undefined,
     page: 0,
     size: 100,
-    enabled: Boolean(merchant) && menuId != null,
+    enabled: Boolean(merchant),
+  });
+  const storeKitchenQuery = useQuery({
+    queryKey: ["store-kitchen-queue"],
+    queryFn: listStoreKitchenQueue,
+    enabled: Boolean(merchant),
+    refetchInterval: 6_000,
   });
 
-  const orders = useMemo(
-    () =>
-      mergeManagedOrders(
-        ordersQuery.data ?? [],
-        (storeOrdersQuery.data?.content ?? []).map(storeOrderToManagedOrder),
-      ),
-    [ordersQuery.data, storeOrdersQuery.data?.content],
-  );
+  const orders = useMemo(() => {
+    const storeOrders = overlayStoreKitchenDetails(
+      (storeOrdersQuery.data?.content ?? []).map(storeOrderToManagedOrder),
+      storeKitchenQuery.data ?? [],
+    );
+    const stampedStore =
+      branches.length === 1
+        ? storeOrders.map((order) => ({ ...order, branchId: order.branchId ?? branches[0].id }))
+        : storeOrders;
+    return mergeManagedOrders(ordersQuery.data ?? [], stampedStore);
+  }, [branches, ordersQuery.data, storeKitchenQuery.data, storeOrdersQuery.data?.content]);
 
   const dateScopedOrders = useMemo(
     () =>
       filterManagedOrders(orders, {
         from: range.from,
         to: range.to,
+        branchId: branchScope === "all" ? "all" : branchScope,
       }),
-    [orders, range.from, range.to],
+    [branchScope, orders, range.from, range.to],
   );
 
   const liveKpis = useMemo(
@@ -243,24 +295,22 @@ function WaiterOrdersHome({
   const currency = merchant?.currency || dateScopedOrders[0]?.currency || orders[0]?.currency || "TRY";
   const storeOrdersLoading =
     canUseOnlineOrder && (storeMerchantLoading || (Boolean(merchant) && storeOrdersQuery.isLoading));
-
-  const menuPicker = (
-    <div className="w-[13rem] shrink-0">
-      <DigitalMenuPicker
-        compact
-        menuQrs={menuQrs}
-        selectedQrId={selection?.qr.id ?? null}
-        onSelectQrId={(nextQrId) => {
-          void selectQrId(nextQrId);
-          if (listMode) {
-            setQuery({ qr: String(nextQrId) });
-            return;
-          }
-          router.replace(DASHBOARD_ROUTES.waiterForQr(nextQrId), { scroll: false });
-        }}
-      />
-    </div>
+  const flowLoading = (scopedMenus.length > 0 && ordersQuery.isLoading) || storeOrdersLoading;
+  const branchFilter = (
+    <BranchScopeFilter branches={branches} value={branchScope} onChange={setBranchScope} />
   );
+  const canvasBranchFilter = (
+    <BranchScopeFilter
+      tone="canvas"
+      branches={branches}
+      value={branchScope}
+      onChange={setBranchScope}
+    />
+  );
+  const peekQrId =
+    peekOrder?.menuId != null
+      ? (scopedMenus.find((menu) => menu.menuId === peekOrder.menuId)?.qrId ?? selection?.qr.id ?? null)
+      : (selection?.qr.id ?? null);
 
   const queryErrors = (
     <>
@@ -281,8 +331,10 @@ function WaiterOrdersHome({
   const peekSheet = (
     <OrderPeekSheet
       order={peekOrder}
-      qrId={qrId}
+      qrId={peekQrId}
       includeTips={includeTips}
+      delivering={peekOrder != null && markingOrderKey === managedOrderKey(peekOrder)}
+      onMarkServed={(order) => serveMutation.mutate(order)}
       onOpenChange={(open) => {
         if (!open) setPeekOrder(null);
       }}
@@ -331,9 +383,7 @@ function WaiterOrdersHome({
           brandName="Şube seçin"
           kitchenHref={orderManagementPanelHref(searchParams, "kitchen")}
           onSelectOrder={() => undefined}
-          onNewOrder={() => {
-            window.open(DASHBOARD_ROUTES.waiterPanel, "_blank", "noopener,noreferrer");
-          }}
+          onNewOrder={() => setPhoneOrderOpen(true)}
           onLogout={() => undefined}
           loading
         />
@@ -383,11 +433,11 @@ function WaiterOrdersHome({
             setQuery({ tips: checked ? "1" : null });
           }}
           onSelect={setPeekOrder}
-          menuPicker={menuPicker}
-          loading={Boolean(menuId) && (ordersQuery.isLoading || storeOrdersLoading)}
+          branchFilter={branchFilter}
+          loading={flowLoading}
           error={queryErrors}
           emptyMessage={
-            menuId ? "Bu filtrelerle sipariş yok." : "Siparişleri görmek için bir dijital menü seçin."
+            hasScope ? "Bu filtrelerle sipariş yok." : "Bu şubede dijital menü yok."
           }
         />
         {peekSheet}
@@ -404,12 +454,14 @@ function WaiterOrdersHome({
           backHref={backHref}
           includeTips={includeTips}
           delayedKeys={delayedKeys}
+          markingOrderKey={markingOrderKey}
           onSelect={setPeekOrder}
-          menuPicker={menuPicker}
+          onMarkServed={(order) => serveMutation.mutate(order)}
+          branchFilter={branchFilter}
           range={range}
           onRangeChange={(next) => applyRange(next)}
-          hasMenu={menuId != null}
-          loading={Boolean(menuId) && (ordersQuery.isLoading || storeOrdersLoading)}
+          hasMenu={hasScope}
+          loading={flowLoading}
           error={queryErrors}
         />
         {peekSheet}
@@ -418,10 +470,13 @@ function WaiterOrdersHome({
   }
 
   const branchLabel =
-    branchesQuery.data?.content?.find((branch) => branch.id === selectedBranchId)?.name?.trim() ||
-    selection?.qr.name?.trim() ||
-    "Ana Şube";
-  const brandName = selection?.menu.businessName?.trim() || branchLabel;
+    branchScope === "all"
+      ? "Tüm şubeler"
+      : branches.find((branch) => branch.id === branchScope)?.name?.trim() || "Şube";
+  const brandName =
+    branchScope === "all"
+      ? selection?.menu.businessName?.trim() || "Tüm şubeler"
+      : branchLabel;
   const brandLogoUrl = resolveMenuLogoUrl(selection?.menu.logoUrl);
 
   if (classicView) {
@@ -446,7 +501,7 @@ function WaiterOrdersHome({
                 <ArrowLeft className="h-4 w-4" />
               </Link>
             }
-            action={menuPicker}
+            action={branchFilter}
           />
           <OrderOpsTracker
             orders={dateScopedOrders}
@@ -484,7 +539,7 @@ function WaiterOrdersHome({
         delayedKeys={delayedKeys}
         cancelledCount={cancelledCount}
         delayedCount={delayedOrders.length}
-        menuPicker={menuPicker}
+        branchControl={canvasBranchFilter}
         detailHref={(lane) => orderManagementPanelHref(searchParams, opsLanePanel(lane))}
         listHref={listHref}
         homeHref={backHref}
@@ -497,17 +552,15 @@ function WaiterOrdersHome({
             : backHref
         }
         onSelectOrder={setPeekOrder}
-        onNewOrder={() => {
-          window.open(DASHBOARD_ROUTES.waiterPanel, "_blank", "noopener,noreferrer");
-        }}
+        onNewOrder={() => setPhoneOrderOpen(true)}
         onLogout={() => {
           void logout();
         }}
-        loading={Boolean(menuId) && (ordersQuery.isLoading || storeOrdersLoading)}
+        loading={flowLoading}
         error={
-          !menuId ? (
+          !hasScope ? (
             <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900">
-              Siparişleri görmek için üstten bir dijital menü seçin.{" "}
+              Bu şubede dijital menü yok. Tüm akış için şube filtresinden Tüm şubeler’i seçin.{" "}
               <Link href={DASHBOARD_ROUTES.digitalMenu} className="font-semibold underline">
                 Menü &amp; Şubeler
               </Link>
@@ -516,6 +569,13 @@ function WaiterOrdersHome({
             queryErrors
           )
         }
+      />
+      <PhoneOrderEntryDialog
+        open={phoneOrderOpen}
+        onOpenChange={setPhoneOrderOpen}
+        menuId={phoneMenuId}
+        merchant={merchant}
+        onCreated={() => notify("info", "Telefon siparişi mutfağa iletildi.")}
       />
       {peekSheet}
     </>

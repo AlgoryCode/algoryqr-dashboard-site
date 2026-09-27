@@ -26,8 +26,11 @@ type OrderOpsLaneDetailProps = {
   backHref: string;
   includeTips?: boolean;
   delayedKeys?: Set<string>;
+  markingOrderKey?: string | null;
   onSelect: (order: OrderResponse) => void;
+  onMarkServed?: (order: OrderResponse) => void;
   menuPicker?: ReactNode;
+  branchFilter?: ReactNode;
   range: DateRangeValue;
   onRangeChange: (next: DateRangeValue) => void;
   hasMenu: boolean;
@@ -40,13 +43,17 @@ function CountSection({
   unit,
   includeTips,
   delayedKeys,
+  markingOrderKey,
   onSelect,
+  onMarkServed,
 }: {
   group: OpsCountGroup;
   unit: string;
   includeTips?: boolean;
   delayedKeys?: Set<string>;
+  markingOrderKey?: string | null;
   onSelect: (order: OrderResponse) => void;
+  onMarkServed?: (order: OrderResponse) => void;
 }) {
   return (
     <section className={`${DASHBOARD_SURFACE} p-4 sm:p-5`}>
@@ -66,7 +73,9 @@ function CountSection({
               order={order}
               includeTips={includeTips}
               delayed={delayedKeys?.has(managedOrderKey(order))}
+              delivering={markingOrderKey === managedOrderKey(order)}
               onSelect={onSelect}
+              onMarkServed={onMarkServed}
             />
           ))}
         </div>
@@ -81,8 +90,11 @@ export function OrderOpsLaneDetail({
   backHref,
   includeTips,
   delayedKeys,
+  markingOrderKey,
   onSelect,
+  onMarkServed,
   menuPicker,
+  branchFilter,
   range,
   onRangeChange,
   hasMenu,
@@ -111,14 +123,17 @@ export function OrderOpsLaneDetail({
 
       {!hasMenu ? (
         <EmptyState
-          title="Menü seçin"
-          description="Siparişleri görmek için bir dijital menü seçin."
+          title="Şube kapsamı boş"
+          description="Bu şubede dijital menü yok. Tüm akış için Tüm şubeler filtresini kullanın."
         />
       ) : loading ? (
         <DashboardLoadingState label="Siparişler yükleniyor..." />
       ) : (
         <>
-          <DateRangeFilter value={range} onChange={onRangeChange} />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            {branchFilter}
+            <DateRangeFilter value={range} onChange={onRangeChange} />
+          </div>
           <div className={groups.length > 2 ? "grid items-start gap-3 lg:grid-cols-3" : "grid items-start gap-3 lg:grid-cols-2"}>
             {groups.map((group) => (
               <CountSection
@@ -127,7 +142,9 @@ export function OrderOpsLaneDetail({
                 unit={unit}
                 includeTips={includeTips}
                 delayedKeys={delayedKeys}
+                markingOrderKey={markingOrderKey}
                 onSelect={onSelect}
+                onMarkServed={lane === "waiter" ? onMarkServed : undefined}
               />
             ))}
           </div>

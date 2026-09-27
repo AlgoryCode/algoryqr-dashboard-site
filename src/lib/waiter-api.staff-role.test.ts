@@ -44,7 +44,9 @@ describe("staff role routing", () => {
     expect(staffHomePath("KITCHEN")).toBe("/mutfak");
     expect(staffHomePath("WAITER")).toBe("/waiter");
     expect(staffHomePath("COURIER")).toBe("/kurye");
-    expect(staffLoginPath("courier")).toBe("/kurye/giris");
+    expect(staffLoginPath("courier")).toBe("/personel");
+    expect(staffLoginPath("kitchen")).toBe("/personel");
+    expect(staffLoginPath("waiter")).toBe("/personel");
     expect(staffAppForRole("COURIER")).toBe("courier");
   });
 

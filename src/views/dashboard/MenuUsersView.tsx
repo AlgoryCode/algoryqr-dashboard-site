@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Loader2, Plus, Search, UserRound } from "lucide-react";
 
 import { BranchPicker, useBranchSelection } from "@/components/dashboard/BranchPicker";
+import { SearchableSelect } from "@/components/dashboard/menu/SearchableSelect";
 import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { useWaiterPanelAccess } from "@/components/dashboard/waiter/WaiterPanelAccess";
@@ -31,7 +32,7 @@ import {
 } from "@/components/ui/table";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
-import { isBranchCourierEnabled, isBranchKitchenEnabled } from "@/lib/branch";
+import { formatBranchCode, formatBranchCodeLabel, isBranchCourierEnabled, isBranchKitchenEnabled } from "@/lib/branch";
 import {
   createMenuWaiter,
   listMenuUsers,
@@ -81,19 +82,21 @@ export default function MenuUsersView() {
   const queryClient = useQueryClient();
 
   const { accessLoading, canUseWaiterPanel } = useWaiterPanelAccess();
-  const { branches, selection, branchId, loading, error, select } = useBranchSelection(
+  const { branches, branchId, loading, error, select } = useBranchSelection(
     initialBranchId,
     canUseWaiterPanel && !accessLoading,
   );
-  const kitchenEnabled = isBranchKitchenEnabled(selection);
-  const courierEnabled = isBranchCourierEnabled(selection);
 
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [createBranchId, setCreateBranchId] = useState<number | null>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [staffRole, setStaffRole] = useState<StaffRole>("WAITER");
+  const createBranch = branches.find((item) => item.id === createBranchId) ?? null;
+  const createKitchenEnabled = isBranchKitchenEnabled(createBranch);
+  const createCourierEnabled = isBranchCourierEnabled(createBranch);
 
   const usersQuery = useQuery({
     queryKey: ["menu-users", branchId],
@@ -103,22 +106,28 @@ export default function MenuUsersView() {
 
   const createMutation = useMutation({
     mutationFn: () =>
-      createMenuWaiter(branchId!, {
+      createMenuWaiter(createBranchId!, {
         username: username.trim(),
         password,
         displayName: displayName.trim(),
         staffRole:
-          (staffRole === "KITCHEN" && !kitchenEnabled) || (staffRole === "COURIER" && !courierEnabled)
+          (staffRole === "KITCHEN" && !createKitchenEnabled) ||
+          (staffRole === "COURIER" && !createCourierEnabled)
             ? "WAITER"
             : staffRole,
       }),
     onSuccess: async () => {
+      const createdFor = createBranchId;
       setUsername("");
       setPassword("");
       setDisplayName("");
       setStaffRole("WAITER");
       setCreateOpen(false);
-      await queryClient.invalidateQueries({ queryKey: ["menu-users", branchId] });
+      if (createdFor != null) {
+        select(createdFor);
+        router.replace(DASHBOARD_ROUTES.menuUsersForBranch(createdFor));
+      }
+      await queryClient.invalidateQueries({ queryKey: ["menu-users", createdFor] });
       notify("info", "Kullanıcı eklendi.");
     },
     onError: (err) => {
@@ -141,11 +150,36 @@ export default function MenuUsersView() {
     [waiters, query],
   );
 
+  const openCreate = () => {
+    const nextBranchId = branchId ?? branches[0]?.id ?? null;
+    const nextBranch = branches.find((item) => item.id === nextBranchId) ?? null;
+    setCreateBranchId(nextBranchId);
+    if (
+      (staffRole === "KITCHEN" && !isBranchKitchenEnabled(nextBranch)) ||
+      (staffRole === "COURIER" && !isBranchCourierEnabled(nextBranch))
+    ) {
+      setStaffRole("WAITER");
+    }
+    setCreateOpen(true);
+  };
+
+  const selectCreateBranch = (nextBranchId: number) => {
+    const nextBranch = branches.find((item) => item.id === nextBranchId) ?? null;
+    setCreateBranchId(nextBranchId);
+    if (
+      (staffRole === "KITCHEN" && !isBranchKitchenEnabled(nextBranch)) ||
+      (staffRole === "COURIER" && !isBranchCourierEnabled(nextBranch))
+    ) {
+      setStaffRole("WAITER");
+    }
+  };
+
   const resetCreateForm = () => {
     setUsername("");
     setPassword("");
     setDisplayName("");
     setStaffRole("WAITER");
+    setCreateBranchId(branchId);
   };
 
   if (accessLoading || loading) {
@@ -167,16 +201,8 @@ export default function MenuUsersView() {
             type="button"
             size="sm"
             className="shrink-0 gap-1.5"
-            disabled={!branchId}
-            onClick={() => {
-              if (
-                (!kitchenEnabled && staffRole === "KITCHEN") ||
-                (!courierEnabled && staffRole === "COURIER")
-              ) {
-                setStaffRole("WAITER");
-              }
-              setCreateOpen(true);
-            }}
+            disabled={branches.length === 0}
+            onClick={openCreate}
           >
             <Plus className="h-4 w-4" />
             Yeni kullanıcı
@@ -220,6 +246,9 @@ export default function MenuUsersView() {
                   {owner.email ? (
                     <p className="truncate text-sm text-muted-foreground">{owner.email}</p>
                   ) : null}
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    İşletme ID: <span className="font-medium text-foreground">{owner.id}</span>
+                  </p>
                 </div>
               </div>
             </article>
@@ -250,6 +279,7 @@ export default function MenuUsersView() {
                     <TableRow>
                       <TableHead>Ad</TableHead>
                       <TableHead>Kullanıcı adı</TableHead>
+                      <TableHead>Şube kodu</TableHead>
                       <TableHead>Rol</TableHead>
                       <TableHead className="w-[90px]">Durum</TableHead>
                       <TableHead className="w-10" />
@@ -272,6 +302,9 @@ export default function MenuUsersView() {
                           </TableCell>
                           <TableCell className="text-muted-foreground">
                             @{member.username}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {formatBranchCode(member.branchId)}
                           </TableCell>
                           <TableCell className="text-muted-foreground">
                             {STAFF_ROLE_LABEL[member.staffRole ?? "WAITER"]}
@@ -307,20 +340,41 @@ export default function MenuUsersView() {
           <DialogHeader>
             <DialogTitle>Yeni kullanıcı</DialogTitle>
             <DialogDescription>
-              {staffCreateHint(kitchenEnabled, courierEnabled)}
+              Hesap seçilen şubeye bağlanır. Çalışan yalnızca o şubenin işlemlerini görür.
             </DialogDescription>
           </DialogHeader>
           <form
             className="space-y-3"
             onSubmit={(e) => {
               e.preventDefault();
-              if (!branchId || createMutation.isPending) return;
+              if (!createBranchId || createMutation.isPending) return;
               createMutation.mutate();
             }}
           >
             <div className="space-y-1.5">
+              <Label htmlFor="waiter-branch">Şube kodu</Label>
+              <SearchableSelect
+                value={createBranchId != null ? String(createBranchId) : ""}
+                onValueChange={(next) => {
+                  const id = Number(next);
+                  if (Number.isFinite(id) && id > 0) selectCreateBranch(id);
+                }}
+                options={branches.map((item) => ({
+                  value: String(item.id),
+                  label: formatBranchCodeLabel(item),
+                }))}
+                className="h-9"
+                placeholder="Şube kodu seçin"
+                searchPlaceholder="Şube kodu ara..."
+                emptyText="Şube bulunamadı."
+              />
+              <p className="text-xs text-muted-foreground">
+                {staffCreateHint(createKitchenEnabled, createCourierEnabled)}
+              </p>
+            </div>
+            <div className="space-y-1.5">
               <Label>Rol</Label>
-              <div className={roleGridClass(kitchenEnabled, courierEnabled)}>
+              <div className={roleGridClass(createKitchenEnabled, createCourierEnabled)}>
                 <Button
                   type="button"
                   variant={staffRole === "WAITER" ? "default" : "outline"}
@@ -328,7 +382,7 @@ export default function MenuUsersView() {
                 >
                   Garson
                 </Button>
-                {kitchenEnabled ? (
+                {createKitchenEnabled ? (
                   <Button
                     type="button"
                     variant={staffRole === "KITCHEN" ? "default" : "outline"}
@@ -337,7 +391,7 @@ export default function MenuUsersView() {
                     Mutfak
                   </Button>
                 ) : null}
-                {courierEnabled ? (
+                {createCourierEnabled ? (
                   <Button
                     type="button"
                     variant={staffRole === "COURIER" ? "default" : "outline"}
@@ -347,12 +401,12 @@ export default function MenuUsersView() {
                   </Button>
                 ) : null}
               </div>
-              {!kitchenEnabled ? (
+              {!createKitchenEnabled ? (
                 <p className="text-xs text-muted-foreground">
                   Bu şubede mutfak kapalı. Mutfak hesabı için şube bilgilerinden Mutfak’ı açın.
                 </p>
               ) : null}
-              {!courierEnabled ? (
+              {!createCourierEnabled ? (
                 <p className="text-xs text-muted-foreground">
                   Bu şubede kurye kapalı. Kurye hesabı için şube bilgilerinden Kurye’yi açın.
                 </p>
@@ -403,6 +457,7 @@ export default function MenuUsersView() {
                 type="submit"
                 disabled={
                   createMutation.isPending ||
+                  createBranchId == null ||
                   !username.trim() ||
                   !password ||
                   !displayName.trim()

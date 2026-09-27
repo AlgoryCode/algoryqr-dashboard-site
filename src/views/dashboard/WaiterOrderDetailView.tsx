@@ -35,6 +35,7 @@ import { formatMenuPrice } from "@/components/menu-templates/types";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { DASHBOARD_BACK, DASHBOARD_SURFACE } from "@/lib/dashboard-surface";
 import {
+  canMarkServedToCustomer,
   formatOrderWhen,
   orderAmount,
   orderChannel,
@@ -42,12 +43,14 @@ import {
   orderLocationLabel,
   orderTimeline,
 } from "@/lib/order-management";
+import { handoffErrorMessage, markOrderDeliveredToCustomer } from "@/lib/order-handoff";
 import {
   cancelMerchantOrder,
   getMerchantOrder,
   OrderingApiError,
   type OrderStatus,
 } from "@/lib/ordering-api";
+import { STORE_QUERY_KEYS } from "@/hooks/use-store";
 
 type WaiterOrderDetailViewProps = {
   orderId: number;
@@ -87,6 +90,24 @@ export default function WaiterOrderDetailView({ orderId }: WaiterOrderDetailView
     queryKey: ["menu-order", menuId, orderId],
     enabled: menuId != null,
     queryFn: () => getMerchantOrder(menuId!, orderId),
+  });
+
+  const serveMutation = useMutation({
+    mutationFn: () => {
+      if (!orderQuery.data) throw new Error("Sipariş bulunamadı.");
+      return markOrderDeliveredToCustomer(menuId, orderQuery.data);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["menu-orders", menuId] }),
+        queryClient.invalidateQueries({ queryKey: ["menu-order", menuId, orderId] }),
+        queryClient.invalidateQueries({ queryKey: STORE_QUERY_KEYS.orders }),
+      ]);
+      notify("info", "Sipariş müşteriye teslim edildi.");
+    },
+    onError: (err) => {
+      notify("danger", handoffErrorMessage(err));
+    },
   });
 
   const cancelMutation = useMutation({
@@ -257,6 +278,18 @@ export default function WaiterOrderDetailView({ orderId }: WaiterOrderDetailView
                   </li>
                 ))}
               </ol>
+            ) : null}
+
+            {canMarkServedToCustomer(order) ? (
+              <Button
+                type="button"
+                size="lg"
+                className="h-12 w-full text-base"
+                disabled={serveMutation.isPending}
+                onClick={() => serveMutation.mutate()}
+              >
+                {serveMutation.isPending ? "İşleniyor…" : "Müşteriye teslim edildi"}
+              </Button>
             ) : null}
 
             {canCancelOrder(order.status) ? (

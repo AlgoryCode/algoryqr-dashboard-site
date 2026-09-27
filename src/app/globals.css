@@ -1,9 +1,26 @@
 @import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Epilogue:ital,wght@0,600;0,700;0,800;1,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.font-epilogue {
+  font-family: Epilogue, "Plus Jakarta Sans", sans-serif;
+}
+
+.ambient-shadow {
+  box-shadow: 0px 8px 24px -4px rgba(39, 37, 31, 0.08), 0px 2px 6px -1px rgba(39, 37, 31, 0.04);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
 
 .material-symbols-outlined {
   font-family: "Material Symbols Outlined";

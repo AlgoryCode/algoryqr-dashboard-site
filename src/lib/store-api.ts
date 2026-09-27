@@ -272,3 +272,17 @@ export async function assignStoreCourier(orderId: number, courierId: number) {
   const { data } = await api.post<StoreOrderDetail>(`/store/orders/${orderId}/courier`, { courierId });
   return data;
 }
+
+export type PhoneOrderPayload = {
+  customerName: string;
+  customerPhone: string;
+  addressText: string;
+  paymentMethod: StorePaymentMethod;
+  note?: string;
+  items: { productId: number; quantity: number }[];
+};
+
+export async function createPhoneOrder(payload: PhoneOrderPayload): Promise<StoreOrderDetail> {
+  const { data } = await api.post<StoreOrderDetail>("/store/phone-orders", payload);
+  return data;
+}

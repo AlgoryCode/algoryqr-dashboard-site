@@ -422,6 +422,7 @@ export async function listBusinessCustomers(): Promise<MenuCustomerItem[]> {
 /* ── Waiter auth ── */
 
 export async function waiterLogin(payload: {
+  merchantId: number;
   username: string;
   password: string;
   app?: StaffApp;
@@ -434,6 +435,7 @@ export async function waiterLogin(payload: {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({
+          merchantId: payload.merchantId,
           username: payload.username,
           password: payload.password,
           app,
@@ -804,10 +806,11 @@ export function staffHomePath(staffRole?: StaffRole | null): string {
   return "/waiter";
 }
 
-export function staffLoginPath(app: StaffApp): string {
-  if (app === "kitchen") return "/mutfak/giris";
-  if (app === "courier") return "/kurye/giris";
-  return "/waiter/login";
+export const STAFF_GATE_PATH = "/personel";
+
+export function staffLoginPath(app?: StaffApp): string {
+  void app;
+  return STAFF_GATE_PATH;
 }
 
 export function staffAppForRole(staffRole?: StaffRole | null): StaffApp {
@@ -820,6 +823,19 @@ export function staffAppForRole(staffRole?: StaffRole | null): StaffApp {
 
 export async function getWaiterOpenBill(tableId: number): Promise<WaiterBill> {
   const response = await waiterFetch(`/api/waiter/bills/tables/${tableId}/open`, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    credentials: "same-origin",
+  });
+  const data = await parseJson<WaiterBill & { message?: string }>(response);
+  if (!response.ok) {
+    throw new WaiterApiError(response.status, data.message || "Adisyon alınamadı");
+  }
+  return data;
+}
+
+export async function getWaiterBill(billId: number): Promise<WaiterBill> {
+  const response = await waiterFetch(`/api/waiter/bills/${billId}`, {
     method: "GET",
     headers: { Accept: "application/json" },
     credentials: "same-origin",

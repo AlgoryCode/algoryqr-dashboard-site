@@ -22,6 +22,7 @@ type WaiterAuthDialogProps = {
 export function WaiterAuthDialog({ open, onOpenChange }: WaiterAuthDialogProps) {
   const locale = useMenuLocaleOptional();
   const t = locale?.t;
+  const [merchantId, setMerchantId] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -30,6 +31,7 @@ export function WaiterAuthDialog({ open, onOpenChange }: WaiterAuthDialogProps) 
   useEffect(() => {
     if (open) {
       setError(null);
+      setMerchantId("");
       setUsername("");
       setPassword("");
     }
@@ -37,10 +39,15 @@ export function WaiterAuthDialog({ open, onOpenChange }: WaiterAuthDialogProps) 
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const merchant = Number(merchantId.trim());
+    if (!Number.isSafeInteger(merchant) || merchant <= 0) {
+      setError(t?.merchantIdInvalid || "İşletme ID sayı olmalı");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      await waiterLogin({ username: username.trim(), password, app: "waiter" });
+      await waiterLogin({ merchantId: merchant, username: username.trim(), password, app: "waiter" });
       window.location.href = "/waiter";
     } catch (err) {
       setError(
@@ -58,11 +65,20 @@ export function WaiterAuthDialog({ open, onOpenChange }: WaiterAuthDialogProps) 
         <DialogHeader>
           <DialogTitle>{t?.waiterLoginTitle || "Garson girişi"}</DialogTitle>
           <DialogDescription>
-            {t?.waiterLoginDescription || "Kullanıcı adı ve şifrenizle giriş yapın."}
+            {t?.waiterLoginDescription || "İşletme ID, kullanıcı adı ve şifrenizle giriş yapın."}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-3">
+          <input
+            required
+            inputMode="numeric"
+            value={merchantId}
+            onChange={(e) => setMerchantId(e.target.value.replace(/\D/g, ""))}
+            placeholder={t?.merchantId || "İşletme ID"}
+            autoComplete="off"
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+          />
           <input
             required
             value={username}

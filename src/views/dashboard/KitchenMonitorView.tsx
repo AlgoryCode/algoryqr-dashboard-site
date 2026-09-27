@@ -2,29 +2,27 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 
+import { BranchScopeFilter } from "@/components/dashboard/BranchScopeFilter";
 import { KitchenDisplayBoard } from "@/components/kitchen/KitchenDisplayBoard";
-import {
-  DigitalMenuPicker,
-  useDigitalMenuAccess,
-  useDigitalMenuSelection,
-} from "@/components/dashboard/menu/DigitalMenuPicker";
+import { useDigitalMenuAccess } from "@/components/dashboard/menu/DigitalMenuPicker";
 import { useWaiterPanelAccess } from "@/components/dashboard/waiter/WaiterPanelAccess";
 import { DashboardFilterBar } from "@/components/dashboard/DashboardFilterBar";
 import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { Button } from "@/components/ui/button";
+import { useKitchenBoardOrders } from "@/hooks/use-kitchen-board-orders";
 import { useListQueryState } from "@/hooks/use-list-query-state";
+import { useBranches } from "@/hooks/use-branches";
 import { STORE_QUERY_KEYS } from "@/hooks/use-store";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { DASHBOARD_BACK } from "@/lib/dashboard-surface";
+import { listScopedKitchenOrders, menusInBranchScope, parseBranchScope } from "@/lib/branch-scope";
 import { kitchenOrderKey, mergeKitchenOrders } from "@/lib/kitchen-queue";
 import {
-  listMerchantKitchenQueue,
   markMerchantKitchenPreparing,
   markMerchantKitchenReady,
   OrderingApiError,
@@ -41,39 +39,49 @@ type KitchenMonitorViewProps = {
 };
 
 export default function KitchenMonitorView({ backHref }: KitchenMonitorViewProps) {
-  const router = useRouter();
   const queryClient = useQueryClient();
   const { searchParams, setQuery } = useListQueryState();
-  const qrFromQuery = Number(searchParams.get("qr"));
-  const initialQrId = Number.isFinite(qrFromQuery) && qrFromQuery > 0 ? qrFromQuery : null;
 
   const { accessLoading: waiterAccessLoading, canUseWaiterPanel } = useWaiterPanelAccess();
   const { accessLoading: menuAccessLoading, canUseDigitalMenu } = useDigitalMenuAccess();
   const accessLoading = waiterAccessLoading || menuAccessLoading;
-  const { menuQrs, selection, loading, error, selectQrId } = useDigitalMenuSelection(
-    initialQrId,
-    canUseWaiterPanel && canUseDigitalMenu && !accessLoading,
+  const branchesQuery = useBranches(canUseWaiterPanel && canUseDigitalMenu && !accessLoading);
+  const branches = branchesQuery.data?.content ?? [];
+  const branchScope = useMemo(() => {
+    const parsed = parseBranchScope(searchParams.get("branch"));
+    if (parsed === "all" || branchesQuery.isLoading) return parsed;
+    return branches.some((branch) => branch.id === parsed) ? parsed : "all";
+  }, [branches, branchesQuery.isLoading, searchParams]);
+  const scopedMenus = useMemo(
+    () => menusInBranchScope(branches, branchScope),
+    [branchScope, branches],
   );
-
-  const menuId = selection?.menu.menuId ?? null;
+  const scopedMenuKey = scopedMenus.map((menu) => menu.menuId).join(",");
+  const includeStore = branchScope === "all" || branches.length <= 1;
 
   const queueQuery = useQuery({
-    queryKey: ["merchant-kitchen-queue", menuId],
-    enabled: menuId != null,
-    queryFn: () => listMerchantKitchenQueue(menuId!),
+    queryKey: ["merchant-kitchen-scope", scopedMenuKey],
+    enabled: scopedMenus.length > 0,
+    queryFn: () => listScopedKitchenOrders(scopedMenus),
     refetchInterval: 6_000,
   });
 
   const storeQueueQuery = useQuery({
     queryKey: ["store-kitchen-queue"],
     queryFn: listStoreKitchenQueue,
+    enabled: includeStore,
     refetchInterval: 6_000,
   });
 
-  const orders = useMemo(
-    () => mergeKitchenOrders(queueQuery.data ?? [], storeQueueQuery.data ?? []),
-    [queueQuery.data, storeQueueQuery.data],
-  );
+  const orders = useMemo(() => {
+    const menuOrders = queueQuery.data ?? [];
+    if (!includeStore) return menuOrders;
+    const storeOrders = (storeQueueQuery.data ?? []).map((order) =>
+      branches.length === 1 ? { ...order, branchId: order.branchId ?? branches[0].id } : order,
+    );
+    return mergeKitchenOrders(menuOrders, storeOrders);
+  }, [branches, includeStore, queueQuery.data, storeQueueQuery.data]);
+  const boardOrders = useKitchenBoardOrders(orders);
 
   const actionMutation = useMutation({
     mutationFn: async (payload: {
@@ -86,6 +94,12 @@ export default function KitchenMonitorView({ backHref }: KitchenMonitorViewProps
         if (payload.action === "note") return;
         return advanceStoreKitchenOrder(payload.orderId, payload.action);
       }
+      const target = (queueQuery.data ?? []).find(
+        (order) =>
+          order.id === payload.orderId &&
+          (payload.orderSource == null || order.orderSource === payload.orderSource),
+      );
+      const menuId = target?.menuId ?? null;
       if (menuId == null) throw new Error("Menü seçilmedi");
       if (payload.action === "preparing") return markMerchantKitchenPreparing(menuId, payload.orderId, payload.orderSource);
       if (payload.action === "ready") return markMerchantKitchenReady(menuId, payload.orderId, payload.orderSource);
@@ -93,14 +107,14 @@ export default function KitchenMonitorView({ backHref }: KitchenMonitorViewProps
     },
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["merchant-kitchen-queue", menuId] }),
+        queryClient.invalidateQueries({ queryKey: ["merchant-kitchen-scope"] }),
         queryClient.invalidateQueries({ queryKey: ["store-kitchen-queue"] }),
         queryClient.invalidateQueries({ queryKey: STORE_QUERY_KEYS.orders }),
       ]);
     },
   });
 
-  if (accessLoading || loading) {
+  if (accessLoading || branchesQuery.isLoading) {
     return (
       <div className="space-y-6 animate-fade-in">
         <DashboardPageHeader
@@ -141,30 +155,22 @@ export default function KitchenMonitorView({ backHref }: KitchenMonitorViewProps
       />
 
       <DashboardFilterBar>
-        <DigitalMenuPicker
-          menuQrs={menuQrs}
-          selectedQrId={selection?.qr.id ?? null}
-          onSelectQrId={(nextQrId) => {
-            void selectQrId(nextQrId);
-            if (backHref) {
-              setQuery({ qr: String(nextQrId) });
-              return;
-            }
-            router.replace(DASHBOARD_ROUTES.kitchenMonitorForQr(nextQrId), { scroll: false });
-          }}
+        <BranchScopeFilter
+          branches={branches}
+          value={branchScope}
+          onChange={(next) => setQuery({ branch: next === "all" ? null : String(next) })}
         />
       </DashboardFilterBar>
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
-      {!menuId && orders.length === 0 && !storeQueueQuery.isLoading ? (
+      {scopedMenus.length === 0 && branchScope !== "all" && orders.length === 0 ? (
         <EmptyState
-          title="Menü seçin"
-          description="Mutfak kuyruğunu görmek için bir menü seçin."
+          title="Bu şubede menü yok"
+          description="Mutfak kuyruğu için şube filtresinden Tüm şubeler’i seçin veya bu şubeye menü ekleyin."
         />
       ) : (
         <KitchenDisplayBoard
-          orders={orders}
-          loading={(menuId != null && queueQuery.isLoading) || storeQueueQuery.isLoading}
+          orders={boardOrders}
+          loading={(scopedMenus.length > 0 && queueQuery.isLoading) || (includeStore && storeQueueQuery.isLoading)}
           error={
             queueQuery.isError
               ? queueQuery.error instanceof OrderingApiError

@@ -138,6 +138,7 @@ export const DASHBOARD_ROUTES = {
     `/dashboard/kampanyalar/${campaignId}?qr=${qrId}`,
   campaignsForQr: (qrId: number | string) =>
     `/dashboard/kampanyalar?qr=${qrId}`,
+  staffGate: "/personel",
   waiterLogin: `${WAITER_APP_ORIGIN}/waiter/login`,
   waiterPanel: `${WAITER_APP_ORIGIN}/waiter`,
   kitchenLogin: `${KITCHEN_APP_ORIGIN}/mutfak/giris`,

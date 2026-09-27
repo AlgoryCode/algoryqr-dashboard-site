@@ -25,14 +25,18 @@ export function BillPaymentsList({
   busy = false,
   reversingPaymentId = null,
   onReverse,
+  includeTips = false,
+  title = "Alınan ödemeler",
 }: {
   payments: WaiterBillPayment[];
   currency: string;
   busy?: boolean;
   reversingPaymentId?: number | null;
   onReverse?: (payment: WaiterBillPayment) => void;
+  includeTips?: boolean;
+  title?: string;
 }) {
-  const visible = payments.filter((p) => !p.tip);
+  const visible = includeTips ? payments : payments.filter((p) => !p.tip);
 
   if (visible.length === 0) {
     return null;
@@ -40,9 +44,7 @@ export function BillPaymentsList({
 
   return (
     <div className="space-y-2 border-t border-zinc-100 pt-3">
-      <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-        Alınan ödemeler
-      </p>
+      <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">{title}</p>
       <ul className="space-y-1.5">
         {visible.map((payment) => {
           const reversing = reversingPaymentId === payment.id;
@@ -53,10 +55,12 @@ export function BillPaymentsList({
             >
               <div className="min-w-0">
                 <p className="truncate font-medium text-zinc-800">
-                  {payment.itemSummary ??
-                    (payment.splitShareNumber && payment.splitPersonCount
-                      ? `Pay ${payment.splitShareNumber}/${payment.splitPersonCount}`
-                      : "Ödeme")}
+                  {payment.tip
+                    ? "Bahşiş"
+                    : (payment.itemSummary ??
+                      (payment.splitShareNumber && payment.splitPersonCount
+                        ? `Pay ${payment.splitShareNumber}/${payment.splitPersonCount}`
+                        : "Ödeme"))}
                 </p>
                 <p className="text-xs text-zinc-500">
                   {payment.paymentMethod

@@ -26,6 +26,8 @@ import {
   matchesKitchenKanbanQuery,
   mergeKitchenOrders,
   readKitchenOrderList,
+  servedBillIds,
+  withoutClosedBillTickets,
   readyOrdersBannerText,
   sortReadyOrders,
   tableKitchenSubtitleParts,
@@ -264,6 +266,10 @@ describe("kitchen queue", () => {
     ).toBe("Ayşe");
 
     expect(kitchenOrderOrigin({ orderSource: "STORE" })).toBe("ONLINE");
+    expect(kitchenOrderOrigin({ orderSource: "PHONE" })).toBe("PHONE");
+    expect(kitchenOrderOriginLabel("PHONE")).toBe("Telefon");
+    expect(kitchenUsesCourier("PHONE")).toBe(true);
+    expect(kitchenReadyHandoverLabel("PHONE")).toBe("Kurye teslimi bekleniyor");
     expect(kitchenOrderOrigin({ orderSource: "ONLINE_ORDER" })).toBe("ONLINE");
     expect(kitchenOrderOrigin({ tableName: "Online sipariş" })).toBe("ONLINE");
     expect(kitchenOrderOriginLabel("ONLINE")).toBe("Online");
@@ -293,6 +299,19 @@ describe("kitchen queue", () => {
         now,
       ),
     ).toBe("8 dk");
+  });
+
+  it("drops served tickets for a closed bill and leaves other tables", () => {
+    const orders = [
+      order({ id: 1, status: "SERVED", tableId: 69, tableName: "masa-1", billId: 14 }),
+      order({ id: 2, status: "READY", tableId: 69, tableName: "masa-1", billId: 14 }),
+      order({ id: 3, status: "SERVED", tableId: 70, tableName: "masa-2", billId: 20 }),
+      order({ id: 4, status: "PREPARING", tableId: 70, tableName: "masa-2", billId: 20 }),
+      order({ id: 5, status: "SERVED", tableId: 69, tableName: "masa-1" }),
+    ];
+
+    expect(servedBillIds(orders)).toEqual([14, 20]);
+    expect(withoutClosedBillTickets(orders, new Set([14])).map((item) => item.id)).toEqual([2, 3, 4, 5]);
   });
 
   it("merges table and online tickets without colliding on the same id", () => {

@@ -9,12 +9,13 @@ import type { OrderResponse, OrderStatus } from "@/lib/ordering-api";
 import type { StoreOrderDetail, StoreOrderSummary } from "@/lib/store-api";
 import { storeOrderToKitchenTicket } from "@/lib/store-kitchen";
 
-export type OrderChannel = "QR" | "WAITER" | "ONLINE" | "UBER_EATS" | "YEMEKSEPETI";
+export type OrderChannel = "QR" | "WAITER" | "ONLINE" | "PHONE" | "UBER_EATS" | "YEMEKSEPETI";
 
 export const ORDER_CHANNELS: OrderChannel[] = [
   "QR",
   "WAITER",
   "ONLINE",
+  "PHONE",
   "UBER_EATS",
   "YEMEKSEPETI",
 ];
@@ -23,6 +24,7 @@ export const ORDER_CHANNEL_LABEL: Record<OrderChannel, string> = {
   QR: "QR Masa",
   WAITER: "Garson",
   ONLINE: "Online Sipariş",
+  PHONE: "Telefon",
   UBER_EATS: "Uber Eats",
   YEMEKSEPETI: "Yemeksepeti",
 };
@@ -70,6 +72,7 @@ export type OrderManagementFilters = {
   query?: string;
   status?: OrderStatusFilter;
   channel?: "all" | OrderChannel;
+  branchId?: number | "all";
 };
 
 export const ORDER_MANAGEMENT_PANELS = [
@@ -172,6 +175,7 @@ export function orderHistoryTitle(order: OrderResponse): string {
 
 export function orderChannel(order: OrderResponse): OrderChannel {
   const source = (order.orderSource ?? "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+  if (source === "PHONE") return "PHONE";
   if (source === "WAITER") return "WAITER";
   if (source === "QR") return "QR";
   if (source === "UBER_EATS" || source === "UBEREATS" || source === "UBER") return "UBER_EATS";
@@ -190,6 +194,7 @@ export function orderChannel(order: OrderResponse): OrderChannel {
   const origin = kitchenOrderOrigin(order);
   if (origin === "UBER_EATS") return "UBER_EATS";
   if (origin === "YEMEKSEPETI") return "YEMEKSEPETI";
+  if (origin === "PHONE") return "PHONE";
   if (origin === "ONLINE") return "ONLINE";
   return "QR";
 }
@@ -309,8 +314,10 @@ export function filterManagedOrders(
   const query = filters.query ?? "";
   const status = filters.status ?? "all";
   const channel = filters.channel ?? "all";
+  const branchId = filters.branchId ?? "all";
 
   return orders.filter((order) => {
+    if (branchId !== "all" && order.branchId !== branchId) return false;
     const timestamp = orderTimestamp(order);
     if (from && (timestamp == null || timestamp < from.getTime())) return false;
     if (to && (timestamp == null || timestamp > to.getTime())) return false;
@@ -388,6 +395,25 @@ export function storeOrderToManagedOrder(
     };
   }
   return ticket;
+}
+
+/** Replace list summaries with kitchen-queue tickets that include items and address. */
+export function overlayStoreKitchenDetails(
+  summaries: OrderResponse[],
+  detailed: OrderResponse[],
+): OrderResponse[] {
+  const detailById = new Map(detailed.map((order) => [order.id, order]));
+  const used = new Set<number>();
+  const merged = summaries.map((order) => {
+    const detail = detailById.get(order.id);
+    if (!detail) return order;
+    used.add(order.id);
+    return detail;
+  });
+  for (const order of detailed) {
+    if (!used.has(order.id)) merged.push(order);
+  }
+  return merged;
 }
 
 export function mergeManagedOrders(
@@ -659,7 +685,12 @@ export function sourceEarnings(
   const internal = ordersForChannels(orders, TABLE_CHANNELS);
   const rows = withRevenueShare(
     SOURCE_EARNING_KEYS.map((key) => {
-      const channelOrders = key === "INTERNAL" ? internal : ordersForChannels(orders, [key]);
+      const channelOrders =
+        key === "INTERNAL"
+          ? internal
+          : key === "ONLINE"
+            ? ordersForChannels(orders, ["ONLINE", "PHONE"])
+            : ordersForChannels(orders, [key]);
       return {
         key,
         label: SOURCE_EARNING_LABEL[key],
@@ -948,6 +979,11 @@ export function isDeliveryOrder(order: OrderResponse): boolean {
   return isIntegrationChannel(channel);
 }
 
+/** Hazır masa ve gel-al siparişi garson müşteriye teslim eder. Paket kurye akışında kalır. */
+export function canMarkServedToCustomer(order: OrderResponse): boolean {
+  return order.status === "READY" && !isDeliveryOrder(order);
+}
+
 /**
  * Live-ops lane routing.
  * - Mutfak açık: erken durumlar (PENDING…PREPARING) mutfağa gider.
@@ -1210,18 +1246,11 @@ export function courierChannelCounts(orders: OrderResponse[]): LiveOpsChannelCou
       isDeliveryOrder(order) &&
       (isOpenOrderStatus(order.status) || order.status === "READY"),
   );
-  const keys: Array<{ key: OrderChannel | "PHONE"; label: string; match: (o: OrderResponse) => boolean }> = [
+  const keys: Array<{ key: OrderChannel; label: string; match: (o: OrderResponse) => boolean }> = [
     { key: "YEMEKSEPETI", label: "Yemeksepeti", match: (o) => orderChannel(o) === "YEMEKSEPETI" },
     { key: "ONLINE", label: "Getir", match: (o) => orderChannel(o) === "ONLINE" },
     { key: "UBER_EATS", label: "Trendyol", match: (o) => orderChannel(o) === "UBER_EATS" },
-    {
-      key: "PHONE",
-      label: "Telefon",
-      match: (o) => {
-        const ch = orderChannel(o);
-        return ch !== "YEMEKSEPETI" && ch !== "ONLINE" && ch !== "UBER_EATS";
-      },
-    },
+    { key: "PHONE", label: "Telefon", match: (o) => orderChannel(o) === "PHONE" },
   ];
   return keys.map((row) => ({
     key: row.key,

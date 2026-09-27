@@ -80,6 +80,7 @@ const ORIGIN_BADGE_CLASS: Record<KitchenOrderOrigin, string> = {
   YEMEKSEPETI: "bg-amber-50 text-amber-800 border-amber-200/60",
   UBER_EATS: "bg-emerald-50 text-emerald-800 border-emerald-200/60",
   ONLINE: "bg-emerald-50/80 text-emerald-700 border-emerald-100",
+  PHONE: "bg-amber-50 text-amber-800 border-amber-200/70",
   TABLE: "bg-slate-100 text-slate-700 border-slate-200/60",
 };
 
@@ -516,7 +517,11 @@ function KitchenOrderCard({
         <span className="truncate">
           {columnId === "SERVED"
             ? `${formatWhen(order.servedAt)}'de teslim edildi${order.waiterName ? ` • ${order.waiterName}` : ""}`
-            : locationLine(order)}
+            : origin === "TABLE"
+              ? locationLine(order)
+              : [locationLine(order), order.customerPhone?.trim()]
+                  .filter((part, index, parts) => part && parts.indexOf(part) === index)
+                  .join(" · ")}
         </span>
       </div>
 

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/sheet";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import {
+  canMarkServedToCustomer,
   formatOrderWhen,
   orderChannel,
   orderCustomerName,
@@ -29,10 +30,19 @@ type OrderPeekSheetProps = {
   order: OrderResponse | null;
   qrId: number | null;
   includeTips: boolean;
+  delivering?: boolean;
   onOpenChange: (open: boolean) => void;
+  onMarkServed?: (order: OrderResponse) => void;
 };
 
-export function OrderPeekSheet({ order, qrId, includeTips, onOpenChange }: OrderPeekSheetProps) {
+export function OrderPeekSheet({
+  order,
+  qrId,
+  includeTips,
+  delivering,
+  onOpenChange,
+  onMarkServed,
+}: OrderPeekSheetProps) {
   const open = order != null;
   const currency = order?.currency || "TRY";
   const tip = Number(order?.tipAmount ?? 0);
@@ -143,7 +153,12 @@ export function OrderPeekSheet({ order, qrId, includeTips, onOpenChange }: Order
                 </div>
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   <PrintOrderButton kind="kitchen" order={order} />
-                  <Button asChild>
+                  {onMarkServed && canMarkServedToCustomer(order) ? (
+                    <Button type="button" disabled={delivering} onClick={() => onMarkServed(order)}>
+                      {delivering ? "İşleniyor…" : "Müşteriye teslim edildi"}
+                    </Button>
+                  ) : null}
+                  <Button asChild variant="outline">
                     <Link href={href}>Tam detay</Link>
                   </Button>
                 </div>

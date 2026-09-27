@@ -24,6 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
+import { formatBranchCode } from "@/lib/branch";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { DASHBOARD_BACK, DASHBOARD_SURFACE } from "@/lib/dashboard-surface";
 import {
@@ -186,7 +187,13 @@ export default function MenuUserDetailView({ waiterId }: MenuUserDetailViewProps
             </div>
             <p className="text-sm text-muted-foreground">@{member.username}</p>
             <p className="text-sm text-muted-foreground">
+              Şube kodu: <span className="font-medium text-foreground">{formatBranchCode(member.branchId)}</span>
+            </p>
+            <p className="text-sm text-muted-foreground">
               Rol: {STAFF_ROLE_LABEL[member.staffRole ?? "WAITER"]}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Bu hesap yalnızca kendi şubesinin işlemlerini görür.
             </p>
             <p className="text-sm text-muted-foreground">
               Eklenme: {formatJoinedAt(member.createdAt)}

@@ -1,43 +1,19 @@
 "use client";
 
-import { useState } from "react";
-import { Bell, Bike, Check, Copy, CookingPot, ExternalLink } from "lucide-react";
+import { Bell, Bike, CookingPot, ExternalLink } from "lucide-react";
 
 import { DashboardHubTile } from "@/components/dashboard/DashboardHubTile";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { Button } from "@/components/ui/button";
-import { useDashboardBanners } from "@/contexts/dashboard-banners";
 import { useBranches } from "@/hooks/use-branches";
 import { anyBranchHasCourier, anyBranchHasKitchen } from "@/lib/branch";
-import { DASHBOARD_HUB_GRID, DASHBOARD_SURFACE } from "@/lib/dashboard-surface";
+import { DASHBOARD_HUB_GRID } from "@/lib/dashboard-surface";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 
 export default function OrderPanelView() {
-  const { notify } = useDashboardBanners();
-  const [copied, setCopied] = useState<"waiter" | "kitchen" | "courier" | null>(null);
   const branchesQuery = useBranches(true);
   const kitchenEnabled = anyBranchHasKitchen(branchesQuery.data?.content);
   const courierEnabled = anyBranchHasCourier(branchesQuery.data?.content);
-
-  const copyLink = async (href: string, kind: "waiter" | "kitchen" | "courier") => {
-    const absolute =
-      typeof window !== "undefined" ? `${window.location.origin}${href}` : href;
-    try {
-      await navigator.clipboard.writeText(absolute);
-      setCopied(kind);
-      notify(
-        "info",
-        kind === "kitchen"
-          ? "Mutfak paneli linki kopyalandı."
-          : kind === "courier"
-            ? "Kurye paneli linki kopyalandı."
-            : "Garson paneli linki kopyalandı.",
-      );
-      window.setTimeout(() => setCopied(null), 2000);
-    } catch {
-      notify("danger", "Link kopyalanamadı.");
-    }
-  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -46,75 +22,12 @@ export default function OrderPanelView() {
         hint={orderPanelHint(kitchenEnabled, courierEnabled)}
       />
 
-      <div className="flex items-center gap-2">
-        <Button asChild className="h-11 min-w-0 flex-1 gap-2">
-          <a href={DASHBOARD_ROUTES.waiterPanel} target="_blank" rel="noopener noreferrer">
-            Garson paneline git
-            <ExternalLink className="h-4 w-4" />
-          </a>
-        </Button>
-        <button
-          type="button"
-          onClick={() => void copyLink(DASHBOARD_ROUTES.waiterPanel, "waiter")}
-          className={`${DASHBOARD_SURFACE} inline-flex h-11 w-11 shrink-0 items-center justify-center text-foreground transition-colors hover:bg-muted`}
-          aria-label="Garson paneli linkini kopyala"
-          title={copied === "waiter" ? "Kopyalandı" : "Linki kopyala"}
-        >
-          {copied === "waiter" ? (
-            <Check className="h-4 w-4 text-emerald-600" />
-          ) : (
-            <Copy className="h-4 w-4" />
-          )}
-        </button>
-      </div>
-
-      {kitchenEnabled ? (
-        <div className="flex items-center gap-2">
-          <Button asChild className="h-11 min-w-0 flex-1 gap-2">
-            <a href={DASHBOARD_ROUTES.kitchenPanel} target="_blank" rel="noopener noreferrer">
-              Mutfak paneline git
-              <ExternalLink className="h-4 w-4" />
-            </a>
-          </Button>
-          <button
-            type="button"
-            onClick={() => void copyLink(DASHBOARD_ROUTES.kitchenPanel, "kitchen")}
-            className={`${DASHBOARD_SURFACE} inline-flex h-11 w-11 shrink-0 items-center justify-center text-foreground transition-colors hover:bg-muted`}
-            aria-label="Mutfak paneli linkini kopyala"
-            title={copied === "kitchen" ? "Kopyalandı" : "Linki kopyala"}
-          >
-            {copied === "kitchen" ? (
-              <Check className="h-4 w-4 text-emerald-600" />
-            ) : (
-              <Copy className="h-4 w-4" />
-            )}
-          </button>
-        </div>
-      ) : null}
-
-      {courierEnabled ? (
-        <div className="flex items-center gap-2">
-          <Button asChild className="h-11 min-w-0 flex-1 gap-2">
-            <a href={DASHBOARD_ROUTES.courierPanel} target="_blank" rel="noopener noreferrer">
-              Kurye paneline git
-              <ExternalLink className="h-4 w-4" />
-            </a>
-          </Button>
-          <button
-            type="button"
-            onClick={() => void copyLink(DASHBOARD_ROUTES.courierPanel, "courier")}
-            className={`${DASHBOARD_SURFACE} inline-flex h-11 w-11 shrink-0 items-center justify-center text-foreground transition-colors hover:bg-muted`}
-            aria-label="Kurye paneli linkini kopyala"
-            title={copied === "courier" ? "Kopyalandı" : "Linki kopyala"}
-          >
-            {copied === "courier" ? (
-              <Check className="h-4 w-4 text-emerald-600" />
-            ) : (
-              <Copy className="h-4 w-4" />
-            )}
-          </button>
-        </div>
-      ) : null}
+      <Button asChild className="h-11 w-full gap-2">
+        <a href={DASHBOARD_ROUTES.staffGate}>
+          Personel girişi
+          <ExternalLink className="h-4 w-4" />
+        </a>
+      </Button>
 
       <div className={DASHBOARD_HUB_GRID}>
         <DashboardHubTile
@@ -136,7 +49,7 @@ export default function OrderPanelView() {
             title="Kurye"
             description="Hazır paketleri teslim alın ve müşteriye götürün"
             icon={Bike}
-            href={DASHBOARD_ROUTES.courierPanel}
+            href={DASHBOARD_ROUTES.staffGate}
           />
         ) : null}
       </div>
@@ -146,6 +59,5 @@ export default function OrderPanelView() {
 
 function orderPanelHint(kitchenEnabled: boolean, courierEnabled: boolean) {
   const apps = ["Garson", kitchenEnabled ? "mutfak" : null, courierEnabled ? "kurye" : null].filter(Boolean);
-  if (apps.length === 1) return "Garson servis ekranı ayrı bir uygulamadır";
-  return `${apps.join(", ")} ekranları ayrı uygulamalardır`;
+  return `Personel tek girişten ${apps.join(", ").toLocaleLowerCase("tr-TR")} ekranına gider`;
 }

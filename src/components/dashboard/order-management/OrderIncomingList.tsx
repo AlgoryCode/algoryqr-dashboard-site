@@ -63,6 +63,7 @@ type OrderIncomingListProps = {
   onIncludeTipsChange: (next: boolean) => void;
   onSelect: (order: OrderResponse) => void;
   menuPicker?: ReactNode;
+  branchFilter?: ReactNode;
   loading?: boolean;
   error?: ReactNode;
   emptyMessage?: string;
@@ -84,6 +85,7 @@ export function OrderIncomingList({
   onIncludeTipsChange,
   onSelect,
   menuPicker,
+  branchFilter,
   loading,
   error,
   emptyMessage = "Bu filtrelerle sipariş yok.",
@@ -102,6 +104,7 @@ export function OrderIncomingList({
       />
 
       <DashboardFilterBar className="sm:grid sm:grid-cols-2 sm:items-end lg:grid-cols-6">
+        {branchFilter}
         <DateRangeFilter
           className="sm:col-span-2 lg:col-span-3"
           value={range}
