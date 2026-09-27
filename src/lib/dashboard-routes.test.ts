@@ -114,39 +114,38 @@ describe("online order routes", () => {
 });
 
 describe("kitchen monitor routes", () => {
-  it("builds the dashboard kitchen path and breadcrumbs", () => {
+  it("keeps external kitchen and courier app URLs", () => {
     expect(DASHBOARD_ROUTES.kitchenMonitor).toBe("/dashboard/garson/mutfak");
     expect(DASHBOARD_ROUTES.kitchenPanel).toBe("http://localhost:3004/mutfak");
     expect(DASHBOARD_ROUTES.kitchenLogin).toBe("http://localhost:3004/mutfak/giris");
     expect(DASHBOARD_ROUTES.courierPanel).toBe("http://localhost:3005/kurye");
     expect(DASHBOARD_ROUTES.courierLogin).toBe("http://localhost:3005/kurye/giris");
-    expect(buildDashboardBreadcrumbs("/dashboard/garson/mutfak").map((crumb) => crumb.label)).toEqual([
-      "Genel Bakış",
-      "Sipariş Yönetimi",
-      "Mutfak",
-    ]);
   });
 });
 
 describe("splitMobileDashboardNav", () => {
   it("keeps four primary tabs and puts the rest in overflow", () => {
-    const { primary, overflow } = splitMobileDashboardNav(DASHBOARD_NAV_ITEMS);
+    const mobileItems = DASHBOARD_NAV_ITEMS.filter((item) => !item.excludeFromMobileNav);
+    const { primary, overflow } = splitMobileDashboardNav(mobileItems);
     expect(primary.map((item) => item.key)).toEqual([
       "overview",
-      "orderPanel",
-      "digitalMenu",
+      "myBranches",
       "reports",
+      "reservations",
     ]);
+    expect(overflow.map((item) => item.key)).toContain("myMenus");
     expect(overflow.map((item) => item.key)).toContain("account");
     expect(overflow.map((item) => item.key)).not.toContain("overview");
   });
 
   it("fills primary slots when a scoped item is missing", () => {
-    const items = DASHBOARD_NAV_ITEMS.filter((item) => item.key !== "orderPanel");
+    const items = DASHBOARD_NAV_ITEMS.filter(
+      (item) => !item.excludeFromMobileNav && item.key !== "reservations",
+    );
     const { primary } = splitMobileDashboardNav(items);
     expect(primary).toHaveLength(4);
     expect(primary[0].key).toBe("overview");
-    expect(primary.map((item) => item.key)).not.toContain("orderPanel");
+    expect(primary.map((item) => item.key)).not.toContain("reservations");
   });
 });
 

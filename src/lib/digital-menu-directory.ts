@@ -69,3 +69,13 @@ export function sortMenuDirectory(items: DigitalMenuDirectoryItem[]): DigitalMen
     return a.businessName.localeCompare(b.businessName, "tr-TR");
   });
 }
+
+export function sortMenuDirectoryByMenuName(items: DigitalMenuDirectoryItem[]): DigitalMenuDirectoryItem[] {
+  return [...items].sort((a, b) => {
+    const nameCompare = a.businessName.localeCompare(b.businessName, "tr-TR");
+    if (nameCompare !== 0) {
+      return nameCompare;
+    }
+    return a.branchName.localeCompare(b.branchName, "tr-TR");
+  });
+}

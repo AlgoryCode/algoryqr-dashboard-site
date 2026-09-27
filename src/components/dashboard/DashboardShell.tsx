@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import axios from "axios";
 import { AnimatePresence, motion } from "framer-motion";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -18,7 +18,6 @@ import {
   AlertTriangle,
   XCircle,
   X,
-  MonitorSmartphone,
   PanelLeft,
   PanelLeftClose,
   TrendingUp,
@@ -28,6 +27,7 @@ import {
   UtensilsCrossed,
   CalendarDays,
   ChevronDown,
+  Building2,
   Warehouse,
 } from "lucide-react";
 
@@ -56,7 +56,6 @@ import { useTokenRefresh } from "@/hooks/use-token-refresh";
 import { useAccessProfile } from "@/hooks/use-access-profile";
 import { useAccessSession } from "@/hooks/use-commerce";
 import { SESSION_CONTEXT_QUERY_KEY } from "@/hooks/use-session-context";
-import { usePendingOrderCount } from "@/hooks/use-pending-order-count";
 import { useQueryClient } from "@tanstack/react-query";
 import type { SessionContext } from "@/lib/session-context";
 import {
@@ -75,8 +74,9 @@ const NAV_ICONS: Record<DashboardNavKey, ComponentType<{ className?: string }>> 
   overview: BarChart3,
   modules: Blocks,
   digitalMenu: DigitalMenuIcon,
+  myBranches: Building2,
+  myMenus: DigitalMenuIcon,
   uberEats: UtensilsCrossed,
-  orderPanel: MonitorSmartphone,
   reservations: CalendarDays,
   stock: Warehouse,
   reports: TrendingUp,
@@ -135,18 +135,7 @@ function SessionCacheHydrator({ session }: { session?: SessionContext | null }) 
 function DashboardShellInner({ children, initialSession }: DashboardShellProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const waiterPanel = pathname === DASHBOARD_ROUTES.waiter ? searchParams.get("panel") : null;
-  const isWaiterPanel =
-    waiterPanel === "kitchen" ||
-    waiterPanel === "online" ||
-    waiterPanel === "uber-eats" ||
-    waiterPanel === "integrations";
-  const isLiveOpsHome =
-    pathname === DASHBOARD_ROUTES.waiter &&
-    waiterPanel == null &&
-    searchParams.get("view") !== "yonetim";
-  const isOnlineBoard = pathname === DASHBOARD_ROUTES.onlineOrderOrders || waiterPanel === "online";
+  const isOnlineBoard = pathname === DASHBOARD_ROUTES.onlineOrderOrders;
   const { banners, addBanner, removeBanner } = useDashboardBannerState();
   const [portalReady, setPortalReady] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -171,7 +160,14 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
     [accessProfile, hasAllowAccess],
   );
   const menuNavItems = useMemo(
-    () => visibleNavItems.filter((item) => item.key !== "uberEats"),
+    () =>
+      visibleNavItems.filter(
+        (item) => item.key !== "uberEats" && !item.excludeFromSidebar,
+      ),
+    [visibleNavItems],
+  );
+  const mobileNavItems = useMemo(
+    () => visibleNavItems.filter((item) => item.key !== "uberEats" && !item.excludeFromMobileNav),
     [visibleNavItems],
   );
   const visibleNavGroups = useMemo(
@@ -183,8 +179,6 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
   const toggleGroup = (groupId: string) => {
     setOpenGroupIds((prev) => ({ ...prev, [groupId]: !(prev[groupId] ?? true) }));
   };
-  const showPendingBadge = hasScope(accessProfile, "WAITER_PANEL_OWNER");
-  const { count: pendingOrderCount } = usePendingOrderCount(showPendingBadge);
   const [commandOpen, setCommandOpen] = useState(false);
   const toggleCommand = useCallback(() => setCommandOpen((open) => !open), []);
   useCommandPaletteHotkey(toggleCommand);
@@ -263,7 +257,7 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
         <PackageAccessGate />
         <TrialReminderDialog />
         <DashboardCommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
-        {isFullScreenGate || isLiveOpsHome ? (
+        {isFullScreenGate ? (
           <div className="h-svh overflow-hidden bg-background">{children}</div>
         ) : (
       <div className="flex h-svh overflow-hidden bg-background">
@@ -316,9 +310,8 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
                   {showChildren
                     ? items.map((item) => {
                         const Icon = NAV_ICONS[item.key];
-                        const active = isDashboardNavActive(pathname, item.href);
-                        const badgeCount =
-                          item.badgeKey === "pendingOrders" ? pendingOrderCount : 0;
+                        const active = isDashboardNavActive(pathname, item.href, item.key);
+                        const badgeCount = 0;
                         return (
                           <Tooltip key={item.key} open={collapsed ? undefined : false}>
                             <TooltipTrigger asChild>
@@ -415,7 +408,7 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
             </div>
           </header>
 
-          <DashboardMobileNav items={menuNavItems} pendingOrderCount={pendingOrderCount} />
+          <DashboardMobileNav items={mobileNavItems} pendingOrderCount={0} />
 
           <div className="hidden px-6 pt-3 lg:block">
             <div className="mx-auto flex w-full max-w-[560px] items-center gap-2.5">
@@ -439,14 +432,13 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
 
           <div
             className={cn(
-              pathname === DASHBOARD_ROUTES.onlineOrderOrders ||
-              pathname === DASHBOARD_ROUTES.waiter
+              pathname === DASHBOARD_ROUTES.onlineOrderOrders
                 ? "mx-auto w-full max-w-[90rem]"
                 : DASHBOARD_CONTENT,
               isOnlineBoard ? "p-4 lg:px-6 lg:pt-4 lg:pb-0" : "p-6 lg:p-8",
             )}
           >
-            {isOnlineBoard || isWaiterPanel ? null : (
+            {isOnlineBoard ? null : (
               <DashboardBreadcrumbs pathname={pathname} currentLabel={pageLabel} />
             )}
             <SetupNextBanner />

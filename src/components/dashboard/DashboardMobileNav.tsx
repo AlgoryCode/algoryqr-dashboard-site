@@ -6,11 +6,11 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   Blocks,
+  Building2,
   Calculator,
   CalendarDays,
   Megaphone,
   Menu,
-  MonitorSmartphone,
   QrCode,
   TrendingUp,
   User,
@@ -39,8 +39,9 @@ const NAV_ICONS: Record<DashboardNavKey, ComponentType<{ className?: string }>> 
   overview: BarChart3,
   modules: Blocks,
   digitalMenu: DigitalMenuIcon,
+  myBranches: Building2,
+  myMenus: DigitalMenuIcon,
   uberEats: UtensilsCrossed,
-  orderPanel: MonitorSmartphone,
   reservations: CalendarDays,
   stock: Warehouse,
   reports: TrendingUp,
@@ -67,7 +68,7 @@ export function DashboardMobileNav({ items, pendingOrderCount }: DashboardMobile
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
   const { primary, overflow } = splitMobileDashboardNav(items);
-  const moreActive = overflow.some((item) => isDashboardNavActive(pathname, item.href));
+  const moreActive = overflow.some((item) => isDashboardNavActive(pathname, item.href, item.key));
   const columns = overflow.length > 0 ? primary.length + 1 : primary.length;
 
   return (
@@ -81,7 +82,7 @@ export function DashboardMobileNav({ items, pendingOrderCount }: DashboardMobile
       >
         {primary.map((item) => {
           const Icon = NAV_ICONS[item.key];
-          const active = isDashboardNavActive(pathname, item.href);
+          const active = isDashboardNavActive(pathname, item.href, item.key);
           const badgeCount = item.badgeKey === "pendingOrders" ? pendingOrderCount : 0;
           return (
             <Link key={item.key} href={item.href} className={tabClass(active)}>
@@ -113,7 +114,7 @@ export function DashboardMobileNav({ items, pendingOrderCount }: DashboardMobile
           <div className="mt-4 grid gap-1">
             {overflow.map((item) => {
               const Icon = NAV_ICONS[item.key];
-              const active = isDashboardNavActive(pathname, item.href);
+              const active = isDashboardNavActive(pathname, item.href, item.key);
               const badgeCount = item.badgeKey === "pendingOrders" ? pendingOrderCount : 0;
               return (
                 <Link

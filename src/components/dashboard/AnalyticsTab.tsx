@@ -13,6 +13,7 @@ import {
 } from "@/components/dashboard/BranchReportPicker";
 import BranchReportDashboard from "@/components/dashboard/smart-report/BranchReportDashboard";
 import { MenuReportSection } from "@/components/dashboard/smart-report/MenuReportSection";
+import { OrdersPage } from "@/components/dashboard/smart-report/orders-layout";
 import { OverviewPage } from "@/components/dashboard/smart-report/overview-layout";
 import AnalyticsWaiterPerformancePanel from "@/components/dashboard/AnalyticsWaiterPerformancePanel";
 import { useBranchAnalyticsReport } from "@/hooks/use-branch-analytics-report";
@@ -52,7 +53,7 @@ function useTooltipStyle() {
   };
 }
 
-type ReportView = "overview" | "menu" | "revenue" | "personnel";
+type ReportView = "overview" | "menu" | "revenue" | "orders" | "personnel";
 
 export default function AnalyticsTab() {
   const router = useRouter();
@@ -95,7 +96,9 @@ export default function AnalyticsTab() {
     activeReportView === "menu"
       ? branchId != null && menuId != null
       : branchId != null &&
-          (activeReportView === "overview" || activeReportView === "revenue"),
+          (activeReportView === "overview" ||
+        activeReportView === "revenue" ||
+        activeReportView === "orders"),
   );
   const revenueQuery = useBranchRevenueReport(
     branchId,
@@ -106,6 +109,7 @@ export default function AnalyticsTab() {
       branchId != null &&
       (activeReportView === "overview" ||
         activeReportView === "revenue" ||
+        activeReportView === "orders" ||
         activeReportView === "personnel" ||
         (activeReportView === "menu" && menuId != null)),
   );
@@ -195,6 +199,7 @@ export default function AnalyticsTab() {
 
   const menuLoading = selectionLoading || reportQuery.isLoading;
   const revenueLoading = selectionLoading || revenueQuery.isLoading;
+  const ordersLoading = revenueLoading;
   const personnelLoading = selectionLoading || personnelQuery.isLoading;
   const overviewLoading =
     selectionLoading ||
@@ -205,9 +210,11 @@ export default function AnalyticsTab() {
       ? overviewLoading
       : activeReportView === "revenue"
         ? revenueLoading
-        : activeReportView === "personnel"
-          ? personnelLoading
-          : menuLoading;
+        : activeReportView === "orders"
+          ? ordersLoading
+          : activeReportView === "personnel"
+            ? personnelLoading
+            : menuLoading;
   const menuOrderCount = revenueQuery.data?.kpis?.orderCount ?? null;
 
   return (
@@ -245,6 +252,9 @@ export default function AnalyticsTab() {
                 if (next === "revenue" && !canUseRevenue) {
                   return;
                 }
+                if (next === "orders" && !canUseRevenue) {
+                  return;
+                }
                 if (next === "personnel" && !canUseRevenue) {
                   return;
                 }
@@ -257,6 +267,7 @@ export default function AnalyticsTab() {
                 { value: "overview", label: "Genel Bakış" },
                 { value: "menu", label: "Menü" },
                 ...(canUseRevenue ? [{ value: "revenue" as const, label: "Ciro" }] : []),
+                ...(canUseRevenue ? [{ value: "orders" as const, label: "Sipariş" }] : []),
                 ...(canUseRevenue ? [{ value: "personnel" as const, label: "Personel" }] : []),
               ]}
             />
@@ -388,6 +399,33 @@ export default function AnalyticsTab() {
           allowedTabs={["overview", "revenue", "channels", "products"]}
           initialTab="overview"
         />
+      ) : null}
+
+      {activeReportView === "orders" && branchId != null && !canUseRevenue ? (
+        <div className="rounded-2xl border border-[#e5e7eb] bg-white shadow-none dark:border-border dark:bg-card p-6 text-sm text-muted-foreground">
+          Sipariş raporları Pro veya Ultimate paket ile kullanılabilir.{" "}
+          <Link
+            href={DASHBOARD_ROUTES.accountPackagesHighlight("SMART_REPORTING")}
+            className="font-medium text-foreground underline-offset-2 hover:underline"
+          >
+            Paketleri incele
+          </Link>
+        </div>
+      ) : null}
+
+      {activeReportView === "orders" && branchId != null && canUseRevenue && revenueQuery.isError ? (
+        <div className="rounded-2xl border border-[#e5e7eb] bg-white shadow-none dark:border-border dark:bg-card p-6 text-sm text-muted-foreground">
+          Sipariş raporu yüklenemedi. Yetkinizi ve menü sahipliğini kontrol edin.
+        </div>
+      ) : null}
+
+      {activeReportView === "orders" &&
+      branchId != null &&
+      canUseRevenue &&
+      !ordersLoading &&
+      !revenueQuery.isError &&
+      revenueQuery.data ? (
+        <OrdersPage revenue={revenueQuery.data} />
       ) : null}
 
       {activeReportView === "personnel" && branchId != null && !canUseRevenue ? (

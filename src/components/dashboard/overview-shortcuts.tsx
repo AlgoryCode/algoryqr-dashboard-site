@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import {
-  BellRing,
   BookOpen,
   Calculator,
   CalendarDays,
@@ -35,12 +34,6 @@ type OverviewTile = {
 };
 
 export const OPERATION_TILES: OverviewTile[] = [
-  {
-    title: "Sipariş Yönetimi",
-    href: DASHBOARD_ROUTES.waiter,
-    icon: BellRing,
-    requiredScope: "WAITER_PANEL_OWNER",
-  },
   {
     title: "Menülerim",
     href: () => resolveDigitalMenuMenusHref(),

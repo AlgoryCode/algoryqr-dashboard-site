@@ -16,6 +16,7 @@ import { useDashboardBanners } from "@/contexts/dashboard-banners";
 import { prefetchActivePackages } from "@/hooks/use-subscription";
 import {
   DASHBOARD_ROUTES,
+  isOrderPanelSectionActive,
   parseBranchDetailId,
   parseBranchSettingsId,
   parseRestaurantLayoutBranchId,
@@ -31,7 +32,6 @@ import BranchDetailView from "@/views/dashboard/BranchDetailView";
 import BranchSettingsView from "@/views/dashboard/BranchSettingsView";
 import DigitalMenuView from "@/views/dashboard/DigitalMenuView";
 import DigitalMenuMenusView from "@/views/dashboard/DigitalMenuMenusView";
-import OrderPanelView from "@/views/dashboard/OrderPanelView";
 import DigitalMenuCreateView from "@/views/dashboard/DigitalMenuCreateView";
 import DigitalMenuEditorView from "@/views/dashboard/DigitalMenuEditorView";
 import DigitalMenuSettingsView from "@/views/dashboard/DigitalMenuSettingsView";
@@ -77,9 +77,6 @@ import CampaignCreateView from "@/views/dashboard/CampaignCreateView";
 import CampaignDetailView from "@/views/dashboard/CampaignDetailView";
 import MenuUserDetailView from "@/views/dashboard/MenuUserDetailView";
 import MenuUsersView from "@/views/dashboard/MenuUsersView";
-import WaiterOrderDetailView from "@/views/dashboard/WaiterOrderDetailView";
-import WaiterOrdersView from "@/views/dashboard/WaiterOrdersView";
-import KitchenMonitorView from "@/views/dashboard/KitchenMonitorView";
 import AccountingView from "@/views/dashboard/AccountingView";
 
 interface DashboardPageClientProps {
@@ -95,6 +92,12 @@ export default function DashboardPageClient({ initialUser = null }: DashboardPag
   useEffect(() => {
     if (pathname === "/dashboard/dijital-menu/rezervasyonlar") {
       router.replace(DASHBOARD_ROUTES.reservations);
+    }
+  }, [pathname, router]);
+
+  useEffect(() => {
+    if (isOrderPanelSectionActive(pathname)) {
+      router.replace(DASHBOARD_ROUTES.overview);
     }
   }, [pathname, router]);
 
@@ -387,36 +390,8 @@ export default function DashboardPageClient({ initialUser = null }: DashboardPag
     );
   }
 
-  if (pathname === DASHBOARD_ROUTES.orderPanel) {
-    return <OrderPanelView />;
-  }
-
-  if (pathname === DASHBOARD_ROUTES.waiter) {
-    return (
-      <Suspense fallback={null}>
-        <WaiterOrdersView />
-      </Suspense>
-    );
-  }
-
-  if (pathname === DASHBOARD_ROUTES.kitchenMonitor) {
-    return (
-      <Suspense fallback={null}>
-        <KitchenMonitorView />
-      </Suspense>
-    );
-  }
-
-  const waiterOrderDetailPrefix = `${DASHBOARD_ROUTES.waiter}/`;
-  if (pathname.startsWith(waiterOrderDetailPrefix)) {
-    const orderId = Number(pathname.slice(waiterOrderDetailPrefix.length).split("/")[0]);
-    if (Number.isSafeInteger(orderId) && orderId > 0) {
-      return (
-        <Suspense fallback={null}>
-          <WaiterOrderDetailView orderId={orderId} />
-        </Suspense>
-      );
-    }
+  if (isOrderPanelSectionActive(pathname)) {
+    return null;
   }
 
   const menuUserDetailPrefix = `${DASHBOARD_ROUTES.menuUsers}/`;

@@ -781,16 +781,8 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
     );
   }
 
-  const returnTo = resolveSafeReturnUrl(searchParams.get("return"));
-  const orderManagementReturn =
-    returnTo === DASHBOARD_ROUTES.waiter ||
-    returnTo?.startsWith(`${DASHBOARD_ROUTES.waiter}?`) ||
-    returnTo?.startsWith(`${DASHBOARD_ROUTES.waiter}/`)
-      ? returnTo
-      : null;
   const backHref =
-    orderManagementReturn ??
-    (branchId != null ? DASHBOARD_ROUTES.branchSettings(branchId) : DASHBOARD_ROUTES.digitalMenu);
+    branchId != null ? DASHBOARD_ROUTES.branchSettings(branchId) : DASHBOARD_ROUTES.digitalMenu;
   const hasBranchMenus = branchId == null || (allowedQrIds?.length ?? 0) > 0;
 
   return (
@@ -801,13 +793,7 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
         back={
           <Link
             href={backHref}
-            aria-label={
-              orderManagementReturn
-                ? "Sipariş yönetimine dön"
-                : branchId != null
-                  ? "Şube ayarlarına dön"
-                  : "Menüye dön"
-            }
+            aria-label={branchId != null ? "Şube ayarlarına dön" : "Menüye dön"}
             className={DASHBOARD_BACK}
           >
             <ArrowLeft className="h-4 w-4" />

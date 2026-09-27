@@ -14,10 +14,9 @@ import { hasScope } from "@/lib/auth-user";
 
 export default function DashboardOverviewView() {
   const { data: accessProfile } = useAccessProfile();
-  const showOrders = hasScope(accessProfile, "WAITER_PANEL_OWNER");
   const showMenus = hasScope(accessProfile, "QR_MENU_OWNER");
   const stats = useOverviewOpsStats({
-    orders: showOrders,
+    orders: false,
     reservations: showMenus,
     menus: showMenus,
   });

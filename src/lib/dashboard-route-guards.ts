@@ -18,9 +18,6 @@ export function resolveRequiredScope(pathname: string): ProductScope | null {
   }
 
   if (
-    pathname === DASHBOARD_ROUTES.orderPanel ||
-    pathname === DASHBOARD_ROUTES.waiter ||
-    pathname.startsWith(`${DASHBOARD_ROUTES.waiter}/`) ||
     isRestaurantLayoutPath(pathname) ||
     pathMatches(pathname, DASHBOARD_ROUTES.menuUsers) ||
     pathMatches(pathname, DASHBOARD_ROUTES.menuCustomers)
@@ -58,8 +55,6 @@ export function resolveRequiredScope(pathname: string): ProductScope | null {
 
 export const ROUTE_SCOPES: Partial<Record<string, ProductScope>> = {
   [DASHBOARD_ROUTES.reportsHub]: "SMART_REPORTING_OWNER",
-  [DASHBOARD_ROUTES.orderPanel]: "WAITER_PANEL_OWNER",
-  [DASHBOARD_ROUTES.waiter]: "WAITER_PANEL_OWNER",
   [DASHBOARD_ROUTES.menuUsers]: "WAITER_PANEL_OWNER",
   [DASHBOARD_ROUTES.menuCustomers]: "WAITER_PANEL_OWNER",
   [DASHBOARD_ROUTES.campaigns]: "QR_MENU_OWNER",
