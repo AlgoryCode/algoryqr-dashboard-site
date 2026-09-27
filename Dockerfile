@@ -1,4 +1,8 @@
 # syntax=docker/dockerfile:1
+#
+# App configuration (API_BASE_URL, APP_URL, NEXT_PUBLIC_*, secrets) is NOT set here.
+# Define Build Environment + Runtime Environment in Coolify for this service.
+# NEXT_PUBLIC_* must be present at build time (Coolify → Build Variables).
 
 ARG TARGETPLATFORM=linux/amd64
 

@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { useMenuByQr } from "@/hooks/use-menu-by-qr";
 import { DASHBOARD_BACK, DASHBOARD_HUB_GRID } from "@/lib/dashboard-surface";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
-import { publicMenuContentPath } from "@/lib/public-menu-paths";
+import { resolvePublicMenuHref } from "@/lib/public-menu-href";
 
 type DigitalMenuEditorViewProps = {
   qrId: number;
@@ -56,9 +56,10 @@ export default function DigitalMenuEditorView({ qrId }: DigitalMenuEditorViewPro
   const { accessLoading, canUseDigitalMenu } = useDigitalMenuAccess();
   const menuQuery = useMenuByQr(qrId, canUseDigitalMenu);
   const menuName = menuQuery.data?.businessName?.trim() || "";
-  const menuHref =
-    menuQuery.data?.publicUrl?.trim() ||
-    (menuQuery.data?.publicId ? publicMenuContentPath(menuQuery.data.publicId) : "");
+  const menuHref = resolvePublicMenuHref({
+    publicUrl: menuQuery.data?.publicUrl,
+    publicId: menuQuery.data?.publicId,
+  });
   const backHref =
     menuQuery.data?.branchId != null
       ? DASHBOARD_ROUTES.branchDetail(menuQuery.data.branchId)
@@ -87,12 +88,14 @@ export default function DigitalMenuEditorView({ qrId }: DigitalMenuEditorViewPro
           </button>
         }
         action={
-          <Button asChild variant="outline" size="sm" className="h-8 shrink-0 gap-1.5">
-            <a href={menuHref} target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="h-3.5 w-3.5" />
-              Menüyü aç
-            </a>
-          </Button>
+          menuHref ? (
+            <Button asChild variant="outline" size="sm" className="h-8 shrink-0 gap-1.5">
+              <a href={menuHref} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-3.5 w-3.5" />
+                Menüyü aç
+              </a>
+            </Button>
+          ) : null
         }
       />
 

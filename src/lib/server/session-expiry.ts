@@ -17,7 +17,7 @@ export async function fetchCurrentSessionRefreshExpiresAt(
 ): Promise<number | undefined> {
   try {
     const userId = getUserIdFromAccessToken(accessToken);
-    const upstream = await axios.get<SessionPage>(`${API_BASE_URL}/auth/sessions`, {
+    const upstream = await axios.get<SessionPage>(`${API_BASE_URL}/account/sessions`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/json",

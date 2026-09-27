@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/table";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
-import { isBranchKitchenEnabled } from "@/lib/branch";
+import { isBranchCourierEnabled, isBranchKitchenEnabled } from "@/lib/branch";
 import {
   createMenuWaiter,
   listMenuUsers,
@@ -86,6 +86,7 @@ export default function MenuUsersView() {
     canUseWaiterPanel && !accessLoading,
   );
   const kitchenEnabled = isBranchKitchenEnabled(selection);
+  const courierEnabled = isBranchCourierEnabled(selection);
 
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -106,7 +107,10 @@ export default function MenuUsersView() {
         username: username.trim(),
         password,
         displayName: displayName.trim(),
-        staffRole: staffRole === "KITCHEN" && !kitchenEnabled ? "WAITER" : staffRole,
+        staffRole:
+          (staffRole === "KITCHEN" && !kitchenEnabled) || (staffRole === "COURIER" && !courierEnabled)
+            ? "WAITER"
+            : staffRole,
       }),
     onSuccess: async () => {
       setUsername("");
@@ -165,7 +169,12 @@ export default function MenuUsersView() {
             className="shrink-0 gap-1.5"
             disabled={!branchId}
             onClick={() => {
-              if (!kitchenEnabled && staffRole === "KITCHEN") setStaffRole("WAITER");
+              if (
+                (!kitchenEnabled && staffRole === "KITCHEN") ||
+                (!courierEnabled && staffRole === "COURIER")
+              ) {
+                setStaffRole("WAITER");
+              }
               setCreateOpen(true);
             }}
           >
@@ -298,9 +307,7 @@ export default function MenuUsersView() {
           <DialogHeader>
             <DialogTitle>Yeni kullanıcı</DialogTitle>
             <DialogDescription>
-              {kitchenEnabled
-                ? "Garson, mutfak veya kurye hesabı oluşturun. Giriş: kullanıcı adı + şifre."
-                : "Garson veya kurye hesabı oluşturun. Mutfak için şube ayarlarından mutfak ekleyin."}
+              {staffCreateHint(kitchenEnabled, courierEnabled)}
             </DialogDescription>
           </DialogHeader>
           <form
@@ -313,7 +320,7 @@ export default function MenuUsersView() {
           >
             <div className="space-y-1.5">
               <Label>Rol</Label>
-              <div className={kitchenEnabled ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-2"}>
+              <div className={roleGridClass(kitchenEnabled, courierEnabled)}>
                 <Button
                   type="button"
                   variant={staffRole === "WAITER" ? "default" : "outline"}
@@ -330,17 +337,24 @@ export default function MenuUsersView() {
                     Mutfak
                   </Button>
                 ) : null}
-                <Button
-                  type="button"
-                  variant={staffRole === "COURIER" ? "default" : "outline"}
-                  onClick={() => setStaffRole("COURIER")}
-                >
-                  Kurye
-                </Button>
+                {courierEnabled ? (
+                  <Button
+                    type="button"
+                    variant={staffRole === "COURIER" ? "default" : "outline"}
+                    onClick={() => setStaffRole("COURIER")}
+                  >
+                    Kurye
+                  </Button>
+                ) : null}
               </div>
               {!kitchenEnabled ? (
                 <p className="text-xs text-muted-foreground">
-                  Bu şubede mutfak kapalı. Mutfak hesabı için şube ayarlarından Mutfak ekle’yi kullanın.
+                  Bu şubede mutfak kapalı. Mutfak hesabı için şube bilgilerinden Mutfak’ı açın.
+                </p>
+              ) : null}
+              {!courierEnabled ? (
+                <p className="text-xs text-muted-foreground">
+                  Bu şubede kurye kapalı. Kurye hesabı için şube bilgilerinden Kurye’yi açın.
                 </p>
               ) : null}
             </div>
@@ -406,4 +420,24 @@ export default function MenuUsersView() {
       </Dialog>
     </div>
   );
+}
+
+function roleGridClass(kitchenEnabled: boolean, courierEnabled: boolean) {
+  const count = 1 + Number(kitchenEnabled) + Number(courierEnabled);
+  if (count >= 3) return "grid grid-cols-3 gap-2";
+  if (count === 2) return "grid grid-cols-2 gap-2";
+  return "grid grid-cols-1 gap-2";
+}
+
+function staffCreateHint(kitchenEnabled: boolean, courierEnabled: boolean) {
+  if (kitchenEnabled && courierEnabled) {
+    return "Garson, mutfak veya kurye hesabı oluşturun. Giriş: kullanıcı adı + şifre.";
+  }
+  if (kitchenEnabled) {
+    return "Garson veya mutfak hesabı oluşturun. Kurye için şube bilgilerinden Kurye’yi açın.";
+  }
+  if (courierEnabled) {
+    return "Garson veya kurye hesabı oluşturun. Mutfak için şube bilgilerinden Mutfak’ı açın.";
+  }
+  return "Garson hesabı oluşturun. Mutfak ve kurye için şube bilgilerinden açın.";
 }

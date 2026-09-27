@@ -79,6 +79,7 @@ function branchOverview(branch: {
   phone?: string | null;
   email?: string | null;
   kitchenEnabled?: boolean | null;
+  courierEnabled?: boolean | null;
 }): BranchOverview {
   return {
     photoUrl: branch.photoUrl ?? null,
@@ -87,6 +88,7 @@ function branchOverview(branch: {
     phone: branch.phone ?? null,
     email: branch.email ?? null,
     kitchenOn: Boolean(branch.kitchenEnabled),
+    courierOn: Boolean(branch.courierEnabled),
   };
 }
 

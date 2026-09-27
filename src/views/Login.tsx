@@ -368,8 +368,15 @@ const Login = () => {
 
               <form onSubmit={handleEmailLogin} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">E-posta</Label>
-                  <Input id="email" type="email" placeholder="ornek@email.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+                  <Label htmlFor="email">E-posta veya kullanıcı adı</Label>
+                  <Input
+                    id="email"
+                    type="text"
+                    autoComplete="username"
+                    placeholder="ornek@email.com veya kullanici_adi"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Şifre</Label>
@@ -395,11 +402,18 @@ const Login = () => {
           )}
 
           {!awaiting2FA && !awaitingEmailVerification && (
-            <p className="text-center text-xs text-muted-foreground">
-              Hesabınız yok mu?{" "}
-              <Link href={registerHref} className="text-primary hover:underline font-medium">
-                Kayıt Ol
-              </Link>
+            <p className="text-center text-xs text-muted-foreground space-y-1">
+              <span className="block">
+                Hesabınız yok mu?{" "}
+                <Link href={registerHref} className="text-primary hover:underline font-medium">
+                  Kayıt Ol
+                </Link>
+              </span>
+              <span className="block">
+                <Link href="/demo/register" className="text-primary hover:underline font-medium">
+                  Demo hesap oluştur
+                </Link>
+              </span>
             </p>
           )}
         </div>

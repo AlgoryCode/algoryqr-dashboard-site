@@ -1,7 +1,7 @@
 import { proxyAuthenticatedRequest } from "@/lib/server/authenticated-proxy";
 
 export function GET(request: Request) {
-  return proxyAuthenticatedRequest(request, "/billing/payment-methods", "GET");
+  return proxyAuthenticatedRequest(request, "/account/payment-methods", "GET");
 }
 
 export function POST(request: Request) {

@@ -1,37 +1,51 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Loader2, MoreHorizontal } from "lucide-react";
 
+import {
+  BranchReportPicker,
+  useBranchReportSelection,
+} from "@/components/dashboard/BranchReportPicker";
 import { DigitalMenuHubGate } from "@/components/dashboard/digital-menu/DigitalMenuHubGate";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { EmptyState } from "@/components/dashboard/EmptyState";
-import { FilterSelect } from "@/components/dashboard/FilterSelect";
-import { useListQueryState } from "@/hooks/use-list-query-state";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
-import { DASHBOARD_METRIC_LABEL, DASHBOARD_STAT_TILE, DASHBOARD_TYPE_KPI } from "@/lib/dashboard-surface";
 import {
-  DigitalMenuPicker,
-  useDigitalMenuSelection,
-} from "@/components/dashboard/menu/DigitalMenuPicker";
+  DASHBOARD_METRIC_LABEL,
+  DASHBOARD_PANEL,
+  DASHBOARD_STAT_TILE,
+  DASHBOARD_SURFACE,
+  DASHBOARD_TYPE_KPI,
+} from "@/lib/dashboard-surface";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
-import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
-import { BranchPicker, useBranchSelection } from "@/components/dashboard/BranchPicker";
 import {
   ApiError,
-  getMenuReservationsRequest,
   updateMenuReservationRequest,
   type MenuReservationApiItem,
   type MenuReservationStatus,
 } from "@/lib/api";
-import { flattenBranchMenus } from "@/lib/digital-menu-directory";
+import { listBranchReservations } from "@/lib/branch-reservations";
+import { cn } from "@/lib/utils";
 
 type StatusFilter = MenuReservationStatus | "all";
 
@@ -75,9 +89,9 @@ function statusLabel(status: MenuReservationStatus): string {
 function statusClass(status: MenuReservationStatus): string {
   switch (status) {
     case "PENDING":
-      return "bg-amber-500/15 text-amber-700";
+      return "bg-amber-500/15 text-amber-800 dark:text-amber-200";
     case "ACTIVE":
-      return "bg-emerald-500/15 text-emerald-700";
+      return "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200";
     case "CANCELED":
       return "bg-muted text-muted-foreground";
     default:
@@ -86,55 +100,45 @@ function statusClass(status: MenuReservationStatus): string {
 }
 
 function ReservationsPanel() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const qrFromQuery = Number(searchParams.get("qr"));
-  const initialQrId = Number.isFinite(qrFromQuery) && qrFromQuery > 0 ? qrFromQuery : null;
-  const initialBranchId = (() => {
+  const initialBranchId = useMemo(() => {
     const raw = Number(searchParams.get("branch"));
-    return Number.isFinite(raw) && raw > 0 ? raw : null;
-  })();
+    return Number.isSafeInteger(raw) && raw > 0 ? raw : null;
+  }, [searchParams]);
+  const initialQrId = useMemo(() => {
+    const raw = Number(searchParams.get("qr"));
+    return Number.isSafeInteger(raw) && raw > 0 ? raw : null;
+  }, [searchParams]);
+
   const { notify } = useDashboardBanners();
   const queryClient = useQueryClient();
 
-  const branch = useBranchSelection(initialBranchId);
-  const allowedQrIds = (branch.selection?.menus ?? []).map((m) => m.qrId);
-  const { menuQrs: allMenuQrs, selection, loading, error, selectQrId } = useDigitalMenuSelection(
+  const { branches, selection, branchId, loading, empty, select } = useBranchReportSelection(
+    initialBranchId,
     initialQrId,
-    true,
-    allowedQrIds,
   );
-  const menuQrs = allMenuQrs;
-  const { setQuery } = useListQueryState();
+  const branch = selection?.branch ?? null;
+  const menuNameById = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const menu of branch?.menus ?? []) {
+      map.set(menu.menuId, menu.businessName);
+    }
+    return map;
+  }, [branch?.menus]);
+  const showMenuColumn = (branch?.menus.length ?? 0) > 1;
 
-  const [status, setStatus] = useState<StatusFilter>(
-    () => (searchParams.get("status") as StatusFilter) || "all",
-  );
-  const [q, setQ] = useState(() => searchParams.get("q") ?? "");
-  const [debouncedQ, setDebouncedQ] = useState("");
-  const [range, setRange] = useState(() => ({
-    from: searchParams.get("from") ?? "",
-    to: searchParams.get("to") ?? "",
-  }));
+  const [status, setStatus] = useState<StatusFilter>("all");
   const [page, setPage] = useState(0);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
 
-  const menuId = selection?.menu.menuId ?? null;
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedQ(q.trim()), 250);
-    return () => window.clearTimeout(timer);
-  }, [q]);
-
   const listQuery = useQuery({
-    queryKey: ["menu-reservations", menuId, status, debouncedQ, range.from, range.to, page],
-    enabled: menuId != null,
+    queryKey: ["branch-reservations", branchId, status, page],
+    enabled: branch != null,
     queryFn: () =>
-      getMenuReservationsRequest(menuId!, {
+      listBranchReservations(branch!, {
         status,
-        q: debouncedQ || undefined,
-        from: range.from || undefined,
-        to: range.to || undefined,
         page,
         size: 20,
       }),
@@ -142,16 +146,17 @@ function ReservationsPanel() {
 
   const mutation = useMutation({
     mutationFn: async (payload: {
+      menuId: number;
       reservationId: number;
       status?: MenuReservationStatus;
       reservationAt?: string;
     }) =>
-      updateMenuReservationRequest(menuId!, payload.reservationId, {
+      updateMenuReservationRequest(payload.menuId, payload.reservationId, {
         status: payload.status,
         reservationAt: payload.reservationAt,
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["menu-reservations", menuId] });
+      await queryClient.invalidateQueries({ queryKey: ["branch-reservations", branchId] });
       setEditingId(null);
       notify("info", "Rezervasyon güncellendi.");
     },
@@ -163,368 +168,275 @@ function ReservationsPanel() {
   const items = listQuery.data?.content ?? [];
   const totalPages = listQuery.data?.totalPages ?? 0;
 
-  const counts = useMemo(() => {
-    const pending = items.filter((i) => i.status === "PENDING").length;
-    const active = items.filter((i) => i.status === "ACTIVE").length;
-    const canceled = items.filter((i) => i.status === "CANCELED").length;
-    return {
-      pending,
-      active,
-      canceled,
-      page: items.length,
-      total: listQuery.data?.totalElements ?? items.length,
-    };
-  }, [items, listQuery.data?.totalElements]);
+  const total = listQuery.data?.totalElements ?? items.length;
 
-  if (branch.loading || loading) {
-    return (
-      <div className="flex items-center justify-center py-20 text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin" />
-      </div>
-    );
-  }
-
-  const hasAnyMenus = flattenBranchMenus(branch.branches).length > 0;
-  const selectedBranchHasMenus = (branch.selection?.menus.length ?? 0) > 0;
-
-  const renderActions = (item: MenuReservationApiItem) => {
+  const renderRowActions = (item: MenuReservationApiItem) => {
     const busy = mutation.isPending;
+    if (editingId === item.id) {
+      return (
+        <div className="flex min-w-[14rem] flex-col gap-2">
+          <DateTimePicker className="h-9 w-full" value={editValue} onChange={setEditValue} />
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              disabled={busy || !editValue}
+              onClick={() =>
+                mutation.mutate({
+                  menuId: item.menuId,
+                  reservationId: item.id,
+                  reservationAt: fromLocalInputValue(editValue),
+                })
+              }
+            >
+              Kaydet
+            </Button>
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => setEditingId(null)}>
+              Vazgeç
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    if (item.status === "CANCELED") {
+      return <span className="text-xs text-muted-foreground">—</span>;
+    }
+
     return (
-      <div className="flex flex-wrap gap-2">
-        {item.status === "PENDING" ? (
-          <Button
-            size="sm"
-            disabled={busy}
-            onClick={() =>
-              mutation.mutate({ reservationId: item.id, status: "ACTIVE" })
-            }
-          >
-            Onayla
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-8 w-8" disabled={busy}>
+            <MoreHorizontal className="h-4 w-4" />
+            <span className="sr-only">İşlemler</span>
           </Button>
-        ) : null}
-        {item.status !== "CANCELED" ? (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={busy}
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {item.status === "PENDING" ? (
+            <DropdownMenuItem
+              onClick={() =>
+                mutation.mutate({ menuId: item.menuId, reservationId: item.id, status: "ACTIVE" })
+              }
+            >
+              Onayla
+            </DropdownMenuItem>
+          ) : null}
+          <DropdownMenuItem
             onClick={() =>
-              mutation.mutate({ reservationId: item.id, status: "CANCELED" })
+              mutation.mutate({ menuId: item.menuId, reservationId: item.id, status: "CANCELED" })
             }
           >
             İptal et
-          </Button>
-        ) : null}
-        {item.status !== "CANCELED" ? (
-          editingId === item.id ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <DateTimePicker
-                className="h-9 w-auto min-w-[12rem]"
-                value={editValue}
-                onChange={setEditValue}
-              />
-              <Button
-                size="sm"
-                disabled={busy || !editValue}
-                onClick={() =>
-                  mutation.mutate({
-                    reservationId: item.id,
-                    reservationAt: fromLocalInputValue(editValue),
-                  })
-                }
-              >
-                Kaydet
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={busy}
-                onClick={() => setEditingId(null)}
-              >
-                Vazgeç
-              </Button>
-            </div>
-          ) : (
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={busy}
-              onClick={() => {
-                setEditingId(item.id);
-                setEditValue(toLocalInputValue(item.reservationAt));
-              }}
-            >
-              Tarih/saat düzenle
-            </Button>
-          )
-        ) : null}
-      </div>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => {
+              setEditingId(item.id);
+              setEditValue(toLocalInputValue(item.reservationAt));
+            }}
+          >
+            Tarih/saat düzenle
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     );
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in pb-8">
       <DashboardPageHeader
         title="Rezervasyonlar"
-        hint="Onay bekleyen ve aktif rezervasyonları yönetin."
-        action={
-          <div className="flex items-center gap-2">
-            <BranchPicker
-              branches={branch.branches}
-              selectedBranchId={branch.branchId}
-              onSelect={(next) => {
-                branch.select(next);
-                setQuery({ branch: String(next) });
-              }}
-              disabled={branch.loading}
-            />
-            <DigitalMenuPicker
-              compact
-              menuQrs={menuQrs}
-              selectedQrId={selection?.qr.id ?? null}
-              onSelectQrId={(qrId) => {
-                setPage(0);
-                void selectQrId(qrId);
-              }}
-              disabled={!selectedBranchHasMenus}
-            />
-          </div>
-        }
+        hint="Şubeye göre rezervasyonları görüntüleyin ve yönetin."
       />
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
-
-      {branch.empty ? (
+      {empty ? (
         <EmptyState
-          title="Henüz şube yok"
-          description="Rezervasyonları yönetmek için önce bir şube oluşturun."
+          title="Şube gerekli"
+          description="Rezervasyonları görmek için önce bir şube oluşturun."
           action={
-            <Button asChild>
+            <Button asChild variant="outline">
               <Link href={DASHBOARD_ROUTES.branchCreate}>Şube oluştur</Link>
             </Button>
           }
         />
-      ) : !hasAnyMenus ? (
-        <EmptyState
-          title="Menü gerekli"
-          description="Rezervasyonları görmek için önce bir dijital menü yayınlayın."
-          action={
-            <Button asChild variant="outline">
-              <Link href={DASHBOARD_ROUTES.digitalMenuCreateForBranch(branch.branchId!)}>Bu şubeye menü ekle</Link>
-            </Button>
-          }
-        />
-      ) : !selectedBranchHasMenus ? (
-        <EmptyState
-          title="Bu şubede menü yok"
-          description="Rezervasyonları bu şubede yönetmek için bir menü ekleyin."
-          action={
-            <Button asChild variant="outline">
-              <Link href={DASHBOARD_ROUTES.digitalMenuCreateForBranch(branch.branchId!)}>Bu şubeye menü ekle</Link>
-            </Button>
-          }
-        />
-      ) : menuId == null ? (
-        <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Menü bilgisi yükleniyor…
-        </div>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setStatus("all");
+          <div className={`${DASHBOARD_PANEL} flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}>
+            <BranchReportPicker
+              branches={branches}
+              selectedBranchId={branchId}
+              showMenuFilter={false}
+              onBranchSelect={(nextBranchId) => {
                 setPage(0);
-              }}
-              className={DASHBOARD_STAT_TILE}
-            >
-              <p className={DASHBOARD_METRIC_LABEL}>Toplam</p>
-              <p className={DASHBOARD_TYPE_KPI}>{counts.total}</p>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setStatus("PENDING");
-                setPage(0);
-              }}
-              className={DASHBOARD_STAT_TILE}
-            >
-              <p className={DASHBOARD_METRIC_LABEL}>Bekleyen</p>
-              <p className={DASHBOARD_TYPE_KPI}>{counts.pending}</p>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setStatus("ACTIVE");
-                setPage(0);
-              }}
-              className={DASHBOARD_STAT_TILE}
-            >
-              <p className={DASHBOARD_METRIC_LABEL}>Aktif</p>
-              <p className={DASHBOARD_TYPE_KPI}>{counts.active}</p>
-            </button>
-          </div>
-
-          <div className="space-y-1.5">
-            <div className="flex h-2 overflow-hidden rounded-full bg-muted">
-              {counts.page === 0 ? null : (
-                <>
-                  <div
-                    className="h-full"
-                    style={{
-                      width: `${(counts.pending / counts.page) * 100}%`,
-                      backgroundColor: "hsl(var(--chart-orange))",
-                    }}
-                  />
-                  <div
-                    className="h-full"
-                    style={{
-                      width: `${(counts.active / counts.page) * 100}%`,
-                      backgroundColor: "hsl(var(--chart-green))",
-                    }}
-                  />
-                  <div
-                    className="h-full"
-                    style={{
-                      width: `${(counts.canceled / counts.page) * 100}%`,
-                      backgroundColor: "hsl(var(--chart-red))",
-                    }}
-                  />
-                </>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Bu listedeki dağılım · {counts.pending} bekleyen · {counts.active} aktif
-              {counts.canceled > 0 ? ` · ${counts.canceled} iptal` : ""}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-end gap-3">
-            <FilterSelect
-              className="w-[12rem]"
-              label="Durum"
-              value={status}
-              onValueChange={(next) => {
-                const value = next as StatusFilter;
-                setStatus(value);
-                setPage(0);
-                setQuery({ status: value === "all" ? null : value });
-              }}
-              options={[
-                { value: "all", label: "Tümü" },
-                { value: "PENDING", label: "Onay bekliyor" },
-                { value: "ACTIVE", label: "Aktif" },
-                { value: "CANCELED", label: "İptal" },
-              ]}
-            />
-            <DateRangeFilter
-              className="min-w-0 flex-1"
-              value={range}
-              onChange={(next) => {
-                setRange(next);
-                setPage(0);
-                setQuery({ from: next.from || null, to: next.to || null });
+                select(nextBranchId, null);
+                router.replace(DASHBOARD_ROUTES.reservationsForBranch(nextBranchId), {
+                  scroll: false,
+                });
               }}
             />
-            <div className="flex min-w-[200px] flex-1 flex-col gap-2">
-              <label className="text-xs leading-4 text-muted-foreground">Ara (ad / e-posta)</label>
-              <Input
-                value={q}
-                placeholder="Müşteri adı veya e-posta"
-                onChange={(e) => {
-                  const next = e.target.value;
-                  setQ(next);
-                  setPage(0);
-                  setQuery({ q: next.trim() || null });
-                }}
-              />
-            </div>
           </div>
 
-          {listQuery.isLoading ? (
+          {loading || branchId == null ? (
             <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Rezervasyonlar yükleniyor…
+              Şube bilgisi yükleniyor…
             </div>
-          ) : items.length === 0 ? (
+          ) : (branch?.menus.length ?? 0) === 0 ? (
             <EmptyState
-              title={status !== "all" || q.trim() || range.from || range.to ? "Filtrelere uyan rezervasyon yok" : "Henüz rezervasyon yok"}
-              description={
-                status !== "all" || q.trim() || range.from || range.to
-                  ? "Durum, tarih veya arama filtresini temizleyip tekrar deneyin."
-                  : "Müşteriler rezervasyon yaptığında burada görünür."
-              }
+              title="Menü gerekli"
+              description="Bu şubede dijital menü yok. Rezervasyonlar menü üzerinden alınır."
               action={
-                status !== "all" || q.trim() || range.from || range.to ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setStatus("all");
-                      setQ("");
-                      setRange({ from: "", to: "" });
-                      setPage(0);
-                      setQuery({ status: null, q: null, from: null, to: null });
-                    }}
-                  >
-                    Filtreleri temizle
-                  </Button>
-                ) : undefined
+                <Button asChild variant="outline">
+                  <Link href={DASHBOARD_ROUTES.digitalMenu}>Menü oluştur</Link>
+                </Button>
               }
             />
           ) : (
-            <div className="space-y-3">
-              {items.map((item) => (
-                <Card key={item.id}>
-                  <CardContent className="space-y-3 p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <p className="font-medium text-foreground">{item.customerName}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {item.phone || "—"} · {item.email || "—"}
-                        </p>
-                      </div>
-                      <span
-                        className={`rounded-md px-2 py-0.5 text-xs font-medium uppercase tracking-wide ${statusClass(item.status)}`}
-                      >
-                        {statusLabel(item.status)}
-                      </span>
-                    </div>
-                    <div className="grid gap-1 text-sm text-muted-foreground sm:grid-cols-2">
-                      <p>Zaman: {formatDateTime(item.reservationAt)}</p>
-                      <p>Kişi: {item.partySize}</p>
-                      {item.note ? <p className="sm:col-span-2">Not: {item.note}</p> : null}
-                    </div>
-                    {renderActions(item)}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+            <>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatus("all");
+                    setPage(0);
+                  }}
+                  className={cn(DASHBOARD_STAT_TILE, status === "all" && "ring-2 ring-primary/30")}
+                >
+                  <p className={DASHBOARD_METRIC_LABEL}>Toplam</p>
+                  <p className={DASHBOARD_TYPE_KPI}>{status === "all" ? total : "—"}</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatus("PENDING");
+                    setPage(0);
+                  }}
+                  className={cn(DASHBOARD_STAT_TILE, status === "PENDING" && "ring-2 ring-primary/30")}
+                >
+                  <p className={DASHBOARD_METRIC_LABEL}>Bekleyen</p>
+                  <p className={DASHBOARD_TYPE_KPI}>{status === "PENDING" ? total : "—"}</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatus("ACTIVE");
+                    setPage(0);
+                  }}
+                  className={cn(DASHBOARD_STAT_TILE, status === "ACTIVE" && "ring-2 ring-primary/30")}
+                >
+                  <p className={DASHBOARD_METRIC_LABEL}>Aktif</p>
+                  <p className={DASHBOARD_TYPE_KPI}>{status === "ACTIVE" ? total : "—"}</p>
+                </button>
+              </div>
 
-          {totalPages > 1 ? (
-            <div className="flex items-center justify-between gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page <= 0 || listQuery.isFetching}
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-              >
-                Önceki
-              </Button>
-              <p className="text-xs text-muted-foreground">
-                Sayfa {page + 1} / {totalPages}
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={!listQuery.data?.hasNext || listQuery.isFetching}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Sonraki
-              </Button>
-            </div>
-          ) : null}
+              {listQuery.isLoading ? (
+                <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Rezervasyonlar yükleniyor…
+                </div>
+              ) : listQuery.isError ? (
+                <p className="text-sm text-destructive">
+                  {listQuery.error instanceof Error
+                    ? listQuery.error.message
+                    : "Rezervasyonlar yüklenemedi."}
+                </p>
+              ) : items.length === 0 ? (
+                <EmptyState
+                  title={status !== "all" ? "Bu durumda rezervasyon yok" : "Henüz rezervasyon yok"}
+                  description={
+                    status !== "all"
+                      ? "Başka bir durum seçerek tekrar deneyin."
+                      : "Müşteriler rezervasyon yaptığında burada görünür."
+                  }
+                  action={
+                    status !== "all" ? (
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setStatus("all");
+                          setPage(0);
+                        }}
+                      >
+                        Tümünü göster
+                      </Button>
+                    ) : undefined
+                  }
+                />
+              ) : (
+                <div className={`${DASHBOARD_SURFACE} overflow-hidden`}>
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/40 hover:bg-muted/40">
+                        <TableHead className="h-10">Müşteri</TableHead>
+                        <TableHead className="h-10">İletişim</TableHead>
+                        <TableHead className="h-10">Tarih / saat</TableHead>
+                        <TableHead className="h-10 w-[4.5rem]">Kişi</TableHead>
+                        {showMenuColumn ? <TableHead className="h-10">Menü</TableHead> : null}
+                        <TableHead className="h-10">Durum</TableHead>
+                        <TableHead className="h-10">Not</TableHead>
+                        <TableHead className="h-10 w-[4rem] text-right">İşlem</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {items.map((item) => (
+                        <TableRow key={`${item.menuId}-${item.id}`}>
+                          <TableCell className="py-3 font-medium">{item.customerName}</TableCell>
+                          <TableCell className="max-w-[12rem] py-3 text-muted-foreground">
+                            <div className="truncate">{item.phone || "—"}</div>
+                            <div className="truncate text-xs">{item.email || "—"}</div>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap py-3 text-muted-foreground">
+                            {formatDateTime(item.reservationAt)}
+                          </TableCell>
+                          <TableCell className="py-3 tabular-nums text-muted-foreground">
+                            {item.partySize}
+                          </TableCell>
+                          {showMenuColumn ? (
+                            <TableCell className="max-w-[10rem] truncate py-3 text-muted-foreground">
+                              {menuNameById.get(item.menuId) ?? `Menü #${item.menuId}`}
+                            </TableCell>
+                          ) : null}
+                          <TableCell className="py-3">
+                            <span
+                              className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${statusClass(item.status)}`}
+                            >
+                              {statusLabel(item.status)}
+                            </span>
+                          </TableCell>
+                          <TableCell className="max-w-[14rem] truncate py-3 text-muted-foreground">
+                            {item.note?.trim() || "—"}
+                          </TableCell>
+                          <TableCell className="py-3 text-right">{renderRowActions(item)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+
+              {totalPages > 1 ? (
+                <div className="flex items-center justify-between gap-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page <= 0 || listQuery.isFetching}
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  >
+                    Önceki
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Sayfa {page + 1} / {totalPages}
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!listQuery.data?.hasNext || listQuery.isFetching}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    Sonraki
+                  </Button>
+                </div>
+              ) : null}
+            </>
+          )}
         </>
       )}
     </div>

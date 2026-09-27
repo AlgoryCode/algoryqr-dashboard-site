@@ -18,9 +18,14 @@ import { MenuChefProductActionSheet } from "./MenuChefProductActionSheet";
 type MenuChefProductCardProps = {
   item: ChefProductItem;
   onOpened?: () => void;
+  showProductId?: boolean;
 };
 
-export function MenuChefProductCard({ item, onOpened }: MenuChefProductCardProps) {
+export function MenuChefProductCard({
+  item,
+  onOpened,
+  showProductId = false,
+}: MenuChefProductCardProps) {
   const navigator = useMenuProductNavigatorOptional();
   const ordering = useOrderingOptional();
   const locale = useMenuLocaleOptional();
@@ -78,6 +83,11 @@ export function MenuChefProductCard({ item, onOpened }: MenuChefProductCardProps
               )}
             </div>
             <div className="flex min-h-[3.2rem] flex-col justify-between gap-1 px-2.5 pb-1.5 pt-2">
+              {showProductId ? (
+                <p className="text-[10px] font-medium tabular-nums text-[#8a9a93]">
+                  #{item.productId}
+                </p>
+              ) : null}
               <p className="line-clamp-2 text-[12.5px] font-semibold leading-snug tracking-[-0.01em] text-[#1c2824]">
                 {item.name}
               </p>

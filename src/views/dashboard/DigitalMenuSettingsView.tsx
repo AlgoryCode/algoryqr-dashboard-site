@@ -28,6 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
+import { resolvePublicMenuHref } from "@/lib/public-menu-href";
 import { invalidateMenuByQr, useMenuByQr } from "@/hooks/use-menu-by-qr";
 import { invalidatePackageUsage } from "@/hooks/use-package-usage";
 import { invalidateSubscription } from "@/hooks/use-subscription";
@@ -196,7 +197,10 @@ export default function DigitalMenuSettingsView({ qrId }: DigitalMenuSettingsVie
                       ? {
                           imgSrc: profile.qr?.imgSrc ?? null,
                           name: profile.qr?.name?.trim() || menu.businessName.trim() || "Menü QR",
-                          content: profile.publicUrl,
+                          content: resolvePublicMenuHref({
+                            publicUrl: profile.publicUrl,
+                            publicId: profile.publicId,
+                          }),
                         }
                       : null
                   }

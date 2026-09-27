@@ -11,7 +11,49 @@ import { formatBranchListLabel } from "@/lib/branch";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 
 const BRANCH_STORAGE_KEY = "algory_selected_report_branch_id";
+const MENU_QR_STORAGE_KEY = "algory_selected_report_menu_qr_id";
 const ALL_WAITERS_VALUE = "all";
+
+export function defaultMenuQrForBranch(branch: BranchItem): number | null {
+  const menus = branch.menus ?? [];
+  if (menus.length === 0) return null;
+  const active = menus.find((menu) => menu.active);
+  return (active ?? menus[0]).qrId;
+}
+
+export function preferredMenuQrForBranch(branch: BranchItem): number | null {
+  const stored = readStoredMenuQrId();
+  if (stored != null && branch.menus.some((menu) => menu.qrId === stored)) {
+    return stored;
+  }
+  return defaultMenuQrForBranch(branch);
+}
+
+function resolveMenuQr(branch: BranchItem, preferredQr: number | null): number | null {
+  if (preferredQr != null && branch.menus.some((menu) => menu.qrId === preferredQr)) {
+    return preferredQr;
+  }
+  const stored = readStoredMenuQrId();
+  if (stored != null && branch.menus.some((menu) => menu.qrId === stored)) {
+    return stored;
+  }
+  return defaultMenuQrForBranch(branch);
+}
+
+function readStoredMenuQrId(): number | null {
+  if (typeof window === "undefined") return null;
+  const raw = Number(window.sessionStorage.getItem(MENU_QR_STORAGE_KEY));
+  return Number.isSafeInteger(raw) && raw > 0 ? raw : null;
+}
+
+function writeStoredMenuQrId(qrId: number | null) {
+  if (typeof window === "undefined") return;
+  if (qrId == null) {
+    window.sessionStorage.removeItem(MENU_QR_STORAGE_KEY);
+    return;
+  }
+  window.sessionStorage.setItem(MENU_QR_STORAGE_KEY, String(qrId));
+}
 
 export type BranchReportSelection = {
   branch: BranchItem;
@@ -55,9 +97,11 @@ export function useBranchReportSelection(
       const branch = branches.find((item) => item.id === initialBranchId);
       if (branch) {
         setBranchId(branch.id);
-        const match = initialQrId != null && branch.menus.some((menu) => menu.qrId === initialQrId);
-        setQrId(match ? initialQrId : null);
+        const nextQr =
+          initialQrId != null ? resolveMenuQr(branch, initialQrId) : null;
+        setQrId(nextQr);
         writeStoredBranchId(branch.id);
+        if (nextQr != null) writeStoredMenuQrId(nextQr);
         return;
       }
     }
@@ -67,6 +111,7 @@ export function useBranchReportSelection(
         setBranchId(byQr.id);
         setQrId(initialQrId);
         writeStoredBranchId(byQr.id);
+        writeStoredMenuQrId(initialQrId);
         return;
       }
       void getMenuByQrIdRequest(initialQrId)
@@ -75,6 +120,7 @@ export function useBranchReportSelection(
             setBranchId(menu.branchId);
             setQrId(initialQrId);
             writeStoredBranchId(menu.branchId);
+            writeStoredMenuQrId(initialQrId);
           }
         })
         .catch(() => undefined);
@@ -84,9 +130,10 @@ export function useBranchReportSelection(
     const next =
       (stored != null && branches.some((item) => item.id === stored) ? stored : null) ??
       branches[0].id;
-    setBranchId(next);
+    const branch = branches.find((item) => item.id === next) ?? branches[0];
+    setBranchId(branch.id);
     setQrId(null);
-    writeStoredBranchId(next);
+    writeStoredBranchId(branch.id);
   }, [branches, branchesQuery.isLoading, enabled, initialBranchId, initialQrId]);
 
   const selectedBranch = useMemo(
@@ -108,6 +155,7 @@ export function useBranchReportSelection(
     setBranchId(nextBranchId);
     setQrId(nextQrId);
     writeStoredBranchId(nextBranchId);
+    writeStoredMenuQrId(nextQrId);
   }, []);
 
   return {
@@ -125,18 +173,26 @@ export function useBranchReportSelection(
 export function BranchReportPicker({
   branches,
   selectedBranchId,
+  selectedQrId,
   waiters,
   selectedWaiterId,
+  showMenuFilter = true,
   showWaiterFilter = false,
-  onSelect,
+  onBranchSelect,
+  onMenuSelect,
+  onWaiterSelect,
   disabled,
 }: {
   branches: BranchItem[];
   selectedBranchId: number | null;
+  selectedQrId?: number | null;
   waiters?: ReportWaiterOption[];
   selectedWaiterId?: number | null;
+  showMenuFilter?: boolean;
   showWaiterFilter?: boolean;
-  onSelect: (branchId: number, waiterId: number | null) => void;
+  onBranchSelect: (branchId: number) => void;
+  onMenuSelect?: (qrId: number) => void;
+  onWaiterSelect?: (waiterId: number | null) => void;
   disabled?: boolean;
 }) {
   if (branches.length === 0) {
@@ -148,6 +204,22 @@ export function BranchReportPicker({
       </div>
     );
   }
+
+  const selectedBranch = useMemo(
+    () =>
+      selectedBranchId != null
+        ? branches.find((item) => item.id === selectedBranchId) ?? null
+        : null,
+    [branches, selectedBranchId],
+  );
+  const menuOptions = useMemo(
+    () =>
+      (selectedBranch?.menus ?? []).map((menu) => ({
+        value: String(menu.qrId),
+        label: menu.businessName,
+      })),
+    [selectedBranch],
+  );
 
   const waiterOptions = [
     { value: ALL_WAITERS_VALUE, label: "Tüm personel" },
@@ -165,7 +237,7 @@ export function BranchReportPicker({
         value={selectedBranchId != null ? String(selectedBranchId) : ""}
         onValueChange={(next) => {
           const id = Number(next);
-          if (Number.isFinite(id) && id > 0) onSelect(id, null);
+          if (Number.isFinite(id) && id > 0) onBranchSelect(id);
         }}
         options={branches.map((item) => ({ value: String(item.id), label: formatBranchListLabel(item) }))}
         placeholder="Şube seçin"
@@ -173,17 +245,32 @@ export function BranchReportPicker({
         emptyText="Şube bulunamadı."
         disabled={disabled}
       />
+      {showMenuFilter && selectedBranchId != null && menuOptions.length > 0 ? (
+        <SearchableSelect
+          className="h-9 min-w-[12rem] max-w-xs text-xs"
+          value={selectedQrId != null ? String(selectedQrId) : menuOptions[0]?.value ?? ""}
+          onValueChange={(next) => {
+            const id = Number(next);
+            if (Number.isFinite(id) && id > 0) onMenuSelect?.(id);
+          }}
+          options={menuOptions}
+          placeholder="Menü seçin"
+          searchPlaceholder="Menü ara..."
+          emptyText="Menü bulunamadı."
+          disabled={disabled}
+        />
+      ) : null}
       {showWaiterFilter && selectedBranchId != null ? (
         <SearchableSelect
           className="h-9 min-w-[12rem] max-w-xs text-xs"
           value={selectedWaiterId != null ? String(selectedWaiterId) : ALL_WAITERS_VALUE}
           onValueChange={(next) => {
             if (next === ALL_WAITERS_VALUE) {
-              onSelect(selectedBranchId, null);
+              onWaiterSelect?.(null);
               return;
             }
             const id = Number(next);
-            if (Number.isFinite(id) && id > 0) onSelect(selectedBranchId, id);
+            if (Number.isFinite(id) && id > 0) onWaiterSelect?.(id);
           }}
           options={waiterOptions}
           placeholder="Tüm personel"

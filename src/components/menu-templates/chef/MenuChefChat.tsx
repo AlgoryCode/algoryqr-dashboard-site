@@ -20,6 +20,7 @@ import { useOrderingOptional } from "../shared";
 import { MenuChefProductCard } from "./MenuChefProductCard";
 import { MenuChefQuickBadges } from "./MenuChefQuickBadges";
 import { MenuChefSearchComplete } from "./MenuChefSearchComplete";
+import { useResolveChefChatProducts } from "./use-resolve-chef-chat-products";
 import { isSearchCompleteVisible, type SearchCompletePayload } from "@/lib/chef/search-complete";
 
 type MenuChefChatProps = {
@@ -174,6 +175,7 @@ function AssistantBubble({
   publicId,
   badgesDisabled,
   onBadgeSelect,
+  showProductIdOnCards,
 }: {
   msg: Extract<ChefChatMessage, { role: "assistant" }>;
   animateEnter: boolean;
@@ -185,6 +187,7 @@ function AssistantBubble({
   publicId: string;
   badgesDisabled: boolean;
   onBadgeSelect: (badge: ChefChatBadge) => void;
+  showProductIdOnCards: boolean;
 }) {
   const onEnteredRef = useRef(onEntered);
   onEnteredRef.current = onEntered;
@@ -260,7 +263,11 @@ function AssistantBubble({
                   delay: 0.12 + index * 0.05,
                 }}
               >
-                <MenuChefProductCard item={product} onOpened={onOpened} />
+                <MenuChefProductCard
+                  item={product}
+                  onOpened={onOpened}
+                  showProductId={showProductIdOnCards}
+                />
               </motion.div>
             ))}
           </motion.div>
@@ -352,6 +359,8 @@ export function MenuChefChat({
   onClose,
 }: MenuChefChatProps) {
   const ordering = useOrderingOptional();
+  const resolveChefChatProducts = useResolveChefChatProducts(publicId);
+  const showProductIdOnCards = isSearchCompleteVisible();
   const saved = getChefChatSession(publicId);
   const [messages, setMessages] = useState<ChefChatMessage[]>(
     () => saved?.messages ?? [CHEF_WELCOME_MESSAGE],
@@ -442,6 +451,7 @@ export function MenuChefChat({
         reply?: string;
         conversationId?: string;
         message?: string;
+        productIds?: number[];
         products?: ChefProductItem[];
         searchComplete?: SearchCompletePayload;
       };
@@ -460,7 +470,11 @@ export function MenuChefChat({
         return;
       }
       const reply = data.reply?.trim();
-      const products = Array.isArray(data.products) ? data.products : undefined;
+      const products = await resolveChefChatProducts({
+        productIds: data.productIds,
+        products: data.products,
+        searchComplete: data.searchComplete,
+      });
       setMessages((prev) => [
         ...prev,
         {
@@ -499,6 +513,7 @@ export function MenuChefChat({
       const data = (await res.json().catch(() => ({}))) as {
         reply?: string;
         message?: string;
+        productIds?: number[];
         products?: ChefProductItem[];
       };
       if (!res.ok) {
@@ -513,7 +528,10 @@ export function MenuChefChat({
         return;
       }
       const reply = data.reply?.trim();
-      const products = Array.isArray(data.products) ? data.products : undefined;
+      const products = await resolveChefChatProducts({
+        productIds: data.productIds,
+        products: data.products,
+      });
       setMessages((prev) => [
         ...prev,
         {
@@ -654,6 +672,7 @@ export function MenuChefChat({
                           onBadgeSelect={(badge) => {
                             void sendBadge(badge);
                           }}
+                          showProductIdOnCards={showProductIdOnCards}
                         />
                       );
                     }

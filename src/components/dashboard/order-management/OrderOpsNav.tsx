@@ -4,12 +4,20 @@ import { ExternalLink } from "lucide-react";
 
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 
-export function OrderAppLaunchers({ kitchenEnabled }: { kitchenEnabled: boolean }) {
+export function OrderAppLaunchers({
+  kitchenEnabled,
+  courierEnabled = true,
+}: {
+  kitchenEnabled: boolean;
+  courierEnabled?: boolean;
+}) {
   const apps = [
     kitchenEnabled
       ? { href: DASHBOARD_ROUTES.kitchenPanel, label: "Mutfak" }
       : null,
-    { href: DASHBOARD_ROUTES.courierPanel, label: "Kurye" },
+    courierEnabled
+      ? { href: DASHBOARD_ROUTES.courierPanel, label: "Kurye" }
+      : null,
     { href: DASHBOARD_ROUTES.waiterPanel, label: "Garson" },
   ].filter(Boolean) as { href: string; label: string }[];
 

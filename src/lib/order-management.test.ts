@@ -27,6 +27,7 @@ import {
   orderLocationLabel,
   orderManagementHomeHref,
   orderManagementPanelHref,
+  restaurantLayoutFromOrderManagementHref,
   orderStatusLabel,
   parseOrderManagementPanel,
   sortOrdersNewestFirst,
@@ -386,6 +387,32 @@ describe("earnings mix, top products and ops lanes", () => {
     expect(opsLaneForOrder(mix[0])).toBeNull();
   });
 
+  it("sends early statuses to waiter when kitchen is disabled", () => {
+    const preparing = order({
+      id: 21,
+      status: "PREPARING",
+      orderSource: "QR",
+      tableName: "Masa 9",
+    });
+    const confirmed = order({
+      id: 22,
+      status: "CONFIRMED",
+      orderSource: "WAITER",
+      tableName: "Masa 10",
+    });
+    expect(opsLaneForOrder(preparing, true)).toBe("kitchen");
+    expect(opsLaneForOrder(preparing, false)).toBe("waiter");
+    expect(opsLaneForOrder(confirmed, false)).toBe("waiter");
+
+    const lanesOff = groupOpsLaneOrders([preparing, confirmed], false);
+    expect(lanesOff.kitchen).toHaveLength(0);
+    expect(lanesOff.waiter.map((item) => item.id).sort()).toEqual([21, 22]);
+
+    const snapshotsOff = buildOpsLaneSnapshots([preparing, confirmed], false);
+    expect(snapshotsOff.kitchen.primary.count).toBe(0);
+    expect(snapshotsOff.waiter.primary.orders.map((item) => item.id).sort()).toEqual([21, 22]);
+  });
+
   it("counts dishes waiting and ready, waiter handoff, and courier delivery", () => {
     const tracked = [
       order({
@@ -548,5 +575,11 @@ describe("order management panel links", () => {
       "/dashboard/garson?qr=12&status=open",
     );
     expect(orderManagementHomeHref(new URLSearchParams("panel=online"))).toBe("/dashboard/garson");
+  });
+
+  it("sends restaurant layout back to the current order management screen", () => {
+    expect(restaurantLayoutFromOrderManagementHref("/dashboard/garson?qr=12")).toBe(
+      "/dashboard/dijital-menu/restaurant-layout?return=%2Fdashboard%2Fgarson%3Fqr%3D12",
+    );
   });
 });

@@ -18,6 +18,7 @@ export type BranchItem = {
   grandfathered: boolean;
   active: boolean;
   kitchenEnabled?: boolean;
+  courierEnabled?: boolean;
   printKitchenEnabled?: boolean;
   menus: BranchMenuSummary[];
 };
@@ -51,6 +52,7 @@ export type BranchWritePayload = {
   email?: string;
   active?: boolean;
   kitchenEnabled?: boolean;
+  courierEnabled?: boolean;
   printKitchenEnabled?: boolean;
 };
 
@@ -179,6 +181,10 @@ export function isBranchKitchenEnabled(branch?: Pick<BranchItem, "kitchenEnabled
   return Boolean(branch?.kitchenEnabled);
 }
 
+export function isBranchCourierEnabled(branch?: Pick<BranchItem, "courierEnabled"> | null) {
+  return Boolean(branch?.courierEnabled);
+}
+
 export function isBranchPrintKitchenEnabled(branch?: Pick<BranchItem, "printKitchenEnabled"> | null) {
   return Boolean(branch?.printKitchenEnabled);
 }
@@ -189,4 +195,8 @@ export function formatBranchListLabel(branch: Pick<BranchItem, "id" | "name">) {
 
 export function anyBranchHasKitchen(branches: Array<Pick<BranchItem, "kitchenEnabled">> | null | undefined) {
   return (branches ?? []).some((branch) => isBranchKitchenEnabled(branch));
+}
+
+export function anyBranchHasCourier(branches: Array<Pick<BranchItem, "courierEnabled">> | null | undefined) {
+  return (branches ?? []).some((branch) => isBranchCourierEnabled(branch));
 }

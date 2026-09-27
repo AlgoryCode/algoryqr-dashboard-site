@@ -11,7 +11,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { invalidateMyProfile, useMyProfile, MY_PROFILE_QUERY_KEY } from "@/hooks/use-my-profile";
+import { useMyProfile, MY_PROFILE_QUERY_KEY } from "@/hooks/use-my-profile";
+import {
+  activePurchaseFromOverview,
+  invalidateAccountOverview,
+  useAccountOverview,
+  useHydrateAccountOverviewCaches,
+} from "@/hooks/use-account-overview";
 import { useAccessProfile } from "@/hooks/use-access-profile";
 import type { MyProfile } from "@/hooks/use-my-profile";
 import {
@@ -31,8 +37,6 @@ import { ChangePasswordDialog } from "@/components/dashboard/ChangePasswordDialo
 import { ChangeEmailDialog } from "@/components/dashboard/ChangeEmailDialog";
 import { ApiError } from "@/lib/api";
 import { getStoredUser, setStoredUser } from "@/lib/api/storage";
-import { useUserSessions } from "@/hooks/use-user-sessions";
-import { useSubscription } from "@/hooks/use-subscription";
 import { formatDaysUntilExpiry } from "@/lib/package-display";
 import { hasScope, isGoogleAuthProvider } from "@/lib/auth-user";
 import { isDateUsablePurchase } from "@/lib/product-access";
@@ -63,7 +67,6 @@ interface SettingsTabProps {
   onNotify: (type: "info" | "warning" | "danger", message: string) => void;
 }
 
-const PREVIEW_SESSION_LIMIT = 50;
 const ACCOUNT_MENU_LABEL = "px-1 text-[11px] font-medium uppercase tracking-[0.16em] text-[#8a8a86]";
 const ACCOUNT_MENU_ROW =
   "flex w-full items-center px-4 py-3.5 text-left text-sm font-medium text-zinc-900 transition-colors hover:bg-[#fafafa]";
@@ -114,9 +117,10 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
   const router = useRouter();
   const pathname = usePathname();
   const queryClient = useQueryClient();
+  const { data: accountOverview, isLoading: accountOverviewLoading } = useAccountOverview();
+  useHydrateAccountOverviewCaches(queryClient, accountOverview);
   const { data: myProfile, isLoading: myProfileLoading, isError: myProfileError } = useMyProfile();
   const { data: accessProfile } = useAccessProfile();
-  const subscription = useSubscription();
   const isGoogleAccount = isGoogleAuthProvider(accessProfile?.provider);
   const [page, setPage] = useState<SettingsPage>("main");
   const view: SettingsView =
@@ -154,12 +158,18 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
   const [weeklyReport, setWeeklyReport] = useState(false);
   const [marketingEmails, setMarketingEmails] = useState(false);
   const [notificationsSaving, setNotificationsSaving] = useState(false);
-  const {
-    sessions: previewSessions,
-    loading: sessionsLoading,
-    error: sessionsError,
-  } = useUserSessions(view === "security", { page: 0, size: PREVIEW_SESSION_LIMIT });
-  const currentSession = previewSessions.find((session) => session.current) ?? null;
+  const sessionsSection = accountOverview?.sessions;
+  const sessionsLoading = accountOverviewLoading;
+  const sessionsError =
+    sessionsSection && !sessionsSection.ok
+      ? sessionsSection.message ?? "Oturumlar yüklenemedi."
+      : null;
+  const currentSession =
+    sessionsSection?.ok
+      ? sessionsSection.data.openSessions.find((session) => session.current) ??
+        sessionsSection.data.page.content.find((session) => session.current) ??
+        null
+      : null;
 
   const fetchTokenExp = useCallback(() => {
     setTokenLoading(true);
@@ -332,7 +342,7 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
         lastName,
         phoneNumber: phone,
       });
-      await invalidateMyProfile(queryClient);
+      await invalidateAccountOverview(queryClient);
       onNotify("info", "Profil bilgileriniz güncellendi.");
     } catch (e) {
       const msg =
@@ -355,7 +365,7 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
         notifyMarketingEmails: marketingEmails,
         notifyPushBrowser: myProfile?.notifyPushBrowser ?? false,
       });
-      await invalidateMyProfile(queryClient);
+      await invalidateAccountOverview(queryClient);
       onNotify("info", "Bildirim tercihleri kaydedildi.");
     } catch (e) {
       const msg =
@@ -451,7 +461,7 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
     try {
       await authService.disableTwoFactor(code);
       setTotpDisableCode("");
-      await invalidateMyProfile(queryClient);
+      await invalidateAccountOverview(queryClient);
       onNotify("info", "İki adımlı doğrulama kapatıldı.");
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : "2FA kapatılamadı.";
@@ -475,7 +485,7 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
     try {
       await authService.activateTwoFactor(code);
       clearTwoFactorQr();
-      await invalidateMyProfile(queryClient);
+      await invalidateAccountOverview(queryClient);
       onNotify("info", "İki adımlı doğrulama etkinleştirildi.");
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : "Kod doğrulanamadı.";
@@ -503,7 +513,7 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
   );
 
   if (view === "main") {
-    const active = subscription.data?.activePurchase;
+    const active = activePurchaseFromOverview(accountOverview);
     const isActiveTrial =
       !!active &&
       active.purchaseType === "TRIAL" &&
@@ -563,7 +573,7 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
       <div className="mx-auto w-full max-w-lg space-y-8 animate-fade-in">
         <div className="flex items-center gap-4 px-1">
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#f3f3f1] text-sm font-semibold text-zinc-700">
-            {myProfileLoading ? "…" : initials || "•"}
+            {myProfileLoading && accountOverviewLoading ? "…" : initials || "•"}
           </div>
           <div className="min-w-0">
             <p className="truncate text-base font-semibold text-zinc-950">{displayName}</p>

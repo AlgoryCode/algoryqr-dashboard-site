@@ -1,9 +1,14 @@
 import type { PublicMenuApiResponse } from "@/lib/api";
-import { buildPublicMenuUpstreamUrl } from "@/lib/public-menu-server-cache";
 import { permanentRedirect } from "next/navigation";
 import { buildPublicMenuContentPath } from "@/lib/public-menu-paths";
 
 const MENU_OWNER_PACKAGE_INACTIVE = "MENU_OWNER_PACKAGE_INACTIVE";
+
+function appOriginForServerFetch(): string {
+  const fromEnv = process.env.APP_URL?.trim() || process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (fromEnv) return fromEnv.replace(/\/$/, "");
+  return `http://127.0.0.1:${process.env.PORT || 3000}`;
+}
 
 export type PublicMenuFetchResult =
   | { status: "ok"; data: PublicMenuApiResponse; publicId: string }
@@ -13,7 +18,7 @@ export type PublicMenuFetchResult =
 async function resolveLegacyQrPublicId(qrId: string): Promise<string | null> {
   try {
     const response = await fetch(
-      buildPublicMenuUpstreamUrl(`/menu/public/legacy-qr/${qrId}/public-id`),
+      `${appOriginForServerFetch()}/api/menu/public/legacy-qr/${encodeURIComponent(qrId)}/public-id`,
       { cache: "no-store" },
     );
     if (!response.ok) {
@@ -44,9 +49,10 @@ export async function fetchPublicMenu(
   }
 
   try {
-    const response = await fetch(buildPublicMenuUpstreamUrl(`/menu/public/${encodeURIComponent(trimmed)}`), {
-      cache: "no-store",
-    });
+    const response = await fetch(
+      `${appOriginForServerFetch()}/api/menu/public/${encodeURIComponent(trimmed)}`,
+      { cache: "no-store" },
+    );
 
     if (response.status === 403) {
       const body = (await response.json().catch(() => ({}))) as { code?: string };

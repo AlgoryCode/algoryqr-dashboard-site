@@ -6,16 +6,21 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
-import { BranchReportPicker, useBranchReportSelection } from "@/components/dashboard/BranchReportPicker";
+import {
+  BranchReportPicker,
+  preferredMenuQrForBranch,
+  useBranchReportSelection,
+} from "@/components/dashboard/BranchReportPicker";
 import BranchReportDashboard from "@/components/dashboard/smart-report/BranchReportDashboard";
+import { MenuReportSection } from "@/components/dashboard/smart-report/MenuReportSection";
 import { OverviewPage } from "@/components/dashboard/smart-report/overview-layout";
-import TrafficSection from "@/components/dashboard/smart-report/TrafficSection";
 import AnalyticsWaiterPerformancePanel from "@/components/dashboard/AnalyticsWaiterPerformancePanel";
 import { useBranchAnalyticsReport } from "@/hooks/use-branch-analytics-report";
 import { useBranchRevenueReport } from "@/hooks/use-branch-revenue-report";
 import { useBranchWaiterPerformanceReport } from "@/hooks/use-branch-waiter-performance-report";
 import { useAccessProfile } from "@/hooks/use-access-profile";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
+import { DASHBOARD_BACK } from "@/lib/dashboard-surface";
 import { hasScope } from "@/lib/auth-user";
 import { SlidingTabSelect } from "@/components/ui/sliding-tab-select";
 import { listMenuUsers } from "@/lib/waiter-api";
@@ -47,7 +52,7 @@ function useTooltipStyle() {
   };
 }
 
-type ReportView = "overview" | "visits" | "revenue" | "personnel";
+type ReportView = "overview" | "menu" | "revenue" | "personnel";
 
 export default function AnalyticsTab() {
   const router = useRouter();
@@ -74,32 +79,39 @@ export default function AnalyticsTab() {
     branches,
     selection,
     branchId,
+    qrId,
+    menuId,
     loading: selectionLoading,
     empty: noBranches,
     select,
   } = useBranchReportSelection(initialBranchId, initialQrId);
   const range = useMemo(() => reportingPeriodRange(period), [period]);
+  const reportMenuId = activeReportView === "menu" ? menuId : null;
   const reportQuery = useBranchAnalyticsReport(
     branchId,
-    null,
+    reportMenuId,
     range.from,
     range.to,
-    branchId != null,
+    activeReportView === "menu"
+      ? branchId != null && menuId != null
+      : branchId != null &&
+          (activeReportView === "overview" || activeReportView === "revenue"),
   );
   const revenueQuery = useBranchRevenueReport(
     branchId,
-    null,
+    reportMenuId,
     range.from,
     range.to,
     canUseRevenue &&
       branchId != null &&
       (activeReportView === "overview" ||
         activeReportView === "revenue" ||
-        activeReportView === "personnel"),
+        activeReportView === "personnel" ||
+        (activeReportView === "menu" && menuId != null)),
   );
   const personnelQuery = useBranchWaiterPerformanceReport(
     branchId,
-    null,
+    reportMenuId,
     range.from,
     range.to,
     canUseRevenue && branchId != null && activeReportView === "personnel",
@@ -129,12 +141,42 @@ export default function AnalyticsTab() {
     selection?.menu?.qrId != null
       ? DASHBOARD_ROUTES.digitalMenuEdit(selection.menu.qrId)
       : pathname === DASHBOARD_ROUTES.reportsHub
-        ? null
+        ? DASHBOARD_ROUTES.overview
         : DASHBOARD_ROUTES.reportsHub;
+  const backLabel =
+    selection?.menu?.qrId != null
+      ? "Menüye dön"
+      : pathname === DASHBOARD_ROUTES.reportsHub
+        ? "Genel bakışa dön"
+        : "Raporlara dön";
 
   useEffect(() => {
     setWaiterId(null);
-  }, [branchId]);
+  }, [branchId, menuId]);
+
+  useEffect(() => {
+    if (branchId == null) return;
+    const urlBranch = searchParams.get("branch");
+    const urlQr = searchParams.get("qr");
+    if (activeReportView === "menu") {
+      if (qrId == null) return;
+      if (urlBranch === String(branchId) && urlQr === String(qrId)) return;
+      router.replace(DASHBOARD_ROUTES.digitalMenuAnalyticsForBranch(branchId, qrId), {
+        scroll: false,
+      });
+      return;
+    }
+    if (urlBranch === String(branchId) && urlQr == null) return;
+    router.replace(DASHBOARD_ROUTES.digitalMenuAnalyticsForBranch(branchId), { scroll: false });
+  }, [activeReportView, branchId, qrId, router, searchParams]);
+
+  useEffect(() => {
+    if (activeReportView !== "menu" || branchId == null || qrId != null) return;
+    const branch = branches.find((item) => item.id === branchId);
+    if (!branch) return;
+    const nextQr = preferredMenuQrForBranch(branch);
+    if (nextQr != null) select(branchId, nextQr);
+  }, [activeReportView, branchId, branches, qrId, select]);
 
   useEffect(() => {
     if (waiterId == null) return;
@@ -143,11 +185,13 @@ export default function AnalyticsTab() {
     }
   }, [waiterId, waiterOptions]);
 
-  const visitLoading = selectionLoading || reportQuery.isLoading;
+  const menuLoading = selectionLoading || reportQuery.isLoading;
   const revenueLoading = selectionLoading || revenueQuery.isLoading;
   const personnelLoading = selectionLoading || personnelQuery.isLoading;
   const overviewLoading =
-    selectionLoading || reportQuery.isLoading || (canUseRevenue && revenueQuery.isLoading);
+    selectionLoading ||
+    reportQuery.isLoading ||
+    (canUseRevenue && revenueQuery.isLoading);
   const loading =
     activeReportView === "overview"
       ? overviewLoading
@@ -155,20 +199,16 @@ export default function AnalyticsTab() {
         ? revenueLoading
         : activeReportView === "personnel"
           ? personnelLoading
-          : visitLoading;
+          : menuLoading;
+  const menuOrderCount = revenueQuery.data?.kpis?.orderCount ?? null;
 
   return (
     <div className="min-w-0 space-y-6 animate-fade-in">
       <div className="sticky top-0 z-10 flex flex-col gap-4 bg-background/95 py-1 backdrop-blur sm:flex-row sm:items-end sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
-          {backHref ? (
-            <Link
-              href={backHref}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          ) : null}
+          <Link href={backHref} aria-label={backLabel} className={DASHBOARD_BACK}>
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
           <div className="min-w-0">
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">
               Raporlar
@@ -207,7 +247,7 @@ export default function AnalyticsTab() {
               }}
               items={[
                 { value: "overview", label: "Genel Bakış" },
-                { value: "visits", label: "Ürün & Ziyaret" },
+                { value: "menu", label: "Menü" },
                 ...(canUseRevenue ? [{ value: "revenue" as const, label: "Ciro" }] : []),
                 ...(canUseRevenue ? [{ value: "personnel" as const, label: "Personel" }] : []),
               ]}
@@ -216,21 +256,35 @@ export default function AnalyticsTab() {
             <BranchReportPicker
               branches={branches}
               selectedBranchId={branchId}
+              selectedQrId={qrId}
               waiters={waiterOptions}
               selectedWaiterId={waiterId}
+              showMenuFilter={activeReportView === "menu"}
               showWaiterFilter={activeReportView === "personnel"}
-              onSelect={(nextBranchId, nextWaiterId) => {
-                if (nextBranchId !== branchId) {
-                  select(nextBranchId, null);
-                  setWaiterId(null);
-                  router.replace(
-                    DASHBOARD_ROUTES.digitalMenuAnalyticsForBranch(nextBranchId),
-                    { scroll: false },
-                  );
-                  return;
-                }
-                setWaiterId(nextWaiterId);
+              onBranchSelect={(nextBranchId) => {
+                const branch = branches.find((item) => item.id === nextBranchId);
+                const nextQr =
+                  activeReportView === "menu" && branch
+                    ? preferredMenuQrForBranch(branch)
+                    : null;
+                select(nextBranchId, nextQr);
+                setWaiterId(null);
+                router.replace(
+                  activeReportView === "menu"
+                    ? DASHBOARD_ROUTES.digitalMenuAnalyticsForBranch(nextBranchId, nextQr)
+                    : DASHBOARD_ROUTES.digitalMenuAnalyticsForBranch(nextBranchId),
+                  { scroll: false },
+                );
               }}
+              onMenuSelect={(nextQrId) => {
+                if (branchId == null) return;
+                select(branchId, nextQrId);
+                router.replace(
+                  DASHBOARD_ROUTES.digitalMenuAnalyticsForBranch(branchId, nextQrId),
+                  { scroll: false },
+                );
+              }}
+              onWaiterSelect={setWaiterId}
             />
             <div className="flex justify-end">
               <SlidingTabSelect
@@ -250,9 +304,26 @@ export default function AnalyticsTab() {
         </div>
       )}
 
-      {branchId != null && loading ? (
+      {branchId != null &&
+      (activeReportView === "menu" ? menuId != null : true) &&
+      loading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin" />
+        </div>
+      ) : null}
+
+      {activeReportView === "menu" &&
+      branchId != null &&
+      menuId == null &&
+      !selectionLoading ? (
+        <div className="rounded-2xl border border-[#e5e7eb] bg-white shadow-none dark:border-border dark:bg-card p-6 text-sm text-muted-foreground">
+          Bu şubede raporlanacak menü yok.{" "}
+          <Link
+            href={DASHBOARD_ROUTES.digitalMenuCreateForBranch(branchId)}
+            className="font-medium text-foreground underline-offset-2 hover:underline"
+          >
+            Menü oluştur
+          </Link>
         </div>
       ) : null}
 
@@ -276,9 +347,9 @@ export default function AnalyticsTab() {
         />
       ) : null}
 
-      {activeReportView === "visits" && branchId != null && reportQuery.isError ? (
+      {activeReportView === "menu" && branchId != null && menuId != null && reportQuery.isError ? (
         <div className="rounded-2xl border border-[#e5e7eb] bg-white shadow-none dark:border-border dark:bg-card p-6 text-sm text-muted-foreground">
-          Rapor yüklenemedi. Yetkinizi ve menü sahipliğini kontrol edin.
+          Menü raporu yüklenemedi. Yetkinizi ve menü sahipliğini kontrol edin.
         </div>
       ) : null}
 
@@ -345,8 +416,13 @@ export default function AnalyticsTab() {
         )
       ) : null}
 
-      {activeReportView === "visits" && branchId != null && !visitLoading && !reportQuery.isError && report ? (
-        <TrafficSection visits={report} />
+      {activeReportView === "menu" &&
+      branchId != null &&
+      menuId != null &&
+      !menuLoading &&
+      !reportQuery.isError &&
+      report ? (
+        <MenuReportSection report={report} orderCount={menuOrderCount} />
       ) : null}
     </div>
   );
