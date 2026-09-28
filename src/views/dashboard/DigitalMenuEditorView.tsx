@@ -1,5 +1,6 @@
 "use client";
 
+import type { ComponentType } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -25,16 +26,17 @@ import {
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { resolvePublicMenuHref } from "@/lib/public-menu-href";
 import { cn } from "@/lib/utils";
-import type { LucideIcon } from "lucide-react";
 
 type DigitalMenuEditorViewProps = {
   qrId: number;
 };
 
+type MenuActionIcon = ComponentType<{ className?: string }>;
+
 const MENU_ACTIONS: Array<{
   key: string;
   title: string;
-  icon: LucideIcon;
+  icon: MenuActionIcon;
   href: (qrId: number) => string;
 }> = [
   {

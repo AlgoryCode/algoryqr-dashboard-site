@@ -37,7 +37,6 @@ import TrialReminderHeaderBadge from "@/components/dashboard/TrialReminderHeader
 import PackageAccessGate from "@/components/dashboard/PackageAccessGate";
 import { TrialReminderUiProvider } from "@/contexts/trial-reminder-ui";
 import { DashboardBreadcrumbs } from "@/components/dashboard/DashboardBreadcrumbs";
-import { SetupNextBanner } from "@/components/dashboard/SetupNextBanner";
 import {
   DashboardCommandPalette,
   useCommandPaletteHotkey,
@@ -435,7 +434,6 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
             {isOnlineBoard ? null : (
               <DashboardBreadcrumbs pathname={pathname} currentLabel={pageLabel} />
             )}
-            <SetupNextBanner />
             {children}
           </div>
         </main>
