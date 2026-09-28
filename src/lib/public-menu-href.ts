@@ -1,9 +1,20 @@
 import { MENU_APP_ORIGIN } from "@/lib/config";
 import { publicMenuContentPath } from "@/lib/public-menu-paths";
 
+/** Public menus live on the dashboard app; API may still return these hosts. */
+const LEGACY_MENU_HOSTS = new Set([
+  "qr.algorycode.com",
+  "www.qr.algorycode.com",
+  "stage.qr.algorycode.com",
+]);
+
+function isLegacyMenuHost(hostname: string): boolean {
+  return LEGACY_MENU_HOSTS.has(hostname.toLowerCase());
+}
+
 function shouldRewriteMenuOrigin(hostname: string): boolean {
   const host = hostname.toLowerCase();
-  return host === "localhost" || host === "127.0.0.1";
+  return host === "localhost" || host === "127.0.0.1" || isLegacyMenuHost(host);
 }
 
 function withContentPath(url: string): string {
@@ -13,9 +24,19 @@ function withContentPath(url: string): string {
   return trimmed;
 }
 
-/** Public menu host (qr.algorycode.com); separate from dashboard APP_URL. */
-function menuOriginForClient(): string {
+function configuredMenuOrigin(): string {
   const configured = MENU_APP_ORIGIN?.trim().replace(/\/$/, "") || "";
+  if (!configured) return "";
+  try {
+    if (isLegacyMenuHost(new URL(configured).hostname)) return "";
+  } catch {
+    return configured;
+  }
+  return configured;
+}
+
+function menuOriginForClient(): string {
+  const configured = configuredMenuOrigin();
   if (typeof window !== "undefined") {
     if (configured) return configured;
     return window.location.origin;
@@ -26,7 +47,7 @@ function menuOriginForClient(): string {
 function absoluteMenuHref(path: string): string {
   const normalized = path.startsWith("/") ? path : `/${path}`;
   if (typeof window === "undefined") {
-    const origin = MENU_APP_ORIGIN?.trim().replace(/\/$/, "");
+    const origin = configuredMenuOrigin();
     return origin ? `${origin}${normalized}` : normalized;
   }
   const origin = menuOriginForClient();
@@ -37,8 +58,8 @@ function absoluteMenuHref(path: string): string {
 }
 
 /**
- * Builds "Menüyü aç" href: keeps API qr.algorycode.com URLs, adds /content when needed.
- * Only rewrites localhost API URLs to MENU_APP_ORIGIN.
+ * Builds "Menüyü aç" href. Rewrites localhost and legacy qr.algorycode.com
+ * hosts to the dashboard menu origin, and appends /content when needed.
  */
 export function resolvePublicMenuHref(options: {
   publicUrl?: string | null;
