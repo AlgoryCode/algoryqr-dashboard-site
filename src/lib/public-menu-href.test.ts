@@ -1,8 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { resolvePublicMenuHref } from "@/lib/public-menu-href";
 
 describe("resolvePublicMenuHref", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("appends /content to dashboard menu URLs", () => {
     expect(
       resolvePublicMenuHref({
@@ -34,6 +38,16 @@ describe("resolvePublicMenuHref", () => {
     expect(
       resolvePublicMenuHref({
         publicUrl: "http://localhost:3000/menu/pub-1",
+        publicId: "pub-1",
+      }),
+    ).toBe("https://stage.dashboard.algorycode.com/menu/pub-1/content");
+  });
+
+  it("prefers NEXT_PUBLIC_MENU_APP_ORIGIN over baked localhost module default", () => {
+    vi.stubEnv("NEXT_PUBLIC_MENU_APP_ORIGIN", "https://stage.dashboard.algorycode.com");
+    expect(
+      resolvePublicMenuHref({
+        publicUrl: "https://stage.qr.algorycode.com/menu/pub-1",
         publicId: "pub-1",
       }),
     ).toBe("https://stage.dashboard.algorycode.com/menu/pub-1/content");

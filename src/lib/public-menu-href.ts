@@ -8,6 +8,9 @@ const LEGACY_MENU_HOSTS = new Set([
   "stage.qr.algorycode.com",
 ]);
 
+const STAGE_DASHBOARD_ORIGIN = "https://stage.dashboard.algorycode.com";
+const PROD_DASHBOARD_ORIGIN = "https://dashboard.algorycode.com";
+
 function isLegacyMenuHost(hostname: string): boolean {
   return LEGACY_MENU_HOSTS.has(hostname.toLowerCase());
 }
@@ -24,7 +27,20 @@ function withContentPath(url: string): string {
   return trimmed;
 }
 
-function configuredMenuOrigin(): string {
+function trimOrigin(origin: string): string {
+  return origin.trim().replace(/\/$/, "");
+}
+
+function isLocalDevOrigin(origin: string): boolean {
+  try {
+    const host = new URL(origin).hostname.toLowerCase();
+    return host === "localhost" || host === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+
+function originFromConfiguredModule(): string {
   const configured = MENU_APP_ORIGIN?.trim().replace(/\/$/, "") || "";
   if (!configured) return "";
   try {
@@ -32,28 +48,41 @@ function configuredMenuOrigin(): string {
   } catch {
     return configured;
   }
+  if (isLocalDevOrigin(configured)) return "";
   return configured;
 }
 
-function menuOriginForClient(): string {
-  const configured = configuredMenuOrigin();
-  if (typeof window !== "undefined") {
-    if (configured) return configured;
-    return window.location.origin;
+/**
+ * Origin for "Menüyü aç" links. On the client, only NEXT_PUBLIC_* is reliable at
+ * runtime; MENU_APP_ORIGIN is frozen from the Docker build. Hostname fallback covers
+ * stage/prod dashboard when build env was missing.
+ */
+function publicMenuLinkOrigin(): string {
+  const nextPublic = process.env.NEXT_PUBLIC_MENU_APP_ORIGIN?.trim();
+  if (nextPublic && !isLegacyMenuHost(new URL(nextPublic).hostname)) {
+    return trimOrigin(nextPublic);
   }
-  return configured;
+
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname.toLowerCase();
+    if (host === "stage.dashboard.algorycode.com") return STAGE_DASHBOARD_ORIGIN;
+    if (host === "dashboard.algorycode.com") return PROD_DASHBOARD_ORIGIN;
+  }
+
+  const fromModule = originFromConfiguredModule();
+  if (fromModule) return fromModule;
+
+  if (typeof window !== "undefined") {
+    return trimOrigin(window.location.origin);
+  }
+
+  return "";
 }
 
 function absoluteMenuHref(path: string): string {
   const normalized = path.startsWith("/") ? path : `/${path}`;
-  if (typeof window === "undefined") {
-    const origin = configuredMenuOrigin();
-    return origin ? `${origin}${normalized}` : normalized;
-  }
-  const origin = menuOriginForClient();
-  if (!origin || origin === window.location.origin) {
-    return normalized;
-  }
+  const origin = publicMenuLinkOrigin();
+  if (!origin) return normalized;
   return `${origin}${normalized}`;
 }
 
@@ -74,10 +103,10 @@ export function resolvePublicMenuHref(options: {
         const parsed = new URL(raw);
         if (shouldRewriteMenuOrigin(parsed.hostname)) {
           if (publicId) {
-            return `${menuOriginForClient()}${publicMenuContentPath(publicId)}`;
+            return absoluteMenuHref(publicMenuContentPath(publicId));
           }
           const path = withContentPath(`${parsed.pathname}${parsed.search}`);
-          return `${menuOriginForClient()}${path}`;
+          return absoluteMenuHref(path);
         }
         return withContentPath(raw);
       } catch {
