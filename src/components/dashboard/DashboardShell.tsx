@@ -393,22 +393,16 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
               </span>
             </Link>
             <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9"
-                onClick={() => setCommandOpen(true)}
-                aria-label="Ara"
-              >
-                <Search className="size-4" />
-              </Button>
-              <DashboardAssistantLauncher className="h-9 px-3" />
+              <DashboardAssistantLauncher iconOnly />
               <TrialReminderHeaderBadge compact />
             </div>
           </header>
 
-          <DashboardMobileNav items={mobileNavItems} pendingOrderCount={0} />
+          <DashboardMobileNav
+            items={mobileNavItems}
+            pendingOrderCount={0}
+            onOpenSearch={() => setCommandOpen(true)}
+          />
 
           <div className="hidden px-6 pt-3 lg:block">
             <div className="mx-auto flex w-full max-w-[560px] items-center gap-2.5">

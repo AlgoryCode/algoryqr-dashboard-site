@@ -29,7 +29,13 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { PrintAgentApiKeySection } from "@/components/dashboard/PrintAgentApiKeySection";
-import { ACCOUNT_CARD, ACCOUNT_SURFACE, DASHBOARD_BACK } from "@/lib/dashboard-surface";
+import {
+  ACCOUNT_CARD,
+  ACCOUNT_MENU_LABEL,
+  ACCOUNT_MENU_ROW,
+  ACCOUNT_SURFACE,
+  DASHBOARD_BACK,
+} from "@/lib/dashboard-surface";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { authService, type TwoFactorSetupPayload } from "@/lib/auth-service";
 import { copyTextToClipboard } from "@/components/dashboard/qr/qr-actions";
@@ -66,10 +72,6 @@ type SettingsMenuKey =
 interface SettingsTabProps {
   onNotify: (type: "info" | "warning" | "danger", message: string) => void;
 }
-
-const ACCOUNT_MENU_LABEL = "px-1 text-[11px] font-medium uppercase tracking-[0.16em] text-[#8a8a86]";
-const ACCOUNT_MENU_ROW =
-  "flex w-full items-center px-4 py-3.5 text-left text-sm font-medium text-zinc-900 transition-colors hover:bg-[#fafafa]";
 
 function formatCountdown(expiresAt: number): string {
   const now = Math.floor(Date.now() / 1000);

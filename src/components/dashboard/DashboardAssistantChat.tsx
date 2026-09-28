@@ -279,15 +279,17 @@ export function DashboardAssistantChat({ open, onOpenChange }: DashboardAssistan
 
 type DashboardAssistantLauncherProps = {
   className?: string;
+  iconOnly?: boolean;
 };
 
-export function DashboardAssistantLauncher({ className }: DashboardAssistantLauncherProps) {
+export function DashboardAssistantLauncher({ className, iconOnly }: DashboardAssistantLauncherProps) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <AskAssistantButton
         className={className}
-        aria-label="Asistana sor"
+        iconOnly={iconOnly}
+        aria-label="Asistana bir şey sor"
         onClick={() => setOpen(true)}
       />
       <DashboardAssistantChat open={open} onOpenChange={setOpen} />

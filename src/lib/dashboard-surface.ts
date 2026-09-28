@@ -8,6 +8,12 @@ export const DASHBOARD_SURFACE = ACCOUNT_CARD;
 
 export const ACCOUNT_SURFACE = ACCOUNT_CARD;
 
+export const ACCOUNT_MENU_LABEL =
+  "px-1 text-[11px] font-medium uppercase tracking-[0.16em] text-[#8a8a86]";
+
+export const ACCOUNT_MENU_ROW =
+  "flex w-full items-center px-4 py-3.5 text-left text-sm font-medium text-zinc-900 transition-colors hover:bg-[#fafafa]";
+
 export const DASHBOARD_TILE =
   `${DASHBOARD_SURFACE} p-4 transition-colors hover:bg-muted/40`;
 

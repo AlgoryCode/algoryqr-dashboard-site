@@ -12,6 +12,7 @@ import {
   Megaphone,
   Menu,
   QrCode,
+  Search,
   TrendingUp,
   User,
   UsersRound,
@@ -55,6 +56,7 @@ const NAV_ICONS: Record<DashboardNavKey, ComponentType<{ className?: string }>> 
 type DashboardMobileNavProps = {
   items: DashboardNavItem[];
   pendingOrderCount: number;
+  onOpenSearch?: () => void;
 };
 
 function tabClass(active: boolean) {
@@ -64,12 +66,13 @@ function tabClass(active: boolean) {
   );
 }
 
-export function DashboardMobileNav({ items, pendingOrderCount }: DashboardMobileNavProps) {
+export function DashboardMobileNav({ items, pendingOrderCount, onOpenSearch }: DashboardMobileNavProps) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
   const { primary, overflow } = splitMobileDashboardNav(items);
   const moreActive = overflow.some((item) => isDashboardNavActive(pathname, item.href, item.key));
-  const columns = overflow.length > 0 ? primary.length + 1 : primary.length;
+  const showMoreTab = overflow.length > 0 || Boolean(onOpenSearch);
+  const columns = showMoreTab ? primary.length + 1 : primary.length;
 
   return (
     <nav
@@ -98,7 +101,7 @@ export function DashboardMobileNav({ items, pendingOrderCount }: DashboardMobile
             </Link>
           );
         })}
-        {overflow.length > 0 ? (
+        {showMoreTab ? (
           <button type="button" className={tabClass(moreActive)} onClick={() => setMoreOpen(true)}>
             <Menu className="size-4" />
             <span>Daha fazla</span>
@@ -112,6 +115,22 @@ export function DashboardMobileNav({ items, pendingOrderCount }: DashboardMobile
             <SheetTitle>Daha fazla</SheetTitle>
           </SheetHeader>
           <div className="mt-4 grid gap-1">
+            {onOpenSearch ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setMoreOpen(false);
+                  onOpenSearch();
+                }}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+              >
+                <Search className="size-4 shrink-0" />
+                <span className="flex-1 text-left">Ara</span>
+              </button>
+            ) : null}
+            {onOpenSearch && overflow.length > 0 ? (
+              <div className="my-1 border-t border-border" role="presentation" />
+            ) : null}
             {overflow.map((item) => {
               const Icon = NAV_ICONS[item.key];
               const active = isDashboardNavActive(pathname, item.href, item.key);
