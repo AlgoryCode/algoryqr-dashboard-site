@@ -28,12 +28,24 @@ export type OrderItemResponse = {
 export type OrderStatus =
   | "DRAFT"
   | "SUBMITTED"
+  | "PENDING"
   | "CONFIRMED"
   | "PREPARING"
   | "READY"
   | "SERVED"
+  | "ON_THE_WAY"
+  | "DELIVERED"
   | "REJECTED"
   | "CANCELLED"
+  | "KITCHEN_PREPARING"
+  | "KITCHEN_PREPARED"
+  | "KITCHEN_DELIVERED_TO_WAITER"
+  | "KITCHEN_DELIVERED_TO_COURIER"
+  | "WAITER_TAKEN"
+  | "COURIER_TAKEN"
+  | "WAITER_DELIVERED_TO_CUSTOMER"
+  | "WAITER_DELIVERED_TO_COURIER"
+  | "COURIER_DELIVERED_TO_CUSTOMER"
   | string;
 
 /** Exact FE contract from qr-service OrderCampaignSummary.stampCardProgress */

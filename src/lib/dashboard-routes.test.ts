@@ -121,6 +121,13 @@ describe("kitchen monitor routes", () => {
     expect(DASHBOARD_ROUTES.courierPanel).toBe("http://localhost:3005/kurye");
     expect(DASHBOARD_ROUTES.courierLogin).toBe("http://localhost:3005/kurye/giris");
   });
+
+  it("opens owner kitchen and courier screens on the dashboard origin", () => {
+    expect(DASHBOARD_ROUTES.kitchenScreen(12)).toBe("/mutfak?branch=12");
+    expect(DASHBOARD_ROUTES.kitchenScreen()).toBe("/mutfak");
+    expect(DASHBOARD_ROUTES.courierScreen(12)).toBe("/kurye?branch=12");
+    expect(DASHBOARD_ROUTES.courierScreen(null)).toBe("/kurye");
+  });
 });
 
 describe("splitMobileDashboardNav", () => {

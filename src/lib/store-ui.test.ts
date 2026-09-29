@@ -20,49 +20,51 @@ describe("availableStoreOrderTransitions", () => {
   });
 
   it("sends a confirmed order to the kitchen", () => {
-    expect(availableStoreOrderTransitions("CONFIRMED", "DELIVERY").map((entry) => entry.label)).toEqual([
-      "Siparişi mutfağa gönder",
-      "İptal et",
+    expect(availableStoreOrderTransitions("CONFIRMED", "DELIVERY").map((entry) => entry.action)).toEqual([
+      "markKitchenPrepared",
+      "cancel",
     ]);
   });
 
-  it("drops dispatch for pickup orders", () => {
+  it("drops courier handoff for pickup orders", () => {
     expect(availableStoreOrderTransitions("READY", "PICKUP").map((entry) => entry.action)).not.toContain(
-      "dispatch",
+      "markKitchenDeliveredToCourier",
     );
     expect(availableStoreOrderTransitions("READY", "DELIVERY").map((entry) => entry.action)).toContain(
-      "dispatch",
+      "markKitchenDeliveredToCourier",
     );
   });
 
   it("uses courier handover as the last ready action for delivery", () => {
     expect(availableStoreOrderTransitions("READY", "DELIVERY").map((entry) => entry.action)).toEqual([
-      "dispatch",
+      "markKitchenDeliveredToCourier",
+      "markKitchenDeliveredToWaiter",
       "cancel",
     ]);
-    expect(availableStoreOrderTransitions("READY", "DELIVERY")[0]?.label).toBe("Kurye teslimi");
+    expect(availableStoreOrderTransitions("READY", "DELIVERY")[0]?.label).toBe("Kuryeye teslim et");
     expect(availableStoreOrderTransitions("READY", "PICKUP").map((entry) => entry.action)).toEqual([
-      "deliver",
+      "markKitchenDeliveredToWaiter",
       "cancel",
     ]);
   });
 
   it("builds kitchen-aligned merchant steps", () => {
     expect(storeKitchenFlowSteps("DELIVERY").map((step) => step.label)).toEqual([
-      "Onaylandı",
-      "Mutfakta",
-      "Hazır",
-      "Kurye teslimi",
-      "Teslim edildi",
+      "Mutfak hazırlıyor",
+      "Mutfak hazırladı",
+      "Mutfak kuryeye verdi",
+      "Kurye teslim aldı",
+      "Kurye müşteriye teslim etti",
     ]);
     expect(storeKitchenFlowSteps("PICKUP").map((step) => step.status)).toEqual([
-      "CONFIRMED",
-      "PREPARING",
-      "READY",
-      "DELIVERED",
+      "KITCHEN_PREPARING",
+      "KITCHEN_PREPARED",
+      "KITCHEN_DELIVERED_TO_WAITER",
+      "WAITER_TAKEN",
+      "WAITER_DELIVERED_TO_CUSTOMER",
     ]);
     expect(storeKitchenFlowIndex("PENDING", "DELIVERY")).toBe(-1);
-    expect(storeKitchenFlowIndex("PREPARING", "DELIVERY")).toBe(1);
+    expect(storeKitchenFlowIndex("PREPARING", "DELIVERY")).toBe(0);
     expect(storeKitchenFlowIndex("ON_THE_WAY", "DELIVERY")).toBe(3);
   });
 

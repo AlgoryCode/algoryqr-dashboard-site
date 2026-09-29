@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { getExpFromAccessToken, isoToEpochSeconds } from "@/lib/auth-user";
 import { authUrl } from "@/lib/config";
 import { setAuthCookies, setTokenExpiryCookies, setTwoFactorPendingCookie } from "@/lib/server/auth-cookies";
+import { applyPersonalDemoTrialCookie } from "@/lib/server/apply-demo-onboarding-cookies";
 import { clientContextHeaders } from "@/lib/server/client-headers";
 import { fetchCurrentSessionRefreshExpiresAt } from "@/lib/server/session-expiry";
 
@@ -108,6 +109,7 @@ export async function POST(req: Request) {
       typeof data.userId === "number" ? data.userId : undefined,
     );
     setTokenExpiryCookies(response, accessTokenExpiresAt, refreshTokenExpiresAt);
+    await applyPersonalDemoTrialCookie(response, typeof accessToken === "string" ? accessToken : undefined);
     return response;
   } catch {
     return NextResponse.json({ message: "Sunucu hatası" }, { status: 500 });

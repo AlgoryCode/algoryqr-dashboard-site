@@ -1,4 +1,5 @@
 import { isDeliveryOrder, orderLocationLabel, sortOrdersNewestFirst } from "@/lib/order-management";
+import { normalizeOrderStatus, waiterFlowColumn } from "@/lib/order-flow";
 import type { OrderResponse } from "@/lib/ordering-api";
 
 export type WaiterShiftBoard = {
@@ -26,19 +27,23 @@ export function filterWaiterShiftBoard(
 const RANK: Record<string, number> = {
   PENDING: 1,
   SUBMITTED: 2,
-  CONFIRMED: 3,
-  PREPARING: 4,
-  READY: 5,
-  SERVED: 6,
-  DELIVERED: 7,
+  KITCHEN_PREPARING: 3,
+  KITCHEN_PREPARED: 4,
+  KITCHEN_DELIVERED_TO_WAITER: 5,
+  KITCHEN_DELIVERED_TO_COURIER: 5,
+  WAITER_TAKEN: 6,
+  WAITER_DELIVERED_TO_CUSTOMER: 7,
+  WAITER_DELIVERED_TO_COURIER: 7,
+  COURIER_TAKEN: 7,
+  COURIER_DELIVERED_TO_CUSTOMER: 8,
 };
 
-function statusOf(order: OrderResponse): string {
-  return (order.status ?? "").trim().toUpperCase();
+function norm(status: string | null | undefined): string {
+  return normalizeOrderStatus(status);
 }
 
 function rankOf(order: OrderResponse): number {
-  return RANK[statusOf(order)] ?? 0;
+  return RANK[norm(order.status)] ?? 0;
 }
 
 /** Masa ve gel-al garsonun işi. Paket kuryede kalır. */
@@ -84,8 +89,7 @@ function bySubmittedAsc(orders: OrderResponse[]): OrderResponse[] {
 
 /**
  * Garson vardiyası:
- * onay (PENDING) → mutfak (SUBMITTED…PREPARING) → masaya götür (READY) → teslim edildi (SERVED/DELIVERED).
- * Aynı sipariş birden fazla listede gelse de en ileri durum kazanır; teslim edilmiş fiş açık işe dönmez.
+ * onay (PENDING) -> mutfak (KITCHEN_*) -> teslim al (WAITER_TAKEN) -> teslim et (WAITER_DELIVERED_TO_CUSTOMER).
  */
 export function groupWaiterShift(input: {
   pending?: OrderResponse[];
@@ -106,7 +110,7 @@ export function groupWaiterShift(input: {
   for (const order of input.servedNow ?? []) {
     if (!Number.isFinite(order.id)) continue;
     const current = merged.get(order.id);
-    const served = preferRicher(current ?? order, { ...order, status: "SERVED" });
+    const served = preferRicher(current ?? order, { ...order, status: "WAITER_TAKEN" });
     merged.set(order.id, served);
   }
 
@@ -117,11 +121,12 @@ export function groupWaiterShift(input: {
 
   for (const order of merged.values()) {
     if (dismissed.has(order.id)) continue;
-    const rank = rankOf(order);
-    if (rank <= 1) approve.push(order);
-    else if (rank <= 4) cooking.push(order);
-    else if (rank === 5) deliver.push(order);
-    else delivered.push(order);
+    const col = waiterFlowColumn(order.status);
+    if (col === "approve") approve.push(order);
+    else if (col === "cooking") cooking.push(order);
+    else if (col === "deliver") deliver.push(order);
+    else if (col === "delivered") delivered.push(order);
+    else if (rankOf(order) > 0) delivered.push(order);
   }
 
   return {
@@ -141,10 +146,6 @@ export type DeliveredTableGroup = {
 
 export type DeliveredTablePayment = "unpaid" | "paid";
 
-/**
- * Teslim edilen masa: açık hesap kırmızı, kapanmış hesap yeşil.
- * Adisyona bağlanmamış teslim kırmızı kalır; masa listesi gelmeden ödenmiş sayılmaz.
- */
 export function deliveredTablePayment(input: {
   tableId: number | null;
   orders: ReadonlyArray<{ billId?: number | null }>;
@@ -158,7 +159,7 @@ export function deliveredTablePayment(input: {
   return settled ? "paid" : "unpaid";
 }
 
-/** Açık adisyonu olan masalar. Hesap kapanana kadar ödeme alınmamış sayılır. */
+/** Açık adisyonu olan masalar. */
 export function tableIdsAwaitingPayment(
   tables: ReadonlyArray<{
     tableId: number;
@@ -213,13 +214,14 @@ export function rememberWaiterDelivery(
   orderId: number,
   servedAt = new Date().toISOString(),
 ): OrderResponse {
-  const base: OrderResponse = previous ?? updated ?? { id: orderId, status: "SERVED" };
+  const status = updated?.status || previous?.status || "WAITER_TAKEN";
+  const base: OrderResponse = previous ?? updated ?? { id: orderId, status };
   return preferRicher(
-    { ...base, id: orderId, status: "SERVED", servedAt: base.servedAt || servedAt },
+    { ...base, id: orderId, status, servedAt: base.servedAt || servedAt },
     {
       ...(updated ?? {}),
       id: orderId,
-      status: "SERVED",
+      status,
       servedAt: updated?.servedAt || base.servedAt || servedAt,
     },
   );

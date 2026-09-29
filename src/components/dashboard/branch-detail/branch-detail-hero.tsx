@@ -224,14 +224,24 @@ export function InfoCard({
                 </TooltipContent>
               </Tooltip>
             </div>
-            <span className="mt-1 flex items-center gap-2 text-sm text-foreground">
-              <Switch
-                checked={kitchenOn}
-                disabled={kitchenSaving}
-                onCheckedChange={(next) => void saveKitchen(next)}
-                aria-label="Mutfak"
-              />
-              {kitchenOn ? "Açık" : "Kapalı"}
+            <span className="mt-1 flex items-center justify-between gap-3 text-sm text-foreground">
+              <span className="flex items-center gap-2">
+                <Switch
+                  checked={kitchenOn}
+                  disabled={kitchenSaving}
+                  onCheckedChange={(next) => void saveKitchen(next)}
+                  aria-label="Mutfak"
+                />
+                {kitchenOn ? "Açık" : "Kapalı"}
+              </span>
+              <a
+                href={DASHBOARD_ROUTES.kitchenScreen(branchId)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 text-xs font-medium text-foreground underline-offset-2 hover:underline"
+              >
+                Mutfağa git
+              </a>
             </span>
           </div>
         </li>
@@ -255,14 +265,24 @@ export function InfoCard({
                 </TooltipContent>
               </Tooltip>
             </div>
-            <span className="mt-1 flex items-center gap-2 text-sm text-foreground">
-              <Switch
-                checked={courierOn}
-                disabled={courierSaving}
-                onCheckedChange={(next) => void saveCourier(next)}
-                aria-label="Kurye"
-              />
-              {courierOn ? "Açık" : "Kapalı"}
+            <span className="mt-1 flex items-center justify-between gap-3 text-sm text-foreground">
+              <span className="flex items-center gap-2">
+                <Switch
+                  checked={courierOn}
+                  disabled={courierSaving}
+                  onCheckedChange={(next) => void saveCourier(next)}
+                  aria-label="Kurye"
+                />
+                {courierOn ? "Açık" : "Kapalı"}
+              </span>
+              <a
+                href={DASHBOARD_ROUTES.courierScreen(branchId)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 text-xs font-medium text-foreground underline-offset-2 hover:underline"
+              >
+                Kurye ekranına git
+              </a>
             </span>
           </div>
         </li>

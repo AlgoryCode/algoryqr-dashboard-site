@@ -141,6 +141,7 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
   useTokenRefresh();
   const { data: accessProfile } = useAccessProfile();
   const accessSession = useAccessSession();
+  const userId = accessSession.data?.user?.userId ?? initialSession?.user?.userId;
   const hasAllowAccess = accessSession.data?.decision === "ALLOW";
   const visibleNavItems = useMemo(
     () =>

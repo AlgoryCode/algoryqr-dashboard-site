@@ -19,7 +19,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { readyOrdersToAutoServe } from "@/lib/bill-auto-serve";
+import { waiterCanCollectOnOrders } from "@/lib/order-flow";
 import { orderLocationLabel } from "@/lib/order-management";
 import type { OrderResponse } from "@/lib/ordering-api";
 import { billToReceipt, printReceiptInBrowser } from "@/lib/receipt-ticket";
@@ -27,8 +27,6 @@ import {
   closeWaiterBill,
   getWaiterBill,
   getWaiterOpenBill,
-  listWaiterReadyOrders,
-  markWaiterOrderServed,
   payWaiterBillItems,
   payWaiterBillShare,
   reverseWaiterBillPayment,
@@ -37,27 +35,11 @@ import {
   WaiterApiError,
 } from "@/lib/waiter-api";
 
-async function autoServeReadyOrders(
-  bill: WaiterBill,
-  currentOrder: OrderResponse | null,
-) {
-  try {
-    const ready = await listWaiterReadyOrders();
-    const candidates =
-      currentOrder?.status === "READY" && !ready.some((ticket) => ticket.id === currentOrder.id)
-        ? [...ready, currentOrder]
-        : ready;
-    const targets = readyOrdersToAutoServe(bill, candidates, currentOrder?.id ?? null);
-    await Promise.all(targets.map((ticket) => markWaiterOrderServed(ticket.id).catch(() => undefined)));
-  } catch {
-    // Payment already succeeded. A failed auto-serve leaves the ticket so it can still be tapped.
-  }
-}
-
 type SheetPanel = "bill" | "process";
 
 type StaffOrderBillSheetProps = {
   order: OrderResponse | null;
+  tableOrders?: OrderResponse[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onBillUpdated?: () => void;
@@ -67,6 +49,7 @@ type StaffOrderBillSheetProps = {
 
 export function StaffOrderBillSheet({
   order,
+  tableOrders,
   open,
   onOpenChange,
   onBillUpdated,
@@ -189,7 +172,6 @@ export function StaffOrderBillSheet({
       setReversingPaymentId(null);
       setCloseOpen(false);
       if (updated.status === "CLOSED") {
-        await autoServeReadyOrders(updated, order);
         onBillUpdated?.();
         return;
       }
@@ -210,7 +192,9 @@ export function StaffOrderBillSheet({
   const busy = billMutation.isPending;
   const remaining = Number(bill?.remainingTotal ?? bill?.totalAmount ?? 0);
   const closed = bill?.status === "CLOSED";
-  const canClose = bill?.status === "OPEN" && remaining > 0.009;
+  const paymentOrders = tableOrders?.length ? tableOrders : order ? [order] : [];
+  const canCollect = waiterCanCollectOnOrders(paymentOrders);
+  const canClose = canCollect && bill?.status === "OPEN" && remaining > 0.009;
   const payments = bill?.payments ?? [];
 
   function printBill() {
@@ -337,7 +321,7 @@ export function StaffOrderBillSheet({
                             {paidQty > 0 ? ` · ${unpaidQty} kalan` : null}
                           </p>
                         </div>
-                        {unpaidQty > 0 ? (
+                        {unpaidQty > 0 && canCollect ? (
                           <Button
                             type="button"
                             size="sm"
@@ -389,7 +373,11 @@ export function StaffOrderBillSheet({
                   <Printer />
                   Fiş yazdır
                 </Button>
-                {canClose ? (
+                {!canCollect && !closed ? (
+                  <p className="text-center text-sm text-amber-700">
+                    Garson siparişi teslim aldıktan sonra ödeme alınabilir.
+                  </p>
+                ) : canClose ? (
                   <Button type="button" className="w-full" disabled={busy} onClick={() => setCloseOpen(true)}>
                     Ödeme al · Tam kapat veya hesabı böl
                   </Button>

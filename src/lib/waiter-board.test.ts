@@ -20,7 +20,7 @@ describe("groupWaiterShift", () => {
     const served = Array.from({ length: 14 }, (_, index) =>
       order({
         id: 100 + index,
-        status: "SERVED",
+        status: "WAITER_DELIVERED_TO_CUSTOMER",
         orderSource: "QR",
         tableName: "masa-1",
         orderNumber: String(100 + index),
@@ -30,11 +30,11 @@ describe("groupWaiterShift", () => {
     const board = groupWaiterShift({
       pending: [order({ id: 1, status: "PENDING", orderSource: "QR", tableName: "masa-2" })],
       kitchen: [
-        order({ id: 2, status: "PREPARING", orderSource: "QR", tableName: "masa-3" }),
-        order({ id: 3, status: "READY", orderSource: "QR", tableName: "masa-4", items: [{ productId: 1, productName: "Çay", quantity: 1 }] }),
+        order({ id: 2, status: "KITCHEN_PREPARING", orderSource: "QR", tableName: "masa-3" }),
+        order({ id: 3, status: "KITCHEN_DELIVERED_TO_WAITER", orderSource: "QR", tableName: "masa-4", items: [{ productId: 1, productName: "Çay", quantity: 1 }] }),
         ...served,
       ],
-      ready: [order({ id: 3, status: "READY", orderSource: "QR", tableName: "masa-4" })],
+      ready: [order({ id: 3, status: "KITCHEN_DELIVERED_TO_WAITER", orderSource: "QR", tableName: "masa-4" })],
       today: served,
     });
 
@@ -49,9 +49,9 @@ describe("groupWaiterShift", () => {
   it("drops courier tickets and keeps counter pickup", () => {
     const board = groupWaiterShift({
       ready: [
-        order({ id: 1, status: "READY", orderSource: "STORE", deliveryType: "DELIVERY" }),
-        order({ id: 2, status: "READY", orderSource: "UBER_EATS" }),
-        order({ id: 3, status: "READY", orderSource: "STORE", deliveryType: "PICKUP", customerName: "Ali" }),
+        order({ id: 1, status: "KITCHEN_PREPARED", orderSource: "STORE", deliveryType: "DELIVERY" }),
+        order({ id: 2, status: "KITCHEN_PREPARED", orderSource: "UBER_EATS" }),
+        order({ id: 3, status: "KITCHEN_DELIVERED_TO_WAITER", orderSource: "STORE", deliveryType: "PICKUP", customerName: "Ali" }),
       ],
     });
     expect(board.deliver.map((item) => item.id)).toEqual([3]);
@@ -60,9 +60,9 @@ describe("groupWaiterShift", () => {
   it("lets the furthest status win when lists disagree", () => {
     const board = groupWaiterShift({
       pending: [order({ id: 8, status: "PENDING", orderSource: "QR", tableName: "masa-1" })],
-      kitchen: [order({ id: 8, status: "CONFIRMED", orderSource: "QR", tableName: "masa-1" })],
-      ready: [order({ id: 9, status: "READY", orderSource: "QR", tableName: "masa-2" })],
-      today: [order({ id: 9, status: "SERVED", orderSource: "QR", tableName: "masa-2", servedAt: "2026-09-27T04:10:00.000Z" })],
+      kitchen: [order({ id: 8, status: "KITCHEN_PREPARING", orderSource: "QR", tableName: "masa-1" })],
+      ready: [order({ id: 9, status: "KITCHEN_PREPARED", orderSource: "QR", tableName: "masa-2" })],
+      today: [order({ id: 9, status: "WAITER_DELIVERED_TO_CUSTOMER", orderSource: "QR", tableName: "masa-2", servedAt: "2026-09-27T04:10:00.000Z" })],
     });
     expect(board.approve).toHaveLength(0);
     expect(board.cooking.map((item) => item.id)).toEqual([8]);
@@ -73,20 +73,20 @@ describe("groupWaiterShift", () => {
   it("moves a ticket the waiter just handed over even if the lists still say ready", () => {
     const ready = order({
       id: 136,
-      status: "READY",
+      status: "KITCHEN_PREPARED",
       orderSource: "QR",
       tableName: "masa-1",
       items: [{ productId: 9, productName: "Keremacun", quantity: 2 }],
     });
-    const carried = rememberWaiterDelivery(ready, { id: 136, status: "SERVED", waiterName: "Ali" }, 136);
+    const carried = rememberWaiterDelivery(ready, { id: 136, status: "WAITER_TAKEN", waiterName: "Ali" }, 136);
     const board = groupWaiterShift({
       ready: [ready],
       servedNow: [carried],
     });
-    expect(board.deliver).toHaveLength(0);
-    expect(board.delivered[0]).toMatchObject({
+    expect(board.deliver.map((item) => item.id)).toEqual([136]);
+    expect(board.deliver[0]).toMatchObject({
       id: 136,
-      status: "SERVED",
+      status: "WAITER_TAKEN",
       tableName: "masa-1",
       waiterName: "Ali",
       items: [{ productId: 9, productName: "Keremacun", quantity: 2 }],
@@ -95,9 +95,9 @@ describe("groupWaiterShift", () => {
 
   it("stacks delivered tickets for the same table under one rectangle", () => {
     const groups = groupDeliveredTables([
-      order({ id: 143, status: "SERVED", orderSource: "QR", tableId: 20, tableName: "masa-1", orderNumber: "143" }),
-      order({ id: 142, status: "SERVED", orderSource: "QR", tableId: 20, tableName: "masa-1", orderNumber: "142" }),
-      order({ id: 9, status: "SERVED", orderSource: "QR", tableId: 21, tableName: "masa-2", orderNumber: "9" }),
+      order({ id: 143, status: "WAITER_DELIVERED_TO_CUSTOMER", orderSource: "QR", tableId: 20, tableName: "masa-1", orderNumber: "143" }),
+      order({ id: 142, status: "WAITER_DELIVERED_TO_CUSTOMER", orderSource: "QR", tableId: 20, tableName: "masa-1", orderNumber: "142" }),
+      order({ id: 9, status: "WAITER_DELIVERED_TO_CUSTOMER", orderSource: "QR", tableId: 21, tableName: "masa-2", orderNumber: "9" }),
     ]);
     expect(groups.map((group) => group.label)).toEqual(["masa-1", "masa-2"]);
     expect(groups[0]?.orders.map((item) => item.id)).toEqual([143, 142]);
@@ -107,7 +107,7 @@ describe("groupWaiterShift", () => {
   it("filters the shift board to one table", () => {
     const board = groupWaiterShift({
       pending: [order({ id: 1, status: "PENDING", tableId: 10, tableName: "masa-1" })],
-      ready: [order({ id: 2, status: "READY", tableId: 11, tableName: "masa-2" })],
+      ready: [order({ id: 2, status: "KITCHEN_DELIVERED_TO_WAITER", tableId: 11, tableName: "masa-2" })],
     });
     const filtered = filterWaiterShiftBoard(board, 10);
     expect(filtered.approve.map((item) => item.id)).toEqual([1]);
@@ -120,7 +120,7 @@ describe("groupWaiterShift", () => {
     expect(
       deliveredTablePayment({
         tableId: 68,
-        orders: [order({ id: 1, status: "SERVED", billId: 7 })],
+        orders: [order({ id: 1, status: "WAITER_TAKEN", billId: 7 })],
         awaitingPaymentIds: awaiting,
         tablesLoaded: true,
       }),
@@ -129,8 +129,8 @@ describe("groupWaiterShift", () => {
       deliveredTablePayment({
         tableId: 69,
         orders: [
-          order({ id: 144, status: "SERVED", billId: 18 }),
-          order({ id: 143, status: "SERVED", billId: 17 }),
+          order({ id: 144, status: "WAITER_TAKEN", billId: 18 }),
+          order({ id: 143, status: "WAITER_TAKEN", billId: 17 }),
         ],
         awaitingPaymentIds: awaiting,
         tablesLoaded: true,
@@ -139,7 +139,7 @@ describe("groupWaiterShift", () => {
     expect(
       deliveredTablePayment({
         tableId: 69,
-        orders: [order({ id: 145, status: "SERVED", billId: null })],
+        orders: [order({ id: 145, status: "WAITER_TAKEN", billId: null })],
         awaitingPaymentIds: awaiting,
         tablesLoaded: true,
       }),
@@ -147,7 +147,7 @@ describe("groupWaiterShift", () => {
     expect(
       deliveredTablePayment({
         tableId: 69,
-        orders: [order({ id: 144, status: "SERVED", billId: 18 })],
+        orders: [order({ id: 144, status: "WAITER_TAKEN", billId: 18 })],
         awaitingPaymentIds: awaiting,
         tablesLoaded: false,
       }),

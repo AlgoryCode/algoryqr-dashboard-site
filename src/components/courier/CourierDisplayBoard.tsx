@@ -52,9 +52,8 @@ type ColumnTone = {
 };
 
 const COLUMN_TONE: Record<CourierColumnId, ColumnTone> = {
-  PREPARING: { dot: "bg-amber-500", count: "bg-amber-500 text-white" },
-  READY: { dot: "bg-emerald-600", count: "bg-emerald-600 text-white" },
-  ON_THE_WAY: { dot: "bg-sky-600", count: "bg-sky-600 text-white" },
+  HANDOFF: { dot: "bg-emerald-600", count: "bg-emerald-600 text-white" },
+  TAKEN: { dot: "bg-sky-600", count: "bg-sky-600 text-white" },
   DELIVERED: { dot: "bg-emerald-700", count: "bg-emerald-700 text-white" },
 };
 
@@ -135,7 +134,7 @@ export function CourierDisplayBoard({
   const avgWait = waitMinutes.length
     ? Math.round((waitMinutes.reduce((sum, value) => sum + value, 0) / waitMinutes.length) * 10) / 10
     : null;
-  const activeCount = grouped.READY.length + grouped.ON_THE_WAY.length;
+  const activeCount = grouped.HANDOFF.length + grouped.TAKEN.length;
 
   if (loading) {
     return (
@@ -155,8 +154,8 @@ export function CourierDisplayBoard({
         <div className={cn("flex items-center justify-between gap-2 overflow-x-auto pb-1 text-xs", HIDE_SCROLLBAR)}>
           <div className="flex shrink-0 items-center gap-2">
             <MetricChip label="Aktif teslimat" value={String(activeCount)} />
-            <MetricChip label="Alınacak" value={String(grouped.READY.length)} dotClassName="bg-emerald-600" />
-            <MetricChip label="Yolda" value={String(grouped.ON_THE_WAY.length)} dotClassName="bg-sky-600" />
+            <MetricChip label="Alınacak" value={String(grouped.HANDOFF.length)} dotClassName="bg-emerald-600" />
+            <MetricChip label="Yolda" value={String(grouped.TAKEN.length)} dotClassName="bg-sky-600" />
             <MetricChip
               delayed={delayedOrders.length > 0}
               label="Gecikme Uyarısı"
@@ -240,7 +239,7 @@ export function CourierDisplayBoard({
               <CourierOrderCard
                 key={courierOrderKey(order)}
                 order={order}
-                columnId={courierColumnFor(order.status) ?? "READY"}
+                columnId={courierColumnFor(order.status) ?? "HANDOFF"}
                 {...cardProps}
               />
             ))
@@ -352,7 +351,7 @@ function CourierOrderCard({
   const elapsedTone =
     delayed
       ? "font-bold text-red-600"
-      : columnId === "READY" || columnId === "ON_THE_WAY"
+      : columnId === "HANDOFF" || columnId === "TAKEN"
         ? "font-bold text-amber-700"
         : "font-bold text-[#434656]";
 
@@ -389,7 +388,7 @@ function CourierOrderCard({
         <div className="mt-1 flex items-start gap-1 text-xs font-medium text-[#434656]">
           {columnId === "DELIVERED" ? (
             <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-700" />
-          ) : columnId === "ON_THE_WAY" ? (
+          ) : columnId === "TAKEN" ? (
             <Bike className="mt-0.5 h-3.5 w-3.5 shrink-0 text-black" />
           ) : (
             <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-black" />
@@ -427,14 +426,7 @@ function CourierOrderCard({
         ) : null}
       </div>
 
-      {columnId === "PREPARING" ? (
-        <div className="flex items-center justify-between border-t border-black/20 pt-2">
-          <span className="inline-flex items-center gap-1 rounded border border-amber-500 bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
-            <Timer className="h-3 w-3" />
-            Mutfakta hazırlanıyor
-          </span>
-        </div>
-      ) : columnId === "DELIVERED" ? (
+      {columnId === "DELIVERED" ? (
         <div className="flex items-center justify-end border-t border-black/20 pt-2">
           <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500">
             <ClipboardList className="h-3.5 w-3.5" />

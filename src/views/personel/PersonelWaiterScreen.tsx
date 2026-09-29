@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { ordersForStaffBranch } from "@/lib/branch-scope";
 import { formatBranchCode } from "@/lib/branch";
 import { formatKitchenElapsed } from "@/lib/kitchen-queue";
+import { orderFlowStatusLabel, waiterOrderActions, type OrderFlowAction } from "@/lib/order-flow";
 import { orderLocationLabel } from "@/lib/order-management";
 import type { OrderResponse } from "@/lib/ordering-api";
 import {
@@ -27,7 +28,9 @@ import {
   listWaiterReadyOrders,
   listWaiterTables,
   listWaiterTodayOrders,
-  markWaiterOrderPickedFromKitchen,
+  markWaiterDeliveredToCourier,
+  markWaiterDeliveredToCustomer,
+  markWaiterTaken,
   rejectWaiterOrder,
   STAFF_ROLE_LABEL,
   waiterLogout,
@@ -161,12 +164,14 @@ export function PersonelWaiterScreen({ me }: { me: WaiterMe }) {
   const action = useMutation({
     mutationFn: async (payload: {
       orderId: number;
-      kind: "confirm" | "reject" | "deliver";
+      kind: "confirm" | "reject" | OrderFlowAction;
       order?: OrderResponse;
     }) => {
-      if (payload.kind === "confirm") return confirmWaiterOrder(payload.orderId);
+      if (payload.kind === "confirm") return confirmWaiterOrder(payload.orderId, me.kitchenEnabled !== false);
       if (payload.kind === "reject") return rejectWaiterOrder(payload.orderId);
-      return markWaiterOrderPickedFromKitchen(payload.orderId);
+      if (payload.kind === "markWaiterTaken") return markWaiterTaken(payload.orderId);
+      if (payload.kind === "markWaiterDeliveredToCourier") return markWaiterDeliveredToCourier(payload.orderId);
+      return markWaiterDeliveredToCustomer(payload.orderId);
     },
     onSuccess: (updated, payload) => {
       if (payload.kind === "reject") {
@@ -174,7 +179,7 @@ export function PersonelWaiterScreen({ me }: { me: WaiterMe }) {
           current.includes(payload.orderId) ? current : [...current, payload.orderId],
         );
       }
-      if (payload.kind === "deliver") {
+      if (payload.kind === "markWaiterTaken" || payload.kind === "markWaiterDeliveredToCustomer" || payload.kind === "markWaiterDeliveredToCourier") {
         const ready = queryClient.getQueryData<OrderResponse[]>(["staff-waiter-ready"]) ?? [];
         const previous = payload.order ?? ready.find((order) => order.id === payload.orderId);
         const carried = rememberWaiterDelivery(previous, updated, payload.orderId);
@@ -263,7 +268,9 @@ export function PersonelWaiterScreen({ me }: { me: WaiterMe }) {
         confirmKind={action.variables?.kind === "confirm" ? action.variables.orderId : null}
         onConfirm={(order) => action.mutate({ orderId: order.id, kind: "confirm", order })}
         onReject={(order) => action.mutate({ orderId: order.id, kind: "reject", order })}
-        onDeliver={(order) => action.mutate({ orderId: order.id, kind: "deliver", order })}
+        kitchenEnabled={me.kitchenEnabled !== false}
+        courierEnabled={me.courierEnabled !== false}
+        onFlowAction={(order, kind) => action.mutate({ orderId: order.id, kind, order })}
       />
     ) : null;
 
@@ -465,6 +472,7 @@ export function PersonelWaiterScreen({ me }: { me: WaiterMe }) {
 
       <StaffOrderBillSheet
         order={billOrder}
+        tableOrders={processBoard.approve.concat(processBoard.cooking, processBoard.deliver, processBoard.delivered)}
         open={billOrder != null}
         processPanel={processPanel}
         onOpenChange={(next) => {
@@ -486,7 +494,9 @@ function WaiterProcessPanel({
   confirmKind,
   onConfirm,
   onReject,
-  onDeliver,
+  kitchenEnabled,
+  courierEnabled,
+  onFlowAction,
 }: {
   board: WaiterShiftBoard;
   error: string | null;
@@ -497,7 +507,9 @@ function WaiterProcessPanel({
   confirmKind: number | null | undefined;
   onConfirm: (order: OrderResponse) => void;
   onReject: (order: OrderResponse) => void;
-  onDeliver: (order: OrderResponse) => void;
+  kitchenEnabled: boolean;
+  courierEnabled: boolean;
+  onFlowAction: (order: OrderResponse, kind: OrderFlowAction) => void;
 }) {
   return (
     <div className="space-y-4">
@@ -509,8 +521,8 @@ function WaiterProcessPanel({
         <FlowStep step="2" title="Mutfak" detail="Hazırlanıyor" count={board.cooking.length} compact />
         <FlowStep
           step="3"
-          title="Masaya götür"
-          detail="Hazır bekliyor"
+          title="Teslim al"
+          detail="Mutfaktan alındı"
           count={board.deliver.length}
           emphasis
           compact
@@ -548,14 +560,14 @@ function WaiterProcessPanel({
           orders={board.cooking}
           loading={kitchenLoading}
           renderMeta={(order) => (
-            <p className="text-xs text-muted-foreground">{cookingStatusLabel(order.status)}</p>
+            <p className="text-xs text-muted-foreground">{orderFlowStatusLabel(order.status)}</p>
           )}
           renderActions={() => null}
         />
         <OrderLane
           compact
-          title="Masaya götür"
-          empty="Bu masada hazır sipariş yok."
+          title="Teslim al"
+          empty="Bu masada teslim alınacak sipariş yok."
           orders={board.deliver}
           loading={readyLoading}
           emphasis
@@ -563,12 +575,27 @@ function WaiterProcessPanel({
             const elapsed = formatKitchenElapsed(order.readyAt || order.submittedAt || order.createdAt);
             return elapsed ? (
               <p className="text-xs font-medium text-amber-700">{elapsed} hazır bekliyor</p>
-            ) : null;
+            ) : (
+              <p className="text-xs text-muted-foreground">{orderFlowStatusLabel(order.status)}</p>
+            );
           }}
           renderActions={(order) => (
-            <Button size="sm" disabled={busyOrderId === order.id} onClick={() => onDeliver(order)}>
-              {busyOrderId === order.id ? "Teslim ediliyor…" : "Müşteriye teslim ettim"}
-            </Button>
+            <>
+              {waiterOrderActions(order.status, {
+                kitchenEnabled,
+                courierEnabled,
+                delivery: (order.deliveryType ?? "").toUpperCase() === "DELIVERY",
+              }).map((step) => (
+                <Button
+                  key={step.action}
+                  size="sm"
+                  disabled={busyOrderId === order.id}
+                  onClick={() => onFlowAction(order, step.action)}
+                >
+                  {busyOrderId === order.id ? "Kaydediliyor…" : step.label}
+                </Button>
+              ))}
+            </>
           )}
         />
         <OrderLane
@@ -732,17 +759,9 @@ function tableStatusLabel(table: WaiterTableSummary): string {
 function orderFromTable(table: WaiterTableSummary): OrderResponse {
   return {
     id: table.latestPendingOrderId ?? table.openBillId ?? table.tableId,
-    status: "SERVED",
+    status: "WAITER_TAKEN",
     tableId: table.tableId,
     tableName: table.tableName ?? null,
     billId: table.openBillId ?? null,
   };
-}
-
-function cookingStatusLabel(status: string): string {
-  const normalized = status.trim().toUpperCase();
-  if (normalized === "PREPARING") return "Hazırlanıyor";
-  if (normalized === "CONFIRMED") return "Onaylandı";
-  if (normalized === "SUBMITTED") return "Mutfağa iletildi";
-  return status;
 }

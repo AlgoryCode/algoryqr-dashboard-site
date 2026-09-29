@@ -9,8 +9,8 @@ import { formatBranchCode } from "@/lib/branch";
 import type { CourierTicket } from "@/lib/store-courier";
 import {
   listCourierQueue,
-  markCourierDelivered,
-  markCourierDispatch,
+  markCourierDeliveredToCustomer,
+  markCourierTaken,
   WaiterApiError,
 } from "@/lib/waiter-api";
 
@@ -37,8 +37,8 @@ export default function StaffCourierView() {
 
   const action = useMutation({
     mutationFn: async (payload: { orderId: number; kind: "dispatch" | "deliver" }) => {
-      if (payload.kind === "dispatch") return markCourierDispatch(payload.orderId);
-      return markCourierDelivered(payload.orderId);
+      if (payload.kind === "dispatch") return markCourierTaken(payload.orderId);
+      return markCourierDeliveredToCustomer(payload.orderId);
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["staff-courier-queue"] });

@@ -115,8 +115,8 @@ describe("store kanban card actions", () => {
   it("uses the next merchant step, and courier dispatch only after assignment", () => {
     expect(storeKanbanPrimaryAction(order({ status: "PENDING" }))?.action).toBe("confirm");
     expect(storeKanbanPrimaryAction(order({ status: "PENDING" }), true)?.label).toBe("Hızlı Onay Ver");
-    expect(storeKanbanPrimaryAction(order({ status: "CONFIRMED" }))?.label).toBe("Mutfağa İlet");
-    expect(storeKanbanPrimaryAction(order({ status: "PREPARING" }))?.action).toBe("ready");
+    expect(storeKanbanPrimaryAction(order({ status: "CONFIRMED" }))?.label).toBe("Hazır");
+    expect(storeKanbanPrimaryAction(order({ status: "PREPARING" }))?.action).toBe("markKitchenPrepared");
     expect(storeKanbanPrimaryAction(order({ status: "READY", deliveryType: "DELIVERY" }))).toBeNull();
     expect(
       storeKanbanPrimaryAction(
@@ -126,9 +126,9 @@ describe("store kanban card actions", () => {
           courier: { id: 1, fullName: "Ali", phone: "1" },
         }),
       )?.action,
-    ).toBe("dispatch");
+    ).toBe("markKitchenDeliveredToCourier");
     expect(storeKanbanPrimaryAction(order({ status: "READY", deliveryType: "PICKUP" }))?.action).toBe(
-      "deliver",
+      "markKitchenDeliveredToWaiter",
     );
   });
 

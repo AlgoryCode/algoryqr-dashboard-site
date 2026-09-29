@@ -1,10 +1,20 @@
 import { kitchenOrderOrigin, readKitchenOrderList } from "@/lib/kitchen-queue";
+import { applyOrderFlow, stampOrderFlow } from "@/lib/order-flow";
 import { isPhoneCustomerName, stripPhoneCustomerName } from "@/lib/phone-order";
 import type { OrderItemResponse, OrderResponse } from "@/lib/ordering-api";
 import type { StoreOrderDetail, StoreOrderPage, StoreOrderSummary } from "@/lib/store-api";
 import { formatStoreAddress } from "@/lib/store-ui";
 
-const STORE_KITCHEN_STATUSES = ["CONFIRMED", "PREPARING", "READY", "ON_THE_WAY"] as const;
+const STORE_KITCHEN_STATUSES = [
+  "CONFIRMED",
+  "PREPARING",
+  "READY",
+  "ON_THE_WAY",
+  "KITCHEN_PREPARING",
+  "KITCHEN_PREPARED",
+  "KITCHEN_DELIVERED_TO_WAITER",
+  "KITCHEN_DELIVERED_TO_COURIER",
+] as const;
 
 function readJson(value: string): unknown {
   if (!value) return null;
@@ -83,7 +93,7 @@ export function storeOrderToKitchenTicket(order: StoreOrderSummary | StoreOrderD
   const address = detail.address ? formatStoreAddress(detail.address) : null;
 
   const phoneOrder = isPhoneCustomerName(order.customerName);
-  return {
+  return applyOrderFlow({
     id: order.id,
     customerName: stripPhoneCustomerName(order.customerName) || order.customerName,
     customerPhone: order.customerPhone,
@@ -101,7 +111,7 @@ export function storeOrderToKitchenTicket(order: StoreOrderSummary | StoreOrderD
     readyAt: detail.readyAt ?? null,
     servedAt: detail.dispatchedAt ?? detail.deliveredAt ?? null,
     createdAt: order.createdAt,
-  };
+  });
 }
 
 export function asKitchenTicket(raw: unknown): OrderResponse | null {
@@ -168,5 +178,9 @@ export async function advanceStoreKitchenOrder(
   if (!isRecord(data) || !Number.isFinite(Number(data.id))) {
     throw new Error("Sipariş güncellenemedi");
   }
-  return storeOrderToKitchenTicket(data as unknown as StoreOrderDetail);
+  const ticket = storeOrderToKitchenTicket(data as unknown as StoreOrderDetail);
+  return stampOrderFlow(
+    ticket,
+    action === "preparing" ? "KITCHEN_PREPARING" : "KITCHEN_PREPARED",
+  );
 }

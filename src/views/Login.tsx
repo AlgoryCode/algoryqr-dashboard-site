@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BrandLogo } from "@/components/BrandLogo";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { authService } from "@/lib/auth-service";
@@ -26,7 +26,6 @@ import {
   readPendingVerificationEmail,
   VERIFY_INTENT_PARAM,
 } from "@/lib/pending-verification";
-
 const EMAIL_NOT_VERIFIED_CODE = "EMAIL_NOT_VERIFIED";
 
 const Login = () => {
@@ -39,6 +38,7 @@ const Login = () => {
   const [totpCode, setTotpCode] = useState("");
   const [twoFactorHintEmail, setTwoFactorHintEmail] = useState<string | null>(null);
   const [demoAvailable, setDemoAvailable] = useState(false);
+  const demoRegisteredToastShown = useRef(false);
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -70,6 +70,26 @@ const Login = () => {
       router.replace(next);
     }, 0);
     return () => window.clearTimeout(show);
+  }, [returnPath, router, searchParams, toast]);
+
+  useEffect(() => {
+    if (demoRegisteredToastShown.current) return;
+    if (searchParams.get("demoRegistered") !== "1") return;
+    demoRegisteredToastShown.current = true;
+    const registeredUsername = searchParams.get("username")?.trim();
+    if (registeredUsername) {
+      setEmail(registeredUsername);
+    }
+    toast({
+      title: "Kayıt tamam",
+      description: "Kullanıcı adınız ve şifrenizle giriş yapın; panelde hazırlık animasyonu ve kurulum adımları sizi bekliyor.",
+    });
+    const cleanParams = new URLSearchParams();
+    if (returnPath && returnPath !== "/") {
+      cleanParams.set("returnUrl", returnPath);
+    }
+    const next = cleanParams.toString() ? `/login?${cleanParams.toString()}` : "/login";
+    router.replace(next);
   }, [returnPath, router, searchParams, toast]);
 
   useEffect(() => {
@@ -118,6 +138,7 @@ const Login = () => {
       return;
     }
     queryClient.removeQueries({ queryKey: MY_PROFILE_QUERY_KEY });
+    queryClient.removeQueries({ queryKey: ["demoAccount"] });
     toast({ title: "Başarılı", description: "Giriş yapıldı!" });
     await redirectAfterAuth();
   };
@@ -233,10 +254,11 @@ const Login = () => {
     setLoading(true);
     try {
       await authService.completeTwoFactorLogin(code);
-      queryClient.removeQueries({ queryKey: MY_PROFILE_QUERY_KEY });
       setAwaiting2FA(false);
       setTotpCode("");
       setTwoFactorHintEmail(null);
+      queryClient.removeQueries({ queryKey: MY_PROFILE_QUERY_KEY });
+      queryClient.removeQueries({ queryKey: ["demoAccount"] });
       toast({ title: "Başarılı", description: "Giriş yapıldı!" });
       await redirectAfterAuth();
     } catch (err) {
