@@ -14,32 +14,13 @@ const bill = {
 };
 
 describe("readyOrdersToAutoServe", () => {
-  it("marks ready tickets for the paid table and leaves other tables alone", () => {
+  it("does not auto-advance tickets after payment", () => {
     const ready = [
-      order({ id: 11, status: "READY", tableId: 4, orderSource: "QR" }),
-      order({ id: 12, status: "READY", tableId: 4, orderSource: "WAITER" }),
-      order({ id: 20, status: "READY", tableId: 8, orderSource: "QR" }),
-    ];
-
-    expect(readyOrdersToAutoServe(bill, ready).map((item) => item.id)).toEqual([11, 12]);
-  });
-
-  it("includes the open ticket and the bill id even when the table id is missing", () => {
-    const ready = [
-      order({ id: 30, status: "READY", orderSource: "QR", billId: 9 }),
-      order({ id: 31, status: "READY", orderSource: "QR" }),
-    ];
-
-    expect(readyOrdersToAutoServe(bill, ready, 31).map((item) => item.id)).toEqual([30, 31]);
-  });
-
-  it("does not auto-serve kitchen, already served, or courier tickets", () => {
-    const ready = [
-      order({ id: 1, status: "PREPARING", tableId: 4, orderSource: "QR" }),
-      order({ id: 2, status: "SERVED", tableId: 4, orderSource: "QR" }),
-      order({ id: 3, status: "READY", tableId: 4, orderSource: "STORE", deliveryType: "DELIVERY" }),
+      order({ id: 11, status: "WAITER_TAKEN", tableId: 4, orderSource: "QR" }),
+      order({ id: 12, status: "KITCHEN_PREPARED", tableId: 4, orderSource: "WAITER" }),
     ];
 
     expect(readyOrdersToAutoServe(bill, ready)).toEqual([]);
+    expect(readyOrdersToAutoServe(bill, ready, 11)).toEqual([]);
   });
 });

@@ -7,6 +7,7 @@ import {
   storeOrderToKitchenTicket,
 } from "./store-kitchen";
 import { isPhoneCustomerName, markPhoneCustomerName } from "./phone-order";
+import type { StoreOrderDetail } from "./store-api";
 
 function storeOrder(partial: Partial<StoreOrderDetail> & Pick<StoreOrderDetail, "id" | "status">): StoreOrderDetail {
   return {
@@ -57,7 +58,7 @@ describe("store kitchen mapping", () => {
       deliveryType: "DELIVERY",
       deliveryAddress: "Bağdat Cad. 12, Kadıköy",
       note: "Zili çalma",
-      status: "CONFIRMED",
+      status: "KITCHEN_PREPARING",
     });
     expect(ticket.items?.[0]).toMatchObject({
       quantity: 1,

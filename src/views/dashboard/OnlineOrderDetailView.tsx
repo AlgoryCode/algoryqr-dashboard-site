@@ -65,9 +65,19 @@ export default function OnlineOrderDetailView({ orderId }: { orderId: number }) 
       advanceStoreOrder(orderId, action, reason),
     onSuccess: (updated, variables) => {
       applyOrder(updated);
-      if (variables.action === "preparing") notify("info", "Sipariş mutfağa gönderildi.");
-      if (variables.action === "ready") notify("info", "Sipariş hazır işaretlendi.");
-      if (variables.action === "dispatch") notify("info", "Kurye teslimine çıkarıldı.");
+      if (variables.action === "preparing" || variables.action === "markKitchenPreparing") {
+        notify("info", "Sipariş mutfağa gönderildi.");
+      }
+      if (variables.action === "ready" || variables.action === "markKitchenPrepared") {
+        notify("info", "Sipariş hazır işaretlendi.");
+      }
+      if (
+        variables.action === "dispatch" ||
+        variables.action === "markCourierTaken" ||
+        variables.action === "markKitchenDeliveredToCourier"
+      ) {
+        notify("info", "Kurye teslimine çıkarıldı.");
+      }
     },
     onError: (error) => reportError(error, "Sipariş durumu güncellenemedi."),
   });

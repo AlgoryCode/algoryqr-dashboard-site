@@ -44,6 +44,7 @@ const AUTH_ROUTES = {
   login: "/api/v1/auth/basicauth/login",
   register: "/api/v1/auth/basicauth/register",
   demoRegister: "/api/v1/auth/demo/register",
+  demoProvision: "/api/v1/auth/demo/provision",
   demoStatus: "/api/v1/auth/demo/status",
   demoUsernameAvailable: "/api/v1/auth/demo/username-available",
   refresh: "/api/v1/auth/refresh",

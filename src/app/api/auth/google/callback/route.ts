@@ -11,6 +11,7 @@ import {
   setAuthCookies,
   setTokenExpiryCookies,
 } from "@/lib/server/auth-cookies";
+import { applyPersonalDemoTrialCookie } from "@/lib/server/apply-demo-onboarding-cookies";
 import { getAppOrigin } from "@/lib/server/app-origin";
 import { clientContextHeaders } from "@/lib/server/client-headers";
 import {
@@ -207,6 +208,7 @@ export async function GET(req: NextRequest) {
       clearMerchantReturnUrlCookie(response);
       setAuthCookies(response, accessToken, refreshToken, userId);
       setTokenExpiryCookies(response, accessTokenExpiresAt, refreshTokenExpiresAt);
+      await applyPersonalDemoTrialCookie(response, accessToken);
       return response;
     }
 
@@ -237,6 +239,7 @@ export async function GET(req: NextRequest) {
       accessTokenExpiresAt,
       refreshTokenExpiresAt,
     );
+    await applyPersonalDemoTrialCookie(response, accessToken);
     return response;
   } catch {
     return googleAuthErrorRedirect(

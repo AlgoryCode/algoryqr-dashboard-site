@@ -3,19 +3,19 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 
 import { BrandLogo } from "@/components/BrandLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { MY_PROFILE_QUERY_KEY } from "@/hooks/use-my-profile";
 import { ApiError } from "@/lib/api";
-import { fetchSessionContextClient, pathForSession } from "@/lib/session-context";
-import { SESSION_CONTEXT_QUERY_KEY } from "@/hooks/use-session-context";
 import { getSiteSameOriginAxios } from "@/lib/site-same-origin-axios";
-import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
+import {
+  DEMO_TRIAL_DAYS,
+  DEMO_TRIAL_PACKAGE_NAME,
+  DEMO_TRIAL_SHORT_LABEL,
+} from "@/lib/demo-trial-package";
 
 const DemoRegister = () => {
   const [username, setUsername] = useState("");
@@ -24,7 +24,6 @@ const DemoRegister = () => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
-  const queryClient = useQueryClient();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,23 +37,21 @@ const DemoRegister = () => {
     }
     setLoading(true);
     try {
+      const trimmedUsername = username.trim();
       await getSiteSameOriginAxios().post("/auth/demo/register", {
-        username: username.trim(),
+        username: trimmedUsername,
         password,
         passwordConfirm,
       });
-      queryClient.removeQueries({ queryKey: MY_PROFILE_QUERY_KEY });
-      queryClient.removeQueries({ queryKey: ["demoAccount"] });
-      const session = await fetchSessionContextClient();
-      if (session) {
-        queryClient.setQueryData(SESSION_CONTEXT_QUERY_KEY, session);
-      }
       toast({
-        title: "Demo hesap hazır",
-        description: "Algory Cafe, menü ve örnek veriler panelinizde hazır.",
+        title: "Kayıt tamam",
+        description: "Şimdi giriş yapın; panelde hazırlık animasyonu ve kurulum adımları başlayacak.",
       });
-      router.push(pathForSession(session, DASHBOARD_ROUTES.overview));
-      router.refresh();
+      const params = new URLSearchParams({
+        demoRegistered: "1",
+        username: trimmedUsername,
+      });
+      router.push(`/login?${params.toString()}`);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Demo kayıt başarısız";
       toast({ title: "Hata", description: message, variant: "destructive" });
@@ -70,11 +67,11 @@ const DemoRegister = () => {
           <Link href="/" className="inline-flex justify-center">
             <BrandLogo className="h-10" />
           </Link>
-          <h1 className="text-2xl font-bold">Demoyu başlat</h1>
+          <h1 className="text-2xl font-bold">{DEMO_TRIAL_SHORT_LABEL} · kayıt</h1>
           <p className="text-sm text-muted-foreground">
-            Kayıt sonrası <strong className="font-medium text-foreground">Algory Cafe</strong> şubesi,{" "}
-            <strong className="font-medium text-foreground">Algory Menü</strong>, ürünler ve örnek satış verileri
-            otomatik hazırlanır; paneli kredi kartı olmadan deneyimleyin.
+            <strong className="font-medium text-foreground">{DEMO_TRIAL_PACKAGE_NAME}</strong> ({DEMO_TRIAL_DAYS} gün,
+            kredi kartı yok). Kayıt sonrası giriş yaparsınız; panel açılınca önce hazırlık animasyonu,
+            ardından kısa kurulum adımları gelir.
           </p>
         </div>
 
@@ -111,14 +108,14 @@ const DemoRegister = () => {
             />
           </div>
           <Button variant="hero" size="lg" className="w-full" type="submit" disabled={loading}>
-            {loading ? "Demo hazırlanıyor..." : "Demoyu başlat"}
+            {loading ? "Hesap oluşturuluyor..." : "Kayıt ol"}
           </Button>
         </form>
 
         <p className="text-center text-xs text-muted-foreground">
           Zaten üye misiniz?{" "}
           <Link href="/login" className="text-primary hover:underline font-medium">
-            Giriş yap
+            Zaten hesabınız var — giriş yap
           </Link>
         </p>
       </div>

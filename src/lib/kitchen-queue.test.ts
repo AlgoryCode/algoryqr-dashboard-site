@@ -50,8 +50,8 @@ describe("kitchen queue", () => {
       order({ id: 5, status: "SUBMITTED" }),
       order({ id: 6, status: "ON_THE_WAY", orderSource: "STORE" }),
     ]);
-    expect(grouped.CONFIRMED.map((item) => item.id)).toEqual([1]);
-    expect(grouped.PREPARING.map((item) => item.id)).toEqual([2]);
+    expect(grouped.CONFIRMED.map((item) => item.id)).toEqual([5]);
+    expect(grouped.PREPARING.map((item) => item.id)).toEqual([1, 2]);
     expect(grouped.READY.map((item) => item.id)).toEqual([3]);
     expect(grouped.SERVED.map((item) => item.id)).toEqual([4, 6]);
   });
@@ -107,36 +107,39 @@ describe("kitchen queue", () => {
 
   it("mirrors merchant kitchen steps on each ticket", () => {
     expect(kitchenTicketFlowSteps("ONLINE").map((step) => step.label)).toEqual([
-      "Onaylandı",
-      "Mutfakta",
-      "Hazır",
-      "Kurye teslimi",
-      "Teslim edildi",
+      "Mutfak hazırlıyor",
+      "Mutfak hazırladı",
+      "Mutfak kuryeye verdi",
+      "Kurye teslim aldı",
+      "Kurye müşteriye teslim etti",
     ]);
     expect(kitchenTicketFlowSteps("ONLINE", "PICKUP").map((step) => step.status)).toEqual([
-      "CONFIRMED",
-      "PREPARING",
-      "READY",
-      "DELIVERED",
+      "KITCHEN_PREPARING",
+      "KITCHEN_PREPARED",
+      "KITCHEN_DELIVERED_TO_WAITER",
+      "WAITER_TAKEN",
+      "WAITER_DELIVERED_TO_CUSTOMER",
     ]);
     expect(kitchenTicketFlowSteps("TABLE").map((step) => step.label)).toEqual([
-      "Onaylandı",
-      "Mutfakta",
-      "Hazır",
-      "Garsona teslim",
+      "Mutfak hazırlıyor",
+      "Mutfak hazırladı",
+      "Mutfak garsona verdi",
+      "Garson teslim aldı",
+      "Garson müşteriye teslim etti",
     ]);
     expect(kitchenTicketFlowSteps("UBER_EATS").map((step) => step.status)).toEqual([
-      "CONFIRMED",
-      "READY",
-      "ON_THE_WAY",
-      "DELIVERED",
+      "KITCHEN_PREPARING",
+      "KITCHEN_PREPARED",
+      "KITCHEN_DELIVERED_TO_COURIER",
+      "COURIER_TAKEN",
+      "COURIER_DELIVERED_TO_CUSTOMER",
     ]);
     expect(kitchenTicketFlowIndex("PENDING", "ONLINE")).toBe(-1);
-    expect(kitchenTicketFlowIndex("PREPARING", "ONLINE")).toBe(1);
+    expect(kitchenTicketFlowIndex("PREPARING", "ONLINE")).toBe(0);
     expect(kitchenTicketFlowIndex("ON_THE_WAY", "ONLINE")).toBe(3);
-    expect(kitchenTicketFlowIndex("DELIVERED", "ONLINE", "PICKUP")).toBe(3);
+    expect(kitchenTicketFlowIndex("DELIVERED", "ONLINE", "PICKUP")).toBe(4);
     expect(kitchenTicketFlowIndex("SERVED", "TABLE")).toBe(3);
-    expect(kitchenTicketFlowIndex("PREPARING", "UBER_EATS")).toBe(1);
+    expect(kitchenTicketFlowIndex("PREPARING", "UBER_EATS")).toBe(0);
   });
 
   it("sorts ready meals by ready time then id", () => {
@@ -167,7 +170,7 @@ describe("kitchen queue", () => {
     expect(kitchenInProgressBannerText([])).toBeNull();
     expect(
       kitchenInProgressBannerText([order({ id: 1, status: "CONFIRMED", tableName: "Masa 3" })]),
-    ).toBe("Masa 3 onaylandı");
+    ).toBe("Masa 3 mutfakta");
     expect(
       kitchenInProgressBannerText([order({ id: 1, status: "PREPARING", tableName: "Bahçe 1" })]),
     ).toBe("Bahçe 1 mutfakta");
@@ -190,11 +193,11 @@ describe("kitchen queue", () => {
       order({ id: 5, status: "SUBMITTED", tableId: 10, tableName: "masa-1" }),
     ]);
     const table1 = kitchenProgressForTable({ tableId: 10, tableName: "masa-1" }, grouped);
-    expect(table1).toEqual({ confirmedCount: 1, preparingCount: 1, readyCount: 1 });
-    expect(kitchenInProgressCount(table1)).toBe(2);
+    expect(table1).toEqual({ confirmedCount: 1, preparingCount: 2, readyCount: 1 });
+    expect(kitchenInProgressCount(table1)).toBe(3);
     expect(tableKitchenSubtitleParts(table1, 1)).toEqual([
       "1 yemek hazır",
-      "1 mutfakta",
+      "2 mutfakta",
       "1 onaylandı",
       "1 onay bekliyor",
     ]);
@@ -210,8 +213,8 @@ describe("kitchen queue", () => {
       order({ id: 1, status: "CONFIRMED", tableName: "Bahçe 1" }),
     ]);
     expect(kitchenProgressForTable({ tableId: 99, tableName: "Bahçe 1" }, grouped)).toEqual({
-      confirmedCount: 1,
-      preparingCount: 0,
+      confirmedCount: 0,
+      preparingCount: 1,
       readyCount: 0,
     });
   });

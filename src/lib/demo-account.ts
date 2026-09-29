@@ -5,6 +5,9 @@ export type DemoAccountStatus = {
   username?: string | null;
   expiresAt?: string | null;
   active?: boolean;
+  trialPackageCode?: string | null;
+  trialPackageName?: string | null;
+  trialDays?: number | null;
 };
 
 export function isDemoAccountSession(

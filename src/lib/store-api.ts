@@ -1,5 +1,12 @@
 import { api } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
+import {
+  ORDER_FLOW_ACTION_STATUS,
+  stampOrderFlow,
+  storeHttpStepsFor,
+  type OrderFlowAction,
+  type OrderFlowStatus,
+} from "@/lib/order-flow";
 
 export type MerchantStatus = "DRAFT" | "ACTIVE" | "SUSPENDED" | "CLOSED";
 export type StoreDeliveryType = "DELIVERY" | "PICKUP";
@@ -14,7 +21,8 @@ export type StoreOrderStatus =
   | "ON_THE_WAY"
   | "DELIVERED"
   | "REJECTED"
-  | "CANCELLED";
+  | "CANCELLED"
+  | OrderFlowStatus;
 
 export type StoreWeekday =
   | "MONDAY"
@@ -181,6 +189,7 @@ export type StoreOrderPage = {
 };
 
 export type StoreOrderAction =
+  | OrderFlowAction
   | "confirm"
   | "preparing"
   | "ready"
@@ -259,13 +268,51 @@ export async function getStoreOrder(orderId: number) {
   return data;
 }
 
+const FLOW_ACTIONS = new Set<StoreOrderAction>([
+  "markKitchenPreparing",
+  "markKitchenPrepared",
+  "markKitchenDeliveredToWaiter",
+  "markKitchenDeliveredToCourier",
+  "markWaiterTaken",
+  "markWaiterDeliveredToCustomer",
+  "markWaiterDeliveredToCourier",
+  "markCourierTaken",
+  "markCourierDeliveredToCustomer",
+]);
+
 export async function advanceStoreOrder(orderId: number, action: StoreOrderAction, reason?: string) {
-  const needsReason = action === "reject" || action === "cancel";
-  const { data } = await api.post<StoreOrderDetail>(
-    `/store/orders/${orderId}/${action}`,
-    needsReason ? { reason: reason ?? null } : {},
-  );
-  return data;
+  const current = FLOW_ACTIONS.has(action) ? await getStoreOrder(orderId) : null;
+  const steps =
+    current && FLOW_ACTIONS.has(action)
+      ? storeHttpStepsFor(action as OrderFlowAction, current.status, current.deliveryType === "DELIVERY")
+      : [action];
+
+  let latest = current;
+  for (const step of steps) {
+    const needsReason = step === "reject" || step === "cancel";
+    const { data } = await api.post<StoreOrderDetail>(
+      `/store/orders/${orderId}/${step}`,
+      needsReason ? { reason: reason ?? null } : {},
+    );
+    latest = data;
+  }
+
+  if (!latest) {
+    const { data } = await api.post<StoreOrderDetail>(
+      `/store/orders/${orderId}/${action}`,
+      {},
+    );
+    latest = data;
+  }
+
+  if (FLOW_ACTIONS.has(action)) {
+    const stamped = stampOrderFlow(
+      { id: orderId, status: latest.status, deliveryType: latest.deliveryType },
+      ORDER_FLOW_ACTION_STATUS[action as OrderFlowAction],
+    );
+    return { ...latest, status: stamped.status as StoreOrderStatus };
+  }
+  return latest;
 }
 
 export async function assignStoreCourier(orderId: number, courierId: number) {

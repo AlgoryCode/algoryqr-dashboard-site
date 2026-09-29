@@ -157,8 +157,8 @@ describe("order management filters and metrics", () => {
   it("builds kpis, channel flow for every integration and daily series", () => {
     const kpis = buildOrderKpis(sample, false);
     expect(kpis.totalOrders).toBe(4);
-    expect(kpis.openOrders).toBe(2);
-    expect(kpis.pendingOrders).toBe(1);
+    expect(kpis.openOrders).toBe(3);
+    expect(kpis.pendingOrders).toBe(0);
     expect(kpis.revenue).toBe(220);
 
     const channels = channelFlowRows(sample);
@@ -179,8 +179,8 @@ describe("order management filters and metrics", () => {
       status: "open",
     });
     expect(buildOrderKpis(period, false).revenue).toBe(220);
-    expect(sumOrderRevenue(openList, false)).toBe(180);
-    expect(openList).toHaveLength(2);
+    expect(sumOrderRevenue(openList, false)).toBe(220);
+    expect(openList).toHaveLength(3);
   });
 
   it("sorts incoming orders newest first", () => {
@@ -513,10 +513,10 @@ describe("earnings mix, top products and ops lanes", () => {
 
   it("routes kitchen, waiter and courier tickets into separate live lanes", () => {
     const lanes = groupOpsLaneOrders(mix);
-    expect(lanes.kitchen.map((item) => item.id)).toEqual([2]);
-    expect(lanes.waiter.map((item) => item.id)).toEqual([5, 3]);
+    expect(lanes.kitchen.map((item) => item.id)).toEqual([5, 3, 2]);
+    expect(lanes.waiter.map((item) => item.id)).toEqual([1]);
     expect(lanes.courier.map((item) => item.id)).toEqual([4]);
-    expect(opsLaneForOrder(mix[0])).toBeNull();
+    expect(opsLaneForOrder(mix[0])).toBe("waiter");
   });
 
   it("sends early statuses to waiter when kitchen is disabled", () => {
@@ -547,11 +547,11 @@ describe("earnings mix, top products and ops lanes", () => {
 
   it("lets the waiter hand a ready table or pickup order to the customer", () => {
     expect(
-      canMarkServedToCustomer(order({ id: 1, status: "READY", orderSource: "QR", tableName: "masa-1" })),
+      canMarkServedToCustomer(order({ id: 1, status: "WAITER_TAKEN", orderSource: "QR", tableName: "masa-1" })),
     ).toBe(true);
     expect(
       canMarkServedToCustomer(
-        order({ id: 2, status: "READY", orderSource: "STORE", deliveryType: "PICKUP" }),
+        order({ id: 2, status: "WAITER_TAKEN", orderSource: "STORE", deliveryType: "PICKUP" }),
       ),
     ).toBe(true);
     expect(
@@ -563,13 +563,13 @@ describe("earnings mix, top products and ops lanes", () => {
       "kitchen",
     );
     expect(opsLaneForOrder(order({ id: 7, status: "READY", orderSource: "PHONE", deliveryType: "DELIVERY" }))).toBe(
-      "courier",
+      "kitchen",
     );
     expect(
       canMarkServedToCustomer(order({ id: 4, status: "PREPARING", orderSource: "QR", tableName: "masa-1" })),
     ).toBe(false);
     expect(
-      canMarkServedToCustomer(order({ id: 5, status: "SERVED", orderSource: "QR", tableName: "masa-1" })),
+      canMarkServedToCustomer(order({ id: 5, status: "WAITER_DELIVERED_TO_CUSTOMER", orderSource: "QR", tableName: "masa-1" })),
     ).toBe(false);
   });
 
@@ -640,8 +640,8 @@ describe("earnings mix, top products and ops lanes", () => {
     const snapshots = buildOpsLaneSnapshots(tracked);
     expect(snapshots.kitchen.primary).toMatchObject({ label: "bekleyen", count: 2 });
     expect(snapshots.kitchen.secondary).toMatchObject({ label: "hazır", count: 6 });
-    expect(snapshots.waiter.primary).toMatchObject({ label: "teslim edilecek", count: 1 });
-    expect(snapshots.waiter.secondary).toMatchObject({ label: "teslim edilen", count: 5 });
+    expect(snapshots.waiter.primary).toMatchObject({ label: "teslim edilecek", count: 5 });
+    expect(snapshots.waiter.secondary).toMatchObject({ label: "teslim edilen", count: 1 });
     expect(snapshots.courier.primary).toMatchObject({ label: "dağıtımda", count: 4 });
     expect(snapshots.courier.secondary).toMatchObject({ label: "teslim edilen", count: 2 });
     expect(snapshots.courier.extra).toMatchObject({ label: "teslim alınacak", count: 5 });

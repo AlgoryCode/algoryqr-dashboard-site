@@ -1,4 +1,11 @@
 import type { CartItemRequest, OrderResponse } from "@/lib/ordering-api";
+import {
+  applyOrderFlow,
+  ORDER_FLOW_ACTION_STATUS,
+  stampOrderFlow,
+  waiterHttpStep,
+  type OrderFlowAction,
+} from "@/lib/order-flow";
 import { asCourierTickets, type CourierTicket } from "@/lib/store-courier";
 import { asKitchenTickets } from "@/lib/store-kitchen";
 
@@ -61,6 +68,7 @@ export type WaiterMe = {
   displayName?: string;
   staffRole?: StaffRole;
   kitchenEnabled?: boolean;
+  courierEnabled?: boolean;
   active?: boolean;
   commissionEnabled?: boolean;
   commissionType?: "PERCENT" | "FIXED" | null;
@@ -212,6 +220,8 @@ export type WaiterCreateOrderRequest = {
   items: CartItemRequest[];
   note?: string;
   waiterNote?: string;
+  /** Dashboard-only. Not sent to the order API. */
+  kitchenEnabled?: boolean;
 };
 
 async function parseJson<T>(response: Response): Promise<T> {
@@ -508,7 +518,7 @@ export async function listWaiterPendingOrders(): Promise<OrderResponse[]> {
   if (!response.ok) {
     throw new WaiterApiError(response.status, messageFromUnknown(data, "Siparişler alınamadı"));
   }
-  return Array.isArray(data) ? data : [];
+  return (Array.isArray(data) ? data : []).map(applyOrderFlow);
 }
 
 export async function listWaiterTodayOrders(): Promise<OrderResponse[]> {
@@ -521,7 +531,7 @@ export async function listWaiterTodayOrders(): Promise<OrderResponse[]> {
   if (!response.ok) {
     throw new WaiterApiError(response.status, messageFromUnknown(data, "Siparişler alınamadı"));
   }
-  return asKitchenTickets(data);
+  return asKitchenTickets(data).map(applyOrderFlow);
 }
 
 export async function listWaiterTables(): Promise<WaiterTableSummary[]> {
@@ -547,10 +557,13 @@ export async function listWaiterTableTodayOrders(tableId: number): Promise<Order
   if (!response.ok) {
     throw new WaiterApiError(response.status, messageFromUnknown(data, "Masa siparişleri alınamadı"));
   }
-  return Array.isArray(data) ? data : [];
+  return (Array.isArray(data) ? data : []).map(applyOrderFlow);
 }
 
-export async function confirmWaiterOrder(orderId: number): Promise<OrderResponse> {
+export async function confirmWaiterOrder(
+  orderId: number,
+  kitchenEnabled = true,
+): Promise<OrderResponse> {
   const response = await waiterFetch(`/api/waiter/orders/${orderId}/confirm`, {
     method: "POST",
     headers: { Accept: "application/json" },
@@ -560,7 +573,7 @@ export async function confirmWaiterOrder(orderId: number): Promise<OrderResponse
   if (!response.ok) {
     throw new WaiterApiError(response.status, data.message || "Sipariş onaylanamadı");
   }
-  return data;
+  return stampOrderFlow(data, kitchenEnabled ? "KITCHEN_PREPARING" : "WAITER_TAKEN");
 }
 
 export async function rejectWaiterOrder(orderId: number): Promise<OrderResponse> {
@@ -601,7 +614,7 @@ export async function getWaiterOrder(orderId: number): Promise<OrderResponse> {
   if (!response.ok) {
     throw new WaiterApiError(response.status, data.message || "Sipariş alınamadı");
   }
-  return data;
+  return applyOrderFlow(data);
 }
 
 export async function listWaiterCatalog(tableId: number): Promise<WaiterCatalogResponse> {
@@ -623,17 +636,18 @@ export async function listWaiterCatalog(tableId: number): Promise<WaiterCatalogR
 }
 
 export async function createWaiterOrder(payload: WaiterCreateOrderRequest): Promise<OrderResponse> {
+  const { kitchenEnabled, ...body } = payload;
   const response = await waiterFetch("/api/waiter/orders", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     credentials: "same-origin",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
   const data = await parseJson<OrderResponse & { message?: string }>(response);
   if (!response.ok) {
     throw new WaiterApiError(response.status, data.message || "Sipariş oluşturulamadı");
   }
-  return data;
+  return stampOrderFlow(data, kitchenEnabled === false ? "WAITER_TAKEN" : "KITCHEN_PREPARING");
 }
 
 export async function updateWaiterOrderNote(
@@ -663,26 +677,66 @@ export async function listWaiterReadyOrders(): Promise<OrderResponse[]> {
   if (!response.ok) {
     throw new WaiterApiError(response.status, messageFromUnknown(data, "Hazır siparişler alınamadı"));
   }
-  return Array.isArray(data) ? data : [];
+  return (Array.isArray(data) ? data : []).map(applyOrderFlow);
 }
 
-/** Mutfaktan teslim alındı (READY → SERVED); mutfak kuyruğunda garson adı görünür. */
-export async function markWaiterOrderPickedFromKitchen(orderId: number): Promise<OrderResponse> {
-  const response = await waiterFetch(`/api/waiter/orders/${orderId}/served`, {
+export async function runWaiterFlowAction(
+  orderId: number,
+  action: OrderFlowAction,
+  orderSource?: string | null,
+): Promise<OrderResponse> {
+  const target = ORDER_FLOW_ACTION_STATUS[action];
+  const http = waiterHttpStep(action);
+  if (!http) {
+    const current = await getWaiterOrder(orderId);
+    return stampOrderFlow({ ...current, id: orderId }, target);
+  }
+  const source =
+    http.scope === "kitchen" && orderSource ? `?source=${encodeURIComponent(orderSource)}` : "";
+  const path =
+    http.scope === "kitchen"
+      ? `/api/waiter/kitchen/orders/${orderId}/${http.path}${source}`
+      : http.scope === "courier"
+        ? `/api/waiter/courier/orders/${orderId}/${http.path}`
+        : `/api/waiter/orders/${orderId}/${http.path}`;
+  const response = await waiterFetch(path, {
     method: "POST",
     headers: { Accept: "application/json" },
     credentials: "same-origin",
   });
   const data = await parseJson<OrderResponse & { message?: string }>(response);
   if (!response.ok) {
-    throw new WaiterApiError(response.status, data.message || "Mutfaktan teslim alınamadı");
+    throw new WaiterApiError(response.status, data.message || "Sipariş güncellenemedi");
   }
-  return data;
+  return stampOrderFlow({ ...data, id: orderId }, target);
 }
 
-/** @deprecated Aynı uç nokta; yeni kod `markWaiterOrderPickedFromKitchen` kullansın. */
-export async function markWaiterOrderServed(orderId: number): Promise<OrderResponse> {
-  return markWaiterOrderPickedFromKitchen(orderId);
+export function markKitchenPreparing(orderId: number, orderSource?: string | null): Promise<OrderResponse> {
+  return runWaiterFlowAction(orderId, "markKitchenPreparing", orderSource);
+}
+
+export function markKitchenPrepared(orderId: number, orderSource?: string | null): Promise<OrderResponse> {
+  return runWaiterFlowAction(orderId, "markKitchenPrepared", orderSource);
+}
+
+export function markKitchenDeliveredToWaiter(orderId: number): Promise<OrderResponse> {
+  return runWaiterFlowAction(orderId, "markKitchenDeliveredToWaiter");
+}
+
+export function markKitchenDeliveredToCourier(orderId: number): Promise<OrderResponse> {
+  return runWaiterFlowAction(orderId, "markKitchenDeliveredToCourier");
+}
+
+export function markWaiterTaken(orderId: number): Promise<OrderResponse> {
+  return runWaiterFlowAction(orderId, "markWaiterTaken");
+}
+
+export function markWaiterDeliveredToCustomer(orderId: number): Promise<OrderResponse> {
+  return runWaiterFlowAction(orderId, "markWaiterDeliveredToCustomer");
+}
+
+export function markWaiterDeliveredToCourier(orderId: number): Promise<OrderResponse> {
+  return runWaiterFlowAction(orderId, "markWaiterDeliveredToCourier");
 }
 
 export async function listKitchenQueue(): Promise<OrderResponse[]> {
@@ -695,35 +749,12 @@ export async function listKitchenQueue(): Promise<OrderResponse[]> {
   if (!response.ok) {
     throw new WaiterApiError(response.status, messageFromUnknown(data, "Mutfak kuyruğu alınamadı"));
   }
-  return asKitchenTickets(data);
+  return asKitchenTickets(data).map(applyOrderFlow);
 }
 
-export async function markKitchenPreparing(orderId: number, orderSource?: string | null): Promise<OrderResponse> {
-  const params = orderSource ? `?source=${encodeURIComponent(orderSource)}` : "";
-  const response = await waiterFetch(`/api/waiter/kitchen/orders/${orderId}/preparing${params}`, {
-    method: "POST",
-    headers: { Accept: "application/json" },
-    credentials: "same-origin",
-  });
-  const data = await parseJson<OrderResponse & { message?: string }>(response);
-  if (!response.ok) {
-    throw new WaiterApiError(response.status, data.message || "Hazırlığa alınamadı");
-  }
-  return data;
-}
-
-export async function markKitchenReady(orderId: number, orderSource?: string | null): Promise<OrderResponse> {
-  const params = orderSource ? `?source=${encodeURIComponent(orderSource)}` : "";
-  const response = await waiterFetch(`/api/waiter/kitchen/orders/${orderId}/ready${params}`, {
-    method: "POST",
-    headers: { Accept: "application/json" },
-    credentials: "same-origin",
-  });
-  const data = await parseJson<OrderResponse & { message?: string }>(response);
-  if (!response.ok) {
-    throw new WaiterApiError(response.status, data.message || "Hazır işaretlenemedi");
-  }
-  return data;
+/** @deprecated Use the flow-based markKitchenPreparing / markKitchenPrepared above. */
+export function markKitchenReady(orderId: number, orderSource?: string | null): Promise<OrderResponse> {
+  return runWaiterFlowAction(orderId, "markKitchenPrepared", orderSource);
 }
 
 export async function updateKitchenOrderNote(orderId: number, note: string): Promise<OrderResponse> {
@@ -751,40 +782,61 @@ export async function listCourierQueue(): Promise<CourierTicket[]> {
   if (!response.ok) {
     throw new WaiterApiError(response.status, messageFromUnknown(data, "Kurye kuyruğu alınamadı"));
   }
-  return asCourierTickets(data);
+  return asCourierTickets(data).map(applyOrderFlow);
 }
 
-export async function markCourierDispatch(orderId: number): Promise<CourierTicket> {
-  const response = await waiterFetch(`/api/waiter/courier/orders/${orderId}/dispatch`, {
-    method: "POST",
-    headers: { Accept: "application/json" },
-    credentials: "same-origin",
-  });
-  const data = await parseJson<unknown>(response);
-  if (!response.ok) {
-    throw new WaiterApiError(
-      response.status,
-      messageFromUnknown(data, "Sipariş yola çıkarılamadı"),
-    );
-  }
-  const ticket = asCourierTickets([data])[0];
-  if (!ticket) throw new WaiterApiError(response.status, "Sipariş yola çıkarılamadı");
-  return ticket;
+function asFlowCourierTicket(order: OrderResponse): CourierTicket {
+  return {
+    id: order.id,
+    branchId: (order as Record<string, unknown>).branchId as number | null | undefined,
+    orderNo: order.orderNumber ?? String(order.id),
+    status: order.status,
+    customerName: order.customerName ?? "",
+    customerPhone: order.customerPhone ?? "",
+    deliveryAddress: order.deliveryAddress ?? "",
+    note: order.note,
+    totalAmount: Number(order.totalAmount ?? 0),
+    currency: order.currency ?? "TRY",
+    items: (order.items ?? []).map((item) => ({
+      productId: item.productId,
+      productName: item.productName ?? "",
+      quantity: item.quantity,
+      note: item.note,
+      options: (item.selectedOptions ?? []).map((opt) => opt.optionName ?? "").filter(Boolean),
+    })),
+    createdAt: order.createdAt ?? new Date().toISOString(),
+    readyAt: order.readyAt,
+    dispatchedAt: order.servedAt,
+    deliveredAt: null,
+  };
 }
 
-export async function markCourierDelivered(orderId: number): Promise<CourierTicket> {
-  const response = await waiterFetch(`/api/waiter/courier/orders/${orderId}/deliver`, {
-    method: "POST",
-    headers: { Accept: "application/json" },
-    credentials: "same-origin",
-  });
-  const data = await parseJson<unknown>(response);
-  if (!response.ok) {
-    throw new WaiterApiError(response.status, messageFromUnknown(data, "Teslim işaretlenemedi"));
-  }
-  const ticket = asCourierTickets([data])[0];
-  if (!ticket) throw new WaiterApiError(response.status, "Teslim işaretlenemedi");
-  return ticket;
+export function markCourierTaken(orderId: number): Promise<CourierTicket> {
+  return runWaiterFlowAction(orderId, "markCourierTaken").then(asFlowCourierTicket);
+}
+
+export function markCourierDeliveredToCustomer(orderId: number): Promise<CourierTicket> {
+  return runWaiterFlowAction(orderId, "markCourierDeliveredToCustomer").then(asFlowCourierTicket);
+}
+
+/** @deprecated Use markCourierTaken. */
+export function markCourierDispatch(orderId: number): Promise<CourierTicket> {
+  return markCourierTaken(orderId);
+}
+
+/** @deprecated Use markCourierDeliveredToCustomer. */
+export function markCourierDelivered(orderId: number): Promise<CourierTicket> {
+  return markCourierDeliveredToCustomer(orderId);
+}
+
+/** @deprecated Use markWaiterTaken. */
+export function markWaiterOrderPickedFromKitchen(orderId: number): Promise<OrderResponse> {
+  return markWaiterTaken(orderId);
+}
+
+/** @deprecated Use markWaiterTaken. */
+export function markWaiterOrderServed(orderId: number): Promise<OrderResponse> {
+  return markWaiterTaken(orderId);
 }
 
 export const STAFF_ROLE_LABEL: Record<StaffRole, string> = {

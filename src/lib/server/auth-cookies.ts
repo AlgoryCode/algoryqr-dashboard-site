@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { COOKIE_MAX_AGE_SECONDS, TWO_FACTOR_PENDING_COOKIE_MAX_AGE_SECONDS } from "@/lib/config";
+import { clearDemoOnboardingCookies } from "@/lib/server/demo-onboarding-cookies";
 
 const baseOptions = {
   httpOnly: true,
@@ -99,5 +100,6 @@ export function clearAuthCookies(response: NextResponse) {
   response.cookies.set("refreshTokenExp", "", clearOptions);
   response.cookies.set("userId", "", clearOptions);
   clearLegacyAlgoryAuthCookies(response);
+  clearDemoOnboardingCookies(response);
   response.cookies.set("algory_2fa_pending", "", { ...baseOptions, maxAge: 0 });
 }

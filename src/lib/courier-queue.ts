@@ -1,27 +1,25 @@
+import { normalizeOrderStatus, courierFlowColumn, type CourierFlowColumn } from "@/lib/order-flow";
 import type { CourierTicket } from "@/lib/store-courier";
 
-export const COURIER_FLOW_STEP_LABEL = {
-  PREPARING: "Mutfakta",
-  READY: "Hazır",
-  ON_THE_WAY: "Yolda",
-  DELIVERED: "Teslim edildi",
+export const COURIER_FLOW_STEP_LABEL: Record<CourierFlowColumn, string> = {
+  HANDOFF: "Teslim Al",
+  TAKEN: "Yolda",
+  DELIVERED: "Teslim Edildi",
 } as const;
 
 export const COURIER_COLUMNS = [
-  { id: "PREPARING", title: COURIER_FLOW_STEP_LABEL.PREPARING },
-  { id: "READY", title: COURIER_FLOW_STEP_LABEL.READY },
-  { id: "ON_THE_WAY", title: COURIER_FLOW_STEP_LABEL.ON_THE_WAY },
-  { id: "DELIVERED", title: COURIER_FLOW_STEP_LABEL.DELIVERED },
+  { id: "HANDOFF" as const, title: COURIER_FLOW_STEP_LABEL.HANDOFF },
+  { id: "TAKEN" as const, title: COURIER_FLOW_STEP_LABEL.TAKEN },
+  { id: "DELIVERED" as const, title: COURIER_FLOW_STEP_LABEL.DELIVERED },
 ] as const;
 
-export type CourierColumnId = (typeof COURIER_COLUMNS)[number]["id"];
+export type CourierColumnId = CourierFlowColumn;
 
 export const COURIER_KANBAN_SLA_MINUTES = 30;
 
 export const COURIER_KANBAN_COLUMN_TITLE: Record<CourierColumnId, string> = {
-  PREPARING: "Mutfakta",
-  READY: "Teslim Al",
-  ON_THE_WAY: "Yolda",
+  HANDOFF: "Teslim Al",
+  TAKEN: "Yolda",
   DELIVERED: "Teslim Edildi",
 };
 
@@ -32,16 +30,11 @@ export function courierKanbanColumnTitle(columnId: CourierColumnId): string {
 }
 
 export function emptyCourierGroups(): CourierQueueGroups {
-  return { PREPARING: [], READY: [], ON_THE_WAY: [], DELIVERED: [] };
+  return { HANDOFF: [], TAKEN: [], DELIVERED: [] };
 }
 
 export function courierColumnFor(status: string | null | undefined): CourierColumnId | null {
-  const normalized = (status ?? "").trim().toUpperCase();
-  if (normalized === "PREPARING") return "PREPARING";
-  if (normalized === "READY") return "READY";
-  if (normalized === "ON_THE_WAY") return "ON_THE_WAY";
-  if (normalized === "DELIVERED") return "DELIVERED";
-  return null;
+  return courierFlowColumn(status, true);
 }
 
 export function groupCourierOrders(orders: CourierTicket[]): CourierQueueGroups {
@@ -103,7 +96,8 @@ export function courierElapsedMinutes(
   order: Pick<CourierTicket, "readyAt" | "createdAt" | "dispatchedAt" | "deliveredAt" | "status">,
   now: number,
 ): number | null {
-  const start = order.status === "ON_THE_WAY" || order.status === "DELIVERED"
+  const norm = normalizeOrderStatus(order.status, true);
+  const start = norm === "COURIER_TAKEN" || norm === "COURIER_DELIVERED_TO_CUSTOMER"
     ? order.dispatchedAt || courierTicketStartedAt(order)
     : courierTicketStartedAt(order);
   if (!start) return null;
@@ -119,7 +113,8 @@ export function isCourierTicketDelayed(
   now: number,
   slaMinutes = COURIER_KANBAN_SLA_MINUTES,
 ): boolean {
-  if (order.status === "DELIVERED" || order.status === "PREPARING") return false;
+  const norm = normalizeOrderStatus(order.status, true);
+  if (norm === "COURIER_DELIVERED_TO_CUSTOMER" || norm === "KITCHEN_PREPARING") return false;
   const minutes = courierElapsedMinutes(order, now);
   return minutes != null && minutes >= slaMinutes;
 }
@@ -141,8 +136,9 @@ export function courierTicketElapsedLabel(
   order: Pick<CourierTicket, "status" | "readyAt" | "createdAt" | "dispatchedAt" | "deliveredAt">,
   now = Date.now(),
 ): string | null {
+  const norm = normalizeOrderStatus(order.status, true);
   const start =
-    order.status === "ON_THE_WAY" || order.status === "DELIVERED"
+    norm === "COURIER_TAKEN" || norm === "COURIER_DELIVERED_TO_CUSTOMER"
       ? order.dispatchedAt || courierTicketStartedAt(order)
       : courierTicketStartedAt(order);
   if (!start) return null;
@@ -154,7 +150,10 @@ export function courierTicketElapsedLabel(
 export function courierPrimaryAction(
   order: Pick<CourierTicket, "status">,
 ): { action: "dispatch" | "deliver"; label: string } | null {
-  if (order.status === "READY") return { action: "dispatch", label: "Yola çık" };
-  if (order.status === "ON_THE_WAY") return { action: "deliver", label: "Teslim edildi" };
+  const norm = normalizeOrderStatus(order.status, true);
+  if (norm === "KITCHEN_PREPARED" || norm === "KITCHEN_DELIVERED_TO_COURIER" || norm === "WAITER_DELIVERED_TO_COURIER") {
+    return { action: "dispatch", label: "Yola çık" };
+  }
+  if (norm === "COURIER_TAKEN") return { action: "deliver", label: "Teslim edildi" };
   return null;
 }

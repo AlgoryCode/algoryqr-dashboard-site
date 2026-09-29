@@ -1,3 +1,4 @@
+import { nextOrderActions, normalizeOrderStatus } from "@/lib/order-flow";
 import type { StoreOrderAction, StoreOrderStatus, StoreOrderSummary } from "@/lib/store-api";
 import { STORE_ORDER_STATUS_LABEL } from "@/lib/store-ui";
 
@@ -23,9 +24,21 @@ export type StoreKanbanPrimaryAction = {
 
 const COLUMN_STATUS_SET: Record<StoreKanbanColumnId, ReadonlySet<StoreOrderStatus>> = {
   NEW: new Set(["PENDING", "CONFIRMED"]),
-  KITCHEN: new Set(["PREPARING", "READY"]),
-  TRANSIT: new Set(["ON_THE_WAY"]),
-  DONE: new Set(["DELIVERED"]),
+  KITCHEN: new Set([
+    "PREPARING",
+    "READY",
+    "KITCHEN_PREPARING",
+    "KITCHEN_PREPARED",
+    "KITCHEN_DELIVERED_TO_WAITER",
+    "WAITER_TAKEN",
+  ]),
+  TRANSIT: new Set([
+    "ON_THE_WAY",
+    "KITCHEN_DELIVERED_TO_COURIER",
+    "WAITER_DELIVERED_TO_COURIER",
+    "COURIER_TAKEN",
+  ]),
+  DONE: new Set(["DELIVERED", "WAITER_DELIVERED_TO_CUSTOMER", "COURIER_DELIVERED_TO_CUSTOMER"]),
 };
 
 export function storeKanbanColumnFor(status: StoreOrderStatus): StoreKanbanColumnId | null {
@@ -176,16 +189,17 @@ export function storeKanbanPrimaryAction(
   if (order.status === "PENDING") {
     return { action: "confirm", label: delayed ? "Hızlı Onay Ver" : "Onayla" };
   }
-  if (order.status === "CONFIRMED") return { action: "preparing", label: "Mutfağa İlet" };
-  if (order.status === "PREPARING") return { action: "ready", label: "Hazır İşaretle" };
-  if (order.status === "READY" && order.deliveryType === "DELIVERY" && order.courier) {
-    return { action: "dispatch", label: "Kurye teslimi" };
+  const steps = nextOrderActions(order.status, {
+    kitchenEnabled: true,
+    courierEnabled: order.deliveryType === "DELIVERY",
+    delivery: order.deliveryType === "DELIVERY",
+  });
+  const first = steps[0];
+  if (!first) return null;
+  if (order.deliveryType === "DELIVERY" && !order.courier && first.action.includes("Courier")) {
+    return null;
   }
-  if (order.status === "READY" && order.deliveryType === "PICKUP") {
-    return { action: "deliver", label: "Teslim Alındı Onayla" };
-  }
-  if (order.status === "ON_THE_WAY") return { action: "deliver", label: "Teslim Alındı Onayla" };
-  return null;
+  return { action: first.action, label: first.label };
 }
 
 export function storeKanbanCanReject(order: StoreOrderSummary): boolean {
@@ -193,7 +207,12 @@ export function storeKanbanCanReject(order: StoreOrderSummary): boolean {
 }
 
 export function storeKanbanAssignCourier(order: StoreOrderSummary): boolean {
-  return order.deliveryType === "DELIVERY" && !order.courier && order.status === "READY";
+  const status = normalizeOrderStatus(order.status, order.deliveryType === "DELIVERY");
+  return (
+    order.deliveryType === "DELIVERY" &&
+    !order.courier &&
+    (status === "KITCHEN_PREPARED" || status === "KITCHEN_DELIVERED_TO_COURIER")
+  );
 }
 
 export function countOpenStoreOrders(openCounts: Partial<Record<StoreOrderStatus, number>>): number {
@@ -202,6 +221,13 @@ export function countOpenStoreOrders(openCounts: Partial<Record<StoreOrderStatus
     (openCounts.CONFIRMED ?? 0) +
     (openCounts.PREPARING ?? 0) +
     (openCounts.READY ?? 0) +
-    (openCounts.ON_THE_WAY ?? 0)
+    (openCounts.ON_THE_WAY ?? 0) +
+    (openCounts.KITCHEN_PREPARING ?? 0) +
+    (openCounts.KITCHEN_PREPARED ?? 0) +
+    (openCounts.KITCHEN_DELIVERED_TO_WAITER ?? 0) +
+    (openCounts.KITCHEN_DELIVERED_TO_COURIER ?? 0) +
+    (openCounts.WAITER_TAKEN ?? 0) +
+    (openCounts.COURIER_TAKEN ?? 0) +
+    (openCounts.WAITER_DELIVERED_TO_COURIER ?? 0)
   );
 }

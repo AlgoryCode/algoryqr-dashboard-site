@@ -1,11 +1,8 @@
 import axios from "axios";
 import { NextResponse } from "next/server";
 
-import { getExpFromAccessToken, isoToEpochSeconds } from "@/lib/auth-user";
 import { authUrl } from "@/lib/config";
-import { setAuthCookies, setTokenExpiryCookies } from "@/lib/server/auth-cookies";
 import { clientContextHeaders } from "@/lib/server/client-headers";
-import { fetchCurrentSessionRefreshExpiresAt } from "@/lib/server/session-expiry";
 
 type DemoRegisterBody = {
   username?: string;
@@ -62,35 +59,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ message }, { status: upstream.status || 400 });
     }
 
-    const accessToken = data?.accessToken ?? data?.access_token;
-    const refreshToken = data?.refreshToken ?? data?.refresh_token;
-    const accessTokenExpiresAt =
-      getExpFromAccessToken(typeof accessToken === "string" ? accessToken : undefined) ??
-      isoToEpochSeconds(data.accessExpiresAt) ??
-      undefined;
-    const refreshTokenExpiresAt =
-      isoToEpochSeconds(data.refreshExpiresAt) ??
-      (typeof accessToken === "string"
-        ? await fetchCurrentSessionRefreshExpiresAt(accessToken)
-        : undefined);
-
-    const response = NextResponse.json(
+    return NextResponse.json(
       {
-        ...data,
-        accessTokenExpiresAt,
-        refreshTokenExpiresAt,
-        message: data.message ?? "Demo hesap oluşturuldu",
+        userId: data.userId,
+        username: data.username ?? username,
+        message: data.message ?? "Demo hesap oluşturuldu. Giriş yaparak devam edin.",
       },
       { status: 200 },
     );
-    setAuthCookies(
-      response,
-      typeof accessToken === "string" ? accessToken : undefined,
-      typeof refreshToken === "string" ? refreshToken : undefined,
-      typeof data.userId === "number" ? data.userId : undefined,
-    );
-    setTokenExpiryCookies(response, accessTokenExpiresAt, refreshTokenExpiresAt);
-    return response;
   } catch {
     return NextResponse.json({ message: "Sunucu hatası" }, { status: 500 });
   }

@@ -1,8 +1,19 @@
 import { readKitchenOrderList } from "@/lib/kitchen-queue";
+import { applyOrderFlow, writeOrderFlowStatus } from "@/lib/order-flow";
 import type { StoreOrderAction, StoreOrderDetail, StoreOrderPage, StoreOrderSummary } from "@/lib/store-api";
 import { formatStoreAddress } from "@/lib/store-ui";
 
-export const STORE_COURIER_STATUSES = ["PREPARING", "READY", "ON_THE_WAY", "DELIVERED"] as const;
+export const STORE_COURIER_STATUSES = [
+  "PREPARING",
+  "READY",
+  "ON_THE_WAY",
+  "DELIVERED",
+  "KITCHEN_PREPARED",
+  "KITCHEN_DELIVERED_TO_COURIER",
+  "WAITER_DELIVERED_TO_COURIER",
+  "COURIER_TAKEN",
+  "COURIER_DELIVERED_TO_CUSTOMER",
+] as const;
 
 export type CourierTicketItem = {
   productId: number;
@@ -106,7 +117,7 @@ export function storeOrderToCourierTicket(order: StoreOrderSummary | StoreOrderD
   const detail = order as Partial<StoreOrderDetail>;
   const address = detail.address ? formatStoreAddress(detail.address) : "";
 
-  return {
+  return applyOrderFlow({
     id: order.id,
     branchId:
       typeof (detail as { branchId?: number | null }).branchId === "number"
@@ -128,7 +139,7 @@ export function storeOrderToCourierTicket(order: StoreOrderSummary | StoreOrderD
     readyAt: detail.readyAt ?? null,
     dispatchedAt: detail.dispatchedAt ?? null,
     deliveredAt: detail.deliveredAt ?? null,
-  };
+  });
 }
 
 export function asCourierTicket(raw: unknown): CourierTicket | null {
@@ -253,5 +264,9 @@ export async function advanceStoreCourierOrder(
   if (!ticket) {
     throw new Error("Sipariş güncellenemedi");
   }
+  writeOrderFlowStatus(
+    ticket.id,
+    action === "dispatch" ? "COURIER_TAKEN" : "COURIER_DELIVERED_TO_CUSTOMER",
+  );
   return ticket;
 }

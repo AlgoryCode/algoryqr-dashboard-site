@@ -8,11 +8,14 @@ import { useKitchenBoardOrders } from "@/hooks/use-kitchen-board-orders";
 import { ordersForStaffBranch } from "@/lib/branch-scope";
 import { formatBranchCode } from "@/lib/branch";
 import { kitchenOrderKey } from "@/lib/kitchen-queue";
+import type { OrderFlowAction } from "@/lib/order-flow";
 import { advanceStoreKitchenOrder, isOnlineKitchenSource } from "@/lib/store-kitchen";
 import {
   listKitchenQueue,
+  markKitchenDeliveredToCourier,
+  markKitchenDeliveredToWaiter,
+  markKitchenPrepared,
   markKitchenPreparing,
-  markKitchenReady,
   updateKitchenOrderNote,
   WaiterApiError,
 } from "@/lib/waiter-api";
@@ -38,17 +41,31 @@ export default function StaffKitchenView() {
   const action = useMutation({
     mutationFn: async (payload: {
       orderId: number;
-      kind: "preparing" | "ready" | "note";
+      kind: OrderFlowAction | "note";
       orderSource?: string | null;
       note?: string;
     }) => {
-      if (isOnlineKitchenSource(payload.orderSource)) {
-        if (payload.kind === "note") return;
-        return advanceStoreKitchenOrder(payload.orderId, payload.kind);
+      if (payload.kind === "note") {
+        return updateKitchenOrderNote(payload.orderId, payload.note ?? "");
       }
-      if (payload.kind === "preparing") return markKitchenPreparing(payload.orderId, payload.orderSource);
-      if (payload.kind === "ready") return markKitchenReady(payload.orderId, payload.orderSource);
-      return updateKitchenOrderNote(payload.orderId, payload.note ?? "");
+      if (isOnlineKitchenSource(payload.orderSource)) {
+        if (payload.kind === "markKitchenPreparing") {
+          return advanceStoreKitchenOrder(payload.orderId, "preparing");
+        }
+        if (payload.kind === "markKitchenPrepared") {
+          return advanceStoreKitchenOrder(payload.orderId, "ready");
+        }
+      }
+      if (payload.kind === "markKitchenPreparing") {
+        return markKitchenPreparing(payload.orderId, payload.orderSource);
+      }
+      if (payload.kind === "markKitchenPrepared") {
+        return markKitchenPrepared(payload.orderId, payload.orderSource);
+      }
+      if (payload.kind === "markKitchenDeliveredToCourier") {
+        return markKitchenDeliveredToCourier(payload.orderId);
+      }
+      return markKitchenDeliveredToWaiter(payload.orderId);
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["staff-kitchen-queue"] });
@@ -79,6 +96,8 @@ export default function StaffKitchenView() {
                 : null
           }
           mode="kitchen"
+          kitchenEnabled={me.kitchenEnabled !== false}
+          courierEnabled={me.courierEnabled !== false}
           busyOrderId={action.isPending ? action.variables?.orderId : null}
           busyOrderKey={
             action.isPending && action.variables
@@ -88,10 +107,7 @@ export default function StaffKitchenView() {
                 })
               : null
           }
-          onStartPreparing={(orderId, orderSource) =>
-            action.mutate({ orderId, kind: "preparing", orderSource })
-          }
-          onMarkReady={(orderId, orderSource) => action.mutate({ orderId, kind: "ready", orderSource })}
+          onFlowAction={(orderId, kind, orderSource) => action.mutate({ orderId, kind, orderSource })}
           onSaveKitchenNote={(orderId, note) => action.mutate({ orderId, kind: "note", note })}
         />
       </div>

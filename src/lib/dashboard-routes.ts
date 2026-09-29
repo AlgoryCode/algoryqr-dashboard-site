@@ -148,6 +148,10 @@ export const DASHBOARD_ROUTES = {
   kitchenPanel: `${KITCHEN_APP_ORIGIN}/mutfak`,
   courierLogin: `${COURIER_APP_ORIGIN}/kurye/giris`,
   courierPanel: `${COURIER_APP_ORIGIN}/kurye`,
+  kitchenScreen: (branchId?: number | string | null) =>
+    branchId != null && branchId !== "" ? `/mutfak?branch=${branchId}` : "/mutfak",
+  courierScreen: (branchId?: number | string | null) =>
+    branchId != null && branchId !== "" ? `/kurye?branch=${branchId}` : "/kurye",
 
   digitalMenuCheckout: (packageId: number | string) =>
     `/dashboard/dijital-menu/satin-al/${packageId}`,

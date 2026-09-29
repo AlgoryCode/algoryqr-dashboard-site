@@ -8,6 +8,7 @@ import {
   isDemoAccountSession,
   type DemoAccountStatus,
 } from "@/lib/demo-account";
+import { DEMO_TRIAL_ACCOUNT_LABEL, demoTrialSubtitle } from "@/lib/demo-trial-package";
 import { getSiteSameOriginAxios } from "@/lib/site-same-origin-axios";
 
 export function DemoModeBanner() {
@@ -30,18 +31,12 @@ export function DemoModeBanner() {
   }
 
   const daysLeft = personalDemo ? demoDaysRemaining(demo.data?.expiresAt) : null;
-  const subtitle = personalDemo
-    ? daysLeft == null
-      ? "Demo hesabınız aktif; veriler sunum amaçlıdır."
-      : daysLeft === 0
-        ? "Demo süreniz bugün sona eriyor."
-        : `Demo hesabınız aktif · ${daysLeft} gün kaldı`
-    : "Paylaşımlı demo hesabındasınız.";
+  const subtitle = personalDemo ? demoTrialSubtitle(daysLeft) : "Paylaşımlı demo hesabındasınız.";
 
   return (
     <div className="mb-6 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-900 dark:bg-amber-950/30">
       <p className="text-sm text-foreground">
-        <span className="font-semibold">Demo modu.</span>
+        <span className="font-semibold">{personalDemo ? DEMO_TRIAL_ACCOUNT_LABEL : "Demo modu"}.</span>
         <span className="text-muted-foreground"> {subtitle}</span>
         {personalDemo && demo.data?.username ? (
           <span className="text-muted-foreground"> (@{demo.data.username})</span>

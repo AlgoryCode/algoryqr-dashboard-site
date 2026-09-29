@@ -26,38 +26,49 @@ function ticket(partial: Partial<CourierTicket> & Pick<CourierTicket, "id" | "st
 }
 
 describe("courier queue", () => {
-  it("groups delivery tickets into courier columns", () => {
+  it("groups delivery tickets into courier columns (legacy statuses normalized)", () => {
     const grouped = groupCourierOrders([
-      ticket({ id: 1, status: "PREPARING" }),
-      ticket({ id: 2, status: "READY" }),
-      ticket({ id: 3, status: "ON_THE_WAY" }),
-      ticket({ id: 4, status: "DELIVERED" }),
-      ticket({ id: 5, status: "CONFIRMED" }),
+      ticket({ id: 1, status: "KITCHEN_DELIVERED_TO_COURIER" }),
+      ticket({ id: 2, status: "COURIER_TAKEN" }),
+      ticket({ id: 3, status: "COURIER_DELIVERED_TO_CUSTOMER" }),
+      ticket({ id: 4, status: "WAITER_DELIVERED_TO_COURIER" }),
     ]);
-    expect(grouped.PREPARING.map((item) => item.id)).toEqual([1]);
-    expect(grouped.READY.map((item) => item.id)).toEqual([2]);
-    expect(grouped.ON_THE_WAY.map((item) => item.id)).toEqual([3]);
-    expect(grouped.DELIVERED.map((item) => item.id)).toEqual([4]);
+    expect(grouped.HANDOFF.map((item) => item.id)).toEqual([1, 4]);
+    expect(grouped.TAKEN.map((item) => item.id)).toEqual([2]);
+    expect(grouped.DELIVERED.map((item) => item.id)).toEqual([3]);
+  });
+
+  it("normalizes legacy statuses into new columns", () => {
+    const grouped = groupCourierOrders([
+      ticket({ id: 1, status: "READY" }),
+      ticket({ id: 2, status: "ON_THE_WAY" }),
+      ticket({ id: 3, status: "DELIVERED" }),
+    ]);
+    expect(grouped.HANDOFF.map((item) => item.id)).toEqual([1]);
+    expect(grouped.TAKEN.map((item) => item.id)).toEqual([2]);
+    expect(grouped.DELIVERED.map((item) => item.id)).toEqual([3]);
   });
 
   it("uses operational titles on the courier kanban", () => {
-    expect(courierKanbanColumnTitle("PREPARING")).toBe("Mutfakta");
-    expect(courierKanbanColumnTitle("READY")).toBe("Teslim Al");
-    expect(courierKanbanColumnTitle("ON_THE_WAY")).toBe("Yolda");
+    expect(courierKanbanColumnTitle("HANDOFF")).toBe("Teslim Al");
+    expect(courierKanbanColumnTitle("TAKEN")).toBe("Yolda");
     expect(courierKanbanColumnTitle("DELIVERED")).toBe("Teslim Edildi");
-    expect(courierColumnFor("ON_THE_WAY")).toBe("ON_THE_WAY");
+    expect(courierColumnFor("COURIER_TAKEN")).toBe("TAKEN");
+    expect(courierColumnFor("ON_THE_WAY")).toBe("TAKEN");
   });
 
-  it("asks the courier to leave when ready and to confirm delivery on the way", () => {
+  it("asks the courier to leave when handed off and to confirm delivery on the way", () => {
+    expect(courierPrimaryAction(ticket({ id: 1, status: "KITCHEN_DELIVERED_TO_COURIER" }))?.action).toBe("dispatch");
     expect(courierPrimaryAction(ticket({ id: 1, status: "READY" }))?.action).toBe("dispatch");
+    expect(courierPrimaryAction(ticket({ id: 2, status: "COURIER_TAKEN" }))?.action).toBe("deliver");
     expect(courierPrimaryAction(ticket({ id: 2, status: "ON_THE_WAY" }))?.action).toBe("deliver");
-    expect(courierPrimaryAction(ticket({ id: 3, status: "PREPARING" }))).toBeNull();
+    expect(courierPrimaryAction(ticket({ id: 3, status: "KITCHEN_PREPARING" }))).toBeNull();
   });
 
   it("filters by order no, customer or address", () => {
     const order = ticket({
       id: 9,
-      status: "READY",
+      status: "KITCHEN_DELIVERED_TO_COURIER",
       orderNo: "TR-9",
       customerName: "Burak",
       deliveryAddress: "Kadıköy",
@@ -71,16 +82,16 @@ describe("courier queue", () => {
   it("does not mark preparing or delivered tickets as delayed", () => {
     const now = Date.parse("2026-09-19T21:00:00.000Z");
     expect(
-      isCourierTicketDelayed(ticket({ id: 1, status: "PREPARING", createdAt: "2026-09-19T20:00:00.000Z" }), now),
+      isCourierTicketDelayed(ticket({ id: 1, status: "KITCHEN_PREPARING", createdAt: "2026-09-19T20:00:00.000Z" }), now),
     ).toBe(false);
     expect(
-      isCourierTicketDelayed(ticket({ id: 2, status: "DELIVERED", createdAt: "2026-09-19T20:00:00.000Z" }), now),
+      isCourierTicketDelayed(ticket({ id: 2, status: "COURIER_DELIVERED_TO_CUSTOMER", createdAt: "2026-09-19T20:00:00.000Z" }), now),
     ).toBe(false);
     expect(
       isCourierTicketDelayed(
         ticket({
           id: 3,
-          status: "READY",
+          status: "KITCHEN_DELIVERED_TO_COURIER",
           readyAt: "2026-09-19T20:00:00.000Z",
           createdAt: "2026-09-19T20:00:00.000Z",
         }),
@@ -91,10 +102,10 @@ describe("courier queue", () => {
 
   it("merges waiter and store courier tickets by id", () => {
     const merged = mergeCourierOrders(
-      [ticket({ id: 1, status: "READY", customerName: "A" })],
-      [ticket({ id: 1, status: "ON_THE_WAY", customerName: "B" }), ticket({ id: 2, status: "READY" })],
+      [ticket({ id: 1, status: "KITCHEN_DELIVERED_TO_COURIER", customerName: "A" })],
+      [ticket({ id: 1, status: "COURIER_TAKEN", customerName: "B" }), ticket({ id: 2, status: "KITCHEN_DELIVERED_TO_COURIER" })],
     );
     expect(merged.map((item) => item.id)).toEqual([1, 2]);
-    expect(merged[0]?.status).toBe("ON_THE_WAY");
+    expect(merged[0]?.status).toBe("COURIER_TAKEN");
   });
 });

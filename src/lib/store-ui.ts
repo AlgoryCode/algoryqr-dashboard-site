@@ -1,4 +1,9 @@
-import { KITCHEN_FLOW_STEP_LABEL } from "@/lib/kitchen-queue";
+import {
+  nextOrderActions,
+  ORDER_FLOW_STATUS_LABEL,
+  orderFlowStepIndex,
+  orderFlowSteps,
+} from "@/lib/order-flow";
 import type {
   StoreCourierVehicleType,
   StoreDeliveryType,
@@ -20,6 +25,7 @@ export const STORE_ORDER_STATUS_LABEL: Record<StoreOrderStatus, string> = {
   DELIVERED: "Teslim edildi",
   REJECTED: "Reddedildi",
   CANCELLED: "İptal edildi",
+  ...ORDER_FLOW_STATUS_LABEL,
 };
 
 export const STORE_ORDER_STATUS_CLASS: Record<StoreOrderStatus, string> = {
@@ -31,6 +37,15 @@ export const STORE_ORDER_STATUS_CLASS: Record<StoreOrderStatus, string> = {
   DELIVERED: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300",
   REJECTED: "bg-rose-100 text-rose-800 dark:bg-rose-500/15 dark:text-rose-300",
   CANCELLED: "bg-muted text-muted-foreground",
+  KITCHEN_PREPARING: "bg-indigo-100 text-indigo-800 dark:bg-indigo-500/15 dark:text-indigo-300",
+  KITCHEN_PREPARED: "bg-violet-100 text-violet-800 dark:bg-violet-500/15 dark:text-violet-300",
+  KITCHEN_DELIVERED_TO_WAITER: "bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300",
+  KITCHEN_DELIVERED_TO_COURIER: "bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300",
+  WAITER_TAKEN: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300",
+  COURIER_TAKEN: "bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300",
+  WAITER_DELIVERED_TO_CUSTOMER: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300",
+  WAITER_DELIVERED_TO_COURIER: "bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300",
+  COURIER_DELIVERED_TO_CUSTOMER: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300",
 };
 
 export const STORE_DELIVERY_TYPE_LABEL: Record<StoreDeliveryType, string> = {
@@ -76,30 +91,6 @@ type StoreOrderTransition = {
   tone: "primary" | "secondary" | "danger";
 };
 
-const TRANSITIONS_BY_STATUS: Record<StoreOrderStatus, StoreOrderTransition[]> = {
-  PENDING: [
-    { action: "confirm", label: "Onayla", tone: "primary" },
-    { action: "reject", label: "Reddet", tone: "danger" },
-  ],
-  CONFIRMED: [
-    { action: "preparing", label: "Siparişi mutfağa gönder", tone: "primary" },
-    { action: "cancel", label: "İptal et", tone: "danger" },
-  ],
-  PREPARING: [
-    { action: "ready", label: "Hazır", tone: "primary" },
-    { action: "cancel", label: "İptal et", tone: "danger" },
-  ],
-  READY: [
-    { action: "dispatch", label: "Kurye teslimi", tone: "primary" },
-    { action: "deliver", label: "Teslim edildi", tone: "primary" },
-    { action: "cancel", label: "İptal et", tone: "danger" },
-  ],
-  ON_THE_WAY: [{ action: "deliver", label: "Teslim edildi", tone: "primary" }],
-  DELIVERED: [],
-  REJECTED: [],
-  CANCELLED: [],
-};
-
 /**
  * Pickup never dispatches a courier.
  * Delivery must go through courier handover before "teslim edildi".
@@ -107,15 +98,31 @@ const TRANSITIONS_BY_STATUS: Record<StoreOrderStatus, StoreOrderTransition[]> = 
 export function availableStoreOrderTransitions(
   status: StoreOrderStatus,
   deliveryType: StoreDeliveryType,
+  flags: { kitchenEnabled?: boolean; courierEnabled?: boolean } = {},
 ): StoreOrderTransition[] {
-  const transitions = TRANSITIONS_BY_STATUS[status] ?? [];
-  return transitions.filter((transition) => {
-    if (deliveryType === "PICKUP" && transition.action === "dispatch") return false;
-    if (deliveryType === "DELIVERY" && status === "READY" && transition.action === "deliver") {
-      return false;
-    }
-    return true;
+  const kitchenEnabled = flags.kitchenEnabled ?? true;
+  const courierEnabled = flags.courierEnabled ?? deliveryType === "DELIVERY";
+  if (status === "PENDING") {
+    return [
+      { action: "confirm", label: "Onayla", tone: "primary" },
+      { action: "reject", label: "Reddet", tone: "danger" },
+    ];
+  }
+  if (status === "REJECTED" || status === "CANCELLED") return [];
+  const steps = nextOrderActions(status, {
+    kitchenEnabled,
+    courierEnabled: courierEnabled && deliveryType === "DELIVERY",
+    delivery: deliveryType === "DELIVERY",
   });
+  const transitions: StoreOrderTransition[] = steps.map((step) => ({
+    action: step.action,
+    label: step.label,
+    tone: "primary",
+  }));
+  if (status !== "WAITER_DELIVERED_TO_CUSTOMER" && status !== "COURIER_DELIVERED_TO_CUSTOMER" && status !== "DELIVERED") {
+    transitions.push({ action: "cancel", label: "İptal et", tone: "danger" });
+  }
+  return transitions;
 }
 
 export type StoreKitchenFlowStep = {
@@ -125,28 +132,25 @@ export type StoreKitchenFlowStep = {
 
 /** Kitchen-aligned merchant flow shown on the online order detail screen. */
 export function storeKitchenFlowSteps(deliveryType: StoreDeliveryType): StoreKitchenFlowStep[] {
-  const steps: StoreKitchenFlowStep[] = [
-    { status: "CONFIRMED", label: KITCHEN_FLOW_STEP_LABEL.CONFIRMED },
-    { status: "PREPARING", label: KITCHEN_FLOW_STEP_LABEL.PREPARING },
-    { status: "READY", label: KITCHEN_FLOW_STEP_LABEL.READY },
-  ];
-  if (deliveryType === "DELIVERY") {
-    steps.push({ status: "ON_THE_WAY", label: KITCHEN_FLOW_STEP_LABEL.COURIER });
-  }
-  steps.push({ status: "DELIVERED", label: KITCHEN_FLOW_STEP_LABEL.DELIVERED });
-  return steps;
+  return orderFlowSteps({
+    kitchenEnabled: true,
+    courierEnabled: deliveryType === "DELIVERY",
+    delivery: deliveryType === "DELIVERY",
+  }).map((step) => ({
+    status: step.status as StoreOrderStatus,
+    label: step.label,
+  }));
 }
 
 export function storeKitchenFlowIndex(
   status: StoreOrderStatus,
   deliveryType: StoreDeliveryType,
 ): number {
-  if (status === "PENDING" || status === "REJECTED" || status === "CANCELLED") return -1;
-  const steps = storeKitchenFlowSteps(deliveryType);
-  if (deliveryType === "PICKUP" && status === "ON_THE_WAY") {
-    return steps.findIndex((step) => step.status === "READY");
-  }
-  return steps.findIndex((step) => step.status === status);
+  return orderFlowStepIndex(status, {
+    kitchenEnabled: true,
+    courierEnabled: deliveryType === "DELIVERY",
+    delivery: deliveryType === "DELIVERY",
+  });
 }
 
 export function formatStoreElapsed(from?: string | null, now = Date.now()): string | null {

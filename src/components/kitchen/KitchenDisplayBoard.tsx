@@ -42,6 +42,7 @@ import {
   type KitchenColumnId,
   type KitchenOrderOrigin,
 } from "@/lib/kitchen-queue";
+import { kitchenFlowColumn, kitchenOrderActions, type OrderFlowAction } from "@/lib/order-flow";
 import type { OrderResponse } from "@/lib/ordering-api";
 import { cn } from "@/lib/utils";
 
@@ -54,12 +55,23 @@ type KitchenDisplayBoardProps = {
   mode: KitchenBoardMode;
   busyOrderId?: number | null;
   busyOrderKey?: string | null;
+  kitchenEnabled?: boolean;
+  courierEnabled?: boolean;
   onStartPreparing?: (orderId: number, orderSource?: string | null) => void;
   onMarkReady?: (orderId: number, orderSource?: string | null) => void;
   onMarkServed?: (orderId: number) => void;
+  onFlowAction?: (orderId: number, action: OrderFlowAction, orderSource?: string | null) => void;
   onSaveKitchenNote?: (orderId: number, note: string) => void;
   onSelectOrder?: (orderId: number) => void;
 };
+
+function kitchenBoardColumn(order: OrderResponse): KitchenColumnId {
+  const column = kitchenFlowColumn(order.status, (order.deliveryType ?? "").toUpperCase() === "DELIVERY");
+  if (column === "KITCHEN_PREPARING") return "PREPARING";
+  if (column === "KITCHEN_PREPARED") return "READY";
+  if (column === "KITCHEN_HANDED") return "SERVED";
+  return "CONFIRMED";
+}
 
 const HIDE_SCROLLBAR =
   "[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden";
@@ -131,9 +143,12 @@ export function KitchenDisplayBoard({
   mode,
   busyOrderId,
   busyOrderKey,
+  kitchenEnabled = true,
+  courierEnabled = true,
   onStartPreparing,
   onMarkReady,
   onMarkServed,
+  onFlowAction,
   onSaveKitchenNote,
   onSelectOrder,
 }: KitchenDisplayBoardProps) {
@@ -200,9 +215,12 @@ export function KitchenDisplayBoard({
     now,
     busyOrderId,
     busyOrderKey,
+    kitchenEnabled,
+    courierEnabled,
     onStartPreparing,
     onMarkReady,
     onMarkServed,
+    onFlowAction,
     onSaveKitchenNote,
     onSelectOrder,
   };
@@ -339,19 +357,14 @@ export function KitchenDisplayBoard({
           {visibleOrders.length === 0 ? (
             <p className="py-12 text-center text-xs text-slate-400">Eşleşen sipariş yok.</p>
           ) : (
-            visibleOrders.map((order) => {
-              const columnId =
-                order.status === "PREPARING"
-                  ? "PREPARING"
-                  : order.status === "READY"
-                    ? "READY"
-                    : order.status === "SERVED" || order.status === "ON_THE_WAY"
-                      ? "SERVED"
-                      : "CONFIRMED";
-              return (
-                <KitchenOrderCard key={kitchenOrderKey(order)} order={order} columnId={columnId} {...cardProps} />
-              );
-            })
+            visibleOrders.map((order) => (
+              <KitchenOrderCard
+                key={kitchenOrderKey(order)}
+                order={order}
+                columnId={kitchenBoardColumn(order)}
+                {...cardProps}
+              />
+            ))
           )}
         </div>
       ) : (
@@ -436,9 +449,12 @@ function KitchenOrderCard({
   now,
   busyOrderId,
   busyOrderKey,
+  kitchenEnabled = true,
+  courierEnabled = true,
   onStartPreparing,
   onMarkReady,
   onMarkServed,
+  onFlowAction,
   onSaveKitchenNote,
   onSelectOrder,
 }: {
@@ -448,9 +464,12 @@ function KitchenOrderCard({
   now: number;
   busyOrderId?: number | null;
   busyOrderKey?: string | null;
+  kitchenEnabled?: boolean;
+  courierEnabled?: boolean;
   onStartPreparing?: (orderId: number, orderSource?: string | null) => void;
   onMarkReady?: (orderId: number, orderSource?: string | null) => void;
   onMarkServed?: (orderId: number) => void;
+  onFlowAction?: (orderId: number, action: OrderFlowAction, orderSource?: string | null) => void;
   onSaveKitchenNote?: (orderId: number, note: string) => void;
   onSelectOrder?: (orderId: number) => void;
 }) {
@@ -465,10 +484,15 @@ function KitchenOrderCard({
   const minutes = kitchenElapsedMinutes(order, now);
   const busy = busyOrderKey ? busyOrderKey === kitchenOrderKey(order) : busyOrderId === order.id;
   const prep = columnId === "PREPARING" ? kitchenPrepProgress(order, now) : null;
+  const flowActions = kitchenOrderActions(order.status, {
+    kitchenEnabled,
+    courierEnabled: courierEnabled && usesCourier,
+    delivery: usesCourier,
+  });
   const canEditNote =
     Boolean(onSaveKitchenNote) &&
     kitchenAllowsNote(origin) &&
-    (order.status === "CONFIRMED" || order.status === "PREPARING");
+    columnId === "PREPARING";
 
   useEffect(() => {
     setNote(order.kitchenNote || "");
@@ -586,30 +610,7 @@ function KitchenOrderCard({
         </p>
       ) : null}
 
-      {/* Card Footer Actions & Status Footer */}
-      {columnId === "PREPARING" ? (
-        <div className="flex items-center justify-between pt-1 border-t border-slate-100">
-          <span className="text-xs text-slate-400">
-            {origin === "TABLE" ? kitchenTableLabel(order) : `Paket: ${orderTicketNo(order)}`}
-          </span>
-          {onMarkReady ? (
-            <KanbanAction busy={busy} tone="emerald" onClick={() => onMarkReady(order.id, order.orderSource)}>
-              Paket Hazır
-            </KanbanAction>
-          ) : null}
-        </div>
-      ) : columnId === "READY" ? (
-        <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
-          <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-600">
-            {kitchenReadyHandoverLabel(origin, order.deliveryType)}
-          </span>
-          {isWaiter && onMarkServed && !usesCourier ? (
-            <KanbanAction busy={busy} tone="emerald" onClick={() => onMarkServed(order.id)}>
-              Teslim Et
-            </KanbanAction>
-          ) : null}
-        </div>
-      ) : columnId === "SERVED" ? (
+      {columnId === "SERVED" ? (
         <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs text-slate-400">
           <span>{formatWhen(order.createdAt)}</span>
           {onSelectOrder ? (
@@ -624,22 +625,44 @@ function KitchenOrderCard({
         </div>
       ) : (
         <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
-          <span className="inline-flex items-center gap-1 text-xs text-slate-400">
-            <Timer className="h-3 w-3" />
-            {delayed ? "SLA aşıldı" : `${Math.max(1, KITCHEN_KANBAN_SLA_MINUTES - (minutes ?? 0))} dk kaldı`}
+          <span className="text-xs text-slate-400">
+            {columnId === "READY"
+              ? kitchenReadyHandoverLabel(origin, order.deliveryType)
+              : delayed
+                ? "SLA aşıldı"
+                : `${Math.max(1, KITCHEN_KANBAN_SLA_MINUTES - (minutes ?? 0))} dk kaldı`}
           </span>
-          {onStartPreparing && !skipsPreparing ? (
-            <KanbanAction busy={busy} tone="emerald" onClick={() => onStartPreparing(order.id, order.orderSource)}>
-              Hazırla
-              <ArrowRight className="h-3 w-3" />
-            </KanbanAction>
-          ) : skipsPreparing && onMarkReady ? (
-            <KanbanAction busy={busy} tone="emerald" onClick={() => onMarkReady(order.id, order.orderSource)}>
-              Paket Hazır
-            </KanbanAction>
-          ) : isWaiter && order.status === "CONFIRMED" ? (
-            <span className="text-[11px] font-medium text-slate-400">Mutfak bekleniyor</span>
-          ) : null}
+          <div className="flex flex-wrap justify-end gap-1.5">
+            {onFlowAction
+              ? flowActions.map((step) => (
+                  <KanbanAction
+                    key={step.action}
+                    busy={busy}
+                    tone="emerald"
+                    onClick={() => onFlowAction(order.id, step.action, order.orderSource)}
+                  >
+                    {step.label}
+                    <ArrowRight className="h-3 w-3" />
+                  </KanbanAction>
+                ))
+              : null}
+            {!onFlowAction && columnId === "PREPARING" && onMarkReady ? (
+              <KanbanAction busy={busy} tone="emerald" onClick={() => onMarkReady(order.id, order.orderSource)}>
+                Hazır
+              </KanbanAction>
+            ) : null}
+            {!onFlowAction && columnId === "READY" && isWaiter && onMarkServed && !usesCourier ? (
+              <KanbanAction busy={busy} tone="emerald" onClick={() => onMarkServed(order.id)}>
+                Teslim Et
+              </KanbanAction>
+            ) : null}
+            {!onFlowAction && columnId === "CONFIRMED" && onStartPreparing && !skipsPreparing ? (
+              <KanbanAction busy={busy} tone="emerald" onClick={() => onStartPreparing(order.id, order.orderSource)}>
+                Hazırla
+                <ArrowRight className="h-3 w-3" />
+              </KanbanAction>
+            ) : null}
+          </div>
         </div>
       )}
     </article>

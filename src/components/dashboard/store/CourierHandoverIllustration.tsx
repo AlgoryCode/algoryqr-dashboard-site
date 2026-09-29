@@ -13,7 +13,7 @@ export function CourierHandoverIllustration({
   className?: string;
 }) {
   const uid = useId().replace(/:/g, "");
-  const onTheWay = status === "ON_THE_WAY";
+  const onTheWay = status === "ON_THE_WAY" || status === "COURIER_TAKEN";
   const label = onTheWay
     ? "Sipariş yolda, motosiklet duman çıkarıyor"
     : "Kuryeye henüz teslim edilmedi, motosiklet bagajı açık";
