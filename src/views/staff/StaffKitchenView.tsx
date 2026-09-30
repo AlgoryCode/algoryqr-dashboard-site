@@ -8,14 +8,21 @@ import { useKitchenBoardOrders } from "@/hooks/use-kitchen-board-orders";
 import { ordersForStaffBranch } from "@/lib/branch-scope";
 import { formatBranchCode } from "@/lib/branch";
 import { kitchenOrderKey } from "@/lib/kitchen-queue";
-import type { OrderFlowAction } from "@/lib/order-flow";
-import { advanceStoreKitchenOrder, isOnlineKitchenSource } from "@/lib/store-kitchen";
+import type { KitchenRevertTarget, OrderCancelRequest, OrderFlowAction } from "@/lib/order-flow";
 import {
+  advanceStoreKitchenOrder,
+  cancelStoreKitchenOrder,
+  isOnlineKitchenSource,
+  revertStoreKitchenOrder,
+} from "@/lib/store-kitchen";
+import {
+  cancelKitchenOrder,
   listKitchenQueue,
   markKitchenDeliveredToCourier,
   markKitchenDeliveredToWaiter,
   markKitchenPrepared,
   markKitchenPreparing,
+  revertKitchenOrder,
   updateKitchenOrderNote,
   WaiterApiError,
 } from "@/lib/waiter-api";
@@ -41,12 +48,26 @@ export default function StaffKitchenView() {
   const action = useMutation({
     mutationFn: async (payload: {
       orderId: number;
-      kind: OrderFlowAction | "note";
+      kind: OrderFlowAction | "note" | "revert" | "cancel";
       orderSource?: string | null;
       note?: string;
+      revertTo?: KitchenRevertTarget;
+      cancel?: OrderCancelRequest;
     }) => {
       if (payload.kind === "note") {
         return updateKitchenOrderNote(payload.orderId, payload.note ?? "");
+      }
+      if (payload.kind === "cancel") {
+        const request = payload.cancel ?? { reason: "OTHER" };
+        return isOnlineKitchenSource(payload.orderSource)
+          ? cancelStoreKitchenOrder(payload.orderId, request)
+          : cancelKitchenOrder(payload.orderId, request, payload.orderSource);
+      }
+      if (payload.kind === "revert") {
+        const to = payload.revertTo ?? "CONFIRMED";
+        return isOnlineKitchenSource(payload.orderSource)
+          ? revertStoreKitchenOrder(payload.orderId, to)
+          : revertKitchenOrder(payload.orderId, to, payload.orderSource);
       }
       if (isOnlineKitchenSource(payload.orderSource)) {
         if (payload.kind === "markKitchenPreparing") {
@@ -108,6 +129,12 @@ export default function StaffKitchenView() {
               : null
           }
           onFlowAction={(orderId, kind, orderSource) => action.mutate({ orderId, kind, orderSource })}
+          onRevert={(orderId, revertTo, orderSource) =>
+            action.mutate({ orderId, kind: "revert", revertTo, orderSource })
+          }
+          onCancel={(orderId, cancel, orderSource) =>
+            action.mutate({ orderId, kind: "cancel", cancel, orderSource })
+          }
           onSaveKitchenNote={(orderId, note) => action.mutate({ orderId, kind: "note", note })}
         />
       </div>

@@ -13,6 +13,8 @@ export type UberEatsConnection = {
   apiKeyMasked?: string | null;
   restaurantId?: string | null;
   restaurantName?: string | null;
+  /** Siparişlerin düştüğü şube; boşsa tüm şubeler. */
+  branchId?: number | null;
   status: UberEatsConnectionStatus;
   lastError?: string | null;
   lastSyncedAt?: string | null;
@@ -130,6 +132,11 @@ export async function getUberEatsConnection() {
 
 export async function upsertUberEatsConnection(payload: UpsertUberEatsConnectionPayload) {
   const { data } = await api.put<UberEatsConnection>("/integrations/ubereats/connections", payload);
+  return data;
+}
+
+export async function assignUberEatsBranch(branchId: number | null) {
+  const { data } = await api.put<UberEatsConnection>("/integrations/ubereats/connections/me/branch", { branchId });
   return data;
 }
 

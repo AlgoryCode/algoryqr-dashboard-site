@@ -1,4 +1,6 @@
 import {
+  isCancelledOrderStatus,
+  isKitchenQueuedStatus,
   kitchenFlowColumn,
   normalizeOrderStatus,
   orderFlowStepIndex,
@@ -16,6 +18,8 @@ export const KITCHEN_FLOW_STEP_LABEL = {
   COURIER: "Kurye teslimi",
   DELIVERED: "Teslim edildi",
   WAITER_HANDOVER: "Garsona teslim",
+  COURIER_HANDOVER: "Kuryeye teslim",
+  CANCELLED: "İptal edilenler",
 } as const;
 
 export const KITCHEN_COLUMNS = [
@@ -23,6 +27,7 @@ export const KITCHEN_COLUMNS = [
   { id: "PREPARING", title: KITCHEN_FLOW_STEP_LABEL.PREPARING },
   { id: "READY", title: KITCHEN_FLOW_STEP_LABEL.READY },
   { id: "SERVED", title: KITCHEN_FLOW_STEP_LABEL.WAITER_HANDOVER },
+  { id: "CANCELLED", title: KITCHEN_FLOW_STEP_LABEL.CANCELLED },
 ] as const;
 
 export type KitchenColumnId = (typeof KITCHEN_COLUMNS)[number]["id"];
@@ -52,6 +57,7 @@ export const KITCHEN_KANBAN_COLUMN_TITLE: Record<KitchenColumnId, string> = {
   PREPARING: "Hazırlanıyor",
   READY: "Hazır",
   SERVED: "Teslim Edildi",
+  CANCELLED: "İptal Edilenler",
 };
 
 export function kitchenKanbanColumnTitle(columnId: KitchenColumnId): string {
@@ -99,6 +105,7 @@ export function isKitchenTicketDelayed(
 ): boolean {
   const s = norm(order.status);
   if (
+    isCancelledOrderStatus(s) ||
     s === "WAITER_TAKEN" ||
     s === "WAITER_DELIVERED_TO_CUSTOMER" ||
     s === "WAITER_DELIVERED_TO_COURIER" ||
@@ -161,21 +168,29 @@ export function withoutClosedBillTickets(
   });
 }
 
+export function kitchenColumnFor(
+  order: Pick<OrderResponse, "status" | "deliveryType">,
+): KitchenColumnId | null {
+  if (isCancelledOrderStatus(order.status)) return "CANCELLED";
+  if (isKitchenQueuedStatus(order.status)) return "CONFIRMED";
+  const column = kitchenFlowColumn(order.status, (order.deliveryType ?? "").toUpperCase() === "DELIVERY");
+  if (column === "KITCHEN_PREPARING") return "PREPARING";
+  if (column === "KITCHEN_PREPARED") return "READY";
+  if (column === "KITCHEN_HANDED" || isHandedOff(order.status)) return "SERVED";
+  return null;
+}
+
 export function groupKitchenOrders(orders: OrderResponse[]): KitchenQueueGroups {
   const groups: KitchenQueueGroups = {
     CONFIRMED: [],
     PREPARING: [],
     READY: [],
     SERVED: [],
+    CANCELLED: [],
   };
   for (const order of orders) {
-    const column = kitchenFlowColumn(order.status, (order.deliveryType ?? "").toUpperCase() === "DELIVERY");
-    if (column === "KITCHEN_PREPARING") groups.PREPARING.push(order);
-    else if (column === "KITCHEN_PREPARED") groups.READY.push(order);
-    else if (column === "KITCHEN_HANDED" || isHandedOff(order.status)) groups.SERVED.push(order);
-    else if (norm(order.status) === "PENDING" || norm(order.status) === "SUBMITTED") {
-      groups.CONFIRMED.push(order);
-    }
+    const column = kitchenColumnFor(order);
+    if (column) groups[column].push(order);
   }
   return groups;
 }
@@ -260,6 +275,45 @@ export function kitchenSkipsPreparing(origin: KitchenOrderOrigin): boolean {
 
 export function kitchenAllowsNote(origin: KitchenOrderOrigin): boolean {
   return origin === "TABLE" || origin === "ONLINE" || origin === "PHONE";
+}
+
+/** Marketplace orders are cancelled on the platform, not from the kitchen. */
+export function kitchenAllowsCancel(origin: KitchenOrderOrigin): boolean {
+  return origin === "TABLE" || origin === "ONLINE" || origin === "PHONE";
+}
+
+export type KitchenHandoverTarget = "WAITER" | "COURIER";
+
+export function kitchenHandoverTarget(status: string | null | undefined): KitchenHandoverTarget | null {
+  const s = norm(status);
+  if (
+    s === "KITCHEN_DELIVERED_TO_COURIER" ||
+    s === "WAITER_DELIVERED_TO_COURIER" ||
+    s === "COURIER_TAKEN" ||
+    s === "COURIER_DELIVERED_TO_CUSTOMER"
+  ) {
+    return "COURIER";
+  }
+  if (isHandedOff(s)) return "WAITER";
+  return null;
+}
+
+/** staff: pick a courier account (the order lands on that courier's screen); platform: marketplace courier. */
+export type KitchenCourierHandover =
+  | { kind: "staff" }
+  | { kind: "platform" }
+  | { kind: "unavailable"; reason: string };
+
+export function kitchenCourierHandover(
+  order: Pick<OrderResponse, "orderSource" | "tableName" | "tableId" | "deliveryType">,
+  courierEnabled: boolean,
+): KitchenCourierHandover {
+  if (!courierEnabled) return { kind: "unavailable", reason: "Bu şubede kurye kapalı" };
+  const origin = kitchenOrderOrigin(order);
+  if (origin === "TABLE") return { kind: "unavailable", reason: "Masa siparişinde teslimat adresi yok" };
+  if (origin === "UBER_EATS" || origin === "YEMEKSEPETI") return { kind: "platform" };
+  if (isPickupDelivery(order.deliveryType)) return { kind: "unavailable", reason: "Gel-al siparişi, kurye gerekmez" };
+  return { kind: "staff" };
 }
 
 export function kitchenReadyHandoverLabel(origin: KitchenOrderOrigin, deliveryType?: string | null): string {

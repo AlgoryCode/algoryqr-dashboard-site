@@ -4,6 +4,7 @@ import {
   buildDashboardBreadcrumbs,
   DASHBOARD_NAV_ITEMS,
   DASHBOARD_ROUTES,
+  isDashboardNavActive,
   isIntegrationsSectionActive,
   isOnlineOrderSectionActive,
   isRestaurantLayoutPath,
@@ -122,11 +123,9 @@ describe("kitchen monitor routes", () => {
     expect(DASHBOARD_ROUTES.courierLogin).toBe("http://localhost:3005/kurye/giris");
   });
 
-  it("opens owner kitchen and courier screens on the dashboard origin", () => {
+  it("opens the owner kitchen screen on the dashboard origin", () => {
     expect(DASHBOARD_ROUTES.kitchenScreen(12)).toBe("/mutfak?branch=12");
     expect(DASHBOARD_ROUTES.kitchenScreen()).toBe("/mutfak");
-    expect(DASHBOARD_ROUTES.courierScreen(12)).toBe("/kurye?branch=12");
-    expect(DASHBOARD_ROUTES.courierScreen(null)).toBe("/kurye");
   });
 });
 
@@ -153,6 +152,24 @@ describe("splitMobileDashboardNav", () => {
     expect(primary).toHaveLength(4);
     expect(primary[0].key).toBe("overview");
     expect(primary.map((item) => item.key)).not.toContain("reservations");
+  });
+});
+
+describe("module sidebar active state", () => {
+  const activeKeys = (pathname: string) =>
+    DASHBOARD_NAV_ITEMS.filter(
+      (item) => !item.excludeFromSidebar && isDashboardNavActive(pathname, item.href, item.key),
+    ).map((item) => item.key);
+
+  it("highlights exactly one module entry per page", () => {
+    expect(activeKeys(DASHBOARD_ROUTES.digitalMenuProducts)).toEqual(["products"]);
+    expect(activeKeys(DASHBOARD_ROUTES.digitalMenuCategories)).toEqual(["categories"]);
+    expect(activeKeys(DASHBOARD_ROUTES.feedback)).toEqual(["feedback"]);
+    expect(activeKeys(DASHBOARD_ROUTES.digitalMenuMenus)).toEqual(["myMenus"]);
+    expect(activeKeys(DASHBOARD_ROUTES.digitalMenu)).toEqual(["myBranches"]);
+    expect(activeKeys(DASHBOARD_ROUTES.restaurantLayoutForBranch(4))).toEqual(["restaurantLayout"]);
+    expect(activeKeys(DASHBOARD_ROUTES.smartReports)).toEqual(["smartReports"]);
+    expect(activeKeys(DASHBOARD_ROUTES.reportsHub)).toEqual(["reports"]);
   });
 });
 

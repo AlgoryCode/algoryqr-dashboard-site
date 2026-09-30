@@ -45,6 +45,7 @@ type StaffOrderBillSheetProps = {
   onBillUpdated?: () => void;
   processPanel?: ReactNode;
   defaultPanel?: SheetPanel;
+  kitchenEnabled?: boolean;
 };
 
 export function StaffOrderBillSheet({
@@ -55,6 +56,7 @@ export function StaffOrderBillSheet({
   onBillUpdated,
   processPanel,
   defaultPanel = "bill",
+  kitchenEnabled = true,
 }: StaffOrderBillSheetProps) {
   const queryClient = useQueryClient();
   const tableId = order?.tableId ?? null;
@@ -193,7 +195,7 @@ export function StaffOrderBillSheet({
   const remaining = Number(bill?.remainingTotal ?? bill?.totalAmount ?? 0);
   const closed = bill?.status === "CLOSED";
   const paymentOrders = tableOrders?.length ? tableOrders : order ? [order] : [];
-  const canCollect = waiterCanCollectOnOrders(paymentOrders);
+  const canCollect = waiterCanCollectOnOrders(paymentOrders, kitchenEnabled);
   const canClose = canCollect && bill?.status === "OPEN" && remaining > 0.009;
   const payments = bill?.payments ?? [];
 

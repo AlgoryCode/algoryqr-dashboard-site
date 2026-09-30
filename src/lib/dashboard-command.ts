@@ -12,23 +12,15 @@ export type DashboardCommandEntry = {
   external?: boolean;
 };
 
+const NAV_EXTRA_KEYWORDS: Partial<Record<string, string>> = {
+  reservations: "rezervasyon masa misafir",
+  products: "ürün yemek fiyat tükendi",
+  feedback: "yorum puan şikayet geri bildirim",
+  staff: "personel garson aşçı kurye kullanıcı",
+  liveOrders: "sipariş mutfak canlı akış",
+};
+
 const EXTRA_COMMANDS: DashboardCommandEntry[] = [
-  {
-    id: "products",
-    label: "Ürünler",
-    href: DASHBOARD_ROUTES.digitalMenuProducts,
-    group: "Menü",
-    keywords: "ürün yemek fiyat",
-    requiredScope: "QR_MENU_OWNER",
-  },
-  {
-    id: "feedback",
-    label: "Geri bildirimler",
-    href: DASHBOARD_ROUTES.feedback,
-    group: "Menü",
-    keywords: "yorum puan şikayet",
-    requiredScope: "QR_MENU_OWNER",
-  },
   {
     id: "waiter-app",
     label: "Garson uygulaması",
@@ -71,10 +63,7 @@ export function getDashboardCommandEntries(): DashboardCommandEntry[] {
     label: item.label,
     href: item.href,
     group: "Sayfalar",
-    keywords:
-      item.key === "reservations"
-        ? `${item.label} ${item.mobileLabel} rezervasyon masa misafir`
-        : `${item.label} ${item.mobileLabel}`,
+    keywords: `${item.label} ${item.mobileLabel} ${NAV_EXTRA_KEYWORDS[item.key] ?? ""}`.trim(),
     requiredScope: item.requiredScope,
     requiresAllowAccess: item.requiresAllowAccess,
   }));

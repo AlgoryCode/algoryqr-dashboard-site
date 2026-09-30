@@ -1,3 +1,9 @@
+import {
+  forgetOrderFlowStatus,
+  type KitchenRevertTarget,
+  type OrderCancelReason,
+  type OrderCancelRequest,
+} from "@/lib/order-flow";
 import { asKitchenTickets } from "@/lib/store-kitchen";
 
 export type TableSessionResponse = {
@@ -81,6 +87,8 @@ export type OrderResponse = {
   customerPhone?: string | null;
   deliveryType?: string | null;
   deliveryAddress?: string | null;
+  courierStaffId?: number | null;
+  courierStaffName?: string | null;
   status: OrderStatus;
   totalAmount?: number | string | null;
   currency?: string | null;
@@ -100,6 +108,9 @@ export type OrderResponse = {
   readyAt?: string | null;
   servedAt?: string | null;
   rejectedAt?: string | null;
+  cancelledAt?: string | null;
+  cancelReason?: OrderCancelReason | string | null;
+  cancelReasonNote?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
   campaignSummary?: OrderCampaignSummary | null;
@@ -540,6 +551,27 @@ export async function markMerchantKitchenReady(
   return merchantKitchenTransition(menuId, orderId, "ready", "Hazır işaretlenemedi", orderSource);
 }
 
+export async function revertMerchantKitchenOrder(
+  menuId: number,
+  orderId: number,
+  to: KitchenRevertTarget,
+  orderSource?: string | null,
+): Promise<OrderResponse> {
+  const params = new URLSearchParams({ to });
+  if (orderSource) params.set("source", orderSource);
+  const response = await fetch(`/api/waiter-panel/menu/${menuId}/orders/${orderId}/kitchen-revert?${params}`, {
+    method: "POST",
+    headers: { Accept: "application/json" },
+    credentials: "same-origin",
+  });
+  const data = await parseJson<OrderResponse & { message?: string }>(response);
+  if (!response.ok) {
+    throw new OrderingApiError(response.status, data.message || "Sipariş geri alınamadı");
+  }
+  forgetOrderFlowStatus(orderId);
+  return data;
+}
+
 export async function markMerchantKitchenServed(
   menuId: number,
   orderId: number,
@@ -584,16 +616,18 @@ export async function getMerchantOrder(
 export async function cancelMerchantOrder(
   menuId: number,
   orderId: number,
+  request?: OrderCancelRequest,
 ): Promise<OrderResponse> {
   const response = await fetch(`/api/waiter-panel/menu/${menuId}/orders/${orderId}/cancel`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     credentials: "same-origin",
-    body: JSON.stringify({}),
+    body: JSON.stringify(request ?? {}),
   });
   const data = await parseJson<OrderResponse & { message?: string }>(response);
   if (!response.ok) {
     throw new OrderingApiError(response.status, data.message || "Sipariş iptal edilemedi");
   }
+  forgetOrderFlowStatus(orderId);
   return data;
 }

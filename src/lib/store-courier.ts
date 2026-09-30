@@ -14,7 +14,6 @@ export const STORE_COURIER_STATUSES = [
   "COURIER_TAKEN",
   "COURIER_DELIVERED_TO_CUSTOMER",
 ] as const;
-
 export type CourierTicketItem = {
   productId: number;
   productName: string;
@@ -37,6 +36,7 @@ export type CourierTicket = {
   paymentMethod?: string | null;
   courierName?: string | null;
   courierPhone?: string | null;
+  courierStaffId?: number | null;
   items: CourierTicketItem[];
   createdAt: string;
   readyAt?: string | null;
@@ -119,10 +119,7 @@ export function storeOrderToCourierTicket(order: StoreOrderSummary | StoreOrderD
 
   return applyOrderFlow({
     id: order.id,
-    branchId:
-      typeof (detail as { branchId?: number | null }).branchId === "number"
-        ? (detail as { branchId: number }).branchId
-        : null,
+    branchId: order.branchId ?? null,
     orderNo: order.orderNo,
     status: order.status,
     customerName: order.customerName,
@@ -134,6 +131,7 @@ export function storeOrderToCourierTicket(order: StoreOrderSummary | StoreOrderD
     paymentMethod: order.paymentMethod,
     courierName: order.courier?.fullName ?? null,
     courierPhone: order.courier?.phone ?? null,
+    courierStaffId: detail.courierStaff?.id ?? null,
     items: mapStoreItems(detail),
     createdAt: order.createdAt,
     readyAt: detail.readyAt ?? null,

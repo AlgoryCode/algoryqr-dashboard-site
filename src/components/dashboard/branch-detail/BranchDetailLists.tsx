@@ -8,7 +8,7 @@ import { ACCOUNT_CARD } from "@/lib/dashboard-surface";
 import { cn } from "@/lib/utils";
 
 export type ReviewRow = { id: number; title: string; score: string; comment: string };
-export type MenuRow = { menuId: number; qrId: number; name: string };
+export type MenuRow = { menuId: number; qrId: number; name: string; publicHref?: string };
 export type StaffRow = { id: number; name: string; role: string };
 
 export function MenuList({ branchId, menus }: { branchId: number; menus: MenuRow[] }) {
@@ -21,10 +21,20 @@ export function MenuList({ branchId, menus }: { branchId: number; menus: MenuRow
       empty="Bu şubede menü yok."
     >
       {menus.map((menu) => (
-        <li key={menu.menuId}>
-          <Link href={DASHBOARD_ROUTES.digitalMenuEdit(menu.qrId)} className="block truncate py-2.5 text-sm font-medium text-zinc-950">
+        <li key={menu.menuId} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+          <Link href={DASHBOARD_ROUTES.digitalMenuEdit(menu.qrId)} className="truncate font-medium text-zinc-950">
             {menu.name}
           </Link>
+          {menu.publicHref ? (
+            <a
+              href={menu.publicHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 text-xs font-medium text-foreground underline-offset-2 hover:underline"
+            >
+              Menüye git
+            </a>
+          ) : null}
         </li>
       ))}
     </RecordList>

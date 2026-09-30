@@ -1,5 +1,5 @@
 import { isDeliveryOrder, orderLocationLabel, sortOrdersNewestFirst } from "@/lib/order-management";
-import { normalizeOrderStatus, waiterFlowColumn } from "@/lib/order-flow";
+import { isCancelledOrderStatus, normalizeOrderStatus, waiterFlowColumn, waiterServiceColumn } from "@/lib/order-flow";
 import type { OrderResponse } from "@/lib/ordering-api";
 
 export type WaiterShiftBoard = {
@@ -7,6 +7,7 @@ export type WaiterShiftBoard = {
   cooking: OrderResponse[];
   deliver: OrderResponse[];
   delivered: OrderResponse[];
+  cancelled: OrderResponse[];
 };
 
 /** Adisyon süreci sekmesinde yalnızca seçili masanın siparişleri. */
@@ -21,10 +22,14 @@ export function filterWaiterShiftBoard(
     cooking: forTable(board.cooking),
     deliver: forTable(board.deliver),
     delivered: forTable(board.delivered),
+    cancelled: forTable(board.cancelled),
   };
 }
 
+/** Cancelled and rejected are terminal, so they outrank every stale copy in the other lists. */
 const RANK: Record<string, number> = {
+  CANCELLED: 99,
+  REJECTED: 99,
   PENDING: 1,
   SUBMITTED: 2,
   KITCHEN_PREPARING: 3,
@@ -90,6 +95,7 @@ function bySubmittedAsc(orders: OrderResponse[]): OrderResponse[] {
 /**
  * Garson vardiyası:
  * onay (PENDING) -> mutfak (KITCHEN_*) -> teslim al (WAITER_TAKEN) -> teslim et (WAITER_DELIVERED_TO_CUSTOMER).
+ * İptal / red edilenler ayrı listede kalır.
  */
 export function groupWaiterShift(input: {
   pending?: OrderResponse[];
@@ -97,14 +103,19 @@ export function groupWaiterShift(input: {
   kitchen?: OrderResponse[];
   today?: OrderResponse[];
   servedNow?: OrderResponse[];
+  cancelledNow?: OrderResponse[];
   dismissedIds?: number[];
+  /** Mutfak kapalıyken onaylı ve hazırlanan siparişler "cooking" listesinde, sunucu SERVED teslim edildi sayılır. */
+  kitchenEnabled?: boolean;
 }): WaiterShiftBoard {
   const dismissed = new Set(input.dismissedIds ?? []);
+  const kitchenEnabled = input.kitchenEnabled ?? true;
   const merged = indexOrders([
     ...(input.today ?? []),
     ...(input.kitchen ?? []),
     ...(input.pending ?? []),
     ...(input.ready ?? []),
+    ...(input.cancelledNow ?? []),
   ]);
 
   for (const order of input.servedNow ?? []) {
@@ -118,9 +129,21 @@ export function groupWaiterShift(input: {
   const cooking: OrderResponse[] = [];
   const deliver: OrderResponse[] = [];
   const delivered: OrderResponse[] = [];
+  const cancelled: OrderResponse[] = [];
 
   for (const order of merged.values()) {
     if (dismissed.has(order.id)) continue;
+    if (isCancelledOrderStatus(order.status)) {
+      cancelled.push(order);
+      continue;
+    }
+    if (!kitchenEnabled) {
+      const serviceCol = waiterServiceColumn(order.status);
+      if (serviceCol === "approve") approve.push(order);
+      else if (serviceCol === "service") cooking.push(order);
+      else if (serviceCol === "delivered" || rankOf(order) > 0) delivered.push(order);
+      continue;
+    }
     const col = waiterFlowColumn(order.status);
     if (col === "approve") approve.push(order);
     else if (col === "cooking") cooking.push(order);
@@ -134,6 +157,7 @@ export function groupWaiterShift(input: {
     cooking: bySubmittedAsc(cooking),
     deliver: bySubmittedAsc(deliver),
     delivered: sortOrdersNewestFirst(delivered),
+    cancelled: sortOrdersNewestFirst(cancelled),
   };
 }
 

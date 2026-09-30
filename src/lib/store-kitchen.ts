@@ -1,5 +1,13 @@
 import { kitchenOrderOrigin, readKitchenOrderList } from "@/lib/kitchen-queue";
-import { applyOrderFlow, stampOrderFlow } from "@/lib/order-flow";
+import {
+  applyKitchenOrderFlow,
+  applyOrderFlow,
+  forgetOrderFlowStatus,
+  orderCancelReasonText,
+  stampOrderFlow,
+  type KitchenRevertTarget,
+  type OrderCancelRequest,
+} from "@/lib/order-flow";
 import { isPhoneCustomerName, stripPhoneCustomerName } from "@/lib/phone-order";
 import type { OrderItemResponse, OrderResponse } from "@/lib/ordering-api";
 import type { StoreOrderDetail, StoreOrderPage, StoreOrderSummary } from "@/lib/store-api";
@@ -89,18 +97,29 @@ function mapStoreItems(order: Partial<StoreOrderDetail>): OrderItemResponse[] {
 }
 
 export function storeOrderToKitchenTicket(order: StoreOrderSummary | StoreOrderDetail): OrderResponse {
+  return applyOrderFlow(storeOrderTicket(order));
+}
+
+function storeOrderToKitchenQueueTicket(order: StoreOrderSummary | StoreOrderDetail): OrderResponse {
+  return applyKitchenOrderFlow(storeOrderTicket(order));
+}
+
+function storeOrderTicket(order: StoreOrderSummary | StoreOrderDetail): OrderResponse {
   const detail = order as Partial<StoreOrderDetail>;
   const address = detail.address ? formatStoreAddress(detail.address) : null;
 
   const phoneOrder = isPhoneCustomerName(order.customerName);
-  return applyOrderFlow({
+  return {
     id: order.id,
     customerName: stripPhoneCustomerName(order.customerName) || order.customerName,
     customerPhone: order.customerPhone,
     orderSource: phoneOrder ? "PHONE" : "STORE",
     orderNumber: order.orderNo,
+    branchId: order.branchId ?? null,
     deliveryType: order.deliveryType,
     deliveryAddress: address && address !== "-" ? address : null,
+    courierStaffId: detail.courierStaff?.id ?? null,
+    courierStaffName: detail.courierStaff?.displayName ?? null,
     status: order.status,
     totalAmount: order.totalAmount,
     currency: order.currency,
@@ -110,8 +129,9 @@ export function storeOrderToKitchenTicket(order: StoreOrderSummary | StoreOrderD
     confirmedAt: detail.confirmedAt ?? null,
     readyAt: detail.readyAt ?? null,
     servedAt: detail.dispatchedAt ?? detail.deliveredAt ?? null,
+    cancelReasonNote: detail.cancelReason ?? null,
     createdAt: order.createdAt,
-  });
+  };
 }
 
 export function asKitchenTicket(raw: unknown): OrderResponse | null {
@@ -119,7 +139,7 @@ export function asKitchenTicket(raw: unknown): OrderResponse | null {
   const id = Number(raw.id);
   if (!Number.isFinite(id)) return null;
   if (looksLikeStoreOrder(raw)) {
-    return storeOrderToKitchenTicket({ ...(raw as unknown as StoreOrderDetail), id });
+    return storeOrderToKitchenQueueTicket({ ...(raw as unknown as StoreOrderDetail), id });
   }
   return { ...(raw as unknown as OrderResponse), id };
 }
@@ -135,12 +155,13 @@ export function isOnlineKitchenSource(orderSource?: string | null): boolean {
   return origin === "ONLINE" || origin === "PHONE";
 }
 
-export async function listStoreKitchenQueue(): Promise<OrderResponse[]> {
-  const params = new URLSearchParams({ page: "0", size: "100" });
-  for (const status of STORE_KITCHEN_STATUSES) {
-    params.append("status", status);
-  }
+function localIsoDate(date = new Date()): string {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
 
+async function listStoreKitchenDetails(params: URLSearchParams): Promise<OrderResponse[]> {
   const listResponse = await fetchStore(`/api/store/orders?${params}`, { method: "GET" });
   if (!listResponse.ok) return [];
 
@@ -154,12 +175,78 @@ export async function listStoreKitchenQueue(): Promise<OrderResponse[]> {
   return Promise.all(
     content.map(async (summary) => {
       const detailResponse = await fetchStore(`/api/store/orders/${summary.id}`, { method: "GET" });
-      if (!detailResponse.ok) return storeOrderToKitchenTicket(summary);
+      if (!detailResponse.ok) return storeOrderToKitchenQueueTicket(summary);
       const detail = readJson(await detailResponse.text());
-      if (!isRecord(detail)) return storeOrderToKitchenTicket(summary);
-      return storeOrderToKitchenTicket(detail as unknown as StoreOrderDetail);
+      if (!isRecord(detail)) return storeOrderToKitchenQueueTicket(summary);
+      return storeOrderToKitchenQueueTicket(detail as unknown as StoreOrderDetail);
     }),
   );
+}
+
+export async function listStoreKitchenQueue(): Promise<OrderResponse[]> {
+  const active = new URLSearchParams({ page: "0", size: "100" });
+  for (const status of STORE_KITCHEN_STATUSES) {
+    active.append("status", status);
+  }
+  const today = localIsoDate();
+  const cancelled = new URLSearchParams({ page: "0", size: "50", status: "CANCELLED", from: today, to: today });
+
+  const [activeOrders, cancelledOrders] = await Promise.all([
+    listStoreKitchenDetails(active),
+    listStoreKitchenDetails(cancelled).catch(() => [] as OrderResponse[]),
+  ]);
+  return [...activeOrders, ...cancelledOrders.filter((order) => order.confirmedAt)];
+}
+
+export async function cancelStoreKitchenOrder(orderId: number, request: OrderCancelRequest): Promise<OrderResponse> {
+  const response = await fetchStore(`/api/store/orders/${orderId}/cancel`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reason: orderCancelReasonText(request) }),
+  });
+  const data = readJson(await response.text());
+  if (!response.ok) {
+    throw new Error(messageFromUnknown(data, "Sipariş iptal edilemedi"));
+  }
+  if (!isRecord(data) || !Number.isFinite(Number(data.id))) {
+    throw new Error("Sipariş iptal edilemedi");
+  }
+  forgetOrderFlowStatus(orderId);
+  return storeOrderToKitchenTicket(data as unknown as StoreOrderDetail);
+}
+
+export type KitchenCourierOption = {
+  id: number;
+  displayName: string;
+  branchId?: number | null;
+  available: boolean;
+  waitingCount: number;
+  onTheRoadCount: number;
+};
+
+export async function listKitchenCouriers(branchId?: number | null): Promise<KitchenCourierOption[]> {
+  const query = branchId != null ? `?branchId=${branchId}` : "";
+  const response = await fetchStore(`/api/store/orders/couriers${query}`, { method: "GET" });
+  if (!response.ok) return [];
+  const data = readJson(await response.text());
+  return Array.isArray(data) ? (data as KitchenCourierOption[]) : [];
+}
+
+export async function handoverStoreOrderToCourier(orderId: number, courierStaffId: number): Promise<OrderResponse> {
+  const response = await fetchStore(`/api/store/orders/${orderId}/courier-handover`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ courierStaffId }),
+  });
+  const data = readJson(await response.text());
+  if (!response.ok) {
+    throw new Error(messageFromUnknown(data, "Sipariş kuryeye verilemedi"));
+  }
+  if (!isRecord(data) || !Number.isFinite(Number(data.id))) {
+    throw new Error("Sipariş kuryeye verilemedi");
+  }
+  forgetOrderFlowStatus(orderId);
+  return storeOrderToKitchenTicket(data as unknown as StoreOrderDetail);
 }
 
 export async function advanceStoreKitchenOrder(
@@ -183,4 +270,21 @@ export async function advanceStoreKitchenOrder(
     ticket,
     action === "preparing" ? "KITCHEN_PREPARING" : "KITCHEN_PREPARED",
   );
+}
+
+export async function revertStoreKitchenOrder(orderId: number, to: KitchenRevertTarget): Promise<OrderResponse> {
+  const response = await fetchStore(`/api/store/orders/${orderId}/revert?to=${to}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  });
+  const data = readJson(await response.text());
+  if (!response.ok) {
+    throw new Error(messageFromUnknown(data, "Sipariş geri alınamadı"));
+  }
+  if (!isRecord(data) || !Number.isFinite(Number(data.id))) {
+    throw new Error("Sipariş geri alınamadı");
+  }
+  forgetOrderFlowStatus(orderId);
+  return storeOrderToKitchenTicket(data as unknown as StoreOrderDetail);
 }

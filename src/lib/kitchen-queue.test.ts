@@ -5,9 +5,12 @@ import {
   formatKitchenElapsed,
   groupKitchenOrders,
   isKitchenTicketDelayed,
+  kitchenAllowsCancel,
   kitchenAllowsNote,
   kitchenColumnTitle,
+  kitchenCourierHandover,
   kitchenElapsedMinutes,
+  kitchenHandoverTarget,
   kitchenInProgressBannerText,
   kitchenInProgressCount,
   kitchenKanbanColumnTitle,
@@ -50,10 +53,62 @@ describe("kitchen queue", () => {
       order({ id: 5, status: "SUBMITTED" }),
       order({ id: 6, status: "ON_THE_WAY", orderSource: "STORE" }),
     ]);
-    expect(grouped.CONFIRMED.map((item) => item.id)).toEqual([5]);
-    expect(grouped.PREPARING.map((item) => item.id)).toEqual([1, 2]);
+    expect(grouped.CONFIRMED.map((item) => item.id)).toEqual([1, 5]);
+    expect(grouped.PREPARING.map((item) => item.id)).toEqual([2]);
     expect(grouped.READY.map((item) => item.id)).toEqual([3]);
     expect(grouped.SERVED.map((item) => item.id)).toEqual([4, 6]);
+  });
+
+  it("puts cancelled tickets in their own column and never flags them late", () => {
+    const cancelled = order({ id: 7, status: "CANCELLED", confirmedAt: "2026-09-29T08:00:00.000Z" });
+    const grouped = groupKitchenOrders([cancelled, order({ id: 8, status: "REJECTED" })]);
+    expect(grouped.CANCELLED.map((item) => item.id)).toEqual([7, 8]);
+    expect(kitchenKanbanColumnTitle("CANCELLED")).toBe("İptal Edilenler");
+    expect(isKitchenTicketDelayed(cancelled, Date.parse("2026-09-29T12:00:00.000Z"))).toBe(false);
+  });
+
+  it("tells courier handovers apart from waiter handovers", () => {
+    expect(kitchenHandoverTarget("KITCHEN_DELIVERED_TO_COURIER")).toBe("COURIER");
+    expect(kitchenHandoverTarget("COURIER_TAKEN")).toBe("COURIER");
+    expect(kitchenHandoverTarget("KITCHEN_DELIVERED_TO_WAITER")).toBe("WAITER");
+    expect(kitchenHandoverTarget("SERVED")).toBe("WAITER");
+    expect(kitchenHandoverTarget("READY")).toBeNull();
+  });
+
+  it("never hands table orders to a courier, but does for phone, online and integrations", () => {
+    const tableOrders = [
+      { orderSource: "QR", tableName: "Masa 1", tableId: 3 },
+      { orderSource: "WAITER", tableName: "Bahçe 4", tableId: 9 },
+    ];
+    for (const table of tableOrders) {
+      expect(kitchenCourierHandover(table, true).kind).toBe("unavailable");
+    }
+    expect(kitchenCourierHandover({ orderSource: "PHONE", deliveryType: "DELIVERY" }, true).kind).toBe("staff");
+    expect(kitchenCourierHandover({ orderSource: "STORE", deliveryType: "DELIVERY" }, true).kind).toBe("staff");
+    expect(kitchenCourierHandover({ orderSource: "UBER_EATS" }, true).kind).toBe("platform");
+    expect(kitchenCourierHandover({ orderSource: "YEMEKSEPETI" }, true).kind).toBe("platform");
+  });
+
+  it("sends only addressed store deliveries to a courier account", () => {
+    expect(kitchenCourierHandover({ orderSource: "STORE", deliveryType: "DELIVERY" }, true)).toEqual({ kind: "staff" });
+    expect(kitchenCourierHandover({ orderSource: "PHONE", deliveryType: "DELIVERY" }, true)).toEqual({ kind: "staff" });
+    expect(kitchenCourierHandover({ orderSource: "UBER_EATS" }, true)).toEqual({ kind: "platform" });
+    expect(kitchenCourierHandover({ orderSource: "QR", tableName: "Masa 1", tableId: 3 }, true)).toEqual({
+      kind: "unavailable",
+      reason: "Masa siparişinde teslimat adresi yok",
+    });
+    expect(kitchenCourierHandover({ orderSource: "STORE", deliveryType: "PICKUP" }, true).kind).toBe("unavailable");
+    expect(kitchenCourierHandover({ orderSource: "STORE", deliveryType: "DELIVERY" }, false)).toEqual({
+      kind: "unavailable",
+      reason: "Bu şubede kurye kapalı",
+    });
+  });
+
+  it("only lets the kitchen cancel its own order sources", () => {
+    expect(kitchenAllowsCancel("TABLE")).toBe(true);
+    expect(kitchenAllowsCancel("ONLINE")).toBe(true);
+    expect(kitchenAllowsCancel("UBER_EATS")).toBe(false);
+    expect(kitchenAllowsCancel("YEMEKSEPETI")).toBe(false);
   });
 
   it("labels kitchen handover separately from customer serve", () => {

@@ -22,7 +22,9 @@ import { IntegrationsSectionHeader } from "@/components/dashboard/IntegrationsSe
 import { useDigitalMenuAccess } from "@/components/dashboard/menu/DigitalMenuPicker";
 import { ApiError } from "@/lib/api";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
+import { IntegrationBranchCard } from "@/components/dashboard/IntegrationBranchCard";
 import {
+  assignUberEatsBranch,
   disconnectUberEats,
   getUberEatsConnection,
   listUberEatsRestaurants,
@@ -158,6 +160,17 @@ export default function UberEatsHubView() {
           </p>
         </div>
       </div>
+
+      {connection ? (
+        <IntegrationBranchCard
+          platform="Uber Eats"
+          branchId={connection.branchId}
+          onAssign={async (branchId) => {
+            await assignUberEatsBranch(branchId);
+            await queryClient.invalidateQueries({ queryKey: ["ubereats-connection"] });
+          }}
+        />
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Link

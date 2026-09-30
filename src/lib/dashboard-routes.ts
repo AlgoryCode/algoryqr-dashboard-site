@@ -150,8 +150,6 @@ export const DASHBOARD_ROUTES = {
   courierPanel: `${COURIER_APP_ORIGIN}/kurye`,
   kitchenScreen: (branchId?: number | string | null) =>
     branchId != null && branchId !== "" ? `/mutfak?branch=${branchId}` : "/mutfak",
-  courierScreen: (branchId?: number | string | null) =>
-    branchId != null && branchId !== "" ? `/kurye?branch=${branchId}` : "/kurye",
 
   digitalMenuCheckout: (packageId: number | string) =>
     `/dashboard/dijital-menu/satin-al/${packageId}`,
@@ -192,11 +190,18 @@ export type DashboardNavKey =
   | "digitalMenu"
   | "myBranches"
   | "myMenus"
+  | "products"
+  | "categories"
   | "uberEats"
+  | "liveOrders"
   | "reservations"
+  | "restaurantLayout"
   | "stock"
+  | "staff"
   | "reports"
+  | "smartReports"
   | "accounting"
+  | "feedback"
   | "menuCustomers"
   | "campaigns"
   | "qrCodes"
@@ -223,13 +228,27 @@ export type DashboardNavGroup = {
 };
 
 export const DASHBOARD_NAV_GROUPS: DashboardNavGroup[] = [
-  { id: "main", label: "", items: ["overview", "modules"] },
-  { id: "operations", label: "Operasyon", items: ["reservations", "stock"] },
-  { id: "menu", label: "Menü", items: ["digitalMenu", "campaigns", "qrCodes"] },
-  { id: "integrations", label: "Entegrasyonlar", items: ["uberEats"] },
-  { id: "reports", label: "Raporlar", items: ["reports"] },
-  { id: "management", label: "Yönetim", items: ["accounting", "menuCustomers"] },
-  { id: "account", label: "", items: ["account"] },
+  { id: "main", label: "", items: ["overview"] },
+  {
+    id: "orders",
+    label: "Siparişler ve Rezervasyon",
+    items: ["liveOrders", "reservations", "restaurantLayout"],
+  },
+  { id: "menu", label: "Menü", items: ["myMenus", "products", "categories", "qrCodes"] },
+  { id: "stock", label: "Stok", items: ["stock"] },
+  { id: "staff", label: "Personel", items: ["staff"] },
+  { id: "finance", label: "Finans ve Muhasebe", items: ["accounting"] },
+  {
+    id: "marketing",
+    label: "Müşteri ve Pazarlama",
+    items: ["feedback", "menuCustomers", "campaigns"],
+  },
+  { id: "reports", label: "Raporlar ve Analiz", items: ["reports", "smartReports"] },
+  {
+    id: "settings",
+    label: "Ayarlar",
+    items: ["myBranches", "uberEats", "modules", "account"],
+  },
 ];
 
 export const DASHBOARD_MOBILE_PRIMARY_KEYS: DashboardNavKey[] = [
@@ -271,14 +290,14 @@ export const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
     href: DASHBOARD_ROUTES.digitalMenu,
     requiredScope: "QR_MENU_OWNER",
     excludeFromMobileNav: true,
+    excludeFromSidebar: true,
   },
   {
     key: "myBranches",
-    label: "Şubelerim",
+    label: "Şube yönetimi",
     mobileLabel: "Şubelerim",
     href: DASHBOARD_ROUTES.digitalMenu,
     requiredScope: "QR_MENU_OWNER",
-    excludeFromSidebar: true,
   },
   {
     key: "myMenus",
@@ -286,14 +305,34 @@ export const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
     mobileLabel: "Menü",
     href: DASHBOARD_ROUTES.digitalMenuMenus,
     requiredScope: "QR_MENU_OWNER",
-    excludeFromSidebar: true,
+  },
+  {
+    key: "products",
+    label: "Ürünler",
+    mobileLabel: "Ürünler",
+    href: DASHBOARD_ROUTES.digitalMenuProducts,
+    requiredScope: "QR_MENU_OWNER",
+  },
+  {
+    key: "categories",
+    label: "Kategoriler",
+    mobileLabel: "Kategoriler",
+    href: DASHBOARD_ROUTES.digitalMenuCategories,
+    requiredScope: "QR_MENU_OWNER",
   },
   {
     key: "uberEats",
-    label: "Entegrasyonlar",
+    label: "Ödeme ve entegrasyonlar",
     mobileLabel: "Entegrasyon",
     href: DASHBOARD_ROUTES.integrations,
     requiredScope: "QR_MENU_OWNER",
+  },
+  {
+    key: "liveOrders",
+    label: "Canlı siparişler",
+    mobileLabel: "Siparişler",
+    href: DASHBOARD_ROUTES.kitchenScreen(),
+    requiredScope: "WAITER_PANEL_OWNER",
   },
   {
     key: "reservations",
@@ -303,11 +342,25 @@ export const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
     requiredScope: "QR_MENU_OWNER",
   },
   {
+    key: "restaurantLayout",
+    label: "Masa planı",
+    mobileLabel: "Masa planı",
+    href: DASHBOARD_ROUTES.restaurantLayout,
+    requiredScope: "WAITER_PANEL_OWNER",
+  },
+  {
     key: "stock",
     label: "Stok",
     mobileLabel: "Stok",
     href: DASHBOARD_ROUTES.stock,
     requiredScope: "QR_MENU_OWNER",
+  },
+  {
+    key: "staff",
+    label: "Personel",
+    mobileLabel: "Personel",
+    href: DASHBOARD_ROUTES.menuUsers,
+    requiredScope: "WAITER_PANEL_OWNER",
   },
   {
     key: "reports",
@@ -317,11 +370,25 @@ export const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
     requiredScope: "SMART_REPORTING_OWNER",
   },
   {
+    key: "smartReports",
+    label: "Akıllı raporlar",
+    mobileLabel: "Akıllı rapor",
+    href: DASHBOARD_ROUTES.smartReports,
+    requiredScope: "SMART_REPORTING_OWNER",
+  },
+  {
     key: "accounting",
     label: "Muhasebe",
     mobileLabel: "Muhasebe",
     href: DASHBOARD_ROUTES.muhasebe,
     requiresAllowAccess: true,
+  },
+  {
+    key: "feedback",
+    label: "Yorumlar",
+    mobileLabel: "Yorumlar",
+    href: DASHBOARD_ROUTES.feedback,
+    requiredScope: "QR_MENU_OWNER",
   },
   {
     key: "menuCustomers",
@@ -642,11 +709,21 @@ export function isBranchesHubNavActive(pathname: string): boolean {
   return false;
 }
 
+function isMenuSubsectionPath(pathname: string): boolean {
+  return (
+    pathname === DASHBOARD_ROUTES.digitalMenuProducts ||
+    pathname.startsWith(`${DASHBOARD_ROUTES.digitalMenuProducts}/`) ||
+    pathname === DASHBOARD_ROUTES.digitalMenuCategories ||
+    pathname === DASHBOARD_ROUTES.feedback ||
+    isRestaurantLayoutPath(pathname)
+  );
+}
+
 export function isMenusNavActive(pathname: string): boolean {
   if (!isDigitalMenuSectionActive(pathname)) {
     return false;
   }
-  return !isBranchesHubNavActive(pathname);
+  return !isBranchesHubNavActive(pathname) && !isMenuSubsectionPath(pathname);
 }
 
 export function isDashboardNavActive(
@@ -655,10 +732,20 @@ export function isDashboardNavActive(
   navKey?: DashboardNavKey,
 ): boolean {
   if (navKey === "myBranches") {
-    return isBranchesHubNavActive(pathname);
+    return isBranchesHubNavActive(pathname) && !isRestaurantLayoutPath(pathname);
   }
   if (navKey === "myMenus") {
     return isMenusNavActive(pathname);
+  }
+  if (navKey === "restaurantLayout") {
+    return isRestaurantLayoutPath(pathname);
+  }
+  if (navKey === "reports") {
+    return (
+      isReportsSectionActive(pathname) &&
+      pathname !== DASHBOARD_ROUTES.smartReports &&
+      !pathname.startsWith(`${DASHBOARD_ROUTES.smartReports}/`)
+    );
   }
   if (href === DASHBOARD_ROUTES.digitalMenu) {
     return isDigitalMenuSectionActive(pathname);

@@ -133,6 +133,8 @@ export type StoreOrderItem = {
 export type StoreOrderSummary = {
   id: number;
   orderNo: string;
+  /** Mağazanın sipariş anındaki şubesi; boşsa tüm şubelerde görünür. */
+  branchId?: number | null;
   status: StoreOrderStatus;
   deliveryType: StoreDeliveryType;
   paymentMethod: StorePaymentMethod;
@@ -162,6 +164,7 @@ export type StoreOrderDetail = StoreOrderSummary & {
   subtotal: number;
   deliveryFee: number;
   discountAmount: number;
+  courierStaff?: { id: number; displayName?: string | null } | null;
   items: StoreOrderItem[];
   history: {
     fromStatus?: StoreOrderStatus | null;
