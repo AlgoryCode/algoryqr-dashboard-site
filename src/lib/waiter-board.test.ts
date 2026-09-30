@@ -164,11 +164,39 @@ describe("groupWaiterShift", () => {
     expect([...ids].sort((a, b) => a - b)).toEqual([20, 23]);
   });
 
+  it("moves cancelled and rejected tickets into the cancelled list even while other lists lag", () => {
+    const board = groupWaiterShift({
+      pending: [order({ id: 4, status: "PENDING", orderSource: "QR", tableName: "masa-1" })],
+      kitchen: [order({ id: 5, status: "KITCHEN_PREPARING", orderSource: "QR", tableName: "masa-1" })],
+      today: [order({ id: 5, status: "CANCELLED", orderSource: "QR", tableName: "masa-1" })],
+      cancelledNow: [order({ id: 4, status: "REJECTED", orderSource: "QR", tableName: "masa-1" })],
+    });
+    expect(board.approve).toHaveLength(0);
+    expect(board.cooking).toHaveLength(0);
+    expect(board.cancelled.map((item) => item.id).sort()).toEqual([4, 5]);
+  });
+
   it("hides a rejected ticket", () => {
     const board = groupWaiterShift({
       pending: [order({ id: 4, status: "PENDING", orderSource: "QR", tableName: "masa-1" })],
       dismissedIds: [4],
     });
     expect(board.approve).toHaveLength(0);
+  });
+
+  it("keeps confirmed and preparing in service and served as delivered when the kitchen is off", () => {
+    const board = groupWaiterShift({
+      kitchenEnabled: false,
+      pending: [order({ id: 1, status: "SUBMITTED", orderSource: "QR", tableName: "masa-1" })],
+      today: [
+        order({ id: 2, status: "CONFIRMED", orderSource: "QR", tableName: "masa-1" }),
+        order({ id: 3, status: "KITCHEN_PREPARING", orderSource: "QR", tableName: "masa-1" }),
+        order({ id: 4, status: "WAITER_TAKEN", orderSource: "QR", tableName: "masa-1" }),
+      ],
+    });
+    expect(board.approve.map((item) => item.id)).toEqual([1]);
+    expect(board.cooking.map((item) => item.id).sort()).toEqual([2, 3]);
+    expect(board.deliver).toHaveLength(0);
+    expect(board.delivered.map((item) => item.id)).toEqual([4]);
   });
 });

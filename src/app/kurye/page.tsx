@@ -1,25 +1,6 @@
-import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { parseBranchScope } from "@/lib/branch-scope";
-import { readAccessTokenFromCookies, readRefreshTokenFromCookies } from "@/lib/server/auth-cookies";
-import OwnerCourierView from "@/views/panel/OwnerCourierView";
-
-export const metadata: Metadata = {
-  title: "Kurye",
-  robots: { index: false, follow: false },
-};
-
-export default async function CourierPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ branch?: string }>;
-}) {
-  const cookieStore = await cookies();
-  if (!readAccessTokenFromCookies(cookieStore) && !readRefreshTokenFromCookies(cookieStore)) {
-    redirect("/personel");
-  }
-  const branch = parseBranchScope((await searchParams).branch);
-  return <OwnerCourierView initialBranchId={branch === "all" ? null : branch} />;
+/** The courier screen is what a courier sees after staff login; there is no owner view. */
+export default function CourierPage() {
+  redirect("/personel");
 }

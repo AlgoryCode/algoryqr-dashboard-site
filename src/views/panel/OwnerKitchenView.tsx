@@ -7,22 +7,35 @@ import { isBranchCourierEnabled, isBranchKitchenEnabled, type BranchItem } from 
 import { listScopedKitchenOrders, menusInBranchScope, ordersForStaffBranch } from "@/lib/branch-scope";
 import { kitchenOrderKey } from "@/lib/kitchen-queue";
 import {
-  applyOrderFlow,
+  applyKitchenOrderFlow,
   ORDER_FLOW_ACTION_STATUS,
   stampOrderFlow,
+  type KitchenRevertTarget,
+  type OrderCancelRequest,
   type OrderFlowAction,
 } from "@/lib/order-flow";
 import {
+  cancelMerchantOrder,
   markMerchantKitchenPreparing,
   markMerchantKitchenReady,
+  revertMerchantKitchenOrder,
   updateMerchantKitchenNote,
   type OrderResponse,
 } from "@/lib/ordering-api";
-import { advanceStoreKitchenOrder, isOnlineKitchenSource, listStoreKitchenQueue } from "@/lib/store-kitchen";
+import {
+  advanceStoreKitchenOrder,
+  cancelStoreKitchenOrder,
+  handoverStoreOrderToCourier,
+  isOnlineKitchenSource,
+  listKitchenCouriers,
+  listStoreKitchenQueue,
+  revertStoreKitchenOrder,
+} from "@/lib/store-kitchen";
 
 import { OwnerScreenFrame, OwnerScreenNotice, useOwnerScreenBranch } from "./OwnerScreenFrame";
 
 const OWNER_KITCHEN_QUEUE_KEY = "owner-kitchen-queue";
+const OWNER_KITCHEN_COURIERS_KEY = "owner-kitchen-couriers";
 
 async function listOwnerKitchenQueue(branches: BranchItem[], branchId: number): Promise<OrderResponse[]> {
   const [menuOrders, storeOrders] = await Promise.all([
@@ -31,7 +44,7 @@ async function listOwnerKitchenQueue(branches: BranchItem[], branchId: number): 
   ]);
   const byKey = new Map<string, OrderResponse>();
   for (const order of [...menuOrders, ...ordersForStaffBranch(storeOrders, branchId)]) {
-    byKey.set(kitchenOrderKey(order), applyOrderFlow(order));
+    byKey.set(kitchenOrderKey(order), applyKitchenOrderFlow(order));
   }
   return [...byKey.values()];
 }
@@ -55,6 +68,26 @@ async function runOwnerKitchenAction(order: OrderResponse, action: OrderFlowActi
   return stampOrderFlow({ ...next, id: order.id }, target);
 }
 
+async function cancelOwnerKitchenOrder(order: OrderResponse, request: OrderCancelRequest): Promise<OrderResponse> {
+  if (isOnlineKitchenSource(order.orderSource)) {
+    return cancelStoreKitchenOrder(order.id, request);
+  }
+  if (order.menuId == null) {
+    throw new Error("Sipariş iptal edilemedi");
+  }
+  return cancelMerchantOrder(order.menuId, order.id, request);
+}
+
+async function revertOwnerKitchenOrder(order: OrderResponse, to: KitchenRevertTarget): Promise<OrderResponse> {
+  if (isOnlineKitchenSource(order.orderSource)) {
+    return revertStoreKitchenOrder(order.id, to);
+  }
+  if (order.menuId == null) {
+    throw new Error("Sipariş geri alınamadı");
+  }
+  return revertMerchantKitchenOrder(order.menuId, order.id, to, order.orderSource);
+}
+
 export default function OwnerKitchenView({ initialBranchId }: { initialBranchId: number | null }) {
   const queryClient = useQueryClient();
   const screen = useOwnerScreenBranch("kitchen", initialBranchId, isBranchKitchenEnabled);
@@ -68,6 +101,14 @@ export default function OwnerKitchenView({ initialBranchId }: { initialBranchId:
     refetchInterval: 6_000,
   });
   const orders = queueQuery.data ?? [];
+  const courierEnabled = isBranchCourierEnabled(branch);
+
+  const couriersQuery = useQuery({
+    queryKey: [OWNER_KITCHEN_COURIERS_KEY, branch?.id],
+    enabled: branch != null && kitchenEnabled && courierEnabled,
+    queryFn: () => listKitchenCouriers(branch!.id),
+    refetchInterval: 15_000,
+  });
 
   const findOrder = (orderId: number, orderSource?: string | null) =>
     orders.find((order) => order.id === orderId && (order.orderSource ?? null) === (orderSource ?? null)) ??
@@ -76,20 +117,36 @@ export default function OwnerKitchenView({ initialBranchId }: { initialBranchId:
   const action = useMutation({
     mutationFn: async (payload: {
       orderId: number;
-      kind: OrderFlowAction | "note";
+      kind: OrderFlowAction | "note" | "revert" | "cancel" | "courier";
       orderSource?: string | null;
       note?: string;
+      revertTo?: KitchenRevertTarget;
+      cancel?: OrderCancelRequest;
+      courierStaffId?: number;
     }) => {
       const order = findOrder(payload.orderId, payload.orderSource);
       if (!order) throw new Error("Sipariş bulunamadı");
+      if (payload.kind === "courier") {
+        if (payload.courierStaffId == null) throw new Error("Kurye seçilmedi");
+        return handoverStoreOrderToCourier(order.id, payload.courierStaffId);
+      }
       if (payload.kind === "note") {
         if (order.menuId == null) throw new Error("Bu siparişe mutfak notu eklenemez");
         return updateMerchantKitchenNote(order.menuId, order.id, payload.note ?? "");
       }
+      if (payload.kind === "revert") {
+        return revertOwnerKitchenOrder(order, payload.revertTo ?? "CONFIRMED");
+      }
+      if (payload.kind === "cancel") {
+        return cancelOwnerKitchenOrder(order, payload.cancel ?? { reason: "OTHER" });
+      }
       return runOwnerKitchenAction(order, payload.kind);
     },
-    onSuccess: () => {
+    onSuccess: (_updated, payload) => {
       void queryClient.invalidateQueries({ queryKey: [OWNER_KITCHEN_QUEUE_KEY] });
+      if (payload.kind === "courier") {
+        void queryClient.invalidateQueries({ queryKey: [OWNER_KITCHEN_COURIERS_KEY] });
+      }
     },
   });
 
@@ -128,7 +185,11 @@ export default function OwnerKitchenView({ initialBranchId }: { initialBranchId:
             }
             mode="kitchen"
             kitchenEnabled
-            courierEnabled={isBranchCourierEnabled(branch)}
+            courierEnabled={courierEnabled}
+            couriers={couriersQuery.data}
+            onCourierHandover={(order, courierStaffId) =>
+              action.mutate({ orderId: order.id, kind: "courier", orderSource: order.orderSource, courierStaffId })
+            }
             busyOrderId={action.isPending ? action.variables?.orderId : null}
             busyOrderKey={
               action.isPending && action.variables
@@ -139,6 +200,12 @@ export default function OwnerKitchenView({ initialBranchId }: { initialBranchId:
                 : null
             }
             onFlowAction={(orderId, kind, orderSource) => action.mutate({ orderId, kind, orderSource })}
+            onRevert={(orderId, revertTo, orderSource) =>
+              action.mutate({ orderId, kind: "revert", revertTo, orderSource })
+            }
+            onCancel={(orderId, cancel, orderSource) =>
+              action.mutate({ orderId, kind: "cancel", cancel, orderSource })
+            }
             onSaveKitchenNote={(orderId, note) => action.mutate({ orderId, kind: "note", note })}
           />
         )}

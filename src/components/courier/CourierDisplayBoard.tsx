@@ -39,6 +39,8 @@ type CourierDisplayBoardProps = {
   loading?: boolean;
   error?: string | null;
   busyOrderId?: number | null;
+  /** Logged-in courier; tickets the kitchen assigned to this account are highlighted. */
+  currentStaffId?: number | null;
   onDispatch?: (orderId: number) => void;
   onDeliver?: (orderId: number) => void;
 };
@@ -88,6 +90,7 @@ export function CourierDisplayBoard({
   loading,
   error,
   busyOrderId,
+  currentStaffId,
   onDispatch,
   onDeliver,
 }: CourierDisplayBoardProps) {
@@ -144,7 +147,7 @@ export function CourierDisplayBoard({
     );
   }
 
-  const cardProps = { now, busyOrderId, onDispatch, onDeliver };
+  const cardProps = { now, busyOrderId, currentStaffId, onDispatch, onDeliver };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -330,6 +333,7 @@ function CourierOrderCard({
   columnId,
   now,
   busyOrderId,
+  currentStaffId,
   onDispatch,
   onDeliver,
 }: {
@@ -337,9 +341,11 @@ function CourierOrderCard({
   columnId: CourierColumnId;
   now: number;
   busyOrderId?: number | null;
+  currentStaffId?: number | null;
   onDispatch?: (orderId: number) => void;
   onDeliver?: (orderId: number) => void;
 }) {
+  const assignedToMe = currentStaffId != null && order.courierStaffId === currentStaffId;
   const delayed = isCourierTicketDelayed(order, now);
   const elapsed = courierTicketElapsedLabel(order, now);
   const minutes = courierElapsedMinutes(order, now);
@@ -376,6 +382,10 @@ function CourierOrderCard({
           <span className="inline-flex items-center gap-1 rounded-full border border-black bg-amber-600 px-2 py-0.5 text-[10px] font-extrabold text-white">
             <AlertTriangle className="h-3 w-3" /> SLA Riski
           </span>
+        ) : assignedToMe && columnId === "HANDOFF" ? (
+          <span className="rounded-full border border-black bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white">
+            Size verildi
+          </span>
         ) : (
           <span className="rounded-full border border-black bg-orange-100 px-2 py-0.5 text-[10px] font-bold text-orange-900">
             Teslimat
@@ -385,7 +395,12 @@ function CourierOrderCard({
 
       <div>
         <div className="text-sm font-bold text-black">{order.customerName || "Müşteri"}</div>
-        <div className="mt-1 flex items-start gap-1 text-xs font-medium text-[#434656]">
+        <div
+          className={cn(
+            "mt-1 flex items-start gap-1",
+            columnId === "DELIVERED" ? "text-xs font-medium text-[#434656]" : "text-sm font-semibold text-black",
+          )}
+        >
           {columnId === "DELIVERED" ? (
             <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-700" />
           ) : columnId === "TAKEN" ? (

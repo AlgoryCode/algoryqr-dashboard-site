@@ -13,9 +13,10 @@ import type { MenuRow, ReviewRow, StaffRow } from "@/components/dashboard/branch
 import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
 import { useDashboardPageLabel } from "@/contexts/dashboard-page-label";
 import { useBranch, useBranches } from "@/hooks/use-branches";
-import { getMenuFeedbackRequest } from "@/lib/api";
+import { getMenuFeedbackRequest, getMyActiveMenusRequest, type ActiveMenuSummaryApiItem } from "@/lib/api";
 import { formatScore } from "@/lib/branch-detail";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
+import { resolvePublicMenuHref } from "@/lib/public-menu-href";
 import { listMenuUsers, parseStaffRole, STAFF_ROLE_LABEL } from "@/lib/waiter-api";
 
 type BranchDetailViewProps = { branchId: number };
@@ -42,6 +43,11 @@ export default function BranchDetailView({ branchId }: BranchDetailViewProps) {
     enabled: menuId != null,
     staleTime: 60_000,
   });
+  const activeMenusQuery = useQuery({
+    queryKey: ["myActiveMenus"],
+    queryFn: getMyActiveMenusRequest,
+    staleTime: 60_000,
+  });
   const branches = branchesQuery.data?.content;
 
   if (branchQuery.isLoading) {
@@ -52,7 +58,7 @@ export default function BranchDetailView({ branchId }: BranchDetailViewProps) {
   }
 
   const reviews = reviewRows(reviewsQuery.data?.content ?? []);
-  const menus = menuRows(branch);
+  const menus = menuRows(branch, activeMenusQuery.data ?? []);
   const staff = staffRows(usersQuery.data?.waiters ?? []);
   const overview = branchOverview(branch);
 
@@ -73,6 +79,7 @@ export default function BranchDetailView({ branchId }: BranchDetailViewProps) {
 }
 
 function branchOverview(branch: {
+  userId: number;
   photoUrl?: string | null;
   active: boolean;
   address?: string | null;
@@ -82,6 +89,7 @@ function branchOverview(branch: {
   courierEnabled?: boolean | null;
 }): BranchOverview {
   return {
+    merchantId: branch.userId,
     photoUrl: branch.photoUrl ?? null,
     active: branch.active,
     address: branch.address ?? null,
@@ -111,10 +119,15 @@ function reviewRows(
   }));
 }
 
-function menuRows(branch: { menus: Array<{ menuId: number; qrId: number; businessName: string }> }): MenuRow[] {
+function menuRows(
+  branch: { menus: Array<{ menuId: number; qrId: number; businessName: string }> },
+  activeMenus: ActiveMenuSummaryApiItem[],
+): MenuRow[] {
+  const publicUrlByQr = new Map(activeMenus.map((menu) => [menu.qrId, menu.publicUrl]));
   return branch.menus.map((menu) => ({
     menuId: menu.menuId,
     qrId: menu.qrId,
     name: menu.businessName?.trim() || `Menü #${menu.qrId}`,
+    publicHref: resolvePublicMenuHref({ publicUrl: publicUrlByQr.get(menu.qrId) }),
   }));
 }

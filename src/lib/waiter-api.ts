@@ -1,9 +1,13 @@
 import type { CartItemRequest, OrderResponse } from "@/lib/ordering-api";
 import {
+  applyKitchenOrderFlow,
   applyOrderFlow,
+  forgetOrderFlowStatus,
   ORDER_FLOW_ACTION_STATUS,
   stampOrderFlow,
   waiterHttpStep,
+  type KitchenRevertTarget,
+  type OrderCancelRequest,
   type OrderFlowAction,
 } from "@/lib/order-flow";
 import { asCourierTickets, type CourierTicket } from "@/lib/store-courier";
@@ -531,7 +535,7 @@ export async function listWaiterTodayOrders(): Promise<OrderResponse[]> {
   if (!response.ok) {
     throw new WaiterApiError(response.status, messageFromUnknown(data, "Siparişler alınamadı"));
   }
-  return asKitchenTickets(data).map(applyOrderFlow);
+  return asKitchenTickets(data).map(applyKitchenOrderFlow);
 }
 
 export async function listWaiterTables(): Promise<WaiterTableSummary[]> {
@@ -557,7 +561,7 @@ export async function listWaiterTableTodayOrders(tableId: number): Promise<Order
   if (!response.ok) {
     throw new WaiterApiError(response.status, messageFromUnknown(data, "Masa siparişleri alınamadı"));
   }
-  return (Array.isArray(data) ? data : []).map(applyOrderFlow);
+  return (Array.isArray(data) ? data : []).map(applyKitchenOrderFlow);
 }
 
 export async function confirmWaiterOrder(
@@ -573,35 +577,65 @@ export async function confirmWaiterOrder(
   if (!response.ok) {
     throw new WaiterApiError(response.status, data.message || "Sipariş onaylanamadı");
   }
-  return stampOrderFlow(data, kitchenEnabled ? "KITCHEN_PREPARING" : "WAITER_TAKEN");
+  if (kitchenEnabled) return stampOrderFlow(data, "KITCHEN_PREPARING");
+  forgetOrderFlowStatus(orderId);
+  return { ...data, id: orderId };
 }
 
-export async function rejectWaiterOrder(orderId: number): Promise<OrderResponse> {
+export async function rejectWaiterOrder(
+  orderId: number,
+  request?: OrderCancelRequest,
+): Promise<OrderResponse> {
   const response = await waiterFetch(`/api/waiter/orders/${orderId}/reject`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     credentials: "same-origin",
-    body: JSON.stringify({}),
+    body: JSON.stringify(request ?? {}),
   });
   const data = await parseJson<OrderResponse & { message?: string }>(response);
   if (!response.ok) {
     throw new WaiterApiError(response.status, data.message || "Sipariş reddedilemedi");
   }
+  forgetOrderFlowStatus(orderId);
   return data;
 }
 
-export async function cancelWaiterOrder(orderId: number): Promise<OrderResponse> {
+export async function cancelWaiterOrder(
+  orderId: number,
+  request?: OrderCancelRequest,
+): Promise<OrderResponse> {
   const response = await waiterFetch(`/api/waiter/orders/${orderId}/cancel`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     credentials: "same-origin",
-    body: JSON.stringify({}),
+    body: JSON.stringify(request ?? {}),
   });
   const data = await parseJson<OrderResponse & { message?: string }>(response);
   if (!response.ok) {
     throw new WaiterApiError(response.status, data.message || "Sipariş iptal edilemedi");
   }
+  forgetOrderFlowStatus(orderId);
   return data;
+}
+
+export async function cancelKitchenOrder(
+  orderId: number,
+  request: OrderCancelRequest,
+  orderSource?: string | null,
+): Promise<OrderResponse> {
+  const source = orderSource ? `?source=${encodeURIComponent(orderSource)}` : "";
+  const response = await waiterFetch(`/api/waiter/kitchen/orders/${orderId}/cancel${source}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(request),
+  });
+  const data = await parseJson<OrderResponse & { message?: string }>(response);
+  if (!response.ok) {
+    throw new WaiterApiError(response.status, data.message || "Sipariş iptal edilemedi");
+  }
+  forgetOrderFlowStatus(orderId);
+  return { ...data, id: orderId };
 }
 
 export async function getWaiterOrder(orderId: number): Promise<OrderResponse> {
@@ -614,7 +648,7 @@ export async function getWaiterOrder(orderId: number): Promise<OrderResponse> {
   if (!response.ok) {
     throw new WaiterApiError(response.status, data.message || "Sipariş alınamadı");
   }
-  return applyOrderFlow(data);
+  return applyKitchenOrderFlow(data);
 }
 
 export async function listWaiterCatalog(tableId: number): Promise<WaiterCatalogResponse> {
@@ -647,7 +681,7 @@ export async function createWaiterOrder(payload: WaiterCreateOrderRequest): Prom
   if (!response.ok) {
     throw new WaiterApiError(response.status, data.message || "Sipariş oluşturulamadı");
   }
-  return stampOrderFlow(data, kitchenEnabled === false ? "WAITER_TAKEN" : "KITCHEN_PREPARING");
+  return kitchenEnabled === false ? applyKitchenOrderFlow(data) : applyOrderFlow(data);
 }
 
 export async function updateWaiterOrderNote(
@@ -719,6 +753,26 @@ export function markKitchenPrepared(orderId: number, orderSource?: string | null
   return runWaiterFlowAction(orderId, "markKitchenPrepared", orderSource);
 }
 
+export async function revertKitchenOrder(
+  orderId: number,
+  to: KitchenRevertTarget,
+  orderSource?: string | null,
+): Promise<OrderResponse> {
+  const params = new URLSearchParams({ to });
+  if (orderSource) params.set("source", orderSource);
+  const response = await waiterFetch(`/api/waiter/kitchen/orders/${orderId}/revert?${params}`, {
+    method: "POST",
+    headers: { Accept: "application/json" },
+    credentials: "same-origin",
+  });
+  const data = await parseJson<OrderResponse & { message?: string }>(response);
+  if (!response.ok) {
+    throw new WaiterApiError(response.status, data.message || "Sipariş geri alınamadı");
+  }
+  forgetOrderFlowStatus(orderId);
+  return { ...data, id: orderId };
+}
+
 export function markKitchenDeliveredToWaiter(orderId: number): Promise<OrderResponse> {
   return runWaiterFlowAction(orderId, "markKitchenDeliveredToWaiter");
 }
@@ -739,6 +793,32 @@ export function markWaiterDeliveredToCourier(orderId: number): Promise<OrderResp
   return runWaiterFlowAction(orderId, "markWaiterDeliveredToCourier");
 }
 
+/** Mutfak kapalı şube: CONFIRMED -> PREPARING, sunucudaki statü esas alınır. */
+export async function markWaiterServicePreparing(orderId: number): Promise<OrderResponse> {
+  const data = await postWaiterOrderStep(orderId, "preparing");
+  forgetOrderFlowStatus(orderId);
+  return data;
+}
+
+/** Mutfak kapalı şube: onaylı, hazırlanan veya hazır sipariş doğrudan müşteriye teslim edildi olur. */
+export async function markWaiterServiceDelivered(orderId: number): Promise<OrderResponse> {
+  const data = await postWaiterOrderStep(orderId, "served");
+  return stampOrderFlow(data, "WAITER_DELIVERED_TO_CUSTOMER");
+}
+
+async function postWaiterOrderStep(orderId: number, path: "preparing" | "served"): Promise<OrderResponse> {
+  const response = await waiterFetch(`/api/waiter/orders/${orderId}/${path}`, {
+    method: "POST",
+    headers: { Accept: "application/json" },
+    credentials: "same-origin",
+  });
+  const data = await parseJson<OrderResponse & { message?: string }>(response);
+  if (!response.ok) {
+    throw new WaiterApiError(response.status, data.message || "Sipariş güncellenemedi");
+  }
+  return { ...data, id: orderId };
+}
+
 export async function listKitchenQueue(): Promise<OrderResponse[]> {
   const response = await waiterFetch("/api/waiter/kitchen/orders", {
     method: "GET",
@@ -749,7 +829,7 @@ export async function listKitchenQueue(): Promise<OrderResponse[]> {
   if (!response.ok) {
     throw new WaiterApiError(response.status, messageFromUnknown(data, "Mutfak kuyruğu alınamadı"));
   }
-  return asKitchenTickets(data).map(applyOrderFlow);
+  return asKitchenTickets(data).map(applyKitchenOrderFlow);
 }
 
 /** @deprecated Use the flow-based markKitchenPreparing / markKitchenPrepared above. */

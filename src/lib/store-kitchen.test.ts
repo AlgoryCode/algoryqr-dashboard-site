@@ -68,6 +68,10 @@ describe("store kitchen mapping", () => {
     });
   });
 
+  it("keeps confirmed store orders in the kitchen's new column", () => {
+    expect(asKitchenTicket(storeOrder({ id: 13, status: "CONFIRMED" }))?.status).toBe("CONFIRMED");
+  });
+
   it("normalizes store-shaped kitchen queue payloads", () => {
     const ticket = asKitchenTicket(storeOrder({ id: 7, status: "PREPARING" }));
     expect(ticket?.orderSource).toBe("STORE");

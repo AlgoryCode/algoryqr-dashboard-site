@@ -128,6 +128,13 @@ export function clearOrderFlowMemory(): void {
   writtenStatus.clear();
 }
 
+/** Kitchen board backward moves; the server status is authoritative afterwards. */
+export type KitchenRevertTarget = "CONFIRMED" | "PREPARING";
+
+export function forgetOrderFlowStatus(orderId: number): void {
+  writtenStatus.delete(orderId);
+}
+
 export function writeOrderFlowStatus(orderId: number, status: OrderFlowStatus): void {
   if (!Number.isFinite(orderId)) return;
   writtenStatus.set(orderId, status);
@@ -199,6 +206,24 @@ export function applyOrderFlow<T extends { id?: number; status: string; delivery
   return { ...order, status };
 }
 
+/** CONFIRMED / PENDING / SUBMITTED tickets have not been picked up by the kitchen yet. */
+export function isKitchenQueuedStatus(status: string | null | undefined): boolean {
+  const raw = (status ?? "").trim().toUpperCase();
+  return raw === "CONFIRMED" || raw === "PENDING" || raw === "SUBMITTED";
+}
+
+/**
+ * Keeps CONFIRMED as-is: the kitchen lists fresh tickets under "Yeni Siparişler" and the
+ * kitchen-off waiter board shows them as "Onaylandı" instead of "Mutfak hazırlıyor".
+ */
+export function applyKitchenOrderFlow<T extends { id?: number; status: string; deliveryType?: string | null }>(
+  order: T,
+): T {
+  const raw = (order.status ?? "").trim().toUpperCase();
+  if (raw === "CONFIRMED" && (order.id == null || !writtenStatus.has(order.id))) return order;
+  return applyOrderFlow(order);
+}
+
 export function stampOrderFlow<T extends { id: number; status: string; deliveryType?: string | null }>(
   order: T,
   status: OrderFlowStatus,
@@ -223,6 +248,64 @@ export function orderFlowStatusLabel(status: string | null | undefined, delivery
     default:
       return normalized || "—";
   }
+}
+
+export type OrderCancelReason =
+  | "CUSTOMER_REQUEST"
+  | "OUT_OF_STOCK"
+  | "WRONG_ORDER"
+  | "LONG_WAIT"
+  | "PAYMENT_ISSUE"
+  | "OTHER";
+
+export type OrderCancelRequest = {
+  reason: OrderCancelReason;
+  reasonNote?: string;
+};
+
+export const ORDER_CANCEL_REASON_LABEL: Record<OrderCancelReason, string> = {
+  CUSTOMER_REQUEST: "Müşteri isteği",
+  OUT_OF_STOCK: "Ürün kalmadı",
+  WRONG_ORDER: "Yanlış sipariş",
+  LONG_WAIT: "Uzun bekleme",
+  PAYMENT_ISSUE: "Ödeme sorunu",
+  OTHER: "Diğer",
+};
+
+export function orderCancelReasonText(request: OrderCancelRequest): string {
+  const note = request.reasonNote?.trim();
+  const label = ORDER_CANCEL_REASON_LABEL[request.reason];
+  return note ? `${label}: ${note}` : label;
+}
+
+export function orderCancelReasonLabel(order: {
+  cancelReason?: string | null;
+  cancelReasonNote?: string | null;
+}): string | null {
+  const reason = (order.cancelReason ?? "").trim().toUpperCase() as OrderCancelReason;
+  const label = ORDER_CANCEL_REASON_LABEL[reason] ?? null;
+  const note = order.cancelReasonNote?.trim() || null;
+  if (label && note) return `${label}: ${note}`;
+  return label ?? note;
+}
+
+export function isCancelledOrderStatus(status: string | null | undefined): boolean {
+  const raw = (status ?? "").trim().toUpperCase();
+  return raw === "CANCELLED" || raw === "REJECTED";
+}
+
+/** Mirrors the server: only tickets that have not reached the customer (or left with a courier) can be cancelled. */
+export function isOrderCancellable(status: string | null | undefined, delivery = false): boolean {
+  const raw = (status ?? "").trim().toUpperCase();
+  if (raw === "CONFIRMED") return true;
+  const normalized = normalizeOrderStatus(raw, delivery);
+  return (
+    normalized === "PENDING" ||
+    normalized === "SUBMITTED" ||
+    normalized === "KITCHEN_PREPARING" ||
+    normalized === "KITCHEN_PREPARED" ||
+    normalized === "KITCHEN_DELIVERED_TO_WAITER"
+  );
 }
 
 export function orderFlowStep(action: OrderFlowAction): OrderFlowStep {
@@ -306,6 +389,7 @@ export function kitchenOrderActions(
   status: string | null | undefined,
   context: OrderFlowContext,
 ): OrderFlowStep[] {
+  if (context.kitchenEnabled && isKitchenQueuedStatus(status)) return [step("markKitchenPreparing")];
   return nextOrderActions(status, context).filter((item) => KITCHEN_ACTIONS.has(item.action));
 }
 
@@ -343,10 +427,55 @@ export function orderBlocksWaiterPayment(status: string | null | undefined, deli
   return !canWaiterCollectPayment(normalized, delivery);
 }
 
+/** With the kitchen off the bill can be closed whatever stage the orders are in. */
 export function waiterCanCollectOnOrders(
   orders: ReadonlyArray<{ status: string | null | undefined; deliveryType?: string | null }>,
+  kitchenEnabled = true,
 ): boolean {
+  if (!kitchenEnabled) return true;
   return orders.every((order) => !orderBlocksWaiterPayment(order.status, orderIsDelivery(order)));
+}
+
+/**
+ * Mutfak kapalı masa siparişi: garson isterse "Hazırlanıyor" ve "Teslim edildi" işaretler.
+ * İkisi de zorunlu değil; adisyon kapanınca sunucu siparişi teslim edildi yapar.
+ */
+export type WaiterServiceAction = "markServicePreparing" | "markServiceDelivered";
+
+export const WAITER_SERVICE_ACTION_LABEL: Record<WaiterServiceAction, string> = {
+  markServicePreparing: "Hazırlanıyor",
+  markServiceDelivered: "Teslim edildi",
+};
+
+export type WaiterServiceColumn = "approve" | "service" | "delivered";
+
+const SERVICE_PREPARING = new Set<string>(["KITCHEN_PREPARING", "KITCHEN_PREPARED", "KITCHEN_DELIVERED_TO_WAITER"]);
+const SERVICE_DELIVERED = new Set<string>(["WAITER_TAKEN", "WAITER_DELIVERED_TO_CUSTOMER"]);
+
+function isConfirmedStatus(status: string | null | undefined): boolean {
+  return (status ?? "").trim().toUpperCase() === "CONFIRMED";
+}
+
+export function waiterServiceColumn(status: string | null | undefined): WaiterServiceColumn | null {
+  if (isConfirmedStatus(status)) return "service";
+  const normalized = normalizeOrderStatus(status);
+  if (normalized === "PENDING" || normalized === "SUBMITTED") return "approve";
+  if (SERVICE_PREPARING.has(normalized)) return "service";
+  if (SERVICE_DELIVERED.has(normalized)) return "delivered";
+  return null;
+}
+
+export function waiterServiceActions(status: string | null | undefined): WaiterServiceAction[] {
+  if (isConfirmedStatus(status)) return ["markServicePreparing", "markServiceDelivered"];
+  return SERVICE_PREPARING.has(normalizeOrderStatus(status)) ? ["markServiceDelivered"] : [];
+}
+
+export function waiterServiceStatusLabel(status: string | null | undefined): string {
+  if (isConfirmedStatus(status)) return "Onaylandı";
+  const normalized = normalizeOrderStatus(status);
+  if (SERVICE_PREPARING.has(normalized)) return "Hazırlanıyor";
+  if (SERVICE_DELIVERED.has(normalized)) return "Teslim edildi";
+  return orderFlowStatusLabel(normalized);
 }
 
 export function isCustomerDeliveredStatus(status: string | null | undefined, delivery = false): boolean {

@@ -15,7 +15,9 @@ import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader"
 import { useDigitalMenuAccess } from "@/components/dashboard/menu/DigitalMenuPicker";
 import { ApiError } from "@/lib/api";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
+import { IntegrationBranchCard } from "@/components/dashboard/IntegrationBranchCard";
 import {
+  assignYemekSepetiBranch,
   disconnectYemekSepeti,
   getYemekSepetiConnection,
   listYemekSepetiRestaurants,
@@ -167,6 +169,17 @@ export default function YemekSepetiHubView() {
           </p>
         </div>
       </div>
+
+      {connection ? (
+        <IntegrationBranchCard
+          platform="Yemeksepeti"
+          branchId={connection.branchId}
+          onAssign={async (branchId) => {
+            await assignYemekSepetiBranch(branchId);
+            await queryClient.invalidateQueries({ queryKey: ["yemeksepeti-connection"] });
+          }}
+        />
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Link

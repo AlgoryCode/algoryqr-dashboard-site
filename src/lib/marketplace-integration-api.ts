@@ -18,6 +18,8 @@ export type MarketplaceConnection = {
   vendorName?: string | null;
   restaurantId?: string | null;
   restaurantName?: string | null;
+  /** Siparişlerin düştüğü şube; boşsa tüm şubeler. */
+  branchId?: number | null;
   status: MarketplaceConnectionStatus;
   lastError?: string | null;
   lastSyncedAt?: string | null;
@@ -120,6 +122,7 @@ export type MarketplaceIntegrationApi = {
   getConnection: () => Promise<MarketplaceConnection | null>;
   upsertConnection: (payload: UpsertMarketplaceConnectionPayload) => Promise<MarketplaceConnection>;
   disconnect: () => Promise<MarketplaceConnection>;
+  assignBranch: (branchId: number | null) => Promise<MarketplaceConnection>;
   listRestaurants: () => Promise<MarketplaceRestaurant[]>;
   listProducts: (q: string, page: number, size?: number) => Promise<MarketplaceProductPage>;
   createProduct: (payload: CreateMarketplaceProductPayload) => Promise<MarketplaceProduct>;
@@ -168,6 +171,11 @@ export function createMarketplaceIntegrationApi(basePath: string): MarketplaceIn
 
     async disconnect() {
       const { data } = await api.delete<MarketplaceConnection>(`${prefix}/connections/me`);
+      return data;
+    },
+
+    async assignBranch(branchId) {
+      const { data } = await api.put<MarketplaceConnection>(`${prefix}/connections/me/branch`, { branchId });
       return data;
     },
 

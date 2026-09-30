@@ -29,6 +29,13 @@ import {
   ChevronDown,
   Building2,
   Warehouse,
+  Package,
+  Tags,
+  ChefHat,
+  LayoutGrid,
+  IdCard,
+  Sparkles,
+  MessageSquare,
 } from "lucide-react";
 
 import { DigitalMenuIcon } from "@/components/icons/DigitalMenuIcon";
@@ -75,11 +82,18 @@ const NAV_ICONS: Record<DashboardNavKey, ComponentType<{ className?: string }>> 
   digitalMenu: DigitalMenuIcon,
   myBranches: Building2,
   myMenus: DigitalMenuIcon,
+  products: Package,
+  categories: Tags,
   uberEats: UtensilsCrossed,
+  liveOrders: ChefHat,
   reservations: CalendarDays,
+  restaurantLayout: LayoutGrid,
   stock: Warehouse,
+  staff: IdCard,
   reports: TrendingUp,
+  smartReports: Sparkles,
   accounting: Calculator,
+  feedback: MessageSquare,
   menuCustomers: UsersRound,
   campaigns: Megaphone,
   qrCodes: QrCode,
@@ -161,9 +175,7 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
   );
   const menuNavItems = useMemo(
     () =>
-      visibleNavItems.filter(
-        (item) => item.key !== "uberEats" && !item.excludeFromSidebar,
-      ),
+      visibleNavItems.filter((item) => !item.excludeFromSidebar),
     [visibleNavItems],
   );
   const mobileNavItems = useMemo(

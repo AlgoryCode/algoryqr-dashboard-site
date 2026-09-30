@@ -3,7 +3,22 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
-import { Bike, CircleHelp, Mail, MapPin, Pencil, Phone, Save, Store, UtensilsCrossed, X } from "lucide-react";
+import {
+  Bike,
+  Building2,
+  Check,
+  CircleHelp,
+  Copy,
+  Hash,
+  Mail,
+  MapPin,
+  Pencil,
+  Phone,
+  Save,
+  Store,
+  UtensilsCrossed,
+  X,
+} from "lucide-react";
 
 import type { BranchOverview } from "@/components/dashboard/branch-detail/branch-detail-types";
 import type { MenuRow } from "@/components/dashboard/branch-detail/BranchDetailLists";
@@ -195,6 +210,13 @@ export function InfoCard({
         </div>
       </div>
       <ul className="mt-4 space-y-3">
+        <IdRow icon={Hash} label="Şube ID" value={branchId} />
+        <IdRow
+          icon={Building2}
+          label="İşletme ID"
+          value={overview.merchantId}
+          hint="Personel girişinde kullanılır"
+        />
         {rows.map((row) => (
           <li key={row.key} className="flex items-start gap-2.5">
             <row.icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
@@ -261,7 +283,7 @@ export function InfoCard({
                   </button>
                 </TooltipTrigger>
                 <TooltipContent className="max-w-56 text-left font-normal leading-relaxed">
-                  Açıkken bu şubenin teslimat siparişleri kurye ekranına düşer ve kurye hesabı eklenebilir.
+                  Açıkken mutfak siparişleri kuryeye teslim edebilir; kurye hesabıyla giriş yapan personel kendi teslimatlarını görür.
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -276,7 +298,7 @@ export function InfoCard({
                 {courierOn ? "Açık" : "Kapalı"}
               </span>
               <a
-                href={DASHBOARD_ROUTES.courierScreen(branchId)}
+                href={DASHBOARD_ROUTES.staffGate}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="shrink-0 text-xs font-medium text-foreground underline-offset-2 hover:underline"
@@ -322,6 +344,52 @@ function infoRows(draft: InfoDraft): InfoRow[] {
     { key: "phone", icon: Phone, label: "Telefon", value: draft.phone || "—" },
     { key: "email", icon: Mail, label: "E-posta", value: draft.email || "—" },
   ];
+}
+
+function IdRow({
+  icon: Icon,
+  label,
+  value,
+  hint,
+}: {
+  icon: typeof Store;
+  label: string;
+  value: number;
+  hint?: string;
+}) {
+  const { toast } = useToast();
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(String(value));
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast({ title: `${label} kopyalanamadı.`, variant: "destructive" });
+    }
+  };
+
+  return (
+    <li className="flex items-start gap-2.5">
+      <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+      <div className="min-w-0 flex-1">
+        <p className="text-[11px] text-muted-foreground">{label}</p>
+        <span className="flex items-center gap-2 text-sm text-foreground">
+          <span className="font-mono tabular-nums">{value}</span>
+          <button
+            type="button"
+            className="flex size-6 items-center justify-center rounded-full text-zinc-950 hover:bg-[#fafafa]"
+            aria-label={`${label} kopyala`}
+            onClick={() => void copy()}
+          >
+            {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+          </button>
+          {hint ? <span className="text-xs text-muted-foreground">{hint}</span> : null}
+        </span>
+      </div>
+    </li>
+  );
 }
 
 function InfoValue({

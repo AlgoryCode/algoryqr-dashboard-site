@@ -12,12 +12,10 @@ import { useBranches } from "@/hooks/use-branches";
 import { formatBranchListLabel, type BranchItem } from "@/lib/branch";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 
-export type OwnerScreen = "kitchen" | "courier";
+export type OwnerScreen = "kitchen";
 
-function screenPath(screen: OwnerScreen, branchId: number): string {
-  return screen === "kitchen"
-    ? DASHBOARD_ROUTES.kitchenScreen(branchId)
-    : DASHBOARD_ROUTES.courierScreen(branchId);
+function screenPath(_screen: OwnerScreen, branchId: number): string {
+  return DASHBOARD_ROUTES.kitchenScreen(branchId);
 }
 
 function pickBranch(
