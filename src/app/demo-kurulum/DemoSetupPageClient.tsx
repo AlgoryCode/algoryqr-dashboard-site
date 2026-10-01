@@ -40,6 +40,7 @@ import { getMyActiveMenusRequest } from "@/lib/api";
 import { isDemoStoreReady, waitForDemoStoreReady } from "@/lib/demo-provision-readiness";
 import {
   BRANCH_COUNT_OPTIONS,
+  isDemoSetupDone,
   markDemoSetupDone,
   STAFF_COUNT_OPTIONS,
   type BranchCountBand,
@@ -253,6 +254,10 @@ export default function DemoSetupPageClient({ userId }: { userId: number | null 
         }
       }
 
+      if (alreadyReady) {
+        setPhase("wizard");
+      }
+
       try {
         await seedDemoTablesAndStaff(getSiteSameOriginAxios());
       } catch {
@@ -299,10 +304,36 @@ export default function DemoSetupPageClient({ userId }: { userId: number | null 
   }, [queryClient, toast]);
 
   useEffect(() => {
-    if (provisionStarted.current) return;
-    provisionStarted.current = true;
-    void runProvision();
-  }, [runProvision]);
+    let cancelled = false;
+    const startProvision = () => {
+      if (provisionStarted.current) return;
+      provisionStarted.current = true;
+      void runProvision();
+    };
+
+    const resume = async () => {
+      if (!isDemoSetupDone(userId)) {
+        startProvision();
+        return;
+      }
+
+      try {
+        await getSiteSameOriginAxios().post("/auth/demo/ack-setup");
+        if (!cancelled) {
+          router.replace(DASHBOARD_ROUTES.root);
+          router.refresh();
+        }
+      } catch {
+        // A stale local marker must not create a redirect loop if the server cookie is gone.
+        startProvision();
+      }
+    };
+
+    void resume();
+    return () => {
+      cancelled = true;
+    };
+  }, [router, runProvision, userId]);
 
   // ── Wizard finish ───
   const finishWizard = useCallback(async () => {
