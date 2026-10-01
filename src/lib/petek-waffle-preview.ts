@@ -8,7 +8,12 @@ export const VENS_COFFEE_THEME_ID = "vens-coffee";
 
 export function isVenscoffeeMenu(menu: Pick<MenuProfileApiItem, "businessName">): boolean {
   const normalized = menu.businessName?.trim().toLocaleLowerCase("tr-TR").replace(/[^a-z0-9]/g, "") ?? "";
-  return normalized === "venscoffee" || normalized.startsWith("venscoffee");
+  return (
+    normalized === "venscoffee" ||
+    normalized.startsWith("venscoffee") ||
+    normalized === "venswaffle" ||
+    normalized.startsWith("venswaffle")
+  );
 }
 
 export function isTarikWafflePreview(menu: Pick<MenuProfileApiItem, "publicId" | "email">): boolean {
