@@ -42,12 +42,19 @@ export async function POST(req: Request) {
     });
 
     if (upstream.status >= 400) {
+      console.error(
+        JSON.stringify({
+          event: "chef_agent_validation_failed",
+          status: upstream.status,
+          response: upstream.data,
+        }),
+      );
       const message =
         upstream.data?.message ||
         (typeof upstream.data === "string" ? upstream.data : "") ||
         "Agent error";
       return NextResponse.json(
-        { message },
+        { message, details: upstream.data },
         { status: upstream.status >= 500 ? 502 : upstream.status },
       );
     }
@@ -103,6 +110,15 @@ export async function POST(req: Request) {
         );
       }
     }
-    return NextResponse.json({ message: "Sunucu hatası", detail: String(error) }, { status: 500 });
+    const unavailable = error instanceof AggregateError || error instanceof Error && error.message.includes("ECONNREFUSED");
+    return NextResponse.json(
+      {
+        message: unavailable
+          ? "Şef servisine ulaşılamıyor. QR agent çalışıyor mu kontrol edin."
+          : "Sunucu hatası",
+        detail: String(error),
+      },
+      { status: unavailable ? 503 : 500 },
+    );
   }
 }
