@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { Loader2, Minus, Plus } from "lucide-react";
+import { Loader2, Minus, Plus, ReceiptText, ShoppingBag, Sparkles } from "lucide-react";
 
 import {
   Sheet,
@@ -64,39 +64,46 @@ export function CartSheet() {
       >
         <div className="space-y-4 px-4 pb-8 pt-4">
           <style>{theme.styles}</style>
-          <SheetHeader className="text-left">
-            <SheetTitle>{t?.cart || "Sepet"}</SheetTitle>
-            <SheetDescription>
+          <SheetHeader className="pw-cart-header text-left">
+            <SheetTitle className="flex items-center gap-2">
+              <span className="pw-cart-title-icon" aria-hidden="true"><ShoppingBag className="h-4 w-4" /></span>
+              {t?.cart || "Sepet"}
+            </SheetTitle>
+            <SheetDescription className="pw-cart-description">
               {tableName ? `${t?.tableLabel ?? "Masa"}: ${tableName}` : t?.tableOrder ?? "Masa siparişi"}
             </SheetDescription>
           </SheetHeader>
 
           {localItems.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t?.cartEmpty ?? "Sepetiniz boş."}</p>
+            <div className="pw-cart-empty">
+              <span className="pw-cart-empty-icon" aria-hidden="true"><ShoppingBag className="h-7 w-7" /></span>
+              <p className="text-sm text-muted-foreground">{t?.cartEmpty ?? "Sepetiniz boş."}</p>
+              <span className="pw-cart-empty-sparkle" aria-hidden="true"><Sparkles className="h-4 w-4" /></span>
+            </div>
           ) : (
-            <ul className="space-y-3">
+            <ul className="pw-cart-items space-y-3">
               {localItems.map((item) => (
                 <li
                   key={item.lineKey}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5"
+                  className="pw-cart-item flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5"
                 >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">
-                      <Tx>{item.productName}</Tx>
-                    </p>
+                  <span className="pw-cart-item-icon" aria-hidden="true"><ReceiptText className="h-4 w-4" /></span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold"><Tx>{item.productName}</Tx></p>
                     {item.selectedOptions?.length ? (
-                      <p className="truncate text-[11px] text-muted-foreground">
-                        {item.selectedOptions
-                          .map((option) => option.optionName)
-                          .filter(Boolean)
-                          .join(", ")}
-                      </p>
+                      <div className="pw-cart-options">
+                        {item.selectedOptions.map((option) => (
+                          <span key={`${item.lineKey}-${option.optionId}`} className="pw-cart-option-pill">
+                            {option.optionName}
+                          </span>
+                        ))}
+                      </div>
                     ) : null}
-                    <p className="text-xs text-muted-foreground">
+                    <p className="pw-cart-unit-price text-xs text-muted-foreground">
                       <MenuPriceText price={item.unitPrice} currency={currency} />
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="pw-cart-quantity flex items-center gap-2">
                     <button
                       type="button"
                       className="flex h-8 w-8 items-center justify-center rounded-md border border-border"
@@ -142,8 +149,8 @@ export function CartSheet() {
             />
           </div>
 
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">{t?.total ?? "Toplam"}</span>
+          <div className="pw-cart-total flex items-center justify-between text-sm">
+            <span className="flex items-center gap-2"><ReceiptText className="h-4 w-4" />{t?.total ?? "Toplam"}</span>
             <span className="font-semibold">{totalLabel}</span>
           </div>
 
@@ -159,7 +166,7 @@ export function CartSheet() {
                 setCartOpen(false);
               }
             }}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-foreground px-3 py-3 text-sm font-medium text-background disabled:cursor-not-allowed disabled:opacity-50"
+            className="pw-cart-submit inline-flex w-full items-center justify-center gap-2 rounded-lg bg-foreground px-3 py-3 text-sm font-medium text-background disabled:cursor-not-allowed disabled:opacity-50"
           >
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {t?.placeOrder || "Sipariş ver"}

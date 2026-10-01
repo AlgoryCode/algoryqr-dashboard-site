@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Minus, Plus } from "lucide-react";
+import { Check, CircleDot, Cookie, IceCreamBowl, Loader2, Minus, Plus, Sparkles, X } from "lucide-react";
 
 import type { MenuProductApiItem } from "@/lib/api";
 import {
@@ -14,6 +14,7 @@ import {
 
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -62,6 +63,15 @@ function toggleMulti(selected: number[], group: MenuProductOptionGroupApiItem, o
   return [...selected, optionId];
 }
 
+function optionGroupIcon(name: string) {
+  const value = name.toLocaleLowerCase("tr-TR");
+  if (value.includes("çikol")) return Cookie;
+  if (value.includes("meyve")) return CircleDot;
+  if (value.includes("şeker")) return Sparkles;
+  if (value.includes("dondurma")) return IceCreamBowl;
+  return Sparkles;
+}
+
 export function ProductOptionsSheet({
   product,
   open,
@@ -106,33 +116,44 @@ export function ProductOptionsSheet({
       <SheetContent
         side="bottom"
         overlayClassName="z-[90]"
-        className={`${theme.rootClassName} z-[90] max-h-[90vh] overflow-y-auto rounded-t-2xl border-t border-[var(--lx-border)] bg-[var(--lx-bg)] p-0 text-[var(--lx-fg)]`}
+        className={`${theme.rootClassName} pw-options-sheet z-[90] max-h-[90vh] overflow-y-auto rounded-t-2xl border-t border-[var(--lx-border)] bg-[var(--lx-bg)] p-0 text-[var(--lx-fg)]`}
         dir={locale?.dir}
       >
-        <div className="space-y-4 px-4 pb-8 pt-4">
+        <div className="pw-options-inner space-y-4 px-4 pb-8 pt-4">
           <style>{theme.styles}</style>
-          <SheetHeader className="text-left">
-            <SheetTitle>
-              <Tx>{product.name}</Tx>
-            </SheetTitle>
-            <SheetDescription>
-              <MenuPriceText price={unitPrice} currency={product.currency || "TRY"} />
-            </SheetDescription>
-          </SheetHeader>
+          <div className="pw-options-sticky-header">
+            <SheetHeader className="pw-options-header text-left">
+              <SheetTitle className="flex items-center gap-2">
+                <span className="pw-options-title-icon" aria-hidden="true"><Cookie className="h-4 w-4" /></span>
+                <Tx>{product.name}</Tx>
+              </SheetTitle>
+              <SheetDescription className="pw-options-price">
+                <MenuPriceText price={unitPrice} currency={product.currency || "TRY"} />
+              </SheetDescription>
+            </SheetHeader>
+            <SheetClose className="pw-options-close" aria-label="Kapat">
+              <X className="h-5 w-5" />
+              <span className="sr-only">Kapat</span>
+            </SheetClose>
+          </div>
 
           {sortedGroups.map((group) => {
             const single = group.maxSelect <= 1;
+            const Icon = optionGroupIcon(formatOptionGroupHeading(group));
+            const selectedInGroup = selectedOptionIds.filter((id) =>
+              (group.options ?? []).some((option) => option.optionId === id),
+            ).length;
             return (
-              <section key={group.groupId} className="space-y-2">
-                <div className="flex items-baseline justify-between gap-2">
-                  <h3 className="text-sm font-semibold">
-                    <Tx>{formatOptionGroupHeading(group)}</Tx>
-                    <span className="ml-2 text-[11px] font-normal text-muted-foreground">
-                      {optionKindLabel(group.kind)}
+              <section key={group.groupId} className="pw-option-group space-y-2">
+                <div className="pw-option-group-heading flex items-center justify-between gap-2">
+                  <h3 className="flex items-center gap-2 text-sm font-semibold">
+                    <span className="pw-option-group-icon" aria-hidden="true"><Icon className="h-4 w-4" /></span>
+                    <span><Tx>{formatOptionGroupHeading(group)}</Tx>
+                      <span className="ml-2 text-[11px] font-normal text-muted-foreground">{optionKindLabel(group.kind)}</span>
                     </span>
                   </h3>
-                  <span className="text-xs text-muted-foreground">
-                    {group.minSelect > 0
+                  <span className="pw-option-count text-xs text-muted-foreground">
+                    {selectedInGroup > 0 ? `${selectedInGroup} seçildi` : group.minSelect > 0
                       ? `Zorunlu · ${group.minSelect}-${group.maxSelect}`
                       : `İsteğe bağlı · max ${group.maxSelect}`}
                   </span>
@@ -153,13 +174,16 @@ export function ProductOptionsSheet({
                                 : toggleMulti(prev, group, option.optionId),
                             );
                           }}
-                          className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors disabled:opacity-40 ${
+                          className={`pw-option-button flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors disabled:opacity-40 ${
                             checked
                               ? "border-foreground bg-foreground/5"
                               : "border-border bg-background"
                           }`}
                         >
-                          <span className="min-w-0 truncate font-medium">
+                          <span className="flex min-w-0 items-center gap-2 truncate font-medium">
+                            <span className={`pw-option-check ${checked ? "is-checked" : ""}`} aria-hidden="true">
+                              {checked ? <Check className="h-3 w-3" /> : null}
+                            </span>
                             <Tx>{option.name}</Tx>
                           </span>
                           <span className="shrink-0 text-xs text-muted-foreground">
@@ -193,12 +217,12 @@ export function ProductOptionsSheet({
               onChange={(e) => setNote(e.target.value)}
               rows={2}
               maxLength={500}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              className="pw-options-note w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
 
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
+          <div className="pw-options-footer flex items-center justify-between gap-3">
+            <div className="pw-options-quantity flex items-center gap-2">
               <button
                 type="button"
                 className="flex h-9 w-9 items-center justify-center rounded-md border border-border"
@@ -233,7 +257,7 @@ export function ProductOptionsSheet({
                   setBusy(false);
                 }
               }}
-              className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-foreground px-3 py-3 text-sm font-medium text-background disabled:cursor-not-allowed disabled:opacity-50"
+              className="pw-options-submit inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-foreground px-3 py-3 text-sm font-medium text-background disabled:cursor-not-allowed disabled:opacity-50"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {(t?.addToCart ?? "Sepete Ekle") + ` · ${lineLabel}`}
