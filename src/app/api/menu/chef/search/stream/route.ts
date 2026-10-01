@@ -43,8 +43,15 @@ export async function POST(req: Request) {
     });
 
     if (upstream.status >= 400) {
+      console.error(
+        JSON.stringify({
+          event: "chef_agent_validation_failed",
+          status: upstream.status,
+          response: upstream.data,
+        }),
+      );
       return NextResponse.json(
-        { message: upstream.data?.message || "Agent error" },
+        { message: upstream.data?.message || "Agent error", details: upstream.data },
         { status: upstream.status >= 500 ? 502 : upstream.status },
       );
     }
