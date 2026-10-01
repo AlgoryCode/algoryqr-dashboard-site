@@ -40,12 +40,15 @@ export async function callChefAgentChat(
     `${QR_AGENT_BASE_URL}/api/v1/chat`,
     {
       publicId: payload.publicId,
+      // Production qr-agent currently validates the numeric menu identifier.
+      // The public menu id remains useful for conversation scoping.
+      menuId: payload.products[0]?.menuId,
       userQuery,
       selectedProductId: payload.selectedProductId,
       // qr-agent request contract is intentionally compact; keep host notes
       // within its hard limit even when a large cart/context is present.
       message: payload.message.slice(0, 1000),
-      conversationId: payload.conversationId,
+      ...(payload.conversationId ? { conversationId: payload.conversationId } : {}),
       products: catalog,
       cartProductIds: payload.cartProductIds ?? [],
       candidateProductIds: payload.candidateProductIds,
