@@ -574,6 +574,23 @@
   background: #d93f6b !important;
   color: #fff !important;
 }
+.petek-waffle-chef-chat .petek-chef-add-button {
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  min-height: 32px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 9999px !important;
+  background: #d93f6b !important;
+  color: #fff !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  font: 600 22px/1 "Fredoka", ui-sans-serif, system-ui, sans-serif !important;
+}
+.petek-waffle-chef-chat .petek-chef-add-button:hover {
+  background: #b83259 !important;
+}
 .petek-waffle-chef-chat form {
   border-color: rgba(217,63,107,.15) !important;
   background: rgba(255,255,255,.76) !important;

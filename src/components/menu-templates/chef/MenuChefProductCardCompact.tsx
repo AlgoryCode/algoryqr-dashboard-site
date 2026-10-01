@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Plus } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useState } from "react";
 
 import type { ChefProductItem } from "@/lib/chef/chef-product-item";
@@ -108,13 +108,13 @@ export function MenuChefProductCardCompact({
           type="button"
           onClick={(event) => void handleQuickAdd(event)}
           disabled={addBusy || ordering.loading}
-          className="absolute bottom-1 right-1 inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#2a3833] text-white shadow-md transition hover:bg-[#1f2b27] disabled:opacity-50"
+          className="petek-chef-add-button absolute bottom-1 right-1 inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#2a3833] text-white shadow-md transition hover:bg-[#1f2b27] disabled:opacity-50"
           aria-label={`${item.name} sepete ekle`}
         >
           {addBusy || ordering.loading ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
           ) : (
-            <Plus className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden />
+            <span aria-hidden="true">+</span>
           )}
         </button>
       ) : null}
