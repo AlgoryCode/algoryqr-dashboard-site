@@ -13,6 +13,7 @@ import {
 import type { MenuTemplateProps } from "../types";
 
 import { waffleArtKind, WaffleArt } from "./art";
+import { PetekChefAskButton } from "./PetekChefAskButton";
 
 type SectionGroup = { title: string | null; products: MenuProductApiItem[] };
 
@@ -210,6 +211,12 @@ export function PetekWaffleMenuTemplate({ menu, products, categories = [] }: Men
           <CartTotal />
         </button>
       </div>
+      <PetekChefAskButton
+        publicId={menu.publicId ?? ""}
+        chefName={menu.chefName}
+        chefDisplayName={menu.chefDisplayName}
+        chefAvatarUrl={menu.chefAvatarUrl}
+      />
       <button type="button" className={openProduct ? "pw-ov on" : "pw-ov"} aria-label="Kapat" onClick={() => setOpenProduct(null)} />
       <div className={openProduct ? "pw-sheet on" : "pw-sheet"} role="dialog" aria-modal="true">
         {openProduct ? (

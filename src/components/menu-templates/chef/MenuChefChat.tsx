@@ -38,6 +38,7 @@ import {
   type ChefTurnFeedbackValue,
 } from "@/lib/chef/submit-chef-turn-feedback";
 import { useChefChatAnalytics } from "@/hooks/use-chef-chat-analytics";
+import { cn } from "@/lib/utils";
 
 import { ChefChatAnalyticsContext } from "./ChefChatAnalyticsContext";
 import { ChefChatCatalogProvider } from "./ChefChatCatalogContext";
@@ -58,6 +59,7 @@ type MenuChefChatProps = {
   chefAvatarUrl: string;
   open: boolean;
   onClose: () => void;
+  themeVariant?: "petek-waffle";
 };
 
 let messageSeq = 0;
@@ -420,6 +422,7 @@ export function MenuChefChat({
   chefAvatarUrl,
   open,
   onClose,
+  themeVariant,
 }: MenuChefChatProps) {
   const ordering = useOrderingOptional();
   const menuLocale = useMenuLocaleOptional();
@@ -770,7 +773,10 @@ export function MenuChefChat({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-          className="pointer-events-auto fixed inset-0 z-[100] flex h-[100dvh] w-full flex-col overflow-hidden overscroll-none bg-[#f3f5f4]"
+          className={cn(
+            "pointer-events-auto fixed inset-0 z-[100] flex h-[100dvh] w-full flex-col overflow-hidden overscroll-none bg-[#f3f5f4]",
+            themeVariant === "petek-waffle" && "petek-waffle-chef-chat",
+          )}
         >
           <div className="relative flex h-full min-h-0 flex-col">
             <div

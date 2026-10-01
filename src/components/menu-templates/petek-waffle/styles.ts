@@ -179,6 +179,28 @@ export const PETEK_WAFFLE_STYLES = `
     pointer-events: auto;
     box-shadow: 0 6px 18px rgba(217, 63, 107, 0.35);
   }
+  .petek-waffle-menu .pw-ai-ask {
+    position: fixed;
+    right: 18px;
+    bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+    z-index: 7;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    border: 1px solid rgba(255, 255, 255, .72);
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--pw-acc), #b83f91);
+    padding: 10px 15px 10px 10px;
+    color: #fff;
+    font: 600 13px "Nunito", sans-serif;
+    box-shadow: 0 10px 24px rgba(140, 45, 91, .28), 0 0 0 5px rgba(255, 214, 224, .45);
+    transition: transform .18s ease, box-shadow .18s ease;
+  }
+  .petek-waffle-menu .pw-ai-ask:hover { transform: translateY(-2px); box-shadow: 0 13px 28px rgba(140, 45, 91, .34), 0 0 0 6px rgba(255, 214, 224, .5); }
+  .petek-waffle-menu .pw-ai-ask:active { transform: translateY(0) scale(.98); }
+  .petek-waffle-menu .pw-ai-ask:disabled { opacity: 0; pointer-events: none; }
+  .petek-waffle-menu .pw-ai-ask-icon { position: relative; display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: rgba(255, 255, 255, .22); }
+  .petek-waffle-menu .pw-ai-ask-spark { position: absolute; right: -5px; top: -7px; width: 14px; height: 14px; color: var(--pw-p3); }
   .petek-waffle-menu .pw-ov {
     position: fixed;
     inset: 0;
@@ -244,6 +266,15 @@ export const PETEK_WAFFLE_STYLES = `
     color: #fff;
     font: 500 17px "Fredoka", sans-serif;
     text-align: center;
+  }
+
+  @media (max-width: 460px) {
+    .petek-waffle-menu .pw-ai-ask {
+      right: 14px;
+      bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+      padding-right: 12px;
+      font-size: 12px;
+    }
   }
 
   /* Shared ordering panels: keep the app chrome in the same soft waffle language. */

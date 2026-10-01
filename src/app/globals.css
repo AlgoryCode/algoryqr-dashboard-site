@@ -544,6 +544,51 @@
   transform-origin: 70% 70%;
 }
 
+/* Petek Waffle public-menu AI skin. The chat is portaled to body, so this
+   variant intentionally lives outside the menu template stylesheet scope. */
+.petek-waffle-chef-chat {
+  background: #fff3f5 !important;
+  color: #4a1d2e;
+}
+.petek-waffle-chef-chat > div > div:first-child {
+  background: radial-gradient(ellipse at top, rgba(255,255,255,.96), transparent 58%), linear-gradient(180deg, #fff3f5 0%, #ffe8ee 100%) !important;
+}
+.petek-waffle-chef-chat header {
+  border-color: rgba(217,63,107,.18) !important;
+  background: rgba(255,255,255,.76) !important;
+}
+.petek-waffle-chef-chat header p:first-child { color: #4a1d2e !important; }
+.petek-waffle-chef-chat header p:last-child { color: #8a5a6b !important; }
+.petek-waffle-chef-chat header button,
+.petek-waffle-chef-chat form button {
+  background: #ffd6e0 !important;
+  color: #4a1d2e !important;
+}
+.petek-waffle-chef-chat [data-chef-scroll] { scrollbar-color: #e9b8c6 transparent; }
+.petek-waffle-chef-chat [data-chef-scroll] .bg-white\/80 {
+  border-color: rgba(233,184,198,.7) !important;
+  background: rgba(255,255,255,.84) !important;
+  color: #4a1d2e !important;
+}
+.petek-waffle-chef-chat [data-chef-scroll] .bg-\[\#2a3833\] {
+  background: #d93f6b !important;
+  color: #fff !important;
+}
+.petek-waffle-chef-chat form {
+  border-color: rgba(217,63,107,.15) !important;
+  background: rgba(255,255,255,.76) !important;
+}
+.petek-waffle-chef-chat form > div {
+  border-color: rgba(233,184,198,.8) !important;
+  background: rgba(255,255,255,.92) !important;
+}
+.petek-waffle-chef-chat form input { color: #4a1d2e !important; }
+.petek-waffle-chef-chat form input::placeholder { color: #8a5a6b !important; }
+.petek-waffle-chef-chat form button:last-child {
+  background: #d93f6b !important;
+  color: #fff !important;
+}
+
 @keyframes waiter-pending-bounce {
   0%,
   100% {
