@@ -74,6 +74,7 @@ export const ORDER_FLOW_STATUS_LABEL: Record<OrderFlowStatus, string> = {
   WAITER_DELIVERED_TO_CUSTOMER: "Tamamlandı",
   WAITER_DELIVERED_TO_COURIER: "Kurye bekliyor",
   COURIER_DELIVERED_TO_CUSTOMER: "Teslim edildi",
+  PAID: "Ödeme alındı",
 };
 
 export const ORDER_FLOW_ACTION_LABEL: Record<OrderFlowAction, string> = {

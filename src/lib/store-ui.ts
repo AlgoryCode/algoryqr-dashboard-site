@@ -33,6 +33,7 @@ export const STORE_ORDER_STATUS_CLASS: Record<StoreOrderStatus, string> = {
   AWAITING_COURIER: "bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300",
   ON_THE_WAY: "bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300",
   DELIVERED: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300",
+  PAID: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300",
   REJECTED: "bg-rose-100 text-rose-800 dark:bg-rose-500/15 dark:text-rose-300",
   CANCELLED: "bg-muted text-muted-foreground",
   KITCHEN_PREPARING: "bg-indigo-100 text-indigo-800 dark:bg-indigo-500/15 dark:text-indigo-300",
