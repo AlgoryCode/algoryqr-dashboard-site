@@ -38,6 +38,12 @@ function ProductBadge({ product }: { product: MenuProductApiItem }) {
   return label ? <span className="pw-badge pw-product-badge">{label}</span> : null;
 }
 
+function titleLines(name: string): string[] {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return [parts[0] || "Petek Waffle"];
+  return [parts[0], parts.slice(1).join(" ")];
+}
+
 function buildSections(categories: MainCategoryApiItem[], products: MenuProductApiItem[]): MenuSection[] {
   const mains = [...categories].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   const sections: MenuSection[] = [];
@@ -106,9 +112,7 @@ export function PetekWaffleMenuTemplate({ menu, products, categories = [] }: Men
   const [activeId, setActiveId] = useState(sections[0]?.id ?? "");
   const [openProduct, setOpenProduct] = useState<MenuProductApiItem | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
-  const normalizedBusinessName = menu.businessName.trim().toLocaleLowerCase("tr-TR").replace(/[^a-z0-9]/g, "");
-  const isVenscoffee = normalizedBusinessName === "venscoffee" || normalizedBusinessName.startsWith("venscoffee");
-  const lines = isVenscoffee ? ["Venscoffee"] : ["Petek", "Waffle"];
+  const lines = titleLines(menu.businessName);
   const slogan = locale?.locale === "en"
     ? "Baked to order from fresh batter, served hot."
     : menu.slogan?.trim() || "Siparişte hamurdan pişirilir, sıcak gelir.";
