@@ -42,7 +42,9 @@ export async function callChefAgentChat(
       publicId: payload.publicId,
       userQuery,
       selectedProductId: payload.selectedProductId,
-      message: payload.message,
+      // qr-agent request contract is intentionally compact; keep host notes
+      // within its hard limit even when a large cart/context is present.
+      message: payload.message.slice(0, 1000),
       conversationId: payload.conversationId,
       products: catalog,
       cartProductIds: payload.cartProductIds ?? [],

@@ -40,9 +40,9 @@ export async function POST(request: Request, { params }: RouteParams) {
             : [],
         }),
       );
-      if (upstream.status === 404 || upstream.status === 400) {
-        return new NextResponse(null, { status: 204 });
-      }
+      // Analytics must never break the guest menu / chef flow. The upstream
+      // may reject newer CHEF_* event types while deployments are staggered.
+      return new NextResponse(null, { status: 204 });
     }
 
     if (upstream.status === 204 || upstream.data == null || upstream.data === "") {
