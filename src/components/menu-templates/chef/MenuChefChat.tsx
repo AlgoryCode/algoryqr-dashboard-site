@@ -212,6 +212,7 @@ function AssistantBubble({
   onBadgeSelect,
   onRecommendationFeedback,
   onQuickAddSuccess,
+  onProductSelect,
   onCoachOpenCart,
   onCoachCompleteOrder,
   themeVariant,
@@ -227,6 +228,7 @@ function AssistantBubble({
   onBadgeSelect: (badge: ChefChatBadge) => void;
   onRecommendationFeedback?: (feedback: ChefTurnFeedbackValue) => void;
   onQuickAddSuccess?: () => void;
+  onProductSelect?: (product: ChefProductItem) => void;
   onCoachOpenCart?: () => void;
   onCoachCompleteOrder?: () => void;
   themeVariant?: "petek-waffle";
@@ -337,6 +339,7 @@ function AssistantBubble({
               showBlockTitle
               blockTitle="Öneriler"
               onQuickAddSuccess={onQuickAddSuccess}
+              onProductSelect={onProductSelect}
             />
           </motion.div>
         ) : null}
@@ -602,7 +605,11 @@ export function MenuChefChat({
   const runAgentSearch = async (
     text: string,
     mode: ChefAgentRecommendationMode,
-    options?: { addUserMessage?: boolean; addAssistantToChat?: boolean },
+    options?: {
+      addUserMessage?: boolean;
+      addAssistantToChat?: boolean;
+      selectedProductId?: number;
+    },
   ) => {
     const addUserMessage = options?.addUserMessage ?? true;
     const addAssistantToChat = options?.addAssistantToChat ?? true;
@@ -650,6 +657,7 @@ export function MenuChefChat({
       priorOrderProductIds,
       conversationTranscript,
       locale: localeCode,
+      ...(options?.selectedProductId ? { selectedProductId: options.selectedProductId } : {}),
     };
 
     setLoading(true);
@@ -663,6 +671,7 @@ export function MenuChefChat({
         message?: string;
         productIds?: number[];
         products?: ChefProductItem[];
+        suggestedProducts?: ChefChatBadge[];
         searchComplete?: SearchCompletePayload;
       } = {};
 
@@ -731,6 +740,9 @@ export function MenuChefChat({
               role: "assistant",
               text: assistantCaptionForProductReply(reply, productList.length),
               products: productList,
+              ...(data.suggestedProducts?.length
+                ? { upsellBadges: data.suggestedProducts }
+                : {}),
               turnId: data.turnId,
               showRecommendationFeedback: true,
               ...(data.searchComplete ? { searchComplete: data.searchComplete } : {}),
@@ -742,6 +754,9 @@ export function MenuChefChat({
               showEmptyStateBadges: true,
               showRecommendationFeedback: true,
               turnId: data.turnId,
+              ...(data.suggestedProducts?.length
+                ? { upsellBadges: data.suggestedProducts }
+                : {}),
             };
         setMessages((prev) => [...prev, assistantMsg]);
       }
@@ -775,6 +790,27 @@ export function MenuChefChat({
   };
 
   const sendBadge = async (badge: ChefChatBadge) => {
+    if (badge.filter.type === "productIds") {
+      if (loading || !catalogReady) return;
+
+      const products = await resolveChefChatProducts({
+        productIds: badge.filter.productIds,
+      });
+      if (!products?.length) return;
+
+      setMessages((prev) => [
+        ...prev,
+        { id: nextId(), role: "user", text: badge.label },
+        {
+          id: nextId(),
+          role: "assistant",
+          text: assistantCaptionForProductReply(undefined, products.length),
+          products,
+          showRecommendationFeedback: true,
+        },
+      ]);
+      return;
+    }
     await runAgentSearch(badge.label, "default");
   };
 
@@ -1004,6 +1040,13 @@ export function MenuChefChat({
                               : undefined
                           }
                           onQuickAddSuccess={showAddToast}
+                          onProductSelect={(product) => {
+                            void runAgentSearch(
+                              `${product.name} ürününü seçtim. Bir sonraki adımda ne önerirsin?`,
+                              "default",
+                              { selectedProductId: product.productId },
+                            );
+                          }}
                           onCoachOpenCart={
                             ordering
                               ? () => {

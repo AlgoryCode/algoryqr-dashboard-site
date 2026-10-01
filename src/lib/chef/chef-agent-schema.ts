@@ -27,6 +27,14 @@ const productIdsSchema = z.union([
   z.undefined(),
 ]);
 
+const suggestedProductsSchema = z.array(
+  z.object({
+    id: z.string().trim().min(1).max(80),
+    label: z.string().trim().min(1).max(60),
+    productIds: z.array(z.number().int().positive()).max(12),
+  }),
+).max(4);
+
 /** qr-agent yanıtı — BFF doğrulaması. */
 export const chefAgentChatResponseSchema = z.object({
   reply: z.string().max(4000).optional(),
@@ -34,6 +42,8 @@ export const chefAgentChatResponseSchema = z.object({
   conversationId: z.string().max(100).optional(),
   turnId: z.string().max(128).optional(),
   productIds: productIdsSchema,
+  /** Agent'ın ürün seçimi sonrasında sunduğu tıklanabilir öneri grupları. */
+  suggestedProducts: suggestedProductsSchema.optional(),
   products: z.unknown().optional(),
   searchComplete: z.unknown().optional(),
   timing: z.record(z.string(), z.number()).optional(),

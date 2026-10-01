@@ -22,6 +22,7 @@ type MenuChefProductCardCompactProps = {
   caption?: string;
   cardSource?: ChefProductCardSource;
   onCardClick?: () => void;
+  onProductSelect?: () => void;
   onQuickAddSuccess?: () => void;
 };
 
@@ -33,6 +34,7 @@ export function MenuChefProductCardCompact({
   caption,
   cardSource = "bubble",
   onCardClick,
+  onProductSelect,
   onQuickAddSuccess,
 }: MenuChefProductCardCompactProps) {
   const gallery = useChefProductGalleryOptional();
@@ -44,6 +46,7 @@ export function MenuChefProductCardCompact({
 
   const openDetail = () => {
     analytics?.trackProductCardClick(item.productId, cardSource);
+    onProductSelect?.();
     if (onCardClick) {
       onCardClick();
       return;
