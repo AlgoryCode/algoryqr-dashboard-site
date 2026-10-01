@@ -201,19 +201,9 @@ export function orderLocationLabel(order: OrderResponse): string {
 
 export function orderFlowStage(status: OrderStatus): OrderFlowStage {
   const s = normalizeOrderStatus(status);
-  if (s === "KITCHEN_PREPARING") return "PREPARING";
-  if (s === "KITCHEN_PREPARED") return "READY";
-  if (
-    s === "KITCHEN_DELIVERED_TO_WAITER" ||
-    s === "KITCHEN_DELIVERED_TO_COURIER" ||
-    s === "WAITER_TAKEN" ||
-    s === "WAITER_DELIVERED_TO_CUSTOMER" ||
-    s === "WAITER_DELIVERED_TO_COURIER" ||
-    s === "COURIER_TAKEN" ||
-    s === "COURIER_DELIVERED_TO_CUSTOMER"
-  ) {
-    return "DELIVERED";
-  }
+  if (s === "PREPARING") return "PREPARING";
+  if (s === "READY") return "READY";
+  if (s === "AWAITING_COURIER" || s === "ON_THE_WAY" || s === "DELIVERED") return "DELIVERED";
   if (s === "CANCELLED" || s === "REJECTED") return "CLOSED";
   return "RECEIVED";
 }
@@ -274,11 +264,11 @@ function matchesStatusFilter(status: OrderStatus, filter: OrderStatusFilter): bo
     case "pending":
       return s === "PENDING" || s === "SUBMITTED";
     case "preparing":
-      return s === "KITCHEN_PREPARING";
+      return s === "PREPARING";
     case "ready":
-      return s === "KITCHEN_PREPARED";
+      return s === "READY";
     case "served":
-      return isCustomerDeliveredStatus(s) || canWaiterCollectPayment(s);
+      return isCustomerDeliveredStatus(s);
     case "cancelled":
       return s === "CANCELLED" || s === "REJECTED";
     default:
@@ -962,7 +952,8 @@ export function isDeliveryOrder(order: OrderResponse): boolean {
 
 /** Garson teslim aldıysa müşteriye teslim edebilir. Paket kurye akışında kalır. */
 export function canMarkServedToCustomer(order: OrderResponse): boolean {
-  return normalizeOrderStatus(order.status) === "WAITER_TAKEN" && !isDeliveryOrder(order);
+  const type = (order.deliveryType ?? "").trim().toUpperCase();
+  return (type === "PICKUP" || type === "STORE") && normalizeOrderStatus(order.status) === "READY";
 }
 
 /**
@@ -1009,12 +1000,6 @@ export type OpsLaneSnapshot = {
   secondary: OpsCountGroup;
   extra: OpsCountGroup | null;
 };
-
-const KITCHEN_WAITING_STATUSES = new Set<string>([
-  "PENDING",
-  "SUBMITTED",
-  "KITCHEN_PREPARING",
-]);
 
 export function orderItemQuantity(order: OrderResponse): number {
   const items = order.items ?? [];
@@ -1072,35 +1057,34 @@ export function buildOpsLaneSnapshots(
     const s = normalizeOrderStatus(order.status, delivery);
     if (s === "CANCELLED" || s === "REJECTED" || s === "DRAFT") continue;
 
-    if (s === "PENDING" || s === "SUBMITTED" || s === "KITCHEN_PREPARING") {
-      if (kitchenEnabled) {
+    if (s === "PENDING" || s === "CONFIRMED" || s === "PREPARING") {
+      if (kitchenEnabled && s !== "PENDING") {
+        kitchenWaiting.push(order);
+      } else if (kitchenEnabled && s === "PENDING") {
+        waiterActive.push(order);
+      } else if (s === "PREPARING") {
         kitchenWaiting.push(order);
       } else {
         waiterActive.push(order);
       }
       continue;
     }
-    if (s === "KITCHEN_PREPARED") {
+    if (s === "READY") {
       if (kitchenEnabled) kitchenReady.push(order);
-      if (delivery) courierPickup.push(order);
-      else waiterPending.push(order);
+      if (!delivery) waiterPending.push(order);
       continue;
     }
-    if (s === "KITCHEN_DELIVERED_TO_COURIER" || s === "WAITER_DELIVERED_TO_COURIER" || s === "COURIER_TAKEN") {
+    if (s === "AWAITING_COURIER") {
+      courierPickup.push(order);
+      continue;
+    }
+    if (s === "ON_THE_WAY") {
       courierTransit.push(order);
       continue;
     }
-    if (s === "WAITER_TAKEN" || s === "KITCHEN_DELIVERED_TO_WAITER") {
-      if (delivery) courierPickup.push(order);
-      else waiterPending.push(order);
-      continue;
-    }
-    if (s === "WAITER_DELIVERED_TO_CUSTOMER") {
-      waiterDone.push(order);
-      continue;
-    }
-    if (s === "COURIER_DELIVERED_TO_CUSTOMER") {
-      courierDone.push(order);
+    if (s === "DELIVERED") {
+      if (delivery) courierDone.push(order);
+      else waiterDone.push(order);
     }
   }
 
@@ -1267,18 +1251,10 @@ export function resolveOrderWaiterName(order: OrderResponse, contextOrders: Orde
 }
 
 /** Garson / salon satırında durum metni (mutfak teslimi vs müşteri teslimi). */
-export function salonTableOrderStatusLabel(
-  order: OrderResponse,
-  contextOrders: OrderResponse[],
-): string {
+export function salonTableOrderStatusLabel(order: OrderResponse, _contextOrders: OrderResponse[]): string {
   const s = normalizeOrderStatus(order.status);
-  if (s === "KITCHEN_PREPARED" || s === "KITCHEN_DELIVERED_TO_WAITER") return "Mutfaktan alınacak";
-  if (s === "WAITER_TAKEN") {
-    const waiter = orderWaiterNameField(order) ?? resolveOrderWaiterName(order, contextOrders);
-    const table = orderLocationLabel(order);
-    if (waiter && waiter !== table) return waiter;
-    return "Müşteriye teslim";
-  }
+  if (s === "READY") return "Hazır";
+  if (s === "DELIVERED") return "Tamamlandı";
   return orderStatusLabel(order.status);
 }
 
@@ -1392,12 +1368,12 @@ export function averageCourierMinutes(orders: OrderResponse[], now = Date.now())
   for (const order of orders) {
     if (!isDeliveryOrder(order)) continue;
     const cs = normalizeOrderStatus(order.status);
-    if (cs !== "COURIER_TAKEN" && cs !== "COURIER_DELIVERED_TO_CUSTOMER") continue;
+    if (cs !== "ON_THE_WAY" && cs !== "DELIVERED") continue;
     const startRaw = order.readyAt || order.preparedAt || order.confirmedAt || order.submittedAt;
     if (!startRaw) continue;
     const start = new Date(startRaw).getTime();
     if (Number.isNaN(start)) continue;
-    const end = cs === "COURIER_DELIVERED_TO_CUSTOMER" && order.servedAt
+    const end = cs === "DELIVERED" && order.servedAt
       ? new Date(order.servedAt).getTime()
       : now;
     if (Number.isNaN(end) || end < start) continue;
@@ -1445,10 +1421,8 @@ export function buildLiveOpsKpis(
     if (table) tableNames.add(table);
   }
 
-  const courierOnRoad = open.filter((o) => normalizeOrderStatus(o.status) === "COURIER_TAKEN").length;
-  const courierWaiting = open.filter(
-    (o) => isDeliveryOrder(o) && (normalizeOrderStatus(o.status) === "KITCHEN_PREPARED" || KITCHEN_WAITING_STATUSES.has(normalizeOrderStatus(o.status))),
-  ).length;
+  const courierOnRoad = open.filter((o) => normalizeOrderStatus(o.status) === "ON_THE_WAY").length;
+  const courierWaiting = open.filter((o) => isDeliveryOrder(o) && normalizeOrderStatus(o.status) === "AWAITING_COURIER").length;
 
   const kitchenAvg = kitchenEnabled ? averageKitchenPrepMinutes(orders) : null;
   const totalTables = Math.max(tableNames.size, occupied.size);
@@ -1480,8 +1454,8 @@ export function tableStatusTone(
 ): "occupied" | "serving" | "waiting" | "delayed" | "empty" {
   if (isKitchenTicketDelayed(order, now)) return "delayed";
   const s = normalizeOrderStatus(order.status);
-  if (s === "KITCHEN_PREPARED" || s === "WAITER_TAKEN" || s === "KITCHEN_DELIVERED_TO_WAITER") return "serving";
-  if (s === "PENDING" || s === "SUBMITTED" || s === "KITCHEN_PREPARING") {
+  if (s === "READY") return "serving";
+  if (s === "PENDING" || s === "CONFIRMED" || s === "PREPARING") {
     return "waiting";
   }
   if (isOpenOrderStatus(order.status)) return "occupied";

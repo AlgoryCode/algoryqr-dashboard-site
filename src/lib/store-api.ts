@@ -308,7 +308,7 @@ export async function advanceStoreOrder(orderId: number, action: StoreOrderActio
     latest = data;
   }
 
-  if (FLOW_ACTIONS.has(action)) {
+  if (FLOW_ACTIONS.has(action) && steps.length > 0) {
     const stamped = stampOrderFlow(
       { id: orderId, status: latest.status, deliveryType: latest.deliveryType },
       ORDER_FLOW_ACTION_STATUS[action as OrderFlowAction],

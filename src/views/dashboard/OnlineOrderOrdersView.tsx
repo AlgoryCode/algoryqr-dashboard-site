@@ -12,6 +12,8 @@ import { useDashboardBanners } from "@/contexts/dashboard-banners";
 import { useNewOrderChime } from "@/hooks/use-new-order-chime";
 import { STORE_QUERY_KEYS, useMyStore, useStoreOrders } from "@/hooks/use-store";
 import { ApiError } from "@/lib/api";
+import { anyBranchHasCourier, anyBranchHasKitchen } from "@/lib/branch";
+import { useBranches } from "@/hooks/use-branches";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { DASHBOARD_BACK, DASHBOARD_PANEL } from "@/lib/dashboard-surface";
 import {
@@ -21,7 +23,7 @@ import {
   type StoreOrderSummary,
 } from "@/lib/store-api";
 import { DEFAULT_STORE_SLA_MINUTES } from "@/lib/store-kanban";
-import { STORE_ORDER_STATUS_LABEL } from "@/lib/store-ui";
+import { isMerchantStoreOpen, STORE_ORDER_STATUS_LABEL } from "@/lib/store-ui";
 import { cn } from "@/lib/utils";
 
 const OPEN_STATUSES: StoreOrderStatus[] = [
@@ -48,6 +50,9 @@ export default function OnlineOrderOrdersView({ backHref }: OnlineOrderOrdersVie
   const queryClient = useQueryClient();
   const { notify } = useDashboardBanners();
   const { merchant, isLoading: merchantLoading, accessLoading } = useMyStore();
+  const branchesQuery = useBranches();
+  const kitchenEnabled = branchesQuery.isSuccess ? anyBranchHasKitchen(branchesQuery.data) : true;
+  const courierEnabled = branchesQuery.isSuccess ? anyBranchHasCourier(branchesQuery.data) : false;
   const [mode, setMode] = useState<"kanban" | "list">("kanban");
   const [filterId, setFilterId] = useState("open");
   const [page, setPage] = useState(0);
@@ -177,7 +182,7 @@ export default function OnlineOrderOrdersView({ backHref }: OnlineOrderOrdersVie
           branchLocation={branchLocation || merchant.business.businessName}
           businessName={merchant.business.businessName}
           storeUrl={merchant.storeUrl}
-          live={merchant.open}
+          live={isMerchantStoreOpen(merchant)}
           loading={openQuery.isLoading || deliveredQuery.isLoading}
           refreshing={openQuery.isFetching || deliveredQuery.isFetching}
           busyOrderId={advanceMutation.isPending ? advanceMutation.variables?.orderId : null}
@@ -187,7 +192,12 @@ export default function OnlineOrderOrdersView({ backHref }: OnlineOrderOrdersVie
             void openQuery.refetch();
             void deliveredQuery.refetch();
           }}
-          onAdvance={(orderId, action, reason) => advanceMutation.mutate({ orderId, action, reason })}
+          kitchenEnabled={kitchenEnabled}
+          courierEnabled={courierEnabled}
+          onAdvance={(orderId, action, reason) => {
+            if (action === "markKitchenDeliveredToCourier") return;
+            advanceMutation.mutate({ orderId, action, reason });
+          }}
           onSwitchToList={() => setMode("list")}
         />
       ) : (

@@ -31,6 +31,7 @@ import {
   type CampaignTemplate,
 } from "@/lib/campaign-api";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
+import { CAMPAIGN_QUALIFICATION_MOMENT } from "@/lib/ordering-campaign-types";
 import { DASHBOARD_BACK, DASHBOARD_PANEL_LG, DASHBOARD_SURFACE, DASHBOARD_TYPE_SECTION } from "@/lib/dashboard-surface";
 import { formatMenuPrice } from "@/components/menu-templates/types";
 
@@ -140,7 +141,7 @@ export default function CampaignCreateView() {
                 productId: Number.isFinite(rewardId) ? rewardId : productIds[0],
                 quantity: 1,
               },
-              qualificationMoment: "ORDER_CONFIRMED",
+              qualificationMoment: CAMPAIGN_QUALIFICATION_MOMENT,
             }
           : {
               targetProductIds: productIds,
@@ -151,7 +152,7 @@ export default function CampaignCreateView() {
                 quantity: 1,
               },
               resetAfterReward: true,
-              qualificationMoment: "ORDER_CONFIRMED",
+              qualificationMoment: CAMPAIGN_QUALIFICATION_MOMENT,
             };
 
       const created = await createCampaign(menuId, {

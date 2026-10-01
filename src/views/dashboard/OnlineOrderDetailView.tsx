@@ -10,13 +10,14 @@ import { CourierHandoverIllustration } from "@/components/dashboard/store/Courie
 import { StoreOrderStatusBadge } from "@/components/dashboard/store/StoreOrderStatusBadge";
 import { Button } from "@/components/ui/button";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
-import { STORE_QUERY_KEYS, useStoreCouriers } from "@/hooks/use-store";
+import { STORE_QUERY_KEYS } from "@/hooks/use-store";
 import { ApiError } from "@/lib/api";
+import { anyBranchHasCourier, anyBranchHasKitchen } from "@/lib/branch";
+import { useBranches } from "@/hooks/use-branches";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { DASHBOARD_BACK, DASHBOARD_PANEL } from "@/lib/dashboard-surface";
 import {
   advanceStoreOrder,
-  assignStoreCourier,
   getStoreOrder,
   type StoreDeliveryType,
   type StoreOrderAction,
@@ -35,6 +36,7 @@ import {
   STORE_ORDER_STATUS_LABEL,
   STORE_PAYMENT_METHOD_LABEL,
 } from "@/lib/store-ui";
+import { handoverStoreOrderToCourier, listKitchenCouriers } from "@/lib/store-kitchen";
 import { cn } from "@/lib/utils";
 
 const DETAIL_POLL_INTERVAL_MS = 10_000;
@@ -43,13 +45,23 @@ export default function OnlineOrderDetailView({ orderId }: { orderId: number }) 
   const queryClient = useQueryClient();
   const { notify } = useDashboardBanners();
   const [courierId, setCourierId] = useState<number | null>(null);
+  const branchesQuery = useBranches();
+  const kitchenEnabled = branchesQuery.isSuccess ? anyBranchHasKitchen(branchesQuery.data) : true;
+  const courierEnabled = branchesQuery.isSuccess ? anyBranchHasCourier(branchesQuery.data) : false;
+  const modeFlags = { kitchenEnabled, courierEnabled };
 
   const orderQuery = useQuery({
     queryKey: [...STORE_QUERY_KEYS.orders, "detail", orderId],
     queryFn: () => getStoreOrder(orderId),
     refetchInterval: DETAIL_POLL_INTERVAL_MS,
   });
-  const couriersQuery = useStoreCouriers();
+  const readyForCourier =
+    orderQuery.data?.deliveryType === "DELIVERY" && orderQuery.data.status === "READY" && courierEnabled;
+  const staffCouriersQuery = useQuery({
+    queryKey: ["online-order-staff-couriers", orderQuery.data?.branchId],
+    enabled: readyForCourier,
+    queryFn: () => listKitchenCouriers(orderQuery.data?.branchId),
+  });
 
   const applyOrder = (updated: StoreOrderDetail) => {
     queryClient.setQueryData([...STORE_QUERY_KEYS.orders, "detail", orderId], updated);
@@ -83,12 +95,13 @@ export default function OnlineOrderDetailView({ orderId }: { orderId: number }) 
   });
 
   const courierMutation = useMutation({
-    mutationFn: (assignedCourierId: number) => assignStoreCourier(orderId, assignedCourierId),
-    onSuccess: (updated) => {
-      applyOrder(updated);
-      notify("info", "Kurye atandı.");
+    mutationFn: (courierStaffId: number) => handoverStoreOrderToCourier(orderId, courierStaffId),
+    onSuccess: () => {
+      void orderQuery.refetch();
+      void queryClient.invalidateQueries({ queryKey: STORE_QUERY_KEYS.orders });
+      notify("info", "Sipariş kuryeye bırakıldı.");
     },
-    onError: (error) => reportError(error, "Kurye atanamadı."),
+    onError: (error) => reportError(error, "Sipariş kuryeye verilemedi."),
   });
 
   if (orderQuery.isLoading) {
@@ -105,8 +118,10 @@ export default function OnlineOrderDetailView({ orderId }: { orderId: number }) 
     return <p className="text-sm text-muted-foreground">Sipariş bulunamadı.</p>;
   }
 
-  const transitions = availableStoreOrderTransitions(order.status, order.deliveryType);
-  const couriers = (couriersQuery.data ?? []).filter((courier) => courier.active);
+  const transitions = availableStoreOrderTransitions(order.status, order.deliveryType, modeFlags).filter(
+    (transition) => transition.action !== "markKitchenDeliveredToCourier",
+  );
+  const staffCouriers = (staffCouriersQuery.data ?? []).filter((courier) => courier.available);
   const kitchenStartedAt =
     order.history.find((event) => event.toStatus === "PREPARING")?.createdAt ||
     order.confirmedAt ||
@@ -129,6 +144,8 @@ export default function OnlineOrderDetailView({ orderId }: { orderId: number }) 
         status={order.status}
         deliveryType={order.deliveryType}
         startedAt={kitchenStartedAt}
+        kitchenEnabled={kitchenEnabled}
+        courierEnabled={courierEnabled}
       />
 
       {transitions.length > 0 ? (
@@ -153,18 +170,18 @@ export default function OnlineOrderDetailView({ orderId }: { orderId: number }) 
               </Button>
             ))}
           </div>
-          {order.status === "CONFIRMED" ? (
+          {order.status === "CONFIRMED" && kitchenEnabled ? (
             <p className="text-xs text-muted-foreground">Onay sonrası sipariş mutfağa gönderilir; hazırlık orada takip edilir.</p>
           ) : null}
           {order.status === "PREPARING" ? (
             <p className="text-xs text-muted-foreground">
-              {order.deliveryType === "DELIVERY"
+              {order.deliveryType === "DELIVERY" && courierEnabled
                 ? "Mutfak hazırlıyor. Hazır olunca kurye teslimine geçebilirsiniz."
-                : "Mutfak hazırlıyor."}
+                : "Hazırlık sürüyor."}
             </p>
           ) : null}
-          {order.status === "READY" && order.deliveryType === "DELIVERY" ? (
-            <p className="text-xs text-muted-foreground">Mutfak tamamladı. Son adım kurye teslimidir.</p>
+          {order.status === "READY" && order.deliveryType === "DELIVERY" && courierEnabled ? (
+            <p className="text-xs text-muted-foreground">Hazır. Kuryeyi aşağıdaki listeden seçin.</p>
           ) : null}
         </div>
       ) : null}
@@ -232,7 +249,7 @@ export default function OnlineOrderDetailView({ orderId }: { orderId: number }) 
             ) : null}
           </section>
 
-          {order.deliveryType === "DELIVERY" ? (
+          {order.deliveryType === "DELIVERY" && courierEnabled ? (
             <section
               className={cn(
                 DASHBOARD_PANEL,
@@ -242,43 +259,42 @@ export default function OnlineOrderDetailView({ orderId }: { orderId: number }) 
             >
               <h2 className="text-sm font-semibold text-foreground">Kurye teslimi</h2>
               <CourierHandoverIllustration status={order.status} />
-              {order.courier ? (
-                <p className="text-sm text-foreground">
-                  {order.courier.fullName} · {order.courier.phone}
-                </p>
+              {order.courierStaff?.displayName ? (
+                <p className="text-sm text-foreground">{order.courierStaff.displayName}</p>
               ) : (
-                <p className="text-sm text-muted-foreground">Henüz kurye atanmadı.</p>
+                <p className="text-sm text-muted-foreground">Henüz kurye seçilmedi.</p>
               )}
-              {couriers.length === 0 ? (
-                <Link href={DASHBOARD_ROUTES.onlineOrderCouriers} className="text-sm underline">
-                  Önce kurye ekleyin
-                </Link>
+              {order.status === "READY" ? (
+                staffCouriers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Bu şubede müsait kurye yok.</p>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      className="h-9 flex-1 rounded-md border border-input bg-background px-2 text-sm"
+                      value={courierId ?? ""}
+                      onChange={(event) => setCourierId(event.target.value ? Number(event.target.value) : null)}
+                    >
+                      <option value="">Kurye seçin</option>
+                      {staffCouriers.map((courier) => (
+                        <option key={courier.id} value={courier.id}>
+                          {courier.displayName}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      size="sm"
+                      disabled={courierMutation.isPending || courierId == null}
+                      onClick={() => {
+                        if (courierId == null) return;
+                        courierMutation.mutate(courierId);
+                      }}
+                    >
+                      Kuryeye bırak
+                    </Button>
+                  </div>
+                )
               ) : (
-                <div className="flex flex-wrap items-center gap-2">
-                  <select
-                    className="h-9 flex-1 rounded-md border border-input bg-background px-2 text-sm"
-                    value={courierId ?? order.courier?.id ?? ""}
-                    onChange={(event) => setCourierId(event.target.value ? Number(event.target.value) : null)}
-                  >
-                    <option value="">Kurye seçin</option>
-                    {couriers.map((courier) => (
-                      <option key={courier.id} value={courier.id}>
-                        {courier.fullName}
-                      </option>
-                    ))}
-                  </select>
-                  <Button
-                    size="sm"
-                    disabled={courierMutation.isPending || (courierId ?? order.courier?.id ?? null) == null}
-                    onClick={() => {
-                      const selected = courierId ?? order.courier?.id ?? null;
-                      if (selected == null) return;
-                      courierMutation.mutate(selected);
-                    }}
-                  >
-                    Ata
-                  </Button>
-                </div>
+                <p className="text-xs text-muted-foreground">Sipariş hazır olunca kurye seçilir.</p>
               )}
             </section>
           ) : null}
@@ -339,14 +355,19 @@ function KitchenFlowPanel({
   status,
   deliveryType,
   startedAt,
+  kitchenEnabled,
+  courierEnabled,
 }: {
   status: StoreOrderStatus;
   deliveryType: StoreDeliveryType;
   startedAt?: string | null;
+  kitchenEnabled: boolean;
+  courierEnabled: boolean;
 }) {
   const [now, setNow] = useState<number | null>(null);
-  const steps = storeKitchenFlowSteps(deliveryType);
-  const currentIndex = storeKitchenFlowIndex(status, deliveryType);
+  const flags = { kitchenEnabled, courierEnabled };
+  const steps = storeKitchenFlowSteps(deliveryType, flags);
+  const currentIndex = storeKitchenFlowIndex(status, deliveryType, flags);
   const failed = status === "REJECTED" || status === "CANCELLED";
   const showElapsed =
     !failed && (status === "PREPARING" || status === "READY" || status === "ON_THE_WAY");

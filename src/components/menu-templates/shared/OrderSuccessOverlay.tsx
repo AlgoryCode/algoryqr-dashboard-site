@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
-import { Loader2 } from "lucide-react";
+import { Check, Clock3, Loader2, PartyPopper, Sparkles } from "lucide-react";
 
 import { getOrder } from "@/lib/ordering-api";
 import { produceCampaignReward, type ProduceRewardResponse } from "@/lib/public-campaign-api";
@@ -94,7 +94,7 @@ export function OrderSuccessOverlay({
 
   return createPortal(
     <motion.div
-      className="fixed inset-0 z-[90] flex items-center justify-center px-6"
+      className="pw-success-overlay fixed inset-0 z-[90] flex items-center justify-center px-4 py-4 sm:px-6 sm:py-6"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -102,7 +102,7 @@ export function OrderSuccessOverlay({
       onClick={onDone}
     >
       <motion.div
-        className={`${theme.rootClassName} relative w-full max-w-sm rounded-3xl border border-[var(--lx-border)] bg-[var(--lx-card)] px-6 py-10 text-center shadow-2xl`}
+        className={`${theme.rootClassName} pw-success-card relative w-full max-w-sm rounded-3xl border border-[var(--lx-border)] bg-[var(--lx-card)] px-6 py-10 text-center shadow-2xl`}
         initial={{ scale: 0.82, y: 24, opacity: 0 }}
         animate={{ scale: 1, y: 0, opacity: 1 }}
         transition={{ type: "spring", stiffness: 280, damping: 22 }}
@@ -110,8 +110,11 @@ export function OrderSuccessOverlay({
       >
         <style>{theme.styles}</style>
 
+        <span className="pw-success-sparkle pw-success-sparkle-one" aria-hidden="true"><Sparkles className="h-5 w-5" /></span>
+        <span className="pw-success-sparkle pw-success-sparkle-two" aria-hidden="true"><Sparkles className="h-4 w-4" /></span>
+
         <motion.div
-          className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gradient-gold"
+          className="pw-success-badge mx-auto flex h-20 w-20 items-center justify-center rounded-full"
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           transition={{ type: "spring", stiffness: 260, damping: 14 }}
@@ -131,22 +134,32 @@ export function OrderSuccessOverlay({
           </svg>
         </motion.div>
 
-        <p className="mt-5 font-display text-2xl font-semibold text-gradient-gold">
+        <div className="pw-success-kicker mt-5 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold">
+          <PartyPopper className="h-3.5 w-3.5" />
+          <span>Siparişin alındı</span>
+        </div>
+        <p className="pw-success-title mt-3 font-display text-2xl font-semibold">
           {t.orderReceived}
         </p>
-        <p className="mt-2 text-sm lx-muted">#{orderId}</p>
+        <p className="pw-success-subtitle mt-2 text-sm">Mutfağa ilettik, şimdi tazecik hazırlanıyor.</p>
+        <p className="pw-success-order mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold">
+          <Check className="h-3.5 w-3.5" /> #{orderId}
+        </p>
         {tableName ? (
-          <p className="mt-1 text-xs lx-muted">
+          <p className="pw-success-table mt-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs">
+            <Clock3 className="h-3.5 w-3.5" />
             {t.tableLabel}: {tableName}
           </p>
         ) : null}
 
         {status === "CONFIRMED" ? (
-          <p className="mt-3 text-sm text-emerald-600">{t.orderConfirmed}</p>
+          <p className="pw-success-confirmed mt-4 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm">
+            <Check className="h-4 w-4" /> {t.orderConfirmed}
+          </p>
         ) : null}
 
         {campaignHint ? (
-          <p className="mt-3 text-xs lx-muted">{campaignHint}</p>
+          <p className="pw-success-hint mt-3 text-xs">{campaignHint}</p>
         ) : null}
 
         {status === "CONFIRMED" && rewardEligible && !produceResult ? (
@@ -155,7 +168,7 @@ export function OrderSuccessOverlay({
               type="button"
               disabled={producing}
               onClick={() => void handleProduce()}
-              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-gradient-gold px-5 text-sm font-semibold text-[var(--lx-primary-fg)] disabled:opacity-60"
+              className="pw-success-reward inline-flex h-10 w-full items-center justify-center gap-2 rounded-full px-5 text-sm font-semibold disabled:opacity-60"
             >
               {producing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {t.produceReward}
@@ -166,7 +179,7 @@ export function OrderSuccessOverlay({
 
         {produceResult ? (
           <div className="mt-4 space-y-3">
-            <p className="text-sm lx-muted">
+            <p className="pw-success-hint text-sm">
               {produceResult.message ??
                 (produceResult.autoAssigned
                   ? t.rewardAddedToAccount
@@ -178,11 +191,11 @@ export function OrderSuccessOverlay({
                 <img
                   src={buildQrImageUrl(claimUrl)}
                   alt="Claim QR"
-                  className="mx-auto rounded-lg border border-[var(--lx-border)]"
+                  className="pw-success-qr mx-auto rounded-2xl border"
                 />
                 <a
                   href={claimUrl}
-                  className="block truncate text-xs text-[var(--lx-gold)] underline"
+                  className="pw-success-link block truncate text-xs underline"
                 >
                   {claimUrl}
                 </a>
@@ -194,7 +207,7 @@ export function OrderSuccessOverlay({
         <button
           type="button"
           onClick={onDone}
-          className="mt-6 inline-flex h-10 items-center justify-center rounded-full border border-[var(--lx-border)] px-5 text-sm font-medium lx-fg"
+          className="pw-success-done mt-6 inline-flex h-10 items-center justify-center rounded-full border px-5 text-sm font-medium"
         >
           {t.done}
         </button>

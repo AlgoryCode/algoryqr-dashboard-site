@@ -44,6 +44,7 @@ function publicStaffProfile(data: Record<string, unknown>) {
     username: typeof data.username === "string" ? data.username : null,
     staffRole: typeof data.staffRole === "string" ? data.staffRole : "WAITER",
     kitchenEnabled: data.kitchenEnabled === true,
+    courierEnabled: data.courierEnabled === true,
     active: data.active !== false,
   };
 }

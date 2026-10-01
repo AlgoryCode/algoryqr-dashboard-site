@@ -32,7 +32,7 @@ import {
   DASHBOARD_PANEL,
   DASHBOARD_TILE,
 } from "@/lib/dashboard-surface";
-import { formatStoreAmount, STORE_ORDER_STATUS_LABEL } from "@/lib/store-ui";
+import { formatStoreAmount, merchantOpenHint, STORE_ORDER_STATUS_LABEL } from "@/lib/store-ui";
 import { cn } from "@/lib/utils";
 
 export default function OnlineOrderHubView() {
@@ -135,7 +135,7 @@ export default function OnlineOrderHubView() {
     <div className="space-y-6 animate-fade-in pb-8">
       <DashboardPageHeader
         title={merchant.business.businessName}
-        hint={merchant.open ? "Mağazanız şu anda sipariş alıyor." : "Mağazanız şu anda kapalı."}
+        hint={merchantOpenHint(merchant)}
         back={
           <Link
             href={DASHBOARD_ROUTES.integrations}

@@ -1,6 +1,7 @@
 import { buildPublicMenuUpstreamUrl } from "@/lib/public-menu-server-cache";
 import {
   parseStoreHandle,
+  publicStoreDeliveryTypes,
   type StoreOrderTracking,
   type StorefrontData,
 } from "@/lib/store-public";
@@ -21,7 +22,17 @@ export async function fetchPublicStore(handle: string): Promise<PublicStoreFetch
       { cache: "no-store" },
     );
     if (!response.ok) return { status: "not_found" };
-    return { status: "ok", data: (await response.json()) as StorefrontData };
+    const data = (await response.json()) as StorefrontData;
+    return {
+      status: "ok",
+      data: {
+        ...data,
+        store: {
+          ...data.store,
+          deliveryTypes: publicStoreDeliveryTypes(data.store.deliveryTypes, data.store.courierEnabled),
+        },
+      },
+    };
   } catch {
     return { status: "not_found" };
   }

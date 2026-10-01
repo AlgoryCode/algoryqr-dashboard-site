@@ -53,7 +53,7 @@ describe("kitchen queue", () => {
       order({ id: 5, status: "SUBMITTED" }),
       order({ id: 6, status: "ON_THE_WAY", orderSource: "STORE" }),
     ]);
-    expect(grouped.CONFIRMED.map((item) => item.id)).toEqual([1, 5]);
+    expect(grouped.CONFIRMED.map((item) => item.id)).toEqual([1]);
     expect(grouped.PREPARING.map((item) => item.id)).toEqual([2]);
     expect(grouped.READY.map((item) => item.id)).toEqual([3]);
     expect(grouped.SERVED.map((item) => item.id)).toEqual([4, 6]);
@@ -70,8 +70,9 @@ describe("kitchen queue", () => {
   it("tells courier handovers apart from waiter handovers", () => {
     expect(kitchenHandoverTarget("KITCHEN_DELIVERED_TO_COURIER")).toBe("COURIER");
     expect(kitchenHandoverTarget("COURIER_TAKEN")).toBe("COURIER");
-    expect(kitchenHandoverTarget("KITCHEN_DELIVERED_TO_WAITER")).toBe("WAITER");
+    expect(kitchenHandoverTarget("KITCHEN_DELIVERED_TO_WAITER")).toBeNull();
     expect(kitchenHandoverTarget("SERVED")).toBe("WAITER");
+    expect(kitchenHandoverTarget("DELIVERED")).toBe("WAITER");
     expect(kitchenHandoverTarget("READY")).toBeNull();
   });
 
@@ -98,6 +99,12 @@ describe("kitchen queue", () => {
       reason: "Masa siparişinde teslimat adresi yok",
     });
     expect(kitchenCourierHandover({ orderSource: "STORE", deliveryType: "PICKUP" }, true).kind).toBe("unavailable");
+    expect(
+      kitchenCourierHandover(
+        { orderSource: "STORE", deliveryType: "DELIVERY", deliveryAddress: "" },
+        true,
+      ),
+    ).toEqual({ kind: "staff" });
     expect(kitchenCourierHandover({ orderSource: "STORE", deliveryType: "DELIVERY" }, false)).toEqual({
       kind: "unavailable",
       reason: "Bu şubede kurye kapalı",
@@ -162,39 +169,36 @@ describe("kitchen queue", () => {
 
   it("mirrors merchant kitchen steps on each ticket", () => {
     expect(kitchenTicketFlowSteps("ONLINE").map((step) => step.label)).toEqual([
-      "Mutfak hazırlıyor",
-      "Mutfak hazırladı",
-      "Mutfak kuryeye verdi",
-      "Kurye teslim aldı",
-      "Kurye müşteriye teslim etti",
+      "Onaylandı",
+      "Hazırlanıyor",
+      "Hazır",
+      "Kurye bekliyor",
+      "Yolda",
+      "Teslim edildi",
     ]);
     expect(kitchenTicketFlowSteps("ONLINE", "PICKUP").map((step) => step.status)).toEqual([
-      "KITCHEN_PREPARING",
-      "KITCHEN_PREPARED",
-      "KITCHEN_DELIVERED_TO_WAITER",
-      "WAITER_TAKEN",
-      "WAITER_DELIVERED_TO_CUSTOMER",
+      "CONFIRMED",
+      "PREPARING",
+      "READY",
+      "DELIVERED",
     ]);
     expect(kitchenTicketFlowSteps("TABLE").map((step) => step.label)).toEqual([
-      "Mutfak hazırlıyor",
-      "Mutfak hazırladı",
-      "Mutfak garsona verdi",
-      "Garson teslim aldı",
-      "Garson müşteriye teslim etti",
+      "Onaylandı",
+      "Hazırlanıyor",
+      "Hazır",
+      "Tamamlandı",
     ]);
     expect(kitchenTicketFlowSteps("UBER_EATS").map((step) => step.status)).toEqual([
-      "KITCHEN_PREPARING",
-      "KITCHEN_PREPARED",
-      "KITCHEN_DELIVERED_TO_COURIER",
-      "COURIER_TAKEN",
-      "COURIER_DELIVERED_TO_CUSTOMER",
+      "CONFIRMED",
+      "PREPARING",
+      "READY",
     ]);
     expect(kitchenTicketFlowIndex("PENDING", "ONLINE")).toBe(-1);
-    expect(kitchenTicketFlowIndex("PREPARING", "ONLINE")).toBe(0);
-    expect(kitchenTicketFlowIndex("ON_THE_WAY", "ONLINE")).toBe(3);
-    expect(kitchenTicketFlowIndex("DELIVERED", "ONLINE", "PICKUP")).toBe(4);
+    expect(kitchenTicketFlowIndex("PREPARING", "ONLINE")).toBe(1);
+    expect(kitchenTicketFlowIndex("ON_THE_WAY", "ONLINE")).toBe(4);
+    expect(kitchenTicketFlowIndex("DELIVERED", "ONLINE", "PICKUP")).toBe(3);
     expect(kitchenTicketFlowIndex("SERVED", "TABLE")).toBe(3);
-    expect(kitchenTicketFlowIndex("PREPARING", "UBER_EATS")).toBe(0);
+    expect(kitchenTicketFlowIndex("PREPARING", "UBER_EATS")).toBe(1);
   });
 
   it("sorts ready meals by ready time then id", () => {
@@ -225,7 +229,7 @@ describe("kitchen queue", () => {
     expect(kitchenInProgressBannerText([])).toBeNull();
     expect(
       kitchenInProgressBannerText([order({ id: 1, status: "CONFIRMED", tableName: "Masa 3" })]),
-    ).toBe("Masa 3 mutfakta");
+    ).toBe("Masa 3 onaylandı");
     expect(
       kitchenInProgressBannerText([order({ id: 1, status: "PREPARING", tableName: "Bahçe 1" })]),
     ).toBe("Bahçe 1 mutfakta");
@@ -248,11 +252,11 @@ describe("kitchen queue", () => {
       order({ id: 5, status: "SUBMITTED", tableId: 10, tableName: "masa-1" }),
     ]);
     const table1 = kitchenProgressForTable({ tableId: 10, tableName: "masa-1" }, grouped);
-    expect(table1).toEqual({ confirmedCount: 1, preparingCount: 2, readyCount: 1 });
-    expect(kitchenInProgressCount(table1)).toBe(3);
+    expect(table1).toEqual({ confirmedCount: 1, preparingCount: 1, readyCount: 1 });
+    expect(kitchenInProgressCount(table1)).toBe(2);
     expect(tableKitchenSubtitleParts(table1, 1)).toEqual([
       "1 yemek hazır",
-      "2 mutfakta",
+      "1 mutfakta",
       "1 onaylandı",
       "1 onay bekliyor",
     ]);
@@ -268,8 +272,8 @@ describe("kitchen queue", () => {
       order({ id: 1, status: "CONFIRMED", tableName: "Bahçe 1" }),
     ]);
     expect(kitchenProgressForTable({ tableId: 99, tableName: "Bahçe 1" }, grouped)).toEqual({
-      confirmedCount: 0,
-      preparingCount: 1,
+      confirmedCount: 1,
+      preparingCount: 0,
       readyCount: 0,
     });
   });
@@ -329,7 +333,7 @@ describe("kitchen queue", () => {
     expect(kitchenUsesCourier("PHONE")).toBe(true);
     expect(kitchenReadyHandoverLabel("PHONE")).toBe("Kurye teslimi bekleniyor");
     expect(kitchenOrderOrigin({ orderSource: "ONLINE_ORDER" })).toBe("ONLINE");
-    expect(kitchenOrderOrigin({ tableName: "Online sipariş" })).toBe("ONLINE");
+    expect(kitchenOrderOrigin({ tableName: "Online sipariş" })).toBe("TABLE");
     expect(kitchenOrderOriginLabel("ONLINE")).toBe("Online");
     expect(kitchenTableLabel({ orderSource: "STORE", customerName: "Ali" })).toBe("Ali");
     expect(kitchenAllowsNote("ONLINE")).toBe(true);
@@ -340,7 +344,7 @@ describe("kitchen queue", () => {
 
     expect(kitchenOrderOrigin({ orderSource: "YEMEKSEPETI" })).toBe("YEMEKSEPETI");
     expect(kitchenOrderOrigin({ orderSource: "YEMEK_SEPETI" })).toBe("YEMEKSEPETI");
-    expect(kitchenOrderOrigin({ tableName: "Yemeksepeti" })).toBe("YEMEKSEPETI");
+    expect(kitchenOrderOrigin({ tableName: "Yemeksepeti" })).toBe("TABLE");
     expect(kitchenOrderOriginLabel("YEMEKSEPETI")).toBe("Yemeksepeti");
     expect(kitchenAllowsNote("YEMEKSEPETI")).toBe(false);
     expect(kitchenSkipsPreparing("YEMEKSEPETI")).toBe(true);

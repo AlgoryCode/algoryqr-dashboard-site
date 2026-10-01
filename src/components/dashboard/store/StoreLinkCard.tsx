@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
 import { DASHBOARD_PANEL } from "@/lib/dashboard-surface";
 import type { Merchant } from "@/lib/store-api";
+import { isMerchantListedOpen } from "@/lib/store-ui";
 
 export function StoreLinkCard({ merchant }: { merchant: Merchant }) {
   const { notify } = useDashboardBanners();
@@ -32,6 +33,8 @@ export function StoreLinkCard({ merchant }: { merchant: Merchant }) {
     link.click();
   };
 
+  const listedOpen = isMerchantListedOpen(merchant);
+
   return (
     <div className={`${DASHBOARD_PANEL} space-y-3`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -43,12 +46,12 @@ export function StoreLinkCard({ merchant }: { merchant: Merchant }) {
         </div>
         <span
           className={
-            merchant.open
+            listedOpen
               ? "rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300"
               : "rounded-full bg-rose-100 px-3 py-1 text-xs font-medium text-rose-800 dark:bg-rose-500/15 dark:text-rose-300"
           }
         >
-          {merchant.open ? "Açık" : "Kapalı"}
+          {listedOpen ? "Açık" : "Kapalı"}
         </span>
       </div>
 

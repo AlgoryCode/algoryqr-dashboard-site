@@ -27,6 +27,7 @@ import {
 import { TECH_GOURMET_CATEGORY_MARKS, TECH_GOURMET_STYLES } from "../tech-gourmet/styles";
 import { LILAS_DOUX_CATEGORY_MARKS, LILAS_DOUX_STYLES } from "../lilas-doux/styles";
 import { KAHVE_SOKAGI_CATEGORY_MARKS, KAHVE_SOKAGI_HERO_IMAGE, KAHVE_SOKAGI_STYLES } from "../kahve-sokagi/styles";
+import { PETEK_WAFFLE_CATEGORY_MARKS, PETEK_WAFFLE_STYLES } from "../petek-waffle/styles";
 
 export type PublicMenuThemeId =
   | "luxury"
@@ -41,7 +42,8 @@ export type PublicMenuThemeId =
   | "clever-dish-scribe"
   | "maison-noir"
   | "kahve-sokagi"
-  | "lilas-doux";
+  | "lilas-doux"
+  | "petek-waffle";
 
 export type PublicMenuThemeLayout = "classic" | "editorial" | "elixir";
 export type PublicMenuHeroLogoPlacement = "center" | "start";
@@ -286,6 +288,23 @@ const LILAS_DOUX_CHROME: PublicMenuThemeChrome = {
   categoryMarks: LILAS_DOUX_CATEGORY_MARKS,
 };
 
+const PETEK_WAFFLE_CHROME: PublicMenuThemeChrome = {
+  id: "petek-waffle",
+  layout: "classic",
+  rootClassName: "petek-waffle-menu",
+  styles: PETEK_WAFFLE_STYLES,
+  footerKicker: "Petek Waffle",
+  defaultSlogan: "Siparişte hamurdan pişirilir, sıcak gelir.",
+  heroImage: "",
+  heroLogoPlacement: "start",
+  productThumb: "icon",
+  reservationBackgroundUrl: "",
+  contactBackgroundUrl: "",
+  feedbackBackgroundUrl: "",
+  loadingBg: "#fff3f5",
+  categoryMarks: PETEK_WAFFLE_CATEGORY_MARKS,
+};
+
 const CHROME_BY_ID: Record<PublicMenuThemeId, PublicMenuThemeChrome> = {
   luxury: LUXURY_CHROME,
   "petite-patisserie": PETITE_CHROME,
@@ -300,6 +319,7 @@ const CHROME_BY_ID: Record<PublicMenuThemeId, PublicMenuThemeChrome> = {
   "maison-noir": MAISON_NOIR_CHROME,
   "kahve-sokagi": KAHVE_SOKAGI_CHROME,
   "lilas-doux": LILAS_DOUX_CHROME,
+  "petek-waffle": PETEK_WAFFLE_CHROME,
 };
 
 export function getPublicMenuThemeChrome(themeId: string): PublicMenuThemeChrome {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -10,6 +10,7 @@ import {
   CircleHelp,
   Copy,
   Hash,
+  ImagePlus,
   Mail,
   MapPin,
   Pencil,
@@ -29,7 +30,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useToast } from "@/hooks/use-toast";
 import { invalidateBranches } from "@/hooks/use-branches";
 import { ApiError } from "@/lib/api";
-import { updateBranchRequest } from "@/lib/branch";
+import { deleteBranchPhotoRequest, updateBranchRequest, uploadBranchPhotoRequest } from "@/lib/branch";
 import { ACCOUNT_CARD } from "@/lib/dashboard-surface";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { cn } from "@/lib/utils";
@@ -209,6 +210,7 @@ export function InfoCard({
           )}
         </div>
       </div>
+      <BranchPhoto branchId={branchId} name={name} photoUrl={overview.photoUrl} />
       <ul className="mt-4 space-y-3">
         <IdRow icon={Hash} label="Şube ID" value={branchId} />
         <IdRow
@@ -442,6 +444,126 @@ function Contact({ address, phone }: { address: string | null; phone: string | n
       ) : null}
     </div>
   );
+}
+
+const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+
+function BranchPhoto({
+  branchId,
+  name,
+  photoUrl,
+}: {
+  branchId: number;
+  name: string;
+  photoUrl: string | null;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState(photoUrl);
+
+  useEffect(() => {
+    setPreview(photoUrl);
+  }, [photoUrl]);
+
+  const upload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const rejected = photoRejection(file);
+    if (rejected) {
+      toast({ title: rejected, variant: "destructive" });
+      return;
+    }
+    setBusy(true);
+    try {
+      const updated = await uploadBranchPhotoRequest(branchId, file);
+      setPreview(updated.photoUrl ?? null);
+      await invalidateBranches(queryClient);
+      toast({ title: "Şube fotoğrafı güncellendi." });
+    } catch (error) {
+      toast({
+        title: error instanceof ApiError ? error.message : "Fotoğraf yüklenemedi.",
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async () => {
+    setBusy(true);
+    try {
+      await deleteBranchPhotoRequest(branchId);
+      setPreview(null);
+      await invalidateBranches(queryClient);
+      toast({ title: "Şube fotoğrafı silindi." });
+    } catch (error) {
+      toast({
+        title: error instanceof ApiError ? error.message : "Fotoğraf silinemedi.",
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 flex items-center gap-3">
+      <div className="relative shrink-0">
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={busy}
+          className="flex size-14 items-center justify-center overflow-hidden rounded-md border border-border bg-muted disabled:opacity-70"
+          aria-label={preview ? "Şube profil fotoğrafını değiştir" : "Şube profil fotoğrafı ekle"}
+        >
+          {preview ? (
+            <img src={preview} alt="" className="size-full object-cover" />
+          ) : (
+            <ImagePlus className="size-4 text-muted-foreground" />
+          )}
+        </button>
+        {preview ? (
+          <button
+            type="button"
+            className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full border border-border bg-background text-foreground disabled:opacity-60"
+            aria-label="Fotoğrafı kaldır"
+            disabled={busy}
+            onClick={() => void remove()}
+          >
+            <X className="size-3" />
+          </button>
+        ) : null}
+      </div>
+      <div className="min-w-0">
+        <p className="text-[11px] text-muted-foreground">Şube Profil Fotoğrafı</p>
+        <button
+          type="button"
+          className="mt-0.5 text-sm text-foreground underline-offset-2 hover:underline disabled:opacity-60"
+          disabled={busy}
+          onClick={() => inputRef.current?.click()}
+        >
+          {busy ? "Yükleniyor…" : preview ? "Değiştir" : "Ekle"}
+        </button>
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={(event) => void upload(event)}
+      />
+    </div>
+  );
+}
+
+function photoRejection(file: File): string | null {
+  if (!PHOTO_TYPES.has(file.type)) return "Desteklenen formatlar: JPEG, PNG, WebP";
+  if (file.size > PHOTO_MAX_BYTES) return "Fotoğraf boyutu en fazla 5 MB olabilir.";
+  return null;
 }
 
 function MenuLinks({ menus }: { menus: MenuRow[] }) {

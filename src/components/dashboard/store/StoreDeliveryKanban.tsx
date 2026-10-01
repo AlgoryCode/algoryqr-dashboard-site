@@ -84,6 +84,8 @@ type StoreDeliveryKanbanProps = {
   onRefresh?: () => void;
   onAdvance?: (orderId: number, action: StoreOrderAction, reason?: string) => void;
   onSwitchToList?: () => void;
+  kitchenEnabled?: boolean;
+  courierEnabled?: boolean;
 };
 
 export function StoreDeliveryKanban({
@@ -104,6 +106,8 @@ export function StoreDeliveryKanban({
   onRefresh,
   onAdvance,
   onSwitchToList,
+  kitchenEnabled = true,
+  courierEnabled = true,
 }: StoreDeliveryKanbanProps) {
   const [query, setQuery] = useState("");
   const now = useTickingNow(10_000);
@@ -333,6 +337,8 @@ export function StoreDeliveryKanban({
                           slaMinutes={slaMinutes}
                           now={now}
                           busy={busyOrderId === order.id}
+                          kitchenEnabled={kitchenEnabled}
+                          courierEnabled={courierEnabled}
                           onAdvance={onAdvance}
                         />
                       ))
@@ -402,6 +408,8 @@ function KanbanCard({
   slaMinutes,
   now,
   busy,
+  kitchenEnabled = true,
+  courierEnabled = true,
   onAdvance,
 }: {
   order: StoreOrderSummary;
@@ -409,12 +417,14 @@ function KanbanCard({
   slaMinutes: number;
   now: number | null;
   busy: boolean;
+  kitchenEnabled?: boolean;
+  courierEnabled?: boolean;
   onAdvance?: (orderId: number, action: StoreOrderAction, reason?: string) => void;
 }) {
   const delayed = now != null && isStoreKanbanDelayed(order, slaMinutes, now);
   const elapsedMinutes = now != null ? storeOrderElapsedMinutes(order.createdAt, now) : null;
-  const action = storeKanbanPrimaryAction(order, delayed);
-  const assignCourier = storeKanbanAssignCourier(order);
+  const action = storeKanbanPrimaryAction(order, delayed, { kitchenEnabled, courierEnabled });
+  const assignCourier = storeKanbanAssignCourier(order, courierEnabled);
   const canReject = storeKanbanCanReject(order);
   const detailHref = DASHBOARD_ROUTES.onlineOrderDetail(order.id);
   const prep =
@@ -634,6 +644,13 @@ function KanbanCard({
             >
               <UserPlus className="h-3 w-3" />
               Kurye Görevlendir
+            </Link>
+          ) : action?.action === "markKitchenDeliveredToCourier" ? (
+            <Link
+              href={detailHref}
+              className="flex h-6 items-center rounded bg-blue-700 px-2.5 text-[11px] font-medium text-white transition-colors hover:bg-blue-800"
+            >
+              Kurye seç
             </Link>
           ) : action && onAdvance ? (
             <button

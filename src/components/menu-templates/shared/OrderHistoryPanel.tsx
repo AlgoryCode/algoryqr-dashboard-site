@@ -25,6 +25,10 @@ function statusLabel(status: string): string {
       return "Alındı";
     case "CONFIRMED":
       return "Alındı";
+    case "SERVED":
+      return "Servis edildi";
+    case "PAID":
+      return "Ödendi";
     case "REJECTED":
       return "Reddedildi";
     case "CANCELLED":

@@ -1,10 +1,12 @@
 import {
   nextOrderActions,
+  normalizeOrderStatus,
   ORDER_FLOW_STATUS_LABEL,
   orderFlowStepIndex,
   orderFlowSteps,
 } from "@/lib/order-flow";
 import type {
+  Merchant,
   StoreCourierVehicleType,
   StoreDeliveryType,
   StoreOrderAction,
@@ -18,11 +20,6 @@ export type { StorePaymentMethod };
 
 export const STORE_ORDER_STATUS_LABEL: Record<StoreOrderStatus, string> = {
   PENDING: "Onay bekliyor",
-  CONFIRMED: "Onaylandı",
-  PREPARING: "Hazırlanıyor",
-  READY: "Hazır",
-  ON_THE_WAY: "Yolda",
-  DELIVERED: "Teslim edildi",
   REJECTED: "Reddedildi",
   CANCELLED: "İptal edildi",
   ...ORDER_FLOW_STATUS_LABEL,
@@ -33,6 +30,7 @@ export const STORE_ORDER_STATUS_CLASS: Record<StoreOrderStatus, string> = {
   CONFIRMED: "bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300",
   PREPARING: "bg-indigo-100 text-indigo-800 dark:bg-indigo-500/15 dark:text-indigo-300",
   READY: "bg-violet-100 text-violet-800 dark:bg-violet-500/15 dark:text-violet-300",
+  AWAITING_COURIER: "bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300",
   ON_THE_WAY: "bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300",
   DELIVERED: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300",
   REJECTED: "bg-rose-100 text-rose-800 dark:bg-rose-500/15 dark:text-rose-300",
@@ -52,6 +50,15 @@ export const STORE_DELIVERY_TYPE_LABEL: Record<StoreDeliveryType, string> = {
   DELIVERY: "Adrese teslim",
   PICKUP: "Gel-al",
 };
+
+export function storeDeliveryTypesForCourier(
+  types: StoreDeliveryType[],
+  courierEnabled: boolean,
+): StoreDeliveryType[] {
+  if (courierEnabled) return types;
+  const pickup = types.filter((type) => type !== "DELIVERY");
+  return pickup.length > 0 ? pickup : ["PICKUP"];
+}
 
 export const STORE_PAYMENT_METHOD_LABEL: Record<StorePaymentMethod, string> = {
   CASH_ON_DELIVERY: "Kapıda nakit",
@@ -113,13 +120,14 @@ export function availableStoreOrderTransitions(
     kitchenEnabled,
     courierEnabled: courierEnabled && deliveryType === "DELIVERY",
     delivery: deliveryType === "DELIVERY",
+    pickup: deliveryType === "PICKUP",
   });
   const transitions: StoreOrderTransition[] = steps.map((step) => ({
     action: step.action,
     label: step.label,
     tone: "primary",
   }));
-  if (status !== "WAITER_DELIVERED_TO_CUSTOMER" && status !== "COURIER_DELIVERED_TO_CUSTOMER" && status !== "DELIVERED") {
+  if (status !== "DELIVERED" && normalizeOrderStatus(status) !== "DELIVERED" && normalizeOrderStatus(status) !== "ON_THE_WAY") {
     transitions.push({ action: "cancel", label: "İptal et", tone: "danger" });
   }
   return transitions;
@@ -131,11 +139,15 @@ export type StoreKitchenFlowStep = {
 };
 
 /** Kitchen-aligned merchant flow shown on the online order detail screen. */
-export function storeKitchenFlowSteps(deliveryType: StoreDeliveryType): StoreKitchenFlowStep[] {
+export function storeKitchenFlowSteps(
+  deliveryType: StoreDeliveryType,
+  flags: { kitchenEnabled?: boolean; courierEnabled?: boolean } = {},
+): StoreKitchenFlowStep[] {
   return orderFlowSteps({
-    kitchenEnabled: true,
-    courierEnabled: deliveryType === "DELIVERY",
+    kitchenEnabled: flags.kitchenEnabled ?? true,
+    courierEnabled: flags.courierEnabled ?? deliveryType === "DELIVERY",
     delivery: deliveryType === "DELIVERY",
+    pickup: deliveryType === "PICKUP",
   }).map((step) => ({
     status: step.status as StoreOrderStatus,
     label: step.label,
@@ -145,11 +157,13 @@ export function storeKitchenFlowSteps(deliveryType: StoreDeliveryType): StoreKit
 export function storeKitchenFlowIndex(
   status: StoreOrderStatus,
   deliveryType: StoreDeliveryType,
+  flags: { kitchenEnabled?: boolean; courierEnabled?: boolean } = {},
 ): number {
   return orderFlowStepIndex(status, {
-    kitchenEnabled: true,
-    courierEnabled: deliveryType === "DELIVERY",
+    kitchenEnabled: flags.kitchenEnabled ?? true,
+    courierEnabled: flags.courierEnabled ?? deliveryType === "DELIVERY",
     delivery: deliveryType === "DELIVERY",
+    pickup: deliveryType === "PICKUP",
   });
 }
 
@@ -192,6 +206,67 @@ export function defaultWorkingHours(): StoreWorkingHour[] {
     closesAt: "23:59",
     closed: false,
   }));
+}
+
+const WEEKDAY_FROM_LONG: Record<string, StoreWeekday> = {
+  monday: "MONDAY",
+  tuesday: "TUESDAY",
+  wednesday: "WEDNESDAY",
+  thursday: "THURSDAY",
+  friday: "FRIDAY",
+  saturday: "SATURDAY",
+  sunday: "SUNDAY",
+};
+
+export function isStoreWithinWorkingHours(
+  hours: StoreWorkingHour[],
+  now = new Date(),
+  timeZone = "Europe/Istanbul",
+): boolean {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const weekday = WEEKDAY_FROM_LONG[(parts.find((part) => part.type === "weekday")?.value ?? "").toLowerCase()];
+  const hour = (parts.find((part) => part.type === "hour")?.value ?? "00").padStart(2, "0");
+  const minute = (parts.find((part) => part.type === "minute")?.value ?? "00").padStart(2, "0");
+  if (!weekday) return false;
+  const today = hours.find((entry) => entry.day === weekday);
+  if (!today || today.closed) return false;
+  const clock = `${hour.slice(-2)}:${minute.slice(-2)}`;
+  const opens = (today.opensAt ?? "00:00").slice(0, 5);
+  const closes = (today.closesAt ?? "23:59").slice(0, 5);
+  return clock >= opens && clock <= closes;
+}
+
+export function isMerchantListedOpen(merchant: Pick<Merchant, "status" | "manuallyClosed">): boolean {
+  return merchant.status === "ACTIVE" && !merchant.manuallyClosed;
+}
+
+export function isMerchantStoreOpen(
+  merchant: Pick<Merchant, "status" | "open" | "manuallyClosed"> & {
+    delivery?: { workingHours?: StoreWorkingHour[] | null } | null;
+  },
+  now = new Date(),
+): boolean {
+  if (!isMerchantListedOpen(merchant)) return false;
+  const hours = merchant.delivery?.workingHours ?? [];
+  if (hours.length === 0) return merchant.open;
+  return isStoreWithinWorkingHours(hours, now);
+}
+
+export function merchantOpenHint(
+  merchant: Pick<Merchant, "status" | "open" | "manuallyClosed"> & {
+    delivery?: { workingHours?: StoreWorkingHour[] | null } | null;
+  },
+  now = new Date(),
+): string {
+  if (merchant.manuallyClosed || merchant.status !== "ACTIVE") return "Mağazanız şu anda kapalı.";
+  if (isMerchantStoreOpen(merchant, now)) return "Mağazanız şu anda sipariş alıyor.";
+  return "Mağaza açık. Şu an çalışma saati dışında.";
 }
 
 export function formatStoreAddress(address: {

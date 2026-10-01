@@ -23,7 +23,7 @@ import {
   courierElapsedMinutes,
   courierKanbanColumnTitle,
   courierOrderKey,
-  courierPrimaryAction,
+  courierCanAct,
   courierTicketElapsedLabel,
   groupCourierOrders,
   isCourierTicketDelayed,
@@ -350,7 +350,7 @@ function CourierOrderCard({
   const elapsed = courierTicketElapsedLabel(order, now);
   const minutes = courierElapsedMinutes(order, now);
   const busy = busyOrderId === order.id;
-  const action = courierPrimaryAction(order);
+  const action = courierCanAct(order, currentStaffId);
   const pay = paymentLabel(order.paymentMethod);
   const phone = order.customerPhone.trim();
 

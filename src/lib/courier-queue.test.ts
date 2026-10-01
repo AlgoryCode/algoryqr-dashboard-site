@@ -4,6 +4,7 @@ import type { CourierTicket } from "./store-courier";
 import {
   courierColumnFor,
   courierKanbanColumnTitle,
+  courierCanAct,
   courierPrimaryAction,
   groupCourierOrders,
   isCourierTicketDelayed,
@@ -44,7 +45,7 @@ describe("courier queue", () => {
       ticket({ id: 2, status: "ON_THE_WAY" }),
       ticket({ id: 3, status: "DELIVERED" }),
     ]);
-    expect(grouped.HANDOFF.map((item) => item.id)).toEqual([1]);
+    expect(grouped.HANDOFF.map((item) => item.id)).toEqual([]);
     expect(grouped.TAKEN.map((item) => item.id)).toEqual([2]);
     expect(grouped.DELIVERED.map((item) => item.id)).toEqual([3]);
   });
@@ -59,7 +60,7 @@ describe("courier queue", () => {
 
   it("asks the courier to leave when handed off and to confirm delivery on the way", () => {
     expect(courierPrimaryAction(ticket({ id: 1, status: "KITCHEN_DELIVERED_TO_COURIER" }))?.action).toBe("dispatch");
-    expect(courierPrimaryAction(ticket({ id: 1, status: "READY" }))?.action).toBe("dispatch");
+    expect(courierPrimaryAction(ticket({ id: 1, status: "READY" }))).toBeNull();
     expect(courierPrimaryAction(ticket({ id: 2, status: "COURIER_TAKEN" }))?.action).toBe("deliver");
     expect(courierPrimaryAction(ticket({ id: 2, status: "ON_THE_WAY" }))?.action).toBe("deliver");
     expect(courierPrimaryAction(ticket({ id: 3, status: "KITCHEN_PREPARING" }))).toBeNull();
@@ -98,6 +99,16 @@ describe("courier queue", () => {
         now,
       ),
     ).toBe(true);
+  });
+
+  it("lets only the assigned courier move a package from handoff to delivered", () => {
+    const assigned = ticket({ id: 4, status: "AWAITING_COURIER", courierStaffId: 9 });
+    expect(courierPrimaryAction(assigned)?.action).toBe("dispatch");
+    expect(courierPrimaryAction(ticket({ id: 5, status: "READY", courierStaffId: 9 }))).toBeNull();
+    expect(courierCanAct(assigned, 9)?.action).toBe("dispatch");
+    expect(courierCanAct(assigned, 3)).toBeNull();
+    expect(courierCanAct(ticket({ id: 6, status: "ON_THE_WAY" }), 9)).toBeNull();
+    expect(courierCanAct(ticket({ id: 7, status: "ON_THE_WAY", courierStaffId: 9 }), 9)?.action).toBe("deliver");
   });
 
   it("merges waiter and store courier tickets by id", () => {

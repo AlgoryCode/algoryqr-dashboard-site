@@ -184,6 +184,40 @@ describe("groupWaiterShift", () => {
     expect(board.approve).toHaveLength(0);
   });
 
+  it("keeps online and phone tickets and leaves marketplace tickets off the waiter board", () => {
+    const board = groupWaiterShift({
+      pending: [order({ id: 1, status: "SUBMITTED", orderSource: "QR", tableName: "masa-1" })],
+      kitchen: [
+        order({ id: 2, status: "CONFIRMED", orderSource: "STORE", deliveryType: "PICKUP", customerName: "Ali" }),
+        order({ id: 3, status: "CONFIRMED", orderSource: "PHONE", customerName: "Ayşe" }),
+        order({ id: 4, status: "CONFIRMED", orderSource: "UBER_EATS", deliveryType: "PICKUP", customerName: "Ece" }),
+        order({ id: 5, status: "CONFIRMED", orderSource: "YEMEKSEPETI", deliveryType: "PICKUP", customerName: "Can" }),
+      ],
+    });
+    expect(board.approve.map((item) => item.id)).toEqual([1]);
+    expect(board.cooking.map((item) => item.id).sort()).toEqual([2, 3]);
+  });
+
+  it("keeps a package on the waiter board when the courier is off", () => {
+    const board = groupWaiterShift({
+      kitchenEnabled: true,
+      courierEnabled: false,
+      ready: [order({ id: 11, status: "READY", orderSource: "STORE", deliveryType: "DELIVERY", customerName: "Deniz" })],
+    });
+    expect(board.deliver.map((item) => item.id)).toEqual([11]);
+  });
+
+  it("keeps a package on the waiter board when the kitchen is off", () => {
+    const board = groupWaiterShift({
+      kitchenEnabled: false,
+      kitchen: [
+        order({ id: 8, status: "CONFIRMED", orderSource: "STORE", deliveryType: "DELIVERY", customerName: "Deniz" }),
+        order({ id: 9, status: "CONFIRMED", orderSource: "UBER_EATS", deliveryType: "DELIVERY", customerName: "Ece" }),
+      ],
+    });
+    expect(board.cooking.map((item) => item.id)).toEqual([8]);
+  });
+
   it("keeps confirmed and preparing in service and served as delivered when the kitchen is off", () => {
     const board = groupWaiterShift({
       kitchenEnabled: false,
@@ -195,8 +229,22 @@ describe("groupWaiterShift", () => {
       ],
     });
     expect(board.approve.map((item) => item.id)).toEqual([1]);
-    expect(board.cooking.map((item) => item.id).sort()).toEqual([2, 3]);
+    expect(board.cooking.map((item) => item.id).sort()).toEqual([2, 3, 4]);
     expect(board.deliver).toHaveLength(0);
-    expect(board.delivered.map((item) => item.id)).toEqual([4]);
+    expect(board.delivered).toHaveLength(0);
+  });
+
+  it("keeps a served table ticket delivered and a paid ticket with it when the kitchen is off", () => {
+    const board = groupWaiterShift({
+      kitchenEnabled: false,
+      courierEnabled: false,
+      today: [
+        order({ id: 2, status: "CONFIRMED", orderSource: "QR", tableName: "masa-1" }),
+        order({ id: 6, status: "SERVED", orderSource: "QR", tableName: "masa-1" }),
+        order({ id: 7, status: "PAID", orderSource: "QR", tableName: "masa-1" }),
+      ],
+    });
+    expect(board.cooking.map((item) => item.id)).toEqual([2]);
+    expect(board.delivered.map((item) => item.id).sort()).toEqual([6, 7]);
   });
 });

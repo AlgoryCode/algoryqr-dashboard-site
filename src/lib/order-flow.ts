@@ -1,11 +1,18 @@
 /**
- * Sipariş akışı: aktör + eylem.
- * Mutfak veya kurye kapalıysa o aktörün geçişleri listede yoktur.
- * Eski API statüleri normalize edilir; dashboard'un yazdığı daha ileri statü
- * sunucu aynı enum'u dönene kadar oturum boyunca korunur.
+ * Sipariş akışı.
+ * Güncel statüler: PENDING, CONFIRMED, PREPARING, READY, AWAITING_COURIER, ON_THE_WAY, DELIVERED.
+ * Eski aktör statüleri bu listeye normalize edilir.
+ * Dashboard'un yazdığı statü, sunucu aynı adıma gelene kadar oturumda korunur.
+ * Ödeme geri alınca zorlanan statü, sunucu DELIVERED dönse de kuyruğa geri koyar.
  */
 
 export const ORDER_FLOW_STATUSES = [
+  "CONFIRMED",
+  "PREPARING",
+  "READY",
+  "AWAITING_COURIER",
+  "ON_THE_WAY",
+  "DELIVERED",
   "KITCHEN_PREPARING",
   "KITCHEN_PREPARED",
   "KITCHEN_DELIVERED_TO_WAITER",
@@ -15,6 +22,7 @@ export const ORDER_FLOW_STATUSES = [
   "WAITER_DELIVERED_TO_CUSTOMER",
   "WAITER_DELIVERED_TO_COURIER",
   "COURIER_DELIVERED_TO_CUSTOMER",
+  "PAID",
 ] as const;
 
 export type OrderFlowStatus = (typeof ORDER_FLOW_STATUSES)[number];
@@ -22,18 +30,24 @@ export type OrderFlowStatus = (typeof ORDER_FLOW_STATUSES)[number];
 export type OrderFlowAction =
   | "markKitchenPreparing"
   | "markKitchenPrepared"
+  | "markReady"
   | "markKitchenDeliveredToWaiter"
   | "markKitchenDeliveredToCourier"
   | "markWaiterTaken"
   | "markWaiterDeliveredToCustomer"
   | "markWaiterDeliveredToCourier"
   | "markCourierTaken"
+  | "markCourierRelease"
   | "markCourierDeliveredToCustomer";
 
 export type OrderFlowContext = {
   kitchenEnabled: boolean;
   courierEnabled: boolean;
   delivery: boolean;
+  pickup?: boolean;
+  marketplace?: boolean;
+  /** false iken paket kurye kuyruğuna inemez. */
+  addressPresent?: boolean;
 };
 
 export type OrderFlowStep = {
@@ -45,130 +59,155 @@ export type OrderFlowStep = {
 const FLOW_STATUS_SET = new Set<string>(ORDER_FLOW_STATUSES);
 
 export const ORDER_FLOW_STATUS_LABEL: Record<OrderFlowStatus, string> = {
-  KITCHEN_PREPARING: "Mutfak hazırlıyor",
-  KITCHEN_PREPARED: "Mutfak hazırladı",
-  KITCHEN_DELIVERED_TO_WAITER: "Mutfak garsona verdi",
-  KITCHEN_DELIVERED_TO_COURIER: "Mutfak kuryeye verdi",
-  WAITER_TAKEN: "Garson teslim aldı",
-  COURIER_TAKEN: "Kurye teslim aldı",
-  WAITER_DELIVERED_TO_CUSTOMER: "Garson müşteriye teslim etti",
-  WAITER_DELIVERED_TO_COURIER: "Garson kuryeye teslim etti",
-  COURIER_DELIVERED_TO_CUSTOMER: "Kurye müşteriye teslim etti",
+  CONFIRMED: "Onaylandı",
+  PREPARING: "Hazırlanıyor",
+  READY: "Hazır",
+  AWAITING_COURIER: "Kurye bekliyor",
+  ON_THE_WAY: "Yolda",
+  DELIVERED: "Teslim edildi",
+  KITCHEN_PREPARING: "Hazırlanıyor",
+  KITCHEN_PREPARED: "Hazır",
+  KITCHEN_DELIVERED_TO_WAITER: "Hazır",
+  KITCHEN_DELIVERED_TO_COURIER: "Kurye bekliyor",
+  WAITER_TAKEN: "Hazır",
+  COURIER_TAKEN: "Yolda",
+  WAITER_DELIVERED_TO_CUSTOMER: "Tamamlandı",
+  WAITER_DELIVERED_TO_COURIER: "Kurye bekliyor",
+  COURIER_DELIVERED_TO_CUSTOMER: "Teslim edildi",
 };
 
 export const ORDER_FLOW_ACTION_LABEL: Record<OrderFlowAction, string> = {
-  markKitchenPreparing: "Mutfağa al",
-  markKitchenPrepared: "Hazır",
-  markKitchenDeliveredToWaiter: "Garsona teslim et",
-  markKitchenDeliveredToCourier: "Kuryeye teslim et",
+  markKitchenPreparing: "Hazırlamaya başla",
+  markKitchenPrepared: "Bitti",
+  markReady: "Hazır",
+  markKitchenDeliveredToWaiter: "Hazır",
+  markKitchenDeliveredToCourier: "Kuryeye bırak",
   markWaiterTaken: "Teslim aldım",
-  markWaiterDeliveredToCustomer: "Müşteriye teslim et",
-  markWaiterDeliveredToCourier: "Kuryeye teslim et",
+  markWaiterDeliveredToCustomer: "Müşteriye ver",
+  markWaiterDeliveredToCourier: "Kuryeye bırak",
   markCourierTaken: "Teslim aldım",
-  markCourierDeliveredToCustomer: "Müşteriye teslim et",
+  markCourierRelease: "Kuryeden geri al",
+  markCourierDeliveredToCustomer: "Teslim ettim",
 };
 
 export const ORDER_FLOW_ACTION_STATUS: Record<OrderFlowAction, OrderFlowStatus> = {
-  markKitchenPreparing: "KITCHEN_PREPARING",
-  markKitchenPrepared: "KITCHEN_PREPARED",
-  markKitchenDeliveredToWaiter: "KITCHEN_DELIVERED_TO_WAITER",
-  markKitchenDeliveredToCourier: "KITCHEN_DELIVERED_TO_COURIER",
-  markWaiterTaken: "WAITER_TAKEN",
-  markWaiterDeliveredToCustomer: "WAITER_DELIVERED_TO_CUSTOMER",
-  markWaiterDeliveredToCourier: "WAITER_DELIVERED_TO_COURIER",
-  markCourierTaken: "COURIER_TAKEN",
-  markCourierDeliveredToCustomer: "COURIER_DELIVERED_TO_CUSTOMER",
+  markKitchenPreparing: "PREPARING",
+  markKitchenPrepared: "READY",
+  markReady: "READY",
+  markKitchenDeliveredToWaiter: "READY",
+  markKitchenDeliveredToCourier: "AWAITING_COURIER",
+  markWaiterTaken: "READY",
+  markWaiterDeliveredToCustomer: "DELIVERED",
+  markWaiterDeliveredToCourier: "AWAITING_COURIER",
+  markCourierTaken: "ON_THE_WAY",
+  markCourierRelease: "AWAITING_COURIER",
+  markCourierDeliveredToCustomer: "DELIVERED",
 };
 
 const KITCHEN_ACTIONS = new Set<OrderFlowAction>([
   "markKitchenPreparing",
   "markKitchenPrepared",
-  "markKitchenDeliveredToWaiter",
+  "markReady",
   "markKitchenDeliveredToCourier",
 ]);
 
 const WAITER_ACTIONS = new Set<OrderFlowAction>([
-  "markWaiterTaken",
+  "markReady",
   "markWaiterDeliveredToCustomer",
-  "markWaiterDeliveredToCourier",
 ]);
 
 const COURIER_ACTIONS = new Set<OrderFlowAction>([
   "markCourierTaken",
+  "markCourierRelease",
   "markCourierDeliveredToCustomer",
 ]);
 
-const PAYMENT_STATUSES = new Set<OrderFlowStatus>([
-  "WAITER_TAKEN",
-  "WAITER_DELIVERED_TO_CUSTOMER",
-  "WAITER_DELIVERED_TO_COURIER",
-]);
-
-const CUSTOMER_DELIVERED = new Set<OrderFlowStatus>([
-  "WAITER_DELIVERED_TO_CUSTOMER",
-  "COURIER_DELIVERED_TO_CUSTOMER",
-]);
-
-/** Higher rank is further along. Equal ranks are different branches. */
-const FLOW_RANK: Record<OrderFlowStatus, number> = {
-  KITCHEN_PREPARING: 1,
-  KITCHEN_PREPARED: 2,
-  KITCHEN_DELIVERED_TO_WAITER: 3,
-  KITCHEN_DELIVERED_TO_COURIER: 3,
-  WAITER_TAKEN: 4,
-  WAITER_DELIVERED_TO_COURIER: 5,
-  COURIER_TAKEN: 5,
-  WAITER_DELIVERED_TO_CUSTOMER: 6,
-  COURIER_DELIVERED_TO_CUSTOMER: 6,
+const CANONICAL_RANK: Record<string, number> = {
+  PENDING: 0,
+  SUBMITTED: 0,
+  CONFIRMED: 1,
+  PREPARING: 2,
+  READY: 3,
+  AWAITING_COURIER: 4,
+  ON_THE_WAY: 5,
+  DELIVERED: 6,
+  PAID: 7,
 };
 
 const writtenStatus = new Map<number, OrderFlowStatus>();
+const forcedStatus = new Map<number, OrderFlowStatus>();
 
 export function clearOrderFlowMemory(): void {
   writtenStatus.clear();
+  forcedStatus.clear();
 }
 
-/** Kitchen board backward moves; the server status is authoritative afterwards. */
 export type KitchenRevertTarget = "CONFIRMED" | "PREPARING";
 
 export function forgetOrderFlowStatus(orderId: number): void {
   writtenStatus.delete(orderId);
+  forcedStatus.delete(orderId);
 }
 
 export function writeOrderFlowStatus(orderId: number, status: OrderFlowStatus): void {
   if (!Number.isFinite(orderId)) return;
+  forcedStatus.delete(orderId);
   writtenStatus.set(orderId, status);
+}
+
+/** Ödeme geri alınca sunucu hâlâ DELIVERED dönse bile kuyruk statüsü korunur. */
+export function forceOrderFlowStatus(orderId: number, status: OrderFlowStatus): void {
+  if (!Number.isFinite(orderId)) return;
+  writtenStatus.delete(orderId);
+  forcedStatus.set(orderId, status);
 }
 
 export function isOrderFlowStatus(status: string | null | undefined): status is OrderFlowStatus {
   return FLOW_STATUS_SET.has((status ?? "").trim().toUpperCase());
 }
 
-export function orderIsDelivery(order: {
-  deliveryType?: string | null;
-}): boolean {
+export function orderIsDelivery(order: { deliveryType?: string | null }): boolean {
   return (order.deliveryType ?? "").trim().toUpperCase() === "DELIVERY";
 }
 
-export function normalizeOrderStatus(
-  status: string | null | undefined,
-  delivery = false,
-): string {
+export function orderIsPickup(order: { deliveryType?: string | null }): boolean {
+  const delivery = (order.deliveryType ?? "").trim().toUpperCase();
+  return delivery === "PICKUP" || delivery === "STORE";
+}
+
+export function orderIsMarketplace(order: { orderSource?: string | null }): boolean {
+  const source = (order.orderSource ?? "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+  return source === "UBER_EATS" || source === "UBEREATS" || source === "UBER" || source === "YEMEKSEPETI" || source === "YEMEK_SEPETI" || source === "YS";
+}
+
+export function normalizeOrderStatus(status: string | null | undefined, _delivery = false): string {
   const raw = (status ?? "").trim().toUpperCase();
   if (!raw) return raw;
-  if (FLOW_STATUS_SET.has(raw)) return raw;
   switch (raw) {
+    case "SUBMITTED":
+      return "PENDING";
+    case "KITCHEN_PREPARING":
     case "PREPARING":
-    case "CONFIRMED":
-      return "KITCHEN_PREPARING";
+      return "PREPARING";
+    case "KITCHEN_PREPARED":
+    case "KITCHEN_DELIVERED_TO_WAITER":
+    case "WAITER_TAKEN":
     case "READY":
-      return "KITCHEN_PREPARED";
-    case "SERVED":
-      return "WAITER_TAKEN";
+      return "READY";
+    case "KITCHEN_DELIVERED_TO_COURIER":
+    case "WAITER_DELIVERED_TO_COURIER":
+    case "AWAITING_COURIER":
+      return "AWAITING_COURIER";
+    case "COURIER_TAKEN":
     case "ON_THE_WAY":
-      return "COURIER_TAKEN";
+      return "ON_THE_WAY";
+    case "PAID":
+      return "PAID";
+    case "SERVED":
+    case "WAITER_DELIVERED_TO_CUSTOMER":
+    case "COURIER_DELIVERED_TO_CUSTOMER":
     case "DELIVERED":
-      return delivery ? "COURIER_DELIVERED_TO_CUSTOMER" : "WAITER_DELIVERED_TO_CUSTOMER";
+      return "DELIVERED";
     default:
       return raw;
   }
@@ -179,49 +218,50 @@ export function resolveOrderStatus(order: {
   status: string | null | undefined;
   deliveryType?: string | null;
 }): string {
-  const delivery = orderIsDelivery(order);
-  const normalized = normalizeOrderStatus(order.status, delivery);
+  const normalized = normalizeOrderStatus(order.status, orderIsDelivery(order));
   const orderId = order.id;
   if (orderId == null || !Number.isFinite(orderId)) return normalized;
   if (normalized === "CANCELLED" || normalized === "REJECTED") {
     writtenStatus.delete(orderId);
+    forcedStatus.delete(orderId);
     return normalized;
+  }
+  const forced = forcedStatus.get(orderId);
+  if (forced) {
+    const forcedNorm = normalizeOrderStatus(forced);
+    if (normalized === forcedNorm) forcedStatus.delete(orderId);
+    return forcedNorm;
   }
   const remembered = writtenStatus.get(orderId);
   if (!remembered) return normalized;
-  const rememberedRank = FLOW_RANK[remembered];
-  const serverRank = FLOW_RANK[normalized as OrderFlowStatus] ?? 0;
-  if (normalized === remembered || serverRank >= rememberedRank) {
+  const rememberedRank = CANONICAL_RANK[normalizeOrderStatus(remembered)] ?? 0;
+  const serverRank = CANONICAL_RANK[normalized] ?? 0;
+  if (normalized === normalizeOrderStatus(remembered) || serverRank >= rememberedRank) {
     writtenStatus.delete(orderId);
     return normalized;
   }
-  return remembered;
+  return normalizeOrderStatus(remembered);
 }
 
-export function applyOrderFlow<T extends { id?: number; status: string; deliveryType?: string | null }>(
-  order: T,
-): T {
+export function applyOrderFlow<T extends { id?: number; status: string; deliveryType?: string | null }>(order: T): T {
   const status = resolveOrderStatus(order);
   if (status === order.status) return order;
   return { ...order, status };
 }
 
-/** CONFIRMED / PENDING / SUBMITTED tickets have not been picked up by the kitchen yet. */
+/** Mutfak yalnız onaylanmış bileti görür. Onay bekleyen sipariş mutfağa düşmez. */
 export function isKitchenQueuedStatus(status: string | null | undefined): boolean {
-  const raw = (status ?? "").trim().toUpperCase();
-  return raw === "CONFIRMED" || raw === "PENDING" || raw === "SUBMITTED";
+  return normalizeOrderStatus(status) === "CONFIRMED";
 }
 
-/**
- * Keeps CONFIRMED as-is: the kitchen lists fresh tickets under "Yeni Siparişler" and the
- * kitchen-off waiter board shows them as "Onaylandı" instead of "Mutfak hazırlıyor".
- */
-export function applyKitchenOrderFlow<T extends { id?: number; status: string; deliveryType?: string | null }>(
-  order: T,
-): T {
-  const raw = (order.status ?? "").trim().toUpperCase();
-  if (raw === "CONFIRMED" && (order.id == null || !writtenStatus.has(order.id))) return order;
+export function applyKitchenOrderFlow<T extends { id?: number; status: string; deliveryType?: string | null }>(order: T): T {
   return applyOrderFlow(order);
+}
+
+export function serverReachedStatus(serverStatus: string | null | undefined, target: OrderFlowStatus): boolean {
+  const serverRank = CANONICAL_RANK[normalizeOrderStatus(serverStatus)] ?? 0;
+  const targetRank = CANONICAL_RANK[normalizeOrderStatus(target)] ?? 0;
+  return serverRank >= targetRank;
 }
 
 export function stampOrderFlow<T extends { id: number; status: string; deliveryType?: string | null }>(
@@ -229,16 +269,31 @@ export function stampOrderFlow<T extends { id: number; status: string; deliveryT
   status: OrderFlowStatus,
 ): T {
   writeOrderFlowStatus(order.id, status);
-  return { ...order, status };
+  return { ...order, status: normalizeOrderStatus(status) };
 }
 
 export function orderFlowStatusLabel(status: string | null | undefined, delivery = false): string {
+  const raw = (status ?? "").trim().toUpperCase();
+  if (raw === "SERVED") return "Servis edildi";
+  if (raw === "PAID") return "Ödeme alındı";
   const normalized = normalizeOrderStatus(status, delivery);
-  if (isOrderFlowStatus(normalized)) return ORDER_FLOW_STATUS_LABEL[normalized];
   switch (normalized) {
     case "PENDING":
-    case "SUBMITTED":
       return "Onay bekliyor";
+    case "CONFIRMED":
+      return "Onaylandı";
+    case "PREPARING":
+      return "Hazırlanıyor";
+    case "READY":
+      return "Hazır";
+    case "AWAITING_COURIER":
+      return "Kurye bekliyor";
+    case "ON_THE_WAY":
+      return "Yolda";
+    case "DELIVERED":
+      return delivery ? "Teslim edildi" : "Tamamlandı";
+    case "PAID":
+      return "Ödeme alındı";
     case "CANCELLED":
       return "İptal edildi";
     case "REJECTED":
@@ -294,17 +349,15 @@ export function isCancelledOrderStatus(status: string | null | undefined): boole
   return raw === "CANCELLED" || raw === "REJECTED";
 }
 
-/** Mirrors the server: only tickets that have not reached the customer (or left with a courier) can be cancelled. */
+/** Yola çıkmış ve teslim edilmiş sipariş iptal edilmez. Kurye beklerken iptal açıktır. */
 export function isOrderCancellable(status: string | null | undefined, delivery = false): boolean {
-  const raw = (status ?? "").trim().toUpperCase();
-  if (raw === "CONFIRMED") return true;
-  const normalized = normalizeOrderStatus(raw, delivery);
+  const normalized = normalizeOrderStatus(status, delivery);
   return (
     normalized === "PENDING" ||
-    normalized === "SUBMITTED" ||
-    normalized === "KITCHEN_PREPARING" ||
-    normalized === "KITCHEN_PREPARED" ||
-    normalized === "KITCHEN_DELIVERED_TO_WAITER"
+    normalized === "CONFIRMED" ||
+    normalized === "PREPARING" ||
+    normalized === "READY" ||
+    normalized === "AWAITING_COURIER"
   );
 }
 
@@ -320,126 +373,175 @@ function step(action: OrderFlowAction): OrderFlowStep {
   return orderFlowStep(action);
 }
 
-export function nextOrderActions(
-  status: string | null | undefined,
-  context: OrderFlowContext,
-): OrderFlowStep[] {
+function courierRelease(context: OrderFlowContext): OrderFlowStep[] {
+  if (!context.delivery || !context.courierEnabled || context.marketplace) return [];
+  return [step("markKitchenDeliveredToCourier")];
+}
+
+function inFlightCourierActions(current: string, context: OrderFlowContext): OrderFlowStep[] | null {
+  if (current === "AWAITING_COURIER") return [step("markCourierTaken")];
+  if (current === "ON_THE_WAY") {
+    return context.courierEnabled
+      ? [step("markCourierDeliveredToCustomer"), step("markCourierRelease")]
+      : [step("markCourierDeliveredToCustomer")];
+  }
+  return null;
+}
+
+function deliverWithoutCourier(context: OrderFlowContext): OrderFlowStep[] {
+  if (!context.delivery || context.courierEnabled || context.marketplace) return [];
+  return [step("markWaiterDeliveredToCustomer")];
+}
+
+export function nextOrderActions(status: string | null | undefined, context: OrderFlowContext): OrderFlowStep[] {
   const current = normalizeOrderStatus(status, context.delivery);
   if (
     current === "CANCELLED" ||
     current === "REJECTED" ||
     current === "DRAFT" ||
-    current === "WAITER_DELIVERED_TO_CUSTOMER" ||
-    current === "COURIER_DELIVERED_TO_CUSTOMER"
+    current === "DELIVERED" ||
+    current === "PAID" ||
+    current === "PENDING"
   ) {
     return [];
   }
 
-  if (!context.kitchenEnabled) {
-    if (
-      current === "PENDING" ||
-      current === "SUBMITTED" ||
-      current === "KITCHEN_PREPARING" ||
-      current === "KITCHEN_PREPARED" ||
-      current === "KITCHEN_DELIVERED_TO_WAITER" ||
-      current === "KITCHEN_DELIVERED_TO_COURIER"
-    ) {
-      return [step("markWaiterTaken")];
-    }
-    if (current === "WAITER_TAKEN" || current === "WAITER_DELIVERED_TO_COURIER" || current === "COURIER_TAKEN") {
-      return [step("markWaiterDeliveredToCustomer")];
-    }
+  if (context.marketplace) {
+    if (!context.kitchenEnabled) return [];
+    if (current === "CONFIRMED") return [step("markKitchenPreparing"), step("markKitchenPrepared")];
+    if (current === "PREPARING") return [step("markKitchenPrepared")];
     return [];
   }
 
-  if (current === "PENDING" || current === "SUBMITTED") {
-    return [step("markKitchenPreparing")];
-  }
-  if (current === "KITCHEN_PREPARING") {
-    return [step("markKitchenPrepared")];
-  }
-  if (current === "KITCHEN_PREPARED") {
-    if (context.delivery && context.courierEnabled) {
-      return [step("markKitchenDeliveredToCourier"), step("markKitchenDeliveredToWaiter")];
+  if (!context.kitchenEnabled) {
+    if (current === "PREPARING") return [step("markKitchenPrepared")];
+    if (current === "CONFIRMED" && !context.delivery && !context.pickup) {
+      return [{ action: "markWaiterDeliveredToCustomer", status: "DELIVERED", label: "Servis et" }];
     }
-    return [step("markKitchenDeliveredToWaiter")];
+    if (current === "CONFIRMED" && context.pickup) return [step("markWaiterDeliveredToCustomer")];
+    if (current === "CONFIRMED" && context.delivery && !context.courierEnabled) return deliverWithoutCourier(context);
+    if (current === "CONFIRMED" && context.delivery && context.courierEnabled) return [step("markReady")];
+    if (current === "READY" && context.delivery && !context.courierEnabled) return deliverWithoutCourier(context);
+    if (current === "READY" && context.delivery) return courierRelease(context);
+    if (current === "READY" && context.pickup) return [step("markWaiterDeliveredToCustomer")];
+    const inFlight = inFlightCourierActions(current, context);
+    if (inFlight) return inFlight;
+    return [];
   }
-  if (current === "KITCHEN_DELIVERED_TO_WAITER") {
-    return [step("markWaiterTaken")];
-  }
-  if (current === "KITCHEN_DELIVERED_TO_COURIER") {
-    return context.courierEnabled ? [step("markCourierTaken")] : [step("markWaiterTaken")];
-  }
-  if (current === "WAITER_TAKEN") {
-    if (context.delivery && context.courierEnabled) {
-      return [step("markWaiterDeliveredToCourier")];
-    }
-    return [step("markWaiterDeliveredToCustomer")];
-  }
-  if (current === "WAITER_DELIVERED_TO_COURIER") {
-    return context.courierEnabled ? [step("markCourierTaken")] : [step("markWaiterDeliveredToCustomer")];
-  }
-  if (current === "COURIER_TAKEN") {
-    return context.courierEnabled ? [step("markCourierDeliveredToCustomer")] : [step("markWaiterDeliveredToCustomer")];
-  }
+
+  if (current === "CONFIRMED") return [step("markKitchenPreparing")];
+  if (current === "PREPARING") return [step("markKitchenPrepared")];
+  if (current === "READY" && context.delivery && !context.courierEnabled) return deliverWithoutCourier(context);
+  if (current === "READY" && context.delivery) return courierRelease(context);
+  if (current === "READY" && context.pickup) return [step("markWaiterDeliveredToCustomer")];
+  const inFlight = inFlightCourierActions(current, context);
+  if (inFlight) return inFlight;
   return [];
 }
 
-export function kitchenOrderActions(
-  status: string | null | undefined,
-  context: OrderFlowContext,
-): OrderFlowStep[] {
-  if (context.kitchenEnabled && isKitchenQueuedStatus(status)) return [step("markKitchenPreparing")];
-  return nextOrderActions(status, context).filter((item) => KITCHEN_ACTIONS.has(item.action));
+export function kitchenOrderActions(status: string | null | undefined, context: OrderFlowContext): OrderFlowStep[] {
+  const steps = nextOrderActions(status, context);
+  if (!context.kitchenEnabled && !context.marketplace) {
+    return steps.filter((item) => {
+      if (item.action === "markWaiterDeliveredToCustomer" && !context.delivery && !context.pickup) return false;
+      return (
+        item.action === "markReady" ||
+        item.action === "markKitchenPrepared" ||
+        item.action === "markWaiterDeliveredToCustomer"
+      );
+    });
+  }
+  return steps.filter(
+    (item) => KITCHEN_ACTIONS.has(item.action) || (!context.courierEnabled && item.action === "markWaiterDeliveredToCustomer"),
+  );
 }
 
-export function waiterOrderActions(
-  status: string | null | undefined,
-  context: OrderFlowContext,
-): OrderFlowStep[] {
+const WAITER_OFF_KITCHEN_ACTIONS = new Set<OrderFlowAction>([
+  "markReady",
+  "markKitchenPrepared",
+  "markWaiterDeliveredToCustomer",
+  "markKitchenDeliveredToCourier",
+]);
+
+export function waiterOrderActions(status: string | null | undefined, context: OrderFlowContext): OrderFlowStep[] {
   return nextOrderActions(status, context).filter((item) => WAITER_ACTIONS.has(item.action));
 }
 
-export function courierOrderActions(
-  status: string | null | undefined,
-  context: OrderFlowContext,
-): OrderFlowStep[] {
-  if (!context.courierEnabled) return [];
+export function waiterModeActions(status: string | null | undefined, context: OrderFlowContext): OrderFlowStep[] {
+  const allowed = context.kitchenEnabled ? WAITER_ACTIONS : WAITER_OFF_KITCHEN_ACTIONS;
+  return nextOrderActions(status, context).filter((item) => allowed.has(item.action));
+}
+
+export function orderFlowContextFor(
+  order: { deliveryType?: string | null; orderSource?: string | null; deliveryAddress?: string | null },
+  flags: { kitchenEnabled: boolean; courierEnabled: boolean },
+): OrderFlowContext {
+  const delivery = orderIsDelivery(order);
+  return {
+    kitchenEnabled: flags.kitchenEnabled,
+    courierEnabled: flags.courierEnabled,
+    delivery,
+    pickup: orderIsPickup(order),
+    marketplace: orderIsMarketplace(order),
+  };
+}
+
+export function courierOrderActions(status: string | null | undefined, context: OrderFlowContext): OrderFlowStep[] {
+  if (context.marketplace) return [];
   return nextOrderActions(status, context).filter((item) => COURIER_ACTIONS.has(item.action));
 }
 
-export function canWaiterCollectPayment(status: string | null | undefined, delivery = false): boolean {
+export function canWaiterCollectPayment(
+  status: string | null | undefined,
+  delivery = false,
+  kitchenEnabled = true,
+): boolean {
+  if (delivery) return false;
   const normalized = normalizeOrderStatus(status, delivery);
-  return isOrderFlowStatus(normalized) && PAYMENT_STATUSES.has(normalized);
+  if (normalized === "READY") return true;
+  if (!kitchenEnabled && (normalized === "CONFIRMED" || normalized === "PREPARING")) return true;
+  return false;
 }
 
-export function orderBlocksWaiterPayment(status: string | null | undefined, delivery = false): boolean {
+export function isWaiterPlacedOrder(order: { orderSource?: string | null }): boolean {
+  return (order.orderSource ?? "").trim().toUpperCase() === "WAITER";
+}
+
+export function orderBlocksWaiterPayment(
+  status: string | null | undefined,
+  delivery = false,
+  kitchenEnabled = true,
+  orderSource?: string | null,
+): boolean {
   const normalized = normalizeOrderStatus(status, delivery);
   if (
     normalized === "CANCELLED" ||
     normalized === "REJECTED" ||
     normalized === "DRAFT" ||
-    normalized === "WAITER_DELIVERED_TO_CUSTOMER" ||
-    normalized === "COURIER_DELIVERED_TO_CUSTOMER"
+    normalized === "DELIVERED" ||
+    normalized === "PAID" ||
+    delivery
   ) {
     return false;
   }
-  return !canWaiterCollectPayment(normalized, delivery);
-}
-
-/** With the kitchen off the bill can be closed whatever stage the orders are in. */
-export function waiterCanCollectOnOrders(
-  orders: ReadonlyArray<{ status: string | null | undefined; deliveryType?: string | null }>,
-  kitchenEnabled = true,
-): boolean {
-  if (!kitchenEnabled) return true;
-  return orders.every((order) => !orderBlocksWaiterPayment(order.status, orderIsDelivery(order)));
+  if (isWaiterPlacedOrder({ orderSource }) && normalized !== "PENDING") return false;
+  return !canWaiterCollectPayment(normalized, false, kitchenEnabled);
 }
 
 /**
- * Mutfak kapalı masa siparişi: garson isterse "Hazırlanıyor" ve "Teslim edildi" işaretler.
- * İkisi de zorunlu değil; adisyon kapanınca sunucu siparişi teslim edildi yapar.
+ * Mutfak açıksa tam kapanış, hazırlanmakta olan müşteri siparişi varken açılmaz.
+ * Garsonun kendi aldığı siparişte teslim unutulabilir; hesap kapanabilir.
+ * Parça ödeme bu kapıdan geçmez ve statü yazmaz.
  */
+export function waiterCanCollectOnOrders(
+  orders: ReadonlyArray<{ status: string | null | undefined; deliveryType?: string | null; orderSource?: string | null }>,
+  kitchenEnabled = true,
+): boolean {
+  return orders.every(
+    (order) => !orderBlocksWaiterPayment(order.status, orderIsDelivery(order), kitchenEnabled, order.orderSource),
+  );
+}
+
 export type WaiterServiceAction = "markServicePreparing" | "markServiceDelivered";
 
 export const WAITER_SERVICE_ACTION_LABEL: Record<WaiterServiceAction, string> = {
@@ -449,50 +551,48 @@ export const WAITER_SERVICE_ACTION_LABEL: Record<WaiterServiceAction, string> = 
 
 export type WaiterServiceColumn = "approve" | "service" | "delivered";
 
-const SERVICE_PREPARING = new Set<string>(["KITCHEN_PREPARING", "KITCHEN_PREPARED", "KITCHEN_DELIVERED_TO_WAITER"]);
-const SERVICE_DELIVERED = new Set<string>(["WAITER_TAKEN", "WAITER_DELIVERED_TO_CUSTOMER"]);
-
-function isConfirmedStatus(status: string | null | undefined): boolean {
-  return (status ?? "").trim().toUpperCase() === "CONFIRMED";
-}
-
 export function waiterServiceColumn(status: string | null | undefined): WaiterServiceColumn | null {
-  if (isConfirmedStatus(status)) return "service";
   const normalized = normalizeOrderStatus(status);
-  if (normalized === "PENDING" || normalized === "SUBMITTED") return "approve";
-  if (SERVICE_PREPARING.has(normalized)) return "service";
-  if (SERVICE_DELIVERED.has(normalized)) return "delivered";
+  if (normalized === "PENDING") return "approve";
+  if (
+    normalized === "CONFIRMED" ||
+    normalized === "PREPARING" ||
+    normalized === "READY" ||
+    normalized === "AWAITING_COURIER" ||
+    normalized === "ON_THE_WAY"
+  ) {
+    return "service";
+  }
+  if (normalized === "DELIVERED" || normalized === "PAID") return "delivered";
   return null;
 }
 
+/** Mutfak kapalı masada hazırlık butonu yok. Servis adımı nextOrderActions ile gelir. */
 export function waiterServiceActions(status: string | null | undefined): WaiterServiceAction[] {
-  if (isConfirmedStatus(status)) return ["markServicePreparing", "markServiceDelivered"];
-  return SERVICE_PREPARING.has(normalizeOrderStatus(status)) ? ["markServiceDelivered"] : [];
+  void status;
+  return [];
 }
 
 export function waiterServiceStatusLabel(status: string | null | undefined): string {
-  if (isConfirmedStatus(status)) return "Onaylandı";
-  const normalized = normalizeOrderStatus(status);
-  if (SERVICE_PREPARING.has(normalized)) return "Hazırlanıyor";
-  if (SERVICE_DELIVERED.has(normalized)) return "Teslim edildi";
-  return orderFlowStatusLabel(normalized);
+  return orderFlowStatusLabel(status, false);
 }
 
 export function isCustomerDeliveredStatus(status: string | null | undefined, delivery = false): boolean {
   const normalized = normalizeOrderStatus(status, delivery);
-  return isOrderFlowStatus(normalized) && CUSTOMER_DELIVERED.has(normalized);
+  return normalized === "DELIVERED" || normalized === "PAID";
 }
 
 export function isOpenFlowStatus(status: string | null | undefined, delivery = false): boolean {
   const normalized = normalizeOrderStatus(status, delivery);
-  if (!normalized || normalized === "DRAFT" || normalized === "CANCELLED" || normalized === "REJECTED") {
-    return false;
-  }
-  if (isCustomerDeliveredStatus(normalized, delivery)) return false;
+  if (!normalized || normalized === "DRAFT" || normalized === "CANCELLED" || normalized === "REJECTED") return false;
+  if (normalized === "DELIVERED" || normalized === "PAID") return false;
   return (
     normalized === "PENDING" ||
-    normalized === "SUBMITTED" ||
-    isOrderFlowStatus(normalized)
+    normalized === "CONFIRMED" ||
+    normalized === "PREPARING" ||
+    normalized === "READY" ||
+    normalized === "AWAITING_COURIER" ||
+    normalized === "ON_THE_WAY"
   );
 }
 
@@ -500,9 +600,9 @@ export type KitchenFlowColumn = "KITCHEN_PREPARING" | "KITCHEN_PREPARED" | "KITC
 
 export function kitchenFlowColumn(status: string | null | undefined, delivery = false): KitchenFlowColumn | null {
   const normalized = normalizeOrderStatus(status, delivery);
-  if (normalized === "KITCHEN_PREPARING") return "KITCHEN_PREPARING";
-  if (normalized === "KITCHEN_PREPARED") return "KITCHEN_PREPARED";
-  if (normalized === "KITCHEN_DELIVERED_TO_WAITER" || normalized === "KITCHEN_DELIVERED_TO_COURIER") {
+  if (normalized === "PREPARING") return "KITCHEN_PREPARING";
+  if (normalized === "READY") return "KITCHEN_PREPARED";
+  if (normalized === "AWAITING_COURIER" || normalized === "ON_THE_WAY" || normalized === "DELIVERED") {
     return "KITCHEN_HANDED";
   }
   return null;
@@ -512,14 +612,10 @@ export type WaiterFlowColumn = "approve" | "cooking" | "deliver" | "delivered";
 
 export function waiterFlowColumn(status: string | null | undefined, delivery = false): WaiterFlowColumn | null {
   const normalized = normalizeOrderStatus(status, delivery);
-  if (normalized === "PENDING" || normalized === "SUBMITTED") return "approve";
-  if (normalized === "KITCHEN_PREPARING") return "cooking";
-  if (normalized === "KITCHEN_PREPARED" || normalized === "KITCHEN_DELIVERED_TO_WAITER" || normalized === "WAITER_TAKEN") {
-    return "deliver";
-  }
-  if (normalized === "WAITER_DELIVERED_TO_CUSTOMER" || normalized === "WAITER_DELIVERED_TO_COURIER") {
-    return "delivered";
-  }
+  if (normalized === "PENDING") return "approve";
+  if (normalized === "CONFIRMED" || normalized === "PREPARING") return "cooking";
+  if (normalized === "READY") return "deliver";
+  if (normalized === "DELIVERED" || normalized === "PAID") return "delivered";
   return null;
 }
 
@@ -527,89 +623,87 @@ export type CourierFlowColumn = "HANDOFF" | "TAKEN" | "DELIVERED";
 
 export function courierFlowColumn(status: string | null | undefined, delivery = true): CourierFlowColumn | null {
   const normalized = normalizeOrderStatus(status, delivery);
-  if (
-    normalized === "KITCHEN_PREPARED" ||
-    normalized === "KITCHEN_DELIVERED_TO_COURIER" ||
-    normalized === "WAITER_DELIVERED_TO_COURIER"
-  ) {
-    return "HANDOFF";
-  }
-  if (normalized === "COURIER_TAKEN") return "TAKEN";
-  if (normalized === "COURIER_DELIVERED_TO_CUSTOMER") return "DELIVERED";
+  if (normalized === "AWAITING_COURIER") return "HANDOFF";
+  if (normalized === "ON_THE_WAY") return "TAKEN";
+  if (normalized === "DELIVERED") return "DELIVERED";
   return null;
 }
 
 export type OrderFlowLane = "kitchen" | "waiter" | "courier";
 
-export function orderFlowLane(
-  status: string | null | undefined,
-  context: OrderFlowContext,
-): OrderFlowLane | null {
+export function orderFlowLane(status: string | null | undefined, context: OrderFlowContext): OrderFlowLane | null {
   if (!isOpenFlowStatus(status, context.delivery)) return null;
   const normalized = normalizeOrderStatus(status, context.delivery);
-  if (normalized === "COURIER_TAKEN" || normalized === "KITCHEN_DELIVERED_TO_COURIER" || normalized === "WAITER_DELIVERED_TO_COURIER") {
+  if (context.marketplace && (normalized === "AWAITING_COURIER" || normalized === "ON_THE_WAY")) return null;
+  if (normalized === "AWAITING_COURIER" || normalized === "ON_THE_WAY") {
     return context.courierEnabled ? "courier" : "waiter";
   }
-  if (normalized === "KITCHEN_PREPARING" || normalized === "KITCHEN_PREPARED") {
-    return context.kitchenEnabled ? "kitchen" : "waiter";
+  if (normalized === "CONFIRMED" || normalized === "PREPARING" || normalized === "READY") {
+    if (!context.kitchenEnabled) return "waiter";
+    return "kitchen";
   }
-  if (
-    normalized === "PENDING" ||
-    normalized === "SUBMITTED" ||
-    normalized === "KITCHEN_DELIVERED_TO_WAITER" ||
-    normalized === "WAITER_TAKEN"
-  ) {
-    if ((normalized === "PENDING" || normalized === "SUBMITTED") && context.kitchenEnabled) {
-      return "kitchen";
-    }
-    return "waiter";
-  }
+  if (normalized === "PENDING") return "waiter";
   return null;
 }
 
-export function orderFlowSteps(context: Pick<OrderFlowContext, "kitchenEnabled" | "courierEnabled" | "delivery">): Array<{
+export function orderFlowSteps(context: Pick<OrderFlowContext, "kitchenEnabled" | "courierEnabled" | "delivery" | "pickup" | "marketplace">): Array<{
   status: string;
   label: string;
 }> {
+  if (context.marketplace) {
+    return [
+      { status: "CONFIRMED", label: "Onaylandı" },
+      { status: "PREPARING", label: "Hazırlanıyor" },
+      { status: "READY", label: "Hazır" },
+    ];
+  }
+  if (!context.kitchenEnabled && context.delivery && context.courierEnabled) {
+    return [
+      { status: "CONFIRMED", label: "Onaylandı" },
+      { status: "READY", label: "Hazır" },
+      { status: "AWAITING_COURIER", label: "Kurye bekliyor" },
+      { status: "ON_THE_WAY", label: "Yolda" },
+      { status: "DELIVERED", label: "Teslim edildi" },
+    ];
+  }
+  if (!context.kitchenEnabled && !context.delivery && !context.pickup) {
+    return [
+      { status: "CONFIRMED", label: "Onaylandı" },
+      { status: "DELIVERED", label: "Servis edildi" },
+      { status: "PAID", label: "Ödeme alındı" },
+    ];
+  }
   if (!context.kitchenEnabled) {
     return [
-      { status: "WAITER_TAKEN", label: ORDER_FLOW_STATUS_LABEL.WAITER_TAKEN },
-      { status: "WAITER_DELIVERED_TO_CUSTOMER", label: ORDER_FLOW_STATUS_LABEL.WAITER_DELIVERED_TO_CUSTOMER },
+      { status: "CONFIRMED", label: "Onaylandı" },
+      { status: "DELIVERED", label: context.pickup ? "Teslim edildi" : "Tamamlandı" },
     ];
   }
   const steps: Array<{ status: string; label: string }> = [
-    { status: "KITCHEN_PREPARING", label: ORDER_FLOW_STATUS_LABEL.KITCHEN_PREPARING },
-    { status: "KITCHEN_PREPARED", label: ORDER_FLOW_STATUS_LABEL.KITCHEN_PREPARED },
+    { status: "CONFIRMED", label: "Onaylandı" },
+    { status: "PREPARING", label: "Hazırlanıyor" },
+    { status: "READY", label: "Hazır" },
   ];
   if (context.delivery && context.courierEnabled) {
     steps.push(
-      { status: "KITCHEN_DELIVERED_TO_COURIER", label: ORDER_FLOW_STATUS_LABEL.KITCHEN_DELIVERED_TO_COURIER },
-      { status: "COURIER_TAKEN", label: ORDER_FLOW_STATUS_LABEL.COURIER_TAKEN },
-      { status: "COURIER_DELIVERED_TO_CUSTOMER", label: ORDER_FLOW_STATUS_LABEL.COURIER_DELIVERED_TO_CUSTOMER },
+      { status: "AWAITING_COURIER", label: "Kurye bekliyor" },
+      { status: "ON_THE_WAY", label: "Yolda" },
+      { status: "DELIVERED", label: "Teslim edildi" },
     );
     return steps;
   }
-  steps.push(
-    { status: "KITCHEN_DELIVERED_TO_WAITER", label: ORDER_FLOW_STATUS_LABEL.KITCHEN_DELIVERED_TO_WAITER },
-    { status: "WAITER_TAKEN", label: ORDER_FLOW_STATUS_LABEL.WAITER_TAKEN },
-    { status: "WAITER_DELIVERED_TO_CUSTOMER", label: ORDER_FLOW_STATUS_LABEL.WAITER_DELIVERED_TO_CUSTOMER },
-  );
+  steps.push({ status: "DELIVERED", label: context.delivery || context.pickup ? "Teslim edildi" : "Tamamlandı" });
   return steps;
 }
 
-export function orderFlowStepIndex(
-  status: string | null | undefined,
-  context: OrderFlowContext,
-): number {
+export function orderFlowStepIndex(status: string | null | undefined, context: OrderFlowContext): number {
   const normalized = normalizeOrderStatus(status, context.delivery);
-  if (normalized === "PENDING" || normalized === "SUBMITTED" || normalized === "DRAFT" || normalized === "REJECTED" || normalized === "CANCELLED") {
+  if (normalized === "PENDING" || normalized === "DRAFT" || normalized === "REJECTED" || normalized === "CANCELLED") {
     return -1;
   }
-  const steps = orderFlowSteps(context);
-  return steps.findIndex((stepItem) => stepItem.status === normalized);
+  return orderFlowSteps(context).findIndex((stepItem) => stepItem.status === normalized);
 }
 
-/** Store HTTP segments. Empty means the dashboard only stamps the status. */
 export function storeHttpStepsFor(
   action: OrderFlowAction,
   currentStatus: string | null | undefined,
@@ -618,9 +712,10 @@ export function storeHttpStepsFor(
   const status = normalizeOrderStatus(currentStatus, delivery);
   switch (action) {
     case "markKitchenPreparing":
-      return status === "PENDING" || status === "SUBMITTED" ? ["confirm", "preparing"] : ["preparing"];
+      return ["preparing"];
     case "markKitchenPrepared":
-      return ["ready"];
+    case "markReady":
+      return status === "READY" ? [] : ["ready"];
     case "markCourierTaken":
       return ["dispatch"];
     case "markCourierDeliveredToCustomer":
@@ -633,13 +728,17 @@ export function storeHttpStepsFor(
 
 export function waiterHttpStep(
   action: OrderFlowAction,
+  asWaiter = false,
 ): { scope: "kitchen" | "waiter" | "courier"; path: string } | null {
   switch (action) {
     case "markKitchenPreparing":
       return { scope: "kitchen", path: "preparing" };
     case "markKitchenPrepared":
-      return { scope: "kitchen", path: "ready" };
-    case "markWaiterTaken":
+    case "markReady":
+      return asWaiter ? { scope: "waiter", path: "ready" } : { scope: "kitchen", path: "ready" };
+    case "markCourierRelease":
+      return { scope: "courier", path: "release" };
+    case "markWaiterDeliveredToCustomer":
       return { scope: "waiter", path: "served" };
     case "markCourierTaken":
       return { scope: "courier", path: "dispatch" };

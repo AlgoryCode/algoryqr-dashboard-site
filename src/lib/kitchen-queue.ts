@@ -106,13 +106,9 @@ export function isKitchenTicketDelayed(
   const s = norm(order.status);
   if (
     isCancelledOrderStatus(s) ||
-    s === "WAITER_TAKEN" ||
-    s === "WAITER_DELIVERED_TO_CUSTOMER" ||
-    s === "WAITER_DELIVERED_TO_COURIER" ||
-    s === "COURIER_TAKEN" ||
-    s === "COURIER_DELIVERED_TO_CUSTOMER" ||
-    s === "KITCHEN_DELIVERED_TO_WAITER" ||
-    s === "KITCHEN_DELIVERED_TO_COURIER"
+    s === "DELIVERED" ||
+    s === "AWAITING_COURIER" ||
+    s === "ON_THE_WAY"
   ) {
     return false;
   }
@@ -133,15 +129,7 @@ export function kitchenPrepProgress(
 
 export type KitchenQueueGroups = Record<KitchenColumnId, OrderResponse[]>;
 
-const HANDED_STATUSES = new Set([
-  "WAITER_TAKEN",
-  "WAITER_DELIVERED_TO_CUSTOMER",
-  "WAITER_DELIVERED_TO_COURIER",
-  "KITCHEN_DELIVERED_TO_WAITER",
-  "KITCHEN_DELIVERED_TO_COURIER",
-  "COURIER_TAKEN",
-  "COURIER_DELIVERED_TO_CUSTOMER",
-]);
+const HANDED_STATUSES = new Set(["AWAITING_COURIER", "ON_THE_WAY", "DELIVERED"]);
 
 function isHandedOff(status: string | null | undefined): boolean {
   return HANDED_STATUSES.has(norm(status));
@@ -236,10 +224,6 @@ export function kitchenOrderOrigin(
     return "ONLINE";
   }
 
-  const name = order.tableName?.trim().toLocaleLowerCase("tr") ?? "";
-  if (name.includes("uber")) return "UBER_EATS";
-  if (name.includes("yemeksepeti") || name.includes("yemek sepeti")) return "YEMEKSEPETI";
-  if (name.includes("online") || name === "mağaza" || name === "magaza") return "ONLINE";
   return "TABLE";
 }
 
@@ -286,15 +270,8 @@ export type KitchenHandoverTarget = "WAITER" | "COURIER";
 
 export function kitchenHandoverTarget(status: string | null | undefined): KitchenHandoverTarget | null {
   const s = norm(status);
-  if (
-    s === "KITCHEN_DELIVERED_TO_COURIER" ||
-    s === "WAITER_DELIVERED_TO_COURIER" ||
-    s === "COURIER_TAKEN" ||
-    s === "COURIER_DELIVERED_TO_CUSTOMER"
-  ) {
-    return "COURIER";
-  }
-  if (isHandedOff(s)) return "WAITER";
+  if (s === "AWAITING_COURIER" || s === "ON_THE_WAY") return "COURIER";
+  if (s === "DELIVERED") return "WAITER";
   return null;
 }
 
@@ -305,7 +282,7 @@ export type KitchenCourierHandover =
   | { kind: "unavailable"; reason: string };
 
 export function kitchenCourierHandover(
-  order: Pick<OrderResponse, "orderSource" | "tableName" | "tableId" | "deliveryType">,
+  order: Pick<OrderResponse, "orderSource" | "tableName" | "tableId" | "deliveryType" | "deliveryAddress">,
   courierEnabled: boolean,
 ): KitchenCourierHandover {
   if (!courierEnabled) return { kind: "unavailable", reason: "Bu şubede kurye kapalı" };
@@ -322,15 +299,23 @@ export function kitchenReadyHandoverLabel(origin: KitchenOrderOrigin, deliveryTy
   return "Gel-al teslimi bekleniyor";
 }
 
+function kitchenTicketContext(origin: KitchenOrderOrigin, deliveryType?: string | null) {
+  const marketplace = origin === "UBER_EATS" || origin === "YEMEKSEPETI";
+  const delivery = kitchenUsesCourier(origin, deliveryType) && !marketplace;
+  return {
+    kitchenEnabled: true,
+    courierEnabled: delivery,
+    delivery,
+    pickup: isPickupDelivery(deliveryType),
+    marketplace,
+  };
+}
+
 export function kitchenTicketFlowSteps(
   origin: KitchenOrderOrigin,
   deliveryType?: string | null,
 ): KitchenFlowStep[] {
-  return orderFlowSteps({
-    kitchenEnabled: true,
-    courierEnabled: kitchenUsesCourier(origin, deliveryType),
-    delivery: kitchenUsesCourier(origin, deliveryType),
-  });
+  return orderFlowSteps(kitchenTicketContext(origin, deliveryType));
 }
 
 export function kitchenTicketFlowIndex(
@@ -338,11 +323,7 @@ export function kitchenTicketFlowIndex(
   origin: KitchenOrderOrigin,
   deliveryType?: string | null,
 ): number {
-  return orderFlowStepIndex(status, {
-    kitchenEnabled: true,
-    courierEnabled: kitchenUsesCourier(origin, deliveryType),
-    delivery: kitchenUsesCourier(origin, deliveryType),
-  });
+  return orderFlowStepIndex(status, kitchenTicketContext(origin, deliveryType));
 }
 
 export function kitchenTicketStartedAt(
@@ -416,7 +397,7 @@ function orderTimestamp(value?: string | null): number {
 
 export function sortReadyOrders(orders: OrderResponse[]): OrderResponse[] {
   return orders
-    .filter((order) => norm(order.status) === "KITCHEN_PREPARED")
+    .filter((order) => norm(order.status) === "READY")
     .slice()
     .sort((a, b) => {
       const aTime = orderTimestamp(a.readyAt || a.preparedAt || a.submittedAt || a.createdAt);
@@ -427,7 +408,7 @@ export function sortReadyOrders(orders: OrderResponse[]): OrderResponse[] {
 }
 
 export function readyOrdersBannerText(orders: OrderResponse[]): string | null {
-  const ready = orders.filter((order) => norm(order.status) === "KITCHEN_PREPARED");
+  const ready = orders.filter((order) => norm(order.status) === "READY");
   if (ready.length === 0) return null;
   const labels = [...new Set(ready.map((order) => kitchenTableLabel(order).toLocaleLowerCase("tr")))];
   if (labels.length === 1) {
@@ -443,7 +424,7 @@ export function readyOrdersBannerText(orders: OrderResponse[]): string | null {
 export function kitchenInProgressOrders(orders: OrderResponse[]): OrderResponse[] {
   return orders.filter((order) => {
     const s = norm(order.status);
-    return s === "KITCHEN_PREPARING" || s === "PENDING" || s === "SUBMITTED";
+    return s === "PREPARING" || s === "CONFIRMED";
   });
 }
 
@@ -452,7 +433,7 @@ export function kitchenInProgressBannerText(orders: OrderResponse[]): string | n
   if (active.length === 0) return null;
   if (active.length === 1) {
     const s = norm(active[0].status);
-    const status = s === "KITCHEN_PREPARING" ? "mutfakta" : "onaylandı";
+    const status = s === "PREPARING" ? "mutfakta" : "onaylandı";
     return `${kitchenTableLabel(active[0])} ${status}`;
   }
   return `${active.length} sipariş mutfakta`;
@@ -478,10 +459,10 @@ function bumpKitchenProgress(
   status: OrderResponse["status"],
 ): KitchenTableProgress | null {
   const s = norm(status);
-  if (s !== "PENDING" && s !== "SUBMITTED" && s !== "KITCHEN_PREPARING" && s !== "KITCHEN_PREPARED") return null;
+  if (s !== "CONFIRMED" && s !== "PREPARING" && s !== "READY") return null;
   const next: KitchenTableProgress = { ...(current ?? emptyKitchenTableProgress()) };
-  if (s === "PENDING" || s === "SUBMITTED") next.confirmedCount += 1;
-  else if (s === "KITCHEN_PREPARING") next.preparingCount += 1;
+  if (s === "CONFIRMED") next.confirmedCount += 1;
+  else if (s === "PREPARING") next.preparingCount += 1;
   else next.readyCount += 1;
   return next;
 }

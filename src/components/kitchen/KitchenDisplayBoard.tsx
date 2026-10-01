@@ -340,7 +340,7 @@ export function KitchenDisplayBoard({
   busyOrderId,
   busyOrderKey,
   kitchenEnabled = true,
-  courierEnabled = true,
+  courierEnabled = false,
   onStartPreparing,
   onMarkReady,
   onMarkServed,
@@ -818,7 +818,7 @@ function DraggableKitchenOrderCard(props: KitchenOrderCardProps) {
     onRevert,
     onRequestCancel,
     kitchenEnabled = true,
-    courierEnabled = true,
+    courierEnabled = false,
     busyOrderId,
     busyOrderKey,
   } = props;
@@ -854,7 +854,7 @@ function KitchenOrderCard({
   busyOrderId,
   busyOrderKey,
   kitchenEnabled = true,
-  courierEnabled = true,
+  courierEnabled = false,
   onStartPreparing,
   onMarkReady,
   onMarkServed,
@@ -1525,9 +1525,9 @@ function KitchenHandoverContent({
   onSelect: (order: OrderResponse, target: KitchenHandoverTarget) => void;
   onSelectCourier?: (order: OrderResponse, courierStaffId: number) => void;
 }) {
-  const [pickingCourier, setPickingCourier] = useState(false);
   const courier = kitchenCourierHandover(order, courierEnabled);
   const picksStaff = courier.kind === "staff" && Boolean(onSelectCourier);
+  const [pickingCourier, setPickingCourier] = useState(picksStaff);
   const availableCouriers = (couriers ?? []).filter((item) => item.available);
   const [pickedCourierId, setCourierId] = useState<number | null>(null);
   const courierId = availableCouriers.some((item) => item.id === pickedCourierId)
@@ -1623,13 +1623,6 @@ function KitchenHandoverContent({
     icon: ReactNode;
     disabled: boolean;
   }> = [
-    {
-      target: "WAITER",
-      title: "Garson",
-      hint: "Sipariş garsona teslim edildi",
-      icon: <UserRound className="h-6 w-6" />,
-      disabled: false,
-    },
     {
       target: "COURIER",
       title: "Kurye",

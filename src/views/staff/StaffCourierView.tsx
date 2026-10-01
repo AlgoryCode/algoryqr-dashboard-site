@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { CourierDisplayBoard } from "@/components/courier/CourierDisplayBoard";
 import { ordersForStaffBranch } from "@/lib/branch-scope";
-import { formatBranchCode } from "@/lib/branch";
+import { formatBranchCode, isBranchCourierEnabled } from "@/lib/branch";
 import type { CourierTicket } from "@/lib/store-courier";
 import {
   listCourierQueue,
@@ -49,13 +49,17 @@ export default function StaffCourierView() {
     return <p className="p-8 text-sm text-muted-foreground">Oturum kontrol ediliyor…</p>;
   }
 
+  const courierEnabled = isBranchCourierEnabled(me);
+
   return (
     <StaffFrame displayName={me.displayName} role="COURIER" branchId={me.branchId}>
       <div className="space-y-4">
         <div>
           <h1 className="text-2xl font-semibold">Kurye</h1>
           <p className="text-sm text-muted-foreground">
-            Şube {formatBranchCode(me.branchId)} teslimleri
+            {courierEnabled
+              ? `Şube ${formatBranchCode(me.branchId)} teslimleri`
+              : "Yeni paket atanmaz. Elindeki siparişleri teslim edebilirsin."}
           </p>
         </div>
         <CourierDisplayBoard

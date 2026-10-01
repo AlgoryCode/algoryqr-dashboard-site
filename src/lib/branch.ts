@@ -201,10 +201,20 @@ export function formatBranchListLabel(branch: Pick<BranchItem, "id" | "name">) {
   return `${branch.name} · ${formatBranchCode(branch.id)}`;
 }
 
-export function anyBranchHasKitchen(branches: Array<Pick<BranchItem, "kitchenEnabled">> | null | undefined) {
-  return (branches ?? []).some((branch) => isBranchKitchenEnabled(branch));
+function branchRows<T>(branches: T[] | { content?: T[] | null } | null | undefined): T[] {
+  if (Array.isArray(branches)) return branches;
+  if (branches && Array.isArray(branches.content)) return branches.content;
+  return [];
 }
 
-export function anyBranchHasCourier(branches: Array<Pick<BranchItem, "courierEnabled">> | null | undefined) {
-  return (branches ?? []).some((branch) => isBranchCourierEnabled(branch));
+export function anyBranchHasKitchen(
+  branches: Array<Pick<BranchItem, "kitchenEnabled">> | { content?: Array<Pick<BranchItem, "kitchenEnabled">> | null } | null | undefined,
+) {
+  return branchRows(branches).some((branch) => isBranchKitchenEnabled(branch));
+}
+
+export function anyBranchHasCourier(
+  branches: Array<Pick<BranchItem, "courierEnabled">> | { content?: Array<Pick<BranchItem, "courierEnabled">> | null } | null | undefined,
+) {
+  return branchRows(branches).some((branch) => isBranchCourierEnabled(branch));
 }

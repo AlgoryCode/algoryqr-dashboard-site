@@ -39,6 +39,7 @@ export type OrderStatus =
   | "PREPARING"
   | "READY"
   | "SERVED"
+  | "PAID"
   | "ON_THE_WAY"
   | "DELIVERED"
   | "REJECTED"

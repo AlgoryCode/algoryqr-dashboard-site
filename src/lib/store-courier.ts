@@ -264,7 +264,7 @@ export async function advanceStoreCourierOrder(
   }
   writeOrderFlowStatus(
     ticket.id,
-    action === "dispatch" ? "COURIER_TAKEN" : "COURIER_DELIVERED_TO_CUSTOMER",
+    action === "dispatch" ? "ON_THE_WAY" : "DELIVERED",
   );
   return ticket;
 }

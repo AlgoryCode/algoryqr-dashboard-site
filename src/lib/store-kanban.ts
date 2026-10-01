@@ -34,6 +34,7 @@ const COLUMN_STATUS_SET: Record<StoreKanbanColumnId, ReadonlySet<StoreOrderStatu
   ]),
   TRANSIT: new Set([
     "ON_THE_WAY",
+    "AWAITING_COURIER",
     "KITCHEN_DELIVERED_TO_COURIER",
     "WAITER_DELIVERED_TO_COURIER",
     "COURIER_TAKEN",
@@ -185,14 +186,18 @@ export function storeKanbanChipLabel(
 export function storeKanbanPrimaryAction(
   order: StoreOrderSummary,
   delayed = false,
+  flags: { kitchenEnabled?: boolean; courierEnabled?: boolean } = {},
 ): StoreKanbanPrimaryAction | null {
   if (order.status === "PENDING") {
     return { action: "confirm", label: delayed ? "Hızlı Onay Ver" : "Onayla" };
   }
+  const kitchenEnabled = flags.kitchenEnabled ?? true;
+  const courierEnabled = flags.courierEnabled ?? order.deliveryType === "DELIVERY";
   const steps = nextOrderActions(order.status, {
-    kitchenEnabled: true,
-    courierEnabled: order.deliveryType === "DELIVERY",
+    kitchenEnabled,
+    courierEnabled: courierEnabled && order.deliveryType === "DELIVERY",
     delivery: order.deliveryType === "DELIVERY",
+    pickup: order.deliveryType === "PICKUP",
   });
   const first = steps[0];
   if (!first) return null;
@@ -206,12 +211,13 @@ export function storeKanbanCanReject(order: StoreOrderSummary): boolean {
   return order.status === "PENDING";
 }
 
-export function storeKanbanAssignCourier(order: StoreOrderSummary): boolean {
+export function storeKanbanAssignCourier(order: StoreOrderSummary, courierEnabled = true): boolean {
+  if (!courierEnabled) return false;
   const status = normalizeOrderStatus(order.status, order.deliveryType === "DELIVERY");
   return (
     order.deliveryType === "DELIVERY" &&
     !order.courier &&
-    (status === "KITCHEN_PREPARED" || status === "KITCHEN_DELIVERED_TO_COURIER")
+    (status === "READY" || status === "AWAITING_COURIER")
   );
 }
 
