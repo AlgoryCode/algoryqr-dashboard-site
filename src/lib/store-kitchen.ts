@@ -4,7 +4,7 @@ import {
   applyOrderFlow,
   forgetOrderFlowStatus,
   orderCancelReasonText,
-  stampOrderFlow,
+  serverReachedStatus,
   type KitchenRevertTarget,
   type OrderCancelRequest,
 } from "@/lib/order-flow";
@@ -245,6 +245,10 @@ export async function handoverStoreOrderToCourier(orderId: number, courierStaffI
   if (!isRecord(data) || !Number.isFinite(Number(data.id))) {
     throw new Error("Sipariş kuryeye verilemedi");
   }
+  const rawStatus = typeof data.status === "string" ? data.status : "";
+  if (!serverReachedStatus(rawStatus, "AWAITING_COURIER")) {
+    throw new Error("Sipariş kuryeye verilemedi");
+  }
   forgetOrderFlowStatus(orderId);
   return storeOrderToKitchenTicket(data as unknown as StoreOrderDetail);
 }
@@ -265,11 +269,34 @@ export async function advanceStoreKitchenOrder(
   if (!isRecord(data) || !Number.isFinite(Number(data.id))) {
     throw new Error("Sipariş güncellenemedi");
   }
-  const ticket = storeOrderToKitchenTicket(data as unknown as StoreOrderDetail);
-  return stampOrderFlow(
-    ticket,
-    action === "preparing" ? "KITCHEN_PREPARING" : "KITCHEN_PREPARED",
-  );
+  const target = action === "preparing" ? "PREPARING" : "READY";
+  const rawStatus = typeof data.status === "string" ? data.status : "";
+  if (!serverReachedStatus(rawStatus, target)) {
+    throw new Error("Sipariş güncellenemedi");
+  }
+  forgetOrderFlowStatus(orderId);
+  return storeOrderToKitchenTicket(data as unknown as StoreOrderDetail);
+}
+
+export async function deliverStoreKitchenOrder(orderId: number): Promise<OrderResponse> {
+  const response = await fetchStore(`/api/store/orders/${orderId}/deliver`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  });
+  const data = readJson(await response.text());
+  if (!response.ok) {
+    throw new Error(messageFromUnknown(data, "Sipariş teslim edilemedi"));
+  }
+  if (!isRecord(data) || !Number.isFinite(Number(data.id))) {
+    throw new Error("Sipariş teslim edilemedi");
+  }
+  const rawStatus = typeof data.status === "string" ? data.status : "";
+  if (!serverReachedStatus(rawStatus, "DELIVERED")) {
+    throw new Error("Sipariş teslim edilemedi");
+  }
+  forgetOrderFlowStatus(orderId);
+  return storeOrderToKitchenTicket(data as unknown as StoreOrderDetail);
 }
 
 export async function revertStoreKitchenOrder(orderId: number, to: KitchenRevertTarget): Promise<OrderResponse> {

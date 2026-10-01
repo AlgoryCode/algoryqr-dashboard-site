@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseStoreHandle, storePath } from "./store-public";
+import { parseStoreHandle, publicStoreDeliveryTypes, storePath } from "./store-public";
 
 describe("parseStoreHandle", () => {
   it("splits store number and token", () => {
@@ -22,6 +22,15 @@ describe("parseStoreHandle", () => {
     expect(parseStoreHandle("10427-")).toBeNull();
     expect(parseStoreHandle("10427")).toBeNull();
     expect(parseStoreHandle("")).toBeNull();
+  });
+});
+
+describe("publicStoreDeliveryTypes", () => {
+  it("hides delivery when the branch courier is off and keeps pickup", () => {
+    expect(publicStoreDeliveryTypes(["DELIVERY", "PICKUP"], false)).toEqual(["PICKUP"]);
+    expect(publicStoreDeliveryTypes(["DELIVERY", "PICKUP"], null)).toEqual(["PICKUP"]);
+    expect(publicStoreDeliveryTypes(["DELIVERY", "PICKUP"], true)).toEqual(["DELIVERY", "PICKUP"]);
+    expect(publicStoreDeliveryTypes(["DELIVERY", "PICKUP"])).toEqual(["DELIVERY", "PICKUP"]);
   });
 });
 

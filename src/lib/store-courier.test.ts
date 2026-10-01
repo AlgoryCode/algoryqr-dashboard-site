@@ -56,7 +56,7 @@ describe("store courier mapping", () => {
       customerPhone: "0555 111 22 33",
       deliveryAddress: "Bağdat Cad. 12, Kadıköy",
       note: "Zili çalma",
-      status: "KITCHEN_PREPARED",
+      status: "READY",
       courierName: "Ali Kurye",
       paymentMethod: "CASH_ON_DELIVERY",
     });

@@ -1,5 +1,11 @@
 import { isDeliveryOrder, orderLocationLabel, sortOrdersNewestFirst } from "@/lib/order-management";
-import { isCancelledOrderStatus, normalizeOrderStatus, waiterFlowColumn, waiterServiceColumn } from "@/lib/order-flow";
+import {
+  isCancelledOrderStatus,
+  normalizeOrderStatus,
+  orderIsMarketplace,
+  waiterFlowColumn,
+  waiterServiceColumn,
+} from "@/lib/order-flow";
 import type { OrderResponse } from "@/lib/ordering-api";
 
 export type WaiterShiftBoard = {
@@ -11,6 +17,17 @@ export type WaiterShiftBoard = {
 };
 
 /** Adisyon süreci sekmesinde yalnızca seçili masanın siparişleri. */
+export function filterOffTableBoard(board: WaiterShiftBoard): WaiterShiftBoard {
+  const offTable = (orders: OrderResponse[]) => orders.filter((order) => order.tableId == null);
+  return {
+    approve: offTable(board.approve),
+    cooking: offTable(board.cooking),
+    deliver: offTable(board.deliver),
+    delivered: [],
+    cancelled: [],
+  };
+}
+
 export function filterWaiterShiftBoard(
   board: WaiterShiftBoard,
   tableId: number | null | undefined,
@@ -31,16 +48,13 @@ const RANK: Record<string, number> = {
   CANCELLED: 99,
   REJECTED: 99,
   PENDING: 1,
-  SUBMITTED: 2,
-  KITCHEN_PREPARING: 3,
-  KITCHEN_PREPARED: 4,
-  KITCHEN_DELIVERED_TO_WAITER: 5,
-  KITCHEN_DELIVERED_TO_COURIER: 5,
-  WAITER_TAKEN: 6,
-  WAITER_DELIVERED_TO_CUSTOMER: 7,
-  WAITER_DELIVERED_TO_COURIER: 7,
-  COURIER_TAKEN: 7,
-  COURIER_DELIVERED_TO_CUSTOMER: 8,
+  CONFIRMED: 2,
+  PREPARING: 3,
+  READY: 4,
+  AWAITING_COURIER: 5,
+  ON_THE_WAY: 5,
+  DELIVERED: 8,
+  PAID: 9,
 };
 
 function norm(status: string | null | undefined): string {
@@ -78,10 +92,12 @@ function preferRicher(current: OrderResponse, incoming: OrderResponse): OrderRes
   };
 }
 
-function indexOrders(orders: OrderResponse[]): Map<number, OrderResponse> {
+function indexOrders(orders: OrderResponse[], kitchenEnabled: boolean, courierEnabled: boolean): Map<number, OrderResponse> {
   const byId = new Map<number, OrderResponse>();
   for (const order of orders) {
-    if (!isWaiterServiceOrder(order)) continue;
+    if (orderIsMarketplace(order)) continue;
+    const deliveryForWaiter = isDeliveryOrder(order) && (!kitchenEnabled || !courierEnabled);
+    if (!isWaiterServiceOrder(order) && !deliveryForWaiter) continue;
     const current = byId.get(order.id);
     byId.set(order.id, current ? preferRicher(current, order) : order);
   }
@@ -107,21 +123,28 @@ export function groupWaiterShift(input: {
   dismissedIds?: number[];
   /** Mutfak kapalıyken onaylı ve hazırlanan siparişler "cooking" listesinde, sunucu SERVED teslim edildi sayılır. */
   kitchenEnabled?: boolean;
+  /** Kurye kapalıyken paket garson panelinde biter. */
+  courierEnabled?: boolean;
 }): WaiterShiftBoard {
   const dismissed = new Set(input.dismissedIds ?? []);
   const kitchenEnabled = input.kitchenEnabled ?? true;
-  const merged = indexOrders([
+  const courierEnabled = input.courierEnabled !== false;
+  const merged = indexOrders(
+    [
     ...(input.today ?? []),
     ...(input.kitchen ?? []),
     ...(input.pending ?? []),
     ...(input.ready ?? []),
     ...(input.cancelledNow ?? []),
-  ]);
+    ],
+    kitchenEnabled,
+    courierEnabled,
+  );
 
   for (const order of input.servedNow ?? []) {
     if (!Number.isFinite(order.id)) continue;
     const current = merged.get(order.id);
-    const served = preferRicher(current ?? order, { ...order, status: "WAITER_TAKEN" });
+    const served = preferRicher(current ?? order, { ...order, status: order.status || "READY" });
     merged.set(order.id, served);
   }
 
@@ -133,6 +156,7 @@ export function groupWaiterShift(input: {
 
   for (const order of merged.values()) {
     if (dismissed.has(order.id)) continue;
+    if (orderIsMarketplace(order)) continue;
     if (isCancelledOrderStatus(order.status)) {
       cancelled.push(order);
       continue;

@@ -102,6 +102,27 @@ export async function POST(request: Request) {
         { status: merchantResponse.status || 404 },
       );
     }
+    const branchesResponse = await axios.get<
+      { content?: Array<{ courierEnabled?: boolean }> } | Array<{ courierEnabled?: boolean }>
+    >(`${API_BASE_URL}/branches`, {
+      headers: authHeaders,
+      validateStatus: () => true,
+      timeout: 20_000,
+    });
+    if (branchesResponse.status < 200 || branchesResponse.status >= 300) {
+      return NextResponse.json(
+        { message: upstreamMessage(branchesResponse.data, "Şube bilgisi alınamadı") },
+        { status: branchesResponse.status || 502 },
+      );
+    }
+    const branchList = Array.isArray(branchesResponse.data)
+      ? branchesResponse.data
+      : (branchesResponse.data?.content ?? []);
+    const courierOn = branchList.some((branch) => branch.courierEnabled === true);
+    if (!courierOn) {
+      return NextResponse.json({ message: "Bu şubede kurye kapalı. Paket sipariş açılamaz." }, { status: 409 });
+    }
+
     const handle = typeof merchantResponse.data?.handle === "string" ? merchantResponse.data.handle : "";
     const parsed = parseStoreHandle(handle);
     if (!parsed) {

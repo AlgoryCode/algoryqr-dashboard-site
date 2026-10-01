@@ -58,7 +58,7 @@ describe("store kitchen mapping", () => {
       deliveryType: "DELIVERY",
       deliveryAddress: "Bağdat Cad. 12, Kadıköy",
       note: "Zili çalma",
-      status: "KITCHEN_PREPARING",
+      status: "CONFIRMED",
     });
     expect(ticket.items?.[0]).toMatchObject({
       quantity: 1,

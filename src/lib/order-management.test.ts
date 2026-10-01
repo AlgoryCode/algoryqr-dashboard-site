@@ -66,7 +66,7 @@ describe("order management channel + search", () => {
 
   it("falls back to table / platform labels when source is missing", () => {
     expect(orderChannel(order({ id: 1, status: "CONFIRMED", tableName: "Masa 4" }))).toBe("QR");
-    expect(orderChannel(order({ id: 2, status: "CONFIRMED", tableName: "Uber Eats" }))).toBe("UBER_EATS");
+    expect(orderChannel(order({ id: 2, status: "CONFIRMED", tableName: "Uber Eats" }))).toBe("QR");
     expect(orderLocationLabel(order({ id: 3, status: "CONFIRMED", orderSource: "STORE", deliveryType: "PICKUP" }))).toBe(
       "Gel al",
     );
@@ -157,7 +157,7 @@ describe("order management filters and metrics", () => {
   it("builds kpis, channel flow for every integration and daily series", () => {
     const kpis = buildOrderKpis(sample, false);
     expect(kpis.totalOrders).toBe(4);
-    expect(kpis.openOrders).toBe(3);
+    expect(kpis.openOrders).toBe(2);
     expect(kpis.pendingOrders).toBe(0);
     expect(kpis.revenue).toBe(220);
 
@@ -179,8 +179,8 @@ describe("order management filters and metrics", () => {
       status: "open",
     });
     expect(buildOrderKpis(period, false).revenue).toBe(220);
-    expect(sumOrderRevenue(openList, false)).toBe(220);
-    expect(openList).toHaveLength(3);
+    expect(sumOrderRevenue(openList, false)).toBe(180);
+    expect(openList).toHaveLength(2);
   });
 
   it("sorts incoming orders newest first", () => {
@@ -415,8 +415,8 @@ describe("salon table order labels", () => {
         waiterId: 7,
       }),
     ];
-    expect(salonTableOrderStatusLabel(context[0], context)).toBe("Mutfaktan alınacak");
-    expect(salonTableOrderStatusLabel(context[1], context)).toBe("Ayşe");
+    expect(salonTableOrderStatusLabel(context[0], context)).toBe("Hazır");
+    expect(salonTableOrderStatusLabel(context[1], context)).toBe("Tamamlandı");
   });
 });
 
@@ -514,9 +514,9 @@ describe("earnings mix, top products and ops lanes", () => {
   it("routes kitchen, waiter and courier tickets into separate live lanes", () => {
     const lanes = groupOpsLaneOrders(mix);
     expect(lanes.kitchen.map((item) => item.id)).toEqual([5, 3, 2]);
-    expect(lanes.waiter.map((item) => item.id)).toEqual([1]);
+    expect(lanes.waiter.map((item) => item.id)).toEqual([]);
     expect(lanes.courier.map((item) => item.id)).toEqual([4]);
-    expect(opsLaneForOrder(mix[0])).toBe("waiter");
+    expect(opsLaneForOrder(mix[0])).toBeNull();
   });
 
   it("sends early statuses to waiter when kitchen is disabled", () => {
@@ -533,25 +533,25 @@ describe("earnings mix, top products and ops lanes", () => {
       tableName: "Masa 10",
     });
     expect(opsLaneForOrder(preparing, true)).toBe("kitchen");
-    expect(opsLaneForOrder(preparing, false)).toBe("waiter");
+    expect(opsLaneForOrder(preparing, false)).toBe("kitchen");
     expect(opsLaneForOrder(confirmed, false)).toBe("waiter");
 
     const lanesOff = groupOpsLaneOrders([preparing, confirmed], false);
-    expect(lanesOff.kitchen).toHaveLength(0);
-    expect(lanesOff.waiter.map((item) => item.id).sort()).toEqual([21, 22]);
+    expect(lanesOff.kitchen.map((item) => item.id)).toEqual([21]);
+    expect(lanesOff.waiter.map((item) => item.id)).toEqual([22]);
 
     const snapshotsOff = buildOpsLaneSnapshots([preparing, confirmed], false);
-    expect(snapshotsOff.kitchen.primary.count).toBe(0);
-    expect(snapshotsOff.waiter.primary.orders.map((item) => item.id).sort()).toEqual([21, 22]);
+    expect(snapshotsOff.kitchen.primary.orders.map((item) => item.id)).toEqual([21]);
+    expect(snapshotsOff.waiter.primary.orders.map((item) => item.id)).toEqual([22]);
   });
 
   it("lets the waiter hand a ready table or pickup order to the customer", () => {
     expect(
       canMarkServedToCustomer(order({ id: 1, status: "WAITER_TAKEN", orderSource: "QR", tableName: "masa-1" })),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       canMarkServedToCustomer(
-        order({ id: 2, status: "WAITER_TAKEN", orderSource: "STORE", deliveryType: "PICKUP" }),
+        order({ id: 2, status: "READY", orderSource: "STORE", deliveryType: "PICKUP" }),
       ),
     ).toBe(true);
     expect(
@@ -640,11 +640,11 @@ describe("earnings mix, top products and ops lanes", () => {
     const snapshots = buildOpsLaneSnapshots(tracked);
     expect(snapshots.kitchen.primary).toMatchObject({ label: "bekleyen", count: 2 });
     expect(snapshots.kitchen.secondary).toMatchObject({ label: "hazır", count: 6 });
-    expect(snapshots.waiter.primary).toMatchObject({ label: "teslim edilecek", count: 5 });
-    expect(snapshots.waiter.secondary).toMatchObject({ label: "teslim edilen", count: 1 });
+    expect(snapshots.waiter.primary).toMatchObject({ label: "teslim edilecek", count: 1 });
+    expect(snapshots.waiter.secondary).toMatchObject({ label: "teslim edilen", count: 5 });
     expect(snapshots.courier.primary).toMatchObject({ label: "dağıtımda", count: 4 });
     expect(snapshots.courier.secondary).toMatchObject({ label: "teslim edilen", count: 2 });
-    expect(snapshots.courier.extra).toMatchObject({ label: "teslim alınacak", count: 5 });
+    expect(snapshots.courier.extra).toMatchObject({ label: "teslim alınacak", count: 0 });
     expect(snapshots.kitchen.primary.orders.map((item) => item.id)).toEqual([11]);
   });
 

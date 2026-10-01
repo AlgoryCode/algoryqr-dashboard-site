@@ -97,9 +97,10 @@ export function courierElapsedMinutes(
   now: number,
 ): number | null {
   const norm = normalizeOrderStatus(order.status, true);
-  const start = norm === "COURIER_TAKEN" || norm === "COURIER_DELIVERED_TO_CUSTOMER"
-    ? order.dispatchedAt || courierTicketStartedAt(order)
-    : courierTicketStartedAt(order);
+  const start =
+    norm === "ON_THE_WAY" || norm === "DELIVERED"
+      ? order.dispatchedAt || courierTicketStartedAt(order)
+      : courierTicketStartedAt(order);
   if (!start) return null;
   const startMs = new Date(start).getTime();
   if (Number.isNaN(startMs)) return null;
@@ -114,7 +115,7 @@ export function isCourierTicketDelayed(
   slaMinutes = COURIER_KANBAN_SLA_MINUTES,
 ): boolean {
   const norm = normalizeOrderStatus(order.status, true);
-  if (norm === "COURIER_DELIVERED_TO_CUSTOMER" || norm === "KITCHEN_PREPARING") return false;
+  if (norm === "DELIVERED" || norm === "PREPARING") return false;
   const minutes = courierElapsedMinutes(order, now);
   return minutes != null && minutes >= slaMinutes;
 }
@@ -138,7 +139,7 @@ export function courierTicketElapsedLabel(
 ): string | null {
   const norm = normalizeOrderStatus(order.status, true);
   const start =
-    norm === "COURIER_TAKEN" || norm === "COURIER_DELIVERED_TO_CUSTOMER"
+    norm === "ON_THE_WAY" || norm === "DELIVERED"
       ? order.dispatchedAt || courierTicketStartedAt(order)
       : courierTicketStartedAt(order);
   if (!start) return null;
@@ -151,9 +152,15 @@ export function courierPrimaryAction(
   order: Pick<CourierTicket, "status">,
 ): { action: "dispatch" | "deliver"; label: string } | null {
   const norm = normalizeOrderStatus(order.status, true);
-  if (norm === "KITCHEN_PREPARED" || norm === "KITCHEN_DELIVERED_TO_COURIER" || norm === "WAITER_DELIVERED_TO_COURIER") {
-    return { action: "dispatch", label: "Yola çık" };
-  }
-  if (norm === "COURIER_TAKEN") return { action: "deliver", label: "Teslim edildi" };
+  if (norm === "AWAITING_COURIER") return { action: "dispatch", label: "Teslim aldım" };
+  if (norm === "ON_THE_WAY") return { action: "deliver", label: "Teslim ettim" };
   return null;
+}
+
+export function courierCanAct(
+  order: Pick<CourierTicket, "status" | "courierStaffId">,
+  staffId?: number | null,
+): { action: "dispatch" | "deliver"; label: string } | null {
+  if (staffId == null || order.courierStaffId !== staffId) return null;
+  return courierPrimaryAction(order);
 }

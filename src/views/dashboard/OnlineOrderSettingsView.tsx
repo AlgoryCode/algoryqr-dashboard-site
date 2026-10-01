@@ -10,8 +10,10 @@ import { StoreLinkCard } from "@/components/dashboard/store/StoreLinkCard";
 import { StoreWorkingHoursEditor } from "@/components/dashboard/store/StoreWorkingHoursEditor";
 import { Button } from "@/components/ui/button";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
+import { useBranches } from "@/hooks/use-branches";
 import { STORE_QUERY_KEYS, useMyStore } from "@/hooks/use-store";
 import { ApiError } from "@/lib/api";
+import { anyBranchHasCourier } from "@/lib/branch";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { DASHBOARD_BACK, DASHBOARD_PANEL } from "@/lib/dashboard-surface";
 import {
@@ -22,13 +24,15 @@ import {
   type StorePaymentMethod,
   type StoreUpdatePayload,
 } from "@/lib/store-api";
-import { STORE_DELIVERY_TYPE_LABEL, STORE_PAYMENT_METHOD_LABEL } from "@/lib/store-ui";
+import { STORE_DELIVERY_TYPE_LABEL, STORE_PAYMENT_METHOD_LABEL, storeDeliveryTypesForCourier } from "@/lib/store-ui";
 import { cn } from "@/lib/utils";
 
 export default function OnlineOrderSettingsView() {
   const queryClient = useQueryClient();
   const { notify } = useDashboardBanners();
   const { merchant, isLoading } = useMyStore();
+  const branchesQuery = useBranches();
+  const courierEnabled = branchesQuery.isSuccess && anyBranchHasCourier(branchesQuery.data);
 
   const [business, setBusiness] = useState<StoreBusinessInfo | null>(null);
   const [delivery, setDelivery] = useState<StoreDeliverySettings | null>(null);
@@ -92,7 +96,15 @@ export default function OnlineOrderSettingsView() {
         action={
           <Button
             disabled={saveMutation.isPending}
-            onClick={() => saveMutation.mutate({ business, delivery })}
+            onClick={() =>
+              saveMutation.mutate({
+                business,
+                delivery: {
+                  ...delivery,
+                  deliveryTypes: storeDeliveryTypesForCourier(delivery.deliveryTypes, courierEnabled),
+                },
+              })
+            }
           >
             {saveMutation.isPending ? "Kaydediliyor…" : "Kaydet"}
           </Button>
@@ -231,9 +243,12 @@ export default function OnlineOrderSettingsView() {
             {(Object.keys(STORE_DELIVERY_TYPE_LABEL) as StoreDeliveryType[]).map((type) => (
               <TogglePill
                 key={type}
-                selected={delivery.deliveryTypes.includes(type)}
+                selected={delivery.deliveryTypes.includes(type) && (type !== "DELIVERY" || courierEnabled)}
                 label={STORE_DELIVERY_TYPE_LABEL[type]}
-                onToggle={() => updateDelivery({ deliveryTypes: toggleValue(delivery.deliveryTypes, type) })}
+                onToggle={() => {
+                  if (type === "DELIVERY" && !courierEnabled) return;
+                  updateDelivery({ deliveryTypes: toggleValue(delivery.deliveryTypes, type) });
+                }}
               />
             ))}
           </div>

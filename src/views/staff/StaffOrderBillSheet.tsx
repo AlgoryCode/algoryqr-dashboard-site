@@ -19,7 +19,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { waiterCanCollectOnOrders } from "@/lib/order-flow";
+import { ordersToDeliverOnBillClose, ordersToMarkPaidOnBillClose, ordersToRestoreOnPaymentReverse } from "@/lib/bill-auto-serve";
+import { forceOrderFlowStatus, waiterCanCollectOnOrders } from "@/lib/order-flow";
 import { orderLocationLabel } from "@/lib/order-management";
 import type { OrderResponse } from "@/lib/ordering-api";
 import { billToReceipt, printReceiptInBrowser } from "@/lib/receipt-ticket";
@@ -27,6 +28,7 @@ import {
   closeWaiterBill,
   getWaiterBill,
   getWaiterOpenBill,
+  markWaiterServiceDelivered,
   payWaiterBillItems,
   payWaiterBillShare,
   reverseWaiterBillPayment,
@@ -161,8 +163,9 @@ export function StaffOrderBillSheet({
     onMutate: (action) => {
       setBillError(null);
       if (action.kind === "reverse") setReversingPaymentId(action.paymentId);
+      return { wasClosed: bill?.status === "CLOSED" };
     },
-    onSuccess: async (updated) => {
+    onSuccess: async (updated, action, context) => {
       if (updated.id) {
         fallbackBillIdRef.current = updated.id;
         if (updated.status === "CLOSED" && tableId != null) {
@@ -173,6 +176,31 @@ export function StaffOrderBillSheet({
       setPayItem(null);
       setReversingPaymentId(null);
       setCloseOpen(false);
+      const liveOrders = tableOrders?.length ? tableOrders : order ? [order] : [];
+      if (action.kind === "closeFull" && updated.status === "CLOSED" && kitchenEnabled) {
+        const failures = await Promise.all(
+          ordersToDeliverOnBillClose(liveOrders, kitchenEnabled).map(async (item) => {
+            try {
+              await markWaiterServiceDelivered(item.id);
+              return null;
+            } catch (err) {
+              return err instanceof Error ? err.message : "Sipariş teslim edilemedi";
+            }
+          }),
+        );
+        const failed = failures.find((item) => item != null);
+        if (failed) setBillError(failed);
+      }
+      if (action.kind === "closeFull" && updated.status === "CLOSED") {
+        for (const item of ordersToMarkPaidOnBillClose(liveOrders, kitchenEnabled)) {
+          forceOrderFlowStatus(item.id, "PAID");
+        }
+      }
+      if (action.kind === "reverse" && context?.wasClosed && updated.status !== "CLOSED") {
+        for (const item of ordersToRestoreOnPaymentReverse(liveOrders, kitchenEnabled)) {
+          forceOrderFlowStatus(item.id, item.status);
+        }
+      }
       if (updated.status === "CLOSED") {
         onBillUpdated?.();
         return;

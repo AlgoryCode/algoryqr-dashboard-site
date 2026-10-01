@@ -5,36 +5,43 @@ import {
   canWaiterCollectPayment,
   clearOrderFlowMemory,
   courierOrderActions,
+  forceOrderFlowStatus,
   isOrderCancellable,
   kitchenOrderActions,
   nextOrderActions,
   normalizeOrderStatus,
+  orderBlocksWaiterPayment,
   orderCancelReasonLabel,
   orderCancelReasonText,
-  orderBlocksWaiterPayment,
   resolveOrderStatus,
+  serverReachedStatus,
   stampOrderFlow,
   waiterCanCollectOnOrders,
+  waiterModeActions,
   waiterOrderActions,
   waiterServiceActions,
   waiterServiceColumn,
   waiterServiceStatusLabel,
 } from "./order-flow";
+import { ordersToDeliverOnBillClose, ordersToMarkPaidOnBillClose, ordersToRestoreOnPaymentReverse } from "./bill-auto-serve";
 
 const kitchenOn = { kitchenEnabled: true, courierEnabled: true, delivery: false };
-const deliveryOn = { kitchenEnabled: true, courierEnabled: true, delivery: true };
+const deliveryOn = { kitchenEnabled: true, courierEnabled: true, delivery: true, addressPresent: true };
 const kitchenOff = { kitchenEnabled: false, courierEnabled: true, delivery: false };
-const courierOff = { kitchenEnabled: true, courierEnabled: false, delivery: true };
+const packageKitchenOff = { kitchenEnabled: false, courierEnabled: true, delivery: true, addressPresent: true };
+const courierOff = { kitchenEnabled: true, courierEnabled: false, delivery: true, addressPresent: true };
+const pickupOn = { kitchenEnabled: true, courierEnabled: true, delivery: false, pickup: true };
+const marketplace = { kitchenEnabled: true, courierEnabled: true, delivery: true, marketplace: true };
 
 describe("order cancel", () => {
-  it("allows cancelling until the ticket leaves the kitchen", () => {
+  it("allows cancelling until the courier has taken the package", () => {
     expect(isOrderCancellable("SUBMITTED")).toBe(true);
     expect(isOrderCancellable("CONFIRMED")).toBe(true);
     expect(isOrderCancellable("PREPARING")).toBe(true);
     expect(isOrderCancellable("READY")).toBe(true);
-    expect(isOrderCancellable("KITCHEN_DELIVERED_TO_WAITER")).toBe(true);
-    expect(isOrderCancellable("SERVED")).toBe(false);
-    expect(isOrderCancellable("COURIER_TAKEN", true)).toBe(false);
+    expect(isOrderCancellable("AWAITING_COURIER", true)).toBe(true);
+    expect(isOrderCancellable("ON_THE_WAY", true)).toBe(false);
+    expect(isOrderCancellable("DELIVERED")).toBe(false);
     expect(isOrderCancellable("CANCELLED")).toBe(false);
   });
 
@@ -47,156 +54,176 @@ describe("order cancel", () => {
   });
 });
 
-describe("table orders and couriers", () => {
-  it("offers no courier step for a table order on the kitchen or waiter screen", () => {
-    const courierActions = new Set(["markKitchenDeliveredToCourier", "markWaiterDeliveredToCourier"]);
-    for (const status of ["KITCHEN_PREPARED", "WAITER_TAKEN"]) {
-      expect(kitchenOrderActions(status, kitchenOn).some((item) => courierActions.has(item.action))).toBe(false);
-      expect(waiterOrderActions(status, kitchenOn).some((item) => courierActions.has(item.action))).toBe(false);
-    }
-  });
-});
-
 describe("normalizeOrderStatus", () => {
-  it("maps legacy kitchen and handover statuses", () => {
-    expect(normalizeOrderStatus("CONFIRMED")).toBe("KITCHEN_PREPARING");
-    expect(normalizeOrderStatus("PREPARING")).toBe("KITCHEN_PREPARING");
-    expect(normalizeOrderStatus("READY")).toBe("KITCHEN_PREPARED");
-    expect(normalizeOrderStatus("SERVED")).toBe("WAITER_TAKEN");
-    expect(normalizeOrderStatus("ON_THE_WAY")).toBe("COURIER_TAKEN");
-    expect(normalizeOrderStatus("DELIVERED", true)).toBe("COURIER_DELIVERED_TO_CUSTOMER");
-    expect(normalizeOrderStatus("DELIVERED", false)).toBe("WAITER_DELIVERED_TO_CUSTOMER");
-    expect(normalizeOrderStatus("PENDING")).toBe("PENDING");
-    expect(normalizeOrderStatus("KITCHEN_PREPARED")).toBe("KITCHEN_PREPARED");
+  it("folds actor statuses into the short list", () => {
+    expect(normalizeOrderStatus("CONFIRMED")).toBe("CONFIRMED");
+    expect(normalizeOrderStatus("SUBMITTED")).toBe("PENDING");
+    expect(normalizeOrderStatus("KITCHEN_PREPARING")).toBe("PREPARING");
+    expect(normalizeOrderStatus("KITCHEN_PREPARED")).toBe("READY");
+    expect(normalizeOrderStatus("KITCHEN_DELIVERED_TO_WAITER")).toBe("READY");
+    expect(normalizeOrderStatus("WAITER_TAKEN")).toBe("READY");
+    expect(normalizeOrderStatus("SERVED")).toBe("DELIVERED");
+    expect(normalizeOrderStatus("KITCHEN_DELIVERED_TO_COURIER")).toBe("AWAITING_COURIER");
+    expect(normalizeOrderStatus("WAITER_DELIVERED_TO_COURIER")).toBe("AWAITING_COURIER");
+    expect(normalizeOrderStatus("COURIER_TAKEN")).toBe("ON_THE_WAY");
+    expect(normalizeOrderStatus("COURIER_DELIVERED_TO_CUSTOMER")).toBe("DELIVERED");
+    expect(normalizeOrderStatus("WAITER_DELIVERED_TO_CUSTOMER")).toBe("DELIVERED");
   });
 });
 
 describe("nextOrderActions", () => {
-  it("walks a table order through the kitchen and the waiter", () => {
-    expect(nextOrderActions("PENDING", kitchenOn).map((item) => item.action)).toEqual([
-      "markKitchenPreparing",
-    ]);
-    expect(nextOrderActions("KITCHEN_PREPARING", kitchenOn).map((item) => item.status)).toEqual([
-      "KITCHEN_PREPARED",
-    ]);
-    expect(nextOrderActions("KITCHEN_PREPARED", kitchenOn).map((item) => item.action)).toEqual([
-      "markKitchenDeliveredToWaiter",
-    ]);
-    expect(nextOrderActions("KITCHEN_DELIVERED_TO_WAITER", kitchenOn).map((item) => item.action)).toEqual([
-      "markWaiterTaken",
-    ]);
-    expect(nextOrderActions("WAITER_TAKEN", kitchenOn).map((item) => item.action)).toEqual([
-      "markWaiterDeliveredToCustomer",
-    ]);
-    expect(nextOrderActions("WAITER_DELIVERED_TO_CUSTOMER", kitchenOn)).toEqual([]);
+  it("keeps approval off the kitchen and stops a table ticket at ready", () => {
+    expect(nextOrderActions("PENDING", kitchenOn)).toEqual([]);
+    expect(nextOrderActions("CONFIRMED", kitchenOn).map((item) => item.status)).toEqual(["PREPARING"]);
+    expect(nextOrderActions("PREPARING", kitchenOn).map((item) => item.action)).toEqual(["markKitchenPrepared"]);
+    expect(nextOrderActions("READY", kitchenOn)).toEqual([]);
+    expect(nextOrderActions("DELIVERED", kitchenOn)).toEqual([]);
   });
 
-  it("offers both courier handoffs when the kitchen and courier are open", () => {
+  it("releases a delivery from ready to the courier queue and no further backward step", () => {
     expect(nextOrderActions("READY", deliveryOn).map((item) => item.action)).toEqual([
       "markKitchenDeliveredToCourier",
-      "markKitchenDeliveredToWaiter",
     ]);
-    expect(nextOrderActions("WAITER_TAKEN", deliveryOn).map((item) => item.action)).toEqual([
-      "markWaiterDeliveredToCourier",
-    ]);
-    expect(nextOrderActions("COURIER_TAKEN", deliveryOn).map((item) => item.status)).toEqual([
-      "COURIER_DELIVERED_TO_CUSTOMER",
-    ]);
-  });
-
-  it("skips the kitchen when it is closed", () => {
-    expect(nextOrderActions("PENDING", kitchenOff).map((item) => item.status)).toEqual(["WAITER_TAKEN"]);
-    expect(nextOrderActions("KITCHEN_PREPARING", kitchenOff).map((item) => item.action)).toEqual([
-      "markWaiterTaken",
-    ]);
-    expect(kitchenOrderActions("PENDING", kitchenOff)).toEqual([]);
-    expect(nextOrderActions("WAITER_TAKEN", kitchenOff).map((item) => item.action)).toEqual([
-      "markWaiterDeliveredToCustomer",
-    ]);
-  });
-
-  it("drops courier actions when the courier is closed", () => {
-    expect(nextOrderActions("KITCHEN_PREPARED", courierOff).map((item) => item.action)).toEqual([
-      "markKitchenDeliveredToWaiter",
-    ]);
-    expect(courierOrderActions("COURIER_TAKEN", courierOff)).toEqual([]);
-    expect(nextOrderActions("WAITER_TAKEN", courierOff).map((item) => item.action)).toEqual([
-      "markWaiterDeliveredToCustomer",
-    ]);
-  });
-
-  it("lets the kitchen pick up confirmed tickets before marking them ready", () => {
-    expect(kitchenOrderActions("CONFIRMED", kitchenOn).map((item) => item.action)).toEqual([
-      "markKitchenPreparing",
-    ]);
-    expect(kitchenOrderActions("PREPARING", kitchenOn).map((item) => item.action)).toEqual([
-      "markKitchenPrepared",
-    ]);
-    expect(kitchenOrderActions("CONFIRMED", kitchenOff)).toEqual([]);
-  });
-
-  it("splits actions by actor", () => {
-    expect(kitchenOrderActions("KITCHEN_PREPARED", deliveryOn).map((item) => item.action)).toEqual([
+    expect(nextOrderActions("READY", { ...deliveryOn, addressPresent: false }).map((item) => item.action)).toEqual([
       "markKitchenDeliveredToCourier",
-      "markKitchenDeliveredToWaiter",
     ]);
-    expect(waiterOrderActions("KITCHEN_DELIVERED_TO_WAITER", kitchenOn).map((item) => item.action)).toEqual([
-      "markWaiterTaken",
+    expect(nextOrderActions("AWAITING_COURIER", deliveryOn).map((item) => item.action)).toEqual(["markCourierTaken"]);
+    expect(nextOrderActions("ON_THE_WAY", deliveryOn).map((item) => item.action)).toEqual([
+      "markCourierDeliveredToCustomer",
+      "markCourierRelease",
     ]);
-    expect(courierOrderActions("KITCHEN_DELIVERED_TO_COURIER", deliveryOn).map((item) => item.action)).toEqual([
+  });
+
+  it("does not send a table or a closed courier module onto the courier queue", () => {
+    expect(nextOrderActions("READY", kitchenOn).some((item) => item.action === "markKitchenDeliveredToCourier")).toBe(
+      false,
+    );
+    expect(nextOrderActions("READY", courierOff).map((item) => item.action)).toEqual([
+      "markWaiterDeliveredToCustomer",
+    ]);
+    expect(
+      nextOrderActions("CONFIRMED", { kitchenEnabled: false, courierEnabled: false, delivery: true }).map(
+        (item) => item.action,
+      ),
+    ).toEqual(["markWaiterDeliveredToCustomer"]);
+    expect(courierOrderActions("ON_THE_WAY", courierOff).map((item) => item.action)).toEqual([
+      "markCourierDeliveredToCustomer",
+    ]);
+    expect(courierOrderActions("AWAITING_COURIER", courierOff).map((item) => item.action)).toEqual([
       "markCourierTaken",
+    ]);
+  });
+
+  it("walks a kitchen-off package through ready before the courier", () => {
+    expect(nextOrderActions("CONFIRMED", packageKitchenOff).map((item) => item.action)).toEqual(["markReady"]);
+    expect(nextOrderActions("READY", packageKitchenOff).map((item) => item.status)).toEqual(["AWAITING_COURIER"]);
+    expect(nextOrderActions("CONFIRMED", kitchenOff).map((item) => item.label)).toEqual(["Servis et"]);
+  });
+
+  it("hands a kitchen-off pickup to the customer in one step", () => {
+    const pickupOff = { kitchenEnabled: false, courierEnabled: false, delivery: false, pickup: true };
+    expect(nextOrderActions("CONFIRMED", pickupOff).map((item) => item.action)).toEqual([
+      "markWaiterDeliveredToCustomer",
+    ]);
+    expect(waiterModeActions("PREPARING", kitchenOff).map((item) => item.action)).toEqual(["markKitchenPrepared"]);
+    expect(nextOrderActions("CONFIRMED", packageKitchenOff).map((item) => item.action)).toEqual(["markReady"]);
+  });
+
+  it("accepts a server status only when it reached the step", () => {
+    expect(serverReachedStatus("KITCHEN_PREPARED", "READY")).toBe(true);
+    expect(serverReachedStatus("READY", "AWAITING_COURIER")).toBe(false);
+    expect(serverReachedStatus("AWAITING_COURIER", "AWAITING_COURIER")).toBe(true);
+  });
+
+  it("hands a pickup to the customer from ready", () => {
+    expect(nextOrderActions("READY", pickupOn).map((item) => item.action)).toEqual(["markWaiterDeliveredToCustomer"]);
+    expect(waiterOrderActions("READY", pickupOn).map((item) => item.label)).toEqual(["Müşteriye ver"]);
+  });
+
+  it("lets the kitchen start confirmed tickets and finish marketplace tickets without a branch courier", () => {
+    expect(kitchenOrderActions("CONFIRMED", kitchenOn).map((item) => item.action)).toEqual(["markKitchenPreparing"]);
+    expect(kitchenOrderActions("PREPARING", kitchenOn).map((item) => item.action)).toEqual(["markKitchenPrepared"]);
+    expect(kitchenOrderActions("CONFIRMED", kitchenOff)).toEqual([]);
+    expect(nextOrderActions("READY", marketplace)).toEqual([]);
+    expect(courierOrderActions("AWAITING_COURIER", marketplace)).toEqual([]);
+    expect(kitchenOrderActions("CONFIRMED", marketplace).map((item) => item.action)).toEqual([
+      "markKitchenPreparing",
+      "markKitchenPrepared",
     ]);
   });
 });
 
 describe("waiter payment", () => {
-  it("opens only after the waiter has taken the order", () => {
-    expect(canWaiterCollectPayment("KITCHEN_PREPARING")).toBe(false);
-    expect(canWaiterCollectPayment("KITCHEN_DELIVERED_TO_WAITER")).toBe(false);
-    expect(canWaiterCollectPayment("READY")).toBe(false);
-    expect(canWaiterCollectPayment("WAITER_TAKEN")).toBe(true);
-    expect(canWaiterCollectPayment("SERVED")).toBe(true);
-    expect(canWaiterCollectPayment("WAITER_DELIVERED_TO_CUSTOMER")).toBe(true);
-    expect(canWaiterCollectPayment("WAITER_DELIVERED_TO_COURIER")).toBe(true);
-    expect(orderBlocksWaiterPayment("KITCHEN_PREPARED")).toBe(true);
+  it("opens for a ready table ticket and stays shut while the kitchen is still working", () => {
+    expect(canWaiterCollectPayment("PREPARING")).toBe(false);
+    expect(canWaiterCollectPayment("CONFIRMED", false, true)).toBe(false);
+    expect(canWaiterCollectPayment("CONFIRMED", false, false)).toBe(true);
+    expect(canWaiterCollectPayment("PREPARING", false, false)).toBe(true);
+    expect(canWaiterCollectPayment("READY")).toBe(true);
+    expect(canWaiterCollectPayment("DELIVERED")).toBe(false);
+    expect(canWaiterCollectPayment("READY", true)).toBe(false);
+    expect(orderBlocksWaiterPayment("PREPARING")).toBe(true);
     expect(orderBlocksWaiterPayment("CANCELLED")).toBe(false);
+    expect(orderBlocksWaiterPayment("ON_THE_WAY", true)).toBe(false);
   });
 
-  it("blocks the bill while any ticket is still in the kitchen", () => {
-    expect(
-      waiterCanCollectOnOrders([
-        { status: "WAITER_TAKEN" },
-        { status: "KITCHEN_PREPARING" },
-      ]),
-    ).toBe(false);
-    expect(
-      waiterCanCollectOnOrders([{ status: "WAITER_TAKEN" }, { status: "WAITER_DELIVERED_TO_CUSTOMER" }]),
-    ).toBe(true);
-  });
-
-  it("lets the waiter close the bill at any stage when the kitchen is off", () => {
+  it("blocks a full close while any table ticket is still in the kitchen", () => {
+    expect(waiterCanCollectOnOrders([{ status: "READY" }, { status: "PREPARING" }])).toBe(false);
+    expect(waiterCanCollectOnOrders([{ status: "READY" }, { status: "DELIVERED" }])).toBe(true);
     expect(waiterCanCollectOnOrders([{ status: "CONFIRMED" }, { status: "PREPARING" }], false)).toBe(true);
+    expect(waiterCanCollectOnOrders([{ status: "CONFIRMED" }], false)).toBe(true);
+    expect(orderBlocksWaiterPayment("CONFIRMED", false, true, "WAITER")).toBe(false);
+    expect(waiterCanCollectOnOrders([{ status: "CONFIRMED", orderSource: "WAITER" }], true)).toBe(true);
+    expect(waiterCanCollectOnOrders([{ status: "PREPARING", orderSource: "QR" }], true)).toBe(false);
+  });
+});
+
+describe("bill close and payment reversal", () => {
+  const table = { id: 1, status: "READY", deliveryType: null, orderSource: "QR" };
+  const cooking = { id: 2, status: "PREPARING", deliveryType: null, orderSource: "QR" };
+  const pickup = { id: 3, status: "READY", deliveryType: "PICKUP", orderSource: "STORE" };
+  const parcel = { id: 4, status: "READY", deliveryType: "DELIVERY", orderSource: "STORE" };
+
+  it("marks only finished table orders delivered when the bill closes", () => {
+    expect(ordersToDeliverOnBillClose([table, cooking, pickup, parcel], true).map((item) => item.id)).toEqual([1]);
+    expect(ordersToDeliverOnBillClose([table, cooking, pickup, parcel], false).map((item) => item.id)).toEqual([1, 2]);
+    expect(ordersToDeliverOnBillClose([{ ...table, status: "CONFIRMED" }], false).map((item) => item.id)).toEqual([1]);
+    expect(ordersToDeliverOnBillClose([cooking], false).map((item) => item.id)).toEqual([2]);
+    expect(
+      ordersToMarkPaidOnBillClose(
+        [{ id: 8, status: "CONFIRMED", deliveryType: null, orderSource: "WAITER" }],
+        true,
+      ).map((item) => item.id),
+    ).toEqual([8]);
+    expect(ordersToMarkPaidOnBillClose([table], true)).toEqual([]);
+    expect(ordersToMarkPaidOnBillClose([{ ...table, status: "CONFIRMED" }], false).map((item) => item.id)).toEqual([1]);
+  });
+
+  it("sends a reversed table delivery back to the queue", () => {
+    expect(
+      ordersToRestoreOnPaymentReverse([{ ...table, status: "DELIVERED" }, pickup, parcel], true).map((item) => item.status),
+    ).toEqual(["READY"]);
+    expect(ordersToRestoreOnPaymentReverse([{ ...table, status: "DELIVERED" }], false)[0]?.status).toBe("CONFIRMED");
+    expect(ordersToRestoreOnPaymentReverse([{ ...table, status: "PAID" }], false)[0]?.status).toBe("CONFIRMED");
   });
 });
 
 describe("kitchen-off table service", () => {
-  it("offers preparing and delivered as optional steps from confirmed", () => {
-    expect(waiterServiceActions("CONFIRMED")).toEqual(["markServicePreparing", "markServiceDelivered"]);
-    expect(waiterServiceActions("KITCHEN_PREPARING")).toEqual(["markServiceDelivered"]);
-    expect(waiterServiceActions("READY")).toEqual(["markServiceDelivered"]);
-    expect(waiterServiceActions("SERVED")).toEqual([]);
-    expect(waiterServiceActions("SUBMITTED")).toEqual([]);
-  });
-
-  it("treats a served order as delivered to the customer", () => {
+  it("serves a confirmed table order and treats a closed bill as paid", () => {
+    const tableOff = { kitchenEnabled: false, courierEnabled: false, delivery: false };
+    expect(waiterServiceActions("CONFIRMED")).toEqual([]);
+    expect(nextOrderActions("CONFIRMED", tableOff).map((item) => item.action)).toEqual([
+      "markWaiterDeliveredToCustomer",
+    ]);
+    expect(nextOrderActions("SERVED", tableOff)).toEqual([]);
+    expect(nextOrderActions("PAID", tableOff)).toEqual([]);
     expect(waiterServiceColumn("SUBMITTED")).toBe("approve");
     expect(waiterServiceColumn("CONFIRMED")).toBe("service");
-    expect(waiterServiceColumn("PREPARING")).toBe("service");
     expect(waiterServiceColumn("SERVED")).toBe("delivered");
-    expect(waiterServiceColumn("WAITER_DELIVERED_TO_CUSTOMER")).toBe("delivered");
+    expect(waiterServiceColumn("PAID")).toBe("delivered");
     expect(waiterServiceStatusLabel("CONFIRMED")).toBe("Onaylandı");
-    expect(waiterServiceStatusLabel("PREPARING")).toBe("Hazırlanıyor");
-    expect(waiterServiceStatusLabel("SERVED")).toBe("Teslim edildi");
+    expect(waiterServiceStatusLabel("SERVED")).toBe("Servis edildi");
+    expect(waiterServiceStatusLabel("PAID")).toBe("Ödeme alındı");
   });
 });
 
@@ -206,10 +233,17 @@ describe("resolveOrderStatus", () => {
   });
 
   it("keeps a dashboard status until the server catches up", () => {
-    const stamped = stampOrderFlow({ id: 4, status: "READY", deliveryType: null }, "KITCHEN_DELIVERED_TO_WAITER");
-    expect(stamped.status).toBe("KITCHEN_DELIVERED_TO_WAITER");
-    expect(resolveOrderStatus({ id: 4, status: "READY" })).toBe("KITCHEN_DELIVERED_TO_WAITER");
-    expect(resolveOrderStatus({ id: 4, status: "SERVED" })).toBe("WAITER_TAKEN");
+    const stamped = stampOrderFlow({ id: 4, status: "READY", deliveryType: null }, "AWAITING_COURIER");
+    expect(stamped.status).toBe("AWAITING_COURIER");
+    expect(resolveOrderStatus({ id: 4, status: "READY" })).toBe("AWAITING_COURIER");
+    expect(resolveOrderStatus({ id: 4, status: "ON_THE_WAY" })).toBe("ON_THE_WAY");
+  });
+
+  it("keeps a restored queue status after a payment reversal", () => {
+    forceOrderFlowStatus(9, "READY");
+    expect(resolveOrderStatus({ id: 9, status: "DELIVERED" })).toBe("READY");
+    expect(resolveOrderStatus({ id: 9, status: "READY" })).toBe("READY");
+    expect(resolveOrderStatus({ id: 9, status: "READY" })).toBe("READY");
   });
 });
 
@@ -220,11 +254,11 @@ describe("applyKitchenOrderFlow", () => {
 
   it("keeps fresh confirmed tickets out of the preparing lane", () => {
     expect(applyKitchenOrderFlow({ id: 7, status: "CONFIRMED" }).status).toBe("CONFIRMED");
-    expect(applyKitchenOrderFlow({ id: 7, status: "PREPARING" }).status).toBe("KITCHEN_PREPARING");
+    expect(applyKitchenOrderFlow({ id: 7, status: "PREPARING" }).status).toBe("PREPARING");
   });
 
   it("honours a status the kitchen just wrote", () => {
-    stampOrderFlow({ id: 8, status: "CONFIRMED", deliveryType: null }, "KITCHEN_PREPARED");
-    expect(applyKitchenOrderFlow({ id: 8, status: "CONFIRMED" }).status).toBe("KITCHEN_PREPARED");
+    stampOrderFlow({ id: 8, status: "CONFIRMED", deliveryType: null }, "READY");
+    expect(applyKitchenOrderFlow({ id: 8, status: "CONFIRMED" }).status).toBe("READY");
   });
 });

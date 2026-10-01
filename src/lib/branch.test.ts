@@ -182,4 +182,11 @@ describe("courier enablement", () => {
     expect(isBranchCourierEnabled(branch({ courierEnabled: true }))).toBe(true);
     expect(anyBranchHasCourier([branch(), branch({ id: 2, courierEnabled: true })])).toBe(true);
   });
+
+  it("reads courier and kitchen flags from a branch page", () => {
+    const page = { content: [branch(), branch({ id: 2, courierEnabled: true, kitchenEnabled: true })] };
+    expect(anyBranchHasCourier(page)).toBe(true);
+    expect(anyBranchHasKitchen(page)).toBe(true);
+    expect(anyBranchHasCourier({ content: [branch()] })).toBe(false);
+  });
 });

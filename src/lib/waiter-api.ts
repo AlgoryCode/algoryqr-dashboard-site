@@ -4,14 +4,14 @@ import {
   applyOrderFlow,
   forgetOrderFlowStatus,
   ORDER_FLOW_ACTION_STATUS,
-  stampOrderFlow,
+  serverReachedStatus,
   waiterHttpStep,
   type KitchenRevertTarget,
   type OrderCancelRequest,
   type OrderFlowAction,
 } from "@/lib/order-flow";
 import { asCourierTickets, type CourierTicket } from "@/lib/store-courier";
-import { asKitchenTickets } from "@/lib/store-kitchen";
+import { asKitchenTickets, type KitchenCourierOption } from "@/lib/store-kitchen";
 
 export type MenuOwnerSummary = {
   id: number;
@@ -281,7 +281,14 @@ export async function resolveStaffSession(): Promise<{ me: WaiterMe; app: StaffA
     if (!response.ok) continue;
     const me = await parseJson<WaiterMe>(response);
     rememberStaffApp(app);
-    return { me, app };
+    return {
+      me: {
+        ...me,
+        kitchenEnabled: me.kitchenEnabled === true,
+        courierEnabled: me.courierEnabled === true,
+      },
+      app,
+    };
   }
   return null;
 }
@@ -564,10 +571,7 @@ export async function listWaiterTableTodayOrders(tableId: number): Promise<Order
   return (Array.isArray(data) ? data : []).map(applyKitchenOrderFlow);
 }
 
-export async function confirmWaiterOrder(
-  orderId: number,
-  kitchenEnabled = true,
-): Promise<OrderResponse> {
+export async function confirmWaiterOrder(orderId: number, _kitchenEnabled = true): Promise<OrderResponse> {
   const response = await waiterFetch(`/api/waiter/orders/${orderId}/confirm`, {
     method: "POST",
     headers: { Accept: "application/json" },
@@ -577,9 +581,8 @@ export async function confirmWaiterOrder(
   if (!response.ok) {
     throw new WaiterApiError(response.status, data.message || "Sipariş onaylanamadı");
   }
-  if (kitchenEnabled) return stampOrderFlow(data, "KITCHEN_PREPARING");
   forgetOrderFlowStatus(orderId);
-  return { ...data, id: orderId };
+  return applyKitchenOrderFlow({ ...data, id: orderId });
 }
 
 export async function rejectWaiterOrder(
@@ -718,12 +721,12 @@ export async function runWaiterFlowAction(
   orderId: number,
   action: OrderFlowAction,
   orderSource?: string | null,
+  asWaiter = false,
 ): Promise<OrderResponse> {
   const target = ORDER_FLOW_ACTION_STATUS[action];
-  const http = waiterHttpStep(action);
+  const http = waiterHttpStep(action, asWaiter);
   if (!http) {
-    const current = await getWaiterOrder(orderId);
-    return stampOrderFlow({ ...current, id: orderId }, target);
+    throw new WaiterApiError(400, action === "markKitchenDeliveredToCourier" ? "Kurye seçilmedi" : "Bu adım kaydedilemedi");
   }
   const source =
     http.scope === "kitchen" && orderSource ? `?source=${encodeURIComponent(orderSource)}` : "";
@@ -742,7 +745,11 @@ export async function runWaiterFlowAction(
   if (!response.ok) {
     throw new WaiterApiError(response.status, data.message || "Sipariş güncellenemedi");
   }
-  return stampOrderFlow({ ...data, id: orderId }, target);
+  if (!serverReachedStatus(data.status, target)) {
+    throw new WaiterApiError(409, data.message || "Sipariş güncellenemedi");
+  }
+  forgetOrderFlowStatus(orderId);
+  return { ...data, id: orderId };
 }
 
 export function markKitchenPreparing(orderId: number, orderSource?: string | null): Promise<OrderResponse> {
@@ -773,12 +780,52 @@ export async function revertKitchenOrder(
   return { ...data, id: orderId };
 }
 
-export function markKitchenDeliveredToWaiter(orderId: number): Promise<OrderResponse> {
-  return runWaiterFlowAction(orderId, "markKitchenDeliveredToWaiter");
+export function markKitchenDeliveredToWaiter(_orderId: number): Promise<OrderResponse> {
+  return Promise.reject(new WaiterApiError(400, "Bu adım kaydedilemedi"));
 }
 
-export function markKitchenDeliveredToCourier(orderId: number): Promise<OrderResponse> {
-  return runWaiterFlowAction(orderId, "markKitchenDeliveredToCourier");
+export function markKitchenDeliveredToCourier(orderId: number, courierStaffId: number, orderSource?: string | null): Promise<OrderResponse> {
+  return handoverKitchenOrderToCourier(orderId, courierStaffId, orderSource);
+}
+
+export async function listWaiterKitchenCouriers(branchId?: number | null): Promise<KitchenCourierOption[]> {
+  const query = branchId != null ? `?branchId=${branchId}` : "";
+  const response = await waiterFetch(`/api/waiter/kitchen/couriers${query}`, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    credentials: "same-origin",
+  });
+  const data = await parseJson<KitchenCourierOption[] | { message?: string }>(response);
+  if (!response.ok) {
+    throw new WaiterApiError(response.status, messageFromUnknown(data, "Kurye listesi alınamadı"));
+  }
+  return Array.isArray(data) ? data : [];
+}
+
+export async function handoverKitchenOrderToCourier(
+  orderId: number,
+  courierStaffId: number,
+  orderSource?: string | null,
+): Promise<OrderResponse> {
+  if (!Number.isFinite(courierStaffId) || courierStaffId <= 0) {
+    throw new WaiterApiError(400, "Kurye seçilmedi");
+  }
+  const source = orderSource ? `?source=${encodeURIComponent(orderSource)}` : "";
+  const response = await waiterFetch(`/api/waiter/kitchen/orders/${orderId}/courier-handover${source}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ courierStaffId }),
+  });
+  const data = await parseJson<OrderResponse & { message?: string }>(response);
+  if (!response.ok) {
+    throw new WaiterApiError(response.status, data.message || "Sipariş kuryeye verilemedi");
+  }
+  if (!serverReachedStatus(data.status, "AWAITING_COURIER")) {
+    throw new WaiterApiError(409, data.message || "Sipariş kuryeye verilemedi");
+  }
+  forgetOrderFlowStatus(orderId);
+  return { ...data, id: orderId, courierStaffId: data.courierStaffId ?? courierStaffId };
 }
 
 export function markWaiterTaken(orderId: number): Promise<OrderResponse> {
@@ -803,7 +850,11 @@ export async function markWaiterServicePreparing(orderId: number): Promise<Order
 /** Mutfak kapalı şube: onaylı, hazırlanan veya hazır sipariş doğrudan müşteriye teslim edildi olur. */
 export async function markWaiterServiceDelivered(orderId: number): Promise<OrderResponse> {
   const data = await postWaiterOrderStep(orderId, "served");
-  return stampOrderFlow(data, "WAITER_DELIVERED_TO_CUSTOMER");
+  if (!serverReachedStatus(data.status, "DELIVERED")) {
+    throw new WaiterApiError(409, "Sipariş güncellenemedi");
+  }
+  forgetOrderFlowStatus(orderId);
+  return data;
 }
 
 async function postWaiterOrderStep(orderId: number, path: "preparing" | "served"): Promise<OrderResponse> {

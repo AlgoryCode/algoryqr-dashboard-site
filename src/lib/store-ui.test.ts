@@ -4,8 +4,11 @@ import {
   availableStoreOrderTransitions,
   defaultWorkingHours,
   formatStoreAddress,
+  isMerchantListedOpen,
+  isStoreWithinWorkingHours,
   formatStoreClock,
   formatStoreElapsed,
+  storeDeliveryTypesForCourier,
   storeKitchenFlowIndex,
   storeKitchenFlowSteps,
   toStoreTimeInputValue,
@@ -21,7 +24,7 @@ describe("availableStoreOrderTransitions", () => {
 
   it("sends a confirmed order to the kitchen", () => {
     expect(availableStoreOrderTransitions("CONFIRMED", "DELIVERY").map((entry) => entry.action)).toEqual([
-      "markKitchenPrepared",
+      "markKitchenPreparing",
       "cancel",
     ]);
   });
@@ -38,34 +41,39 @@ describe("availableStoreOrderTransitions", () => {
   it("uses courier handover as the last ready action for delivery", () => {
     expect(availableStoreOrderTransitions("READY", "DELIVERY").map((entry) => entry.action)).toEqual([
       "markKitchenDeliveredToCourier",
-      "markKitchenDeliveredToWaiter",
       "cancel",
     ]);
-    expect(availableStoreOrderTransitions("READY", "DELIVERY")[0]?.label).toBe("Kuryeye teslim et");
+    expect(availableStoreOrderTransitions("READY", "DELIVERY")[0]?.label).toBe("Kuryeye bırak");
+    expect(
+      availableStoreOrderTransitions("READY", "DELIVERY", { courierEnabled: false }).map((entry) => entry.action),
+    ).toEqual(["markWaiterDeliveredToCustomer", "cancel"]);
+    expect(storeDeliveryTypesForCourier(["DELIVERY", "PICKUP"], false)).toEqual(["PICKUP"]);
+    expect(storeDeliveryTypesForCourier(["DELIVERY"], false)).toEqual(["PICKUP"]);
+    expect(storeDeliveryTypesForCourier(["DELIVERY", "PICKUP"], true)).toEqual(["DELIVERY", "PICKUP"]);
     expect(availableStoreOrderTransitions("READY", "PICKUP").map((entry) => entry.action)).toEqual([
-      "markKitchenDeliveredToWaiter",
+      "markWaiterDeliveredToCustomer",
       "cancel",
     ]);
   });
 
   it("builds kitchen-aligned merchant steps", () => {
     expect(storeKitchenFlowSteps("DELIVERY").map((step) => step.label)).toEqual([
-      "Mutfak hazırlıyor",
-      "Mutfak hazırladı",
-      "Mutfak kuryeye verdi",
-      "Kurye teslim aldı",
-      "Kurye müşteriye teslim etti",
+      "Onaylandı",
+      "Hazırlanıyor",
+      "Hazır",
+      "Kurye bekliyor",
+      "Yolda",
+      "Teslim edildi",
     ]);
     expect(storeKitchenFlowSteps("PICKUP").map((step) => step.status)).toEqual([
-      "KITCHEN_PREPARING",
-      "KITCHEN_PREPARED",
-      "KITCHEN_DELIVERED_TO_WAITER",
-      "WAITER_TAKEN",
-      "WAITER_DELIVERED_TO_CUSTOMER",
+      "CONFIRMED",
+      "PREPARING",
+      "READY",
+      "DELIVERED",
     ]);
     expect(storeKitchenFlowIndex("PENDING", "DELIVERY")).toBe(-1);
-    expect(storeKitchenFlowIndex("PREPARING", "DELIVERY")).toBe(0);
-    expect(storeKitchenFlowIndex("ON_THE_WAY", "DELIVERY")).toBe(3);
+    expect(storeKitchenFlowIndex("PREPARING", "DELIVERY")).toBe(1);
+    expect(storeKitchenFlowIndex("ON_THE_WAY", "DELIVERY")).toBe(4);
   });
 
   it("formats elapsed kitchen time", () => {
@@ -91,6 +99,14 @@ describe("defaultWorkingHours", () => {
     const hours = defaultWorkingHours();
     expect(hours).toHaveLength(7);
     expect(hours.every((hour) => !hour.closed && hour.closesAt === "23:59")).toBe(true);
+  });
+
+  it("uses Istanbul hours even when the server flag is closed", () => {
+    const noon = new Date("2026-10-01T09:00:00.000Z");
+    const morning = new Date("2026-10-01T06:00:00.000Z");
+    expect(isStoreWithinWorkingHours(defaultWorkingHours(), noon)).toBe(true);
+    expect(isStoreWithinWorkingHours(defaultWorkingHours(), morning)).toBe(false);
+    expect(isMerchantListedOpen({ status: "ACTIVE", manuallyClosed: false })).toBe(true);
   });
 });
 

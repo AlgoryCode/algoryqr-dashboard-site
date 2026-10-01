@@ -11,9 +11,11 @@ import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader"
 import { StoreWorkingHoursEditor } from "@/components/dashboard/store/StoreWorkingHoursEditor";
 import { Button } from "@/components/ui/button";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
+import { useBranches } from "@/hooks/use-branches";
 import { useOnlineOrderAccess } from "@/hooks/use-online-order-access";
 import { STORE_QUERY_KEYS } from "@/hooks/use-store";
 import { ApiError } from "@/lib/api";
+import { anyBranchHasCourier } from "@/lib/branch";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { DASHBOARD_BACK, DASHBOARD_PANEL } from "@/lib/dashboard-surface";
 import {
@@ -28,6 +30,7 @@ import {
   defaultWorkingHours,
   STORE_DELIVERY_TYPE_LABEL,
   STORE_PAYMENT_METHOD_LABEL,
+  storeDeliveryTypesForCourier,
 } from "@/lib/store-ui";
 import { cn } from "@/lib/utils";
 
@@ -68,6 +71,8 @@ export default function OnlineOrderSetupView() {
   const queryClient = useQueryClient();
   const { notify } = useDashboardBanners();
   const { accessLoading, canUseOnlineOrder } = useOnlineOrderAccess();
+  const branchesQuery = useBranches();
+  const courierEnabled = branchesQuery.isSuccess && anyBranchHasCourier(branchesQuery.data);
 
   const prefillQuery = useQuery({
     queryKey: ["store", "setup-prefill"],
@@ -100,7 +105,10 @@ export default function OnlineOrderSetupView() {
     mutationFn: () =>
       setupStore({
         business,
-        delivery,
+        delivery: {
+          ...delivery,
+          deliveryTypes: storeDeliveryTypesForCourier(delivery.deliveryTypes, courierEnabled),
+        },
         sourceMenuId: copyMenu ? sourceMenuId : null,
       }),
     onSuccess: async (merchant) => {
@@ -198,7 +206,7 @@ export default function OnlineOrderSetupView() {
           ) : null}
 
           {step === "delivery" ? (
-            <DeliveryStep delivery={delivery} onChange={setDelivery} />
+            <DeliveryStep delivery={delivery} courierEnabled={courierEnabled} onChange={setDelivery} />
           ) : null}
 
           {step === "menu" ? (
@@ -343,14 +351,17 @@ function BusinessStep({
 
 function DeliveryStep({
   delivery,
+  courierEnabled,
   onChange,
 }: {
   delivery: StoreDeliverySettings;
+  courierEnabled: boolean;
   onChange: (value: StoreDeliverySettings) => void;
 }) {
   const update = (patch: Partial<StoreDeliverySettings>) => onChange({ ...delivery, ...patch });
 
   const toggleDeliveryType = (type: StoreDeliveryType) => {
+    if (type === "DELIVERY" && !courierEnabled) return;
     const next = delivery.deliveryTypes.includes(type)
       ? delivery.deliveryTypes.filter((entry) => entry !== type)
       : [...delivery.deliveryTypes, type];
@@ -419,7 +430,7 @@ function DeliveryStep({
           {(Object.keys(STORE_DELIVERY_TYPE_LABEL) as StoreDeliveryType[]).map((type) => (
             <TogglePill
               key={type}
-              selected={delivery.deliveryTypes.includes(type)}
+              selected={delivery.deliveryTypes.includes(type) && (type !== "DELIVERY" || courierEnabled)}
               label={STORE_DELIVERY_TYPE_LABEL[type]}
               onToggle={() => toggleDeliveryType(type)}
             />

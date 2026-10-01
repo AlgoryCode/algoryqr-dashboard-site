@@ -219,21 +219,8 @@ export function OrderingProvider({ identifier, publicId, children }: OrderingPro
           const raw = sessionStorage.getItem(sessionStorageKey(identifier));
           if (raw) {
             try {
-              const parsed = JSON.parse(raw) as {
-                sessionToken?: string;
-                tableName?: string;
-                tableToken?: string | null;
-              };
-              if (parsed.sessionToken && !parsed.tableToken) {
-                setSessionToken(parsed.sessionToken);
-                setTableName(parsed.tableName ?? null);
-                const next = await getCart(identifier, parsed.sessionToken);
-                if (!cancelled) {
-                  setCart(next);
-                  syncLocalFromCart(next);
-                }
-                return;
-              }
+              const parsed = JSON.parse(raw) as { tableToken?: string | null };
+              if (!parsed.tableToken) sessionStorage.removeItem(sessionStorageKey(identifier));
             } catch {
               sessionStorage.removeItem(sessionStorageKey(identifier));
             }
@@ -292,17 +279,6 @@ export function OrderingProvider({ identifier, publicId, children }: OrderingPro
         return message;
       }
 
-      let token = sessionToken;
-      if (!token) {
-        try {
-          token = await ensureSession();
-        } catch (err) {
-          const message = err instanceof Error ? err.message : "Sipariş oturumu açılamadı";
-          setError(message);
-          return message;
-        }
-      }
-
       const key = cartLineKey(product.productId, selectedOptionIds);
       const existing = localItems.find((item) => item.lineKey === key);
       const nextItems = existing
@@ -328,6 +304,22 @@ export function OrderingProvider({ identifier, publicId, children }: OrderingPro
               note: lineNote,
             },
           ];
+
+      if (!tableToken) {
+        setLocalItems(nextItems);
+        return null;
+      }
+
+      let token = sessionToken;
+      if (!token) {
+        try {
+          token = await ensureSession();
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Sipariş oturumu açılamadı";
+          setError(message);
+          return message;
+        }
+      }
 
       const persistWithToken = async (activeToken: string) => {
         await persistCart(nextItems, note, activeToken);
@@ -358,7 +350,7 @@ export function OrderingProvider({ identifier, publicId, children }: OrderingPro
         return message;
       }
     },
-    [ensureSession, localItems, note, persistCart, refreshCart, sessionToken],
+    [ensureSession, localItems, note, persistCart, refreshCart, sessionToken, tableToken],
   );
 
   const beginAddProduct = useCallback(
@@ -382,6 +374,16 @@ export function OrderingProvider({ identifier, publicId, children }: OrderingPro
 
   const updateQty = useCallback(
     async (lineKey: string, quantity: number) => {
+      const nextItems =
+        quantity <= 0
+          ? localItems.filter((item) => item.lineKey !== lineKey)
+          : localItems.map((item) =>
+              item.lineKey === lineKey ? { ...item, quantity } : item,
+            );
+      if (!tableToken) {
+        setLocalItems(nextItems);
+        return;
+      }
       let token = sessionToken;
       if (!token) {
         try {
@@ -390,12 +392,6 @@ export function OrderingProvider({ identifier, publicId, children }: OrderingPro
           return;
         }
       }
-      const nextItems =
-        quantity <= 0
-          ? localItems.filter((item) => item.lineKey !== lineKey)
-          : localItems.map((item) =>
-              item.lineKey === lineKey ? { ...item, quantity } : item,
-            );
       setLocalItems(nextItems);
       try {
         await persistCart(nextItems, note, token);
@@ -404,7 +400,7 @@ export function OrderingProvider({ identifier, publicId, children }: OrderingPro
         await refreshCart();
       }
     },
-    [ensureSession, localItems, note, persistCart, refreshCart, sessionToken],
+    [ensureSession, localItems, note, persistCart, refreshCart, sessionToken, tableToken],
   );
 
   const submitOrder = useCallback(async () => {

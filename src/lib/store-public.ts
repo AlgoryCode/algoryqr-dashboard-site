@@ -59,6 +59,7 @@ export type StorePublicSummary = {
   freeDeliveryThreshold?: number | null;
   avgPrepMinutes: number;
   deliveryTypes: StoreDeliveryType[];
+  courierEnabled?: boolean | null;
   paymentMethods: StorePaymentMethod[];
   currency: string;
   workingHours: StoreWorkingHour[];
@@ -104,6 +105,15 @@ export type StoreHandle = {
   storeNo: number;
   token: string;
 };
+
+export function publicStoreDeliveryTypes(
+  types: StoreDeliveryType[],
+  courierEnabled?: boolean | null,
+): StoreDeliveryType[] {
+  if (courierEnabled === undefined) return types;
+  if (!courierEnabled) return types.filter((type) => type !== "DELIVERY");
+  return types;
+}
 
 export function parseStoreHandle(handle: string): StoreHandle | null {
   const trimmed = handle.trim();

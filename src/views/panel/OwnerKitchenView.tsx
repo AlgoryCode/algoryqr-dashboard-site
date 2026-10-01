@@ -8,8 +8,9 @@ import { listScopedKitchenOrders, menusInBranchScope, ordersForStaffBranch } fro
 import { kitchenOrderKey } from "@/lib/kitchen-queue";
 import {
   applyKitchenOrderFlow,
+  forgetOrderFlowStatus,
   ORDER_FLOW_ACTION_STATUS,
-  stampOrderFlow,
+  serverReachedStatus,
   type KitchenRevertTarget,
   type OrderCancelRequest,
   type OrderFlowAction,
@@ -18,6 +19,7 @@ import {
   cancelMerchantOrder,
   markMerchantKitchenPreparing,
   markMerchantKitchenReady,
+  markMerchantKitchenServed,
   revertMerchantKitchenOrder,
   updateMerchantKitchenNote,
   type OrderResponse,
@@ -25,6 +27,7 @@ import {
 import {
   advanceStoreKitchenOrder,
   cancelStoreKitchenOrder,
+  deliverStoreKitchenOrder,
   handoverStoreOrderToCourier,
   isOnlineKitchenSource,
   listKitchenCouriers,
@@ -51,8 +54,16 @@ async function listOwnerKitchenQueue(branches: BranchItem[], branchId: number): 
 
 async function runOwnerKitchenAction(order: OrderResponse, action: OrderFlowAction): Promise<OrderResponse> {
   const target = ORDER_FLOW_ACTION_STATUS[action];
-  if (action !== "markKitchenPreparing" && action !== "markKitchenPrepared") {
-    return stampOrderFlow(order, target);
+  if (action === "markWaiterDeliveredToCustomer") {
+    if (isOnlineKitchenSource(order.orderSource)) return deliverStoreKitchenOrder(order.id);
+    if (order.menuId == null) throw new Error("Sipariş güncellenemedi");
+    const served = await markMerchantKitchenServed(order.menuId, order.id);
+    if (!serverReachedStatus(served.status, "DELIVERED")) throw new Error("Sipariş güncellenemedi");
+    forgetOrderFlowStatus(order.id);
+    return { ...served, id: order.id };
+  }
+  if (action !== "markKitchenPreparing" && action !== "markKitchenPrepared" && action !== "markReady") {
+    throw new Error("Bu adım kaydedilemedi");
   }
   const step = action === "markKitchenPreparing" ? "preparing" : "ready";
   if (isOnlineKitchenSource(order.orderSource)) {
@@ -65,7 +76,11 @@ async function runOwnerKitchenAction(order: OrderResponse, action: OrderFlowActi
     step === "preparing"
       ? await markMerchantKitchenPreparing(order.menuId, order.id, order.orderSource)
       : await markMerchantKitchenReady(order.menuId, order.id, order.orderSource);
-  return stampOrderFlow({ ...next, id: order.id }, target);
+  if (!serverReachedStatus(next.status, target)) {
+    throw new Error("Sipariş güncellenemedi");
+  }
+  forgetOrderFlowStatus(order.id);
+  return { ...next, id: order.id };
 }
 
 async function cancelOwnerKitchenOrder(order: OrderResponse, request: OrderCancelRequest): Promise<OrderResponse> {
@@ -96,7 +111,7 @@ export default function OwnerKitchenView({ initialBranchId }: { initialBranchId:
 
   const queueQuery = useQuery({
     queryKey: [OWNER_KITCHEN_QUEUE_KEY, branch?.id],
-    enabled: branch != null && kitchenEnabled,
+    enabled: branch != null,
     queryFn: () => listOwnerKitchenQueue(screen.branches, branch!.id),
     refetchInterval: 6_000,
   });
@@ -105,7 +120,7 @@ export default function OwnerKitchenView({ initialBranchId }: { initialBranchId:
 
   const couriersQuery = useQuery({
     queryKey: [OWNER_KITCHEN_COURIERS_KEY, branch?.id],
-    enabled: branch != null && kitchenEnabled && courierEnabled,
+    enabled: branch != null && courierEnabled,
     queryFn: () => listKitchenCouriers(branch!.id),
     refetchInterval: 15_000,
   });
@@ -170,8 +185,6 @@ export default function OwnerKitchenView({ initialBranchId }: { initialBranchId:
           <OwnerScreenNotice branch={null} message={screen.error} />
         ) : !branch ? (
           <OwnerScreenNotice branch={null} message="Henüz şube bulunmuyor." />
-        ) : !kitchenEnabled ? (
-          <OwnerScreenNotice branch={branch} message="Bu şubede mutfak kapalı. Şube ayarlarından açabilirsiniz." />
         ) : (
           <KitchenDisplayBoard
             orders={orders}
@@ -184,7 +197,7 @@ export default function OwnerKitchenView({ initialBranchId }: { initialBranchId:
                   : null
             }
             mode="kitchen"
-            kitchenEnabled
+            kitchenEnabled={kitchenEnabled}
             courierEnabled={courierEnabled}
             couriers={couriersQuery.data}
             onCourierHandover={(order, courierStaffId) =>

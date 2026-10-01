@@ -6,20 +6,24 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { KitchenDisplayBoard } from "@/components/kitchen/KitchenDisplayBoard";
 import { useKitchenBoardOrders } from "@/hooks/use-kitchen-board-orders";
 import { ordersForStaffBranch } from "@/lib/branch-scope";
-import { formatBranchCode } from "@/lib/branch";
+import { formatBranchCode, isBranchCourierEnabled, isBranchKitchenEnabled } from "@/lib/branch";
 import { kitchenOrderKey } from "@/lib/kitchen-queue";
 import type { KitchenRevertTarget, OrderCancelRequest, OrderFlowAction } from "@/lib/order-flow";
 import {
   advanceStoreKitchenOrder,
   cancelStoreKitchenOrder,
+  deliverStoreKitchenOrder,
+  handoverStoreOrderToCourier,
   isOnlineKitchenSource,
   revertStoreKitchenOrder,
 } from "@/lib/store-kitchen";
 import {
   cancelKitchenOrder,
+  handoverKitchenOrderToCourier,
   listKitchenQueue,
-  markKitchenDeliveredToCourier,
+  listWaiterKitchenCouriers,
   markKitchenDeliveredToWaiter,
+  markWaiterDeliveredToCustomer,
   markKitchenPrepared,
   markKitchenPreparing,
   revertKitchenOrder,
@@ -44,6 +48,12 @@ export default function StaffKitchenView() {
     [me, queueQuery.data],
   );
   const orders = useKitchenBoardOrders(branchOrders);
+  const courierEnabled = me != null && isBranchCourierEnabled(me);
+  const couriersQuery = useQuery({
+    queryKey: ["staff-kitchen-couriers", me?.branchId],
+    enabled: courierEnabled,
+    queryFn: () => listWaiterKitchenCouriers(me!.branchId),
+  });
 
   const action = useMutation({
     mutationFn: async (payload: {
@@ -53,6 +63,7 @@ export default function StaffKitchenView() {
       note?: string;
       revertTo?: KitchenRevertTarget;
       cancel?: OrderCancelRequest;
+      courierStaffId?: number;
     }) => {
       if (payload.kind === "note") {
         return updateKitchenOrderNote(payload.orderId, payload.note ?? "");
@@ -80,13 +91,26 @@ export default function StaffKitchenView() {
       if (payload.kind === "markKitchenPreparing") {
         return markKitchenPreparing(payload.orderId, payload.orderSource);
       }
-      if (payload.kind === "markKitchenPrepared") {
-        return markKitchenPrepared(payload.orderId, payload.orderSource);
+      if (payload.kind === "markKitchenPrepared" || payload.kind === "markReady") {
+        return isOnlineKitchenSource(payload.orderSource)
+          ? advanceStoreKitchenOrder(payload.orderId, "ready")
+          : markKitchenPrepared(payload.orderId, payload.orderSource);
       }
       if (payload.kind === "markKitchenDeliveredToCourier") {
-        return markKitchenDeliveredToCourier(payload.orderId);
+        if (payload.courierStaffId == null) throw new Error("Kurye seçilmedi");
+        return isOnlineKitchenSource(payload.orderSource)
+          ? handoverStoreOrderToCourier(payload.orderId, payload.courierStaffId)
+          : handoverKitchenOrderToCourier(payload.orderId, payload.courierStaffId, payload.orderSource);
       }
-      return markKitchenDeliveredToWaiter(payload.orderId);
+      if (payload.kind === "markKitchenDeliveredToWaiter") {
+        return markKitchenDeliveredToWaiter(payload.orderId);
+      }
+      if (payload.kind === "markWaiterDeliveredToCustomer") {
+        return isOnlineKitchenSource(payload.orderSource)
+          ? deliverStoreKitchenOrder(payload.orderId)
+          : markWaiterDeliveredToCustomer(payload.orderId);
+      }
+      throw new Error("Bu adım kaydedilemedi");
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["staff-kitchen-queue"] });
@@ -112,13 +136,24 @@ export default function StaffKitchenView() {
           error={
             queueQuery.error instanceof WaiterApiError
               ? queueQuery.error.message
-              : action.error instanceof Error
-                ? action.error.message
-                : null
+              : couriersQuery.error instanceof Error
+                ? couriersQuery.error.message
+                : action.error instanceof Error
+                  ? action.error.message
+                  : null
           }
           mode="kitchen"
-          kitchenEnabled={me.kitchenEnabled !== false}
-          courierEnabled={me.courierEnabled !== false}
+          kitchenEnabled={isBranchKitchenEnabled(me)}
+          courierEnabled={courierEnabled}
+          couriers={couriersQuery.data}
+          onCourierHandover={(order, courierStaffId) =>
+            action.mutate({
+              orderId: order.id,
+              kind: "markKitchenDeliveredToCourier",
+              orderSource: order.orderSource,
+              courierStaffId,
+            })
+          }
           busyOrderId={action.isPending ? action.variables?.orderId : null}
           busyOrderKey={
             action.isPending && action.variables

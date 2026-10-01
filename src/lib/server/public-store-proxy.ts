@@ -2,6 +2,7 @@ import axios, { AxiosError } from "axios";
 import { NextResponse } from "next/server";
 
 import { API_BASE_URL } from "@/lib/config";
+import { trustedForwardedForHeader } from "@/lib/server/client-headers";
 
 /** Storefront endpoints are unauthenticated; the caller IP is forwarded so the backend can rate limit. */
 export async function proxyPublicStoreRequest(
@@ -20,9 +21,6 @@ export async function proxyPublicStoreRequest(
       }
     }
 
-    const forwardedFor = request.headers.get("x-forwarded-for");
-    const realIp = request.headers.get("x-real-ip");
-
     const upstream = await axios.request({
       url: `${API_BASE_URL}${upstreamPath}`,
       method,
@@ -30,8 +28,7 @@ export async function proxyPublicStoreRequest(
       headers: {
         Accept: "application/json",
         ...(text ? { "Content-Type": "application/json" } : {}),
-        ...(forwardedFor ? { "X-Forwarded-For": forwardedFor } : {}),
-        ...(!forwardedFor && realIp ? { "X-Forwarded-For": realIp } : {}),
+        ...trustedForwardedForHeader(request),
       },
       validateStatus: () => true,
       timeout: 20_000,

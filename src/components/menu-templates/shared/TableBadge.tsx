@@ -13,7 +13,7 @@ type TableBadgeProps = {
   className?: string;
 };
 
-const INLINE_NAV_THEMES = new Set(["maison-noir", "modern-bistro", "kahve-sokagi"]);
+const INLINE_NAV_THEMES = new Set(["maison-noir", "modern-bistro", "kahve-sokagi", "petek-waffle"]);
 
 export function TableBadge({ variant = "fixed", className }: TableBadgeProps) {
   const ordering = useOrderingOptional();

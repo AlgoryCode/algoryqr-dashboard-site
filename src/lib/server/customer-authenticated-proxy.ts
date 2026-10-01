@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { getUserIdFromAccessToken } from "@/lib/auth-user";
 import { API_BASE_URL } from "@/lib/config";
 import { readCustomerAccessTokenFromCookies } from "@/lib/server/customer-auth-cookies";
+import { trustedForwardedForHeader } from "@/lib/server/client-headers";
 
 export async function proxyCustomerAuthenticatedRequest(
   request: Request,
@@ -33,8 +34,6 @@ export async function proxyCustomerAuthenticatedRequest(
       }
     }
 
-    const forwardedFor = request.headers.get("x-forwarded-for");
-    const realIp = request.headers.get("x-real-ip");
     const tableSession = request.headers.get("x-table-session");
 
     const upstream = await axios.request({
@@ -47,8 +46,7 @@ export async function proxyCustomerAuthenticatedRequest(
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         ...(customerId != null ? { "X-User-Id": String(customerId) } : {}),
         ...(tableSession ? { "X-Table-Session": tableSession } : {}),
-        ...(forwardedFor ? { "X-Forwarded-For": forwardedFor } : {}),
-        ...(!forwardedFor && realIp ? { "X-Forwarded-For": realIp } : {}),
+        ...trustedForwardedForHeader(request),
       },
       validateStatus: () => true,
       timeout: 20_000,
@@ -103,9 +101,6 @@ export async function proxyPublicTableSessionRequest(
       }
     }
 
-    const forwardedFor = request.headers.get("x-forwarded-for");
-    const realIp = request.headers.get("x-real-ip");
-
     const upstream = await axios.request({
       url: `${API_BASE_URL}${upstreamPath}${query}`,
       method,
@@ -115,8 +110,7 @@ export async function proxyPublicTableSessionRequest(
         ...(text ? { "Content-Type": "application/json" } : {}),
         ...(tableSession ? { "X-Table-Session": tableSession } : {}),
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        ...(forwardedFor ? { "X-Forwarded-For": forwardedFor } : {}),
-        ...(!forwardedFor && realIp ? { "X-Forwarded-For": realIp } : {}),
+        ...trustedForwardedForHeader(request),
       },
       validateStatus: () => true,
       timeout: 20_000,
