@@ -101,6 +101,12 @@ export const MENU_TEMPLATES = [
     previewClassName: "bg-[#fff3f5] text-[#d93f6b]",
     Component: PetekWaffleMenuTemplate,
   },
+  {
+    id: "vens-coffee",
+    name: "Vens Coffee",
+    previewClassName: "bg-[#fff3f5] text-[#d93f6b]",
+    Component: PetekWaffleMenuTemplate,
+  },
 ] as const satisfies readonly MenuTemplateDefinition[];
 
 export type MenuThemeId = (typeof MENU_TEMPLATES)[number]["id"];

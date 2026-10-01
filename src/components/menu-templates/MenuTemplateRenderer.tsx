@@ -132,7 +132,7 @@ function MenuShell({
                       {themeId !== "maison-noir" &&
                       themeId !== "modern-bistro" &&
                       themeId !== "kahve-sokagi" &&
-                      themeId !== "petek-waffle" ? (
+                      themeId !== "petek-waffle" && themeId !== "vens-coffee" ? (
                         <MenuChefFab
                           publicId={publicId}
                           chefName={menu.chefName}

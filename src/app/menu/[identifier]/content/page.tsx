@@ -7,6 +7,7 @@ import {
   isTarikWafflePreview,
   isVenscoffeeMenu,
   PETEK_WAFFLE_THEME_ID,
+  VENS_COFFEE_THEME_ID,
   tarikWaffleMenu,
 } from "@/lib/petek-waffle-preview";
 
@@ -36,7 +37,11 @@ export default async function PublicMenuContentPage({
   const wafflePreview = isTarikWafflePreview(result.data.menu);
   const venscoffeePetekMenu = isVenscoffeeMenu(result.data.menu);
   const menu = wafflePreview ? tarikWaffleMenu(result.data.menu) : result.data.menu;
-  const themeId = wafflePreview || venscoffeePetekMenu ? PETEK_WAFFLE_THEME_ID : result.data.themeId;
+  const themeId = wafflePreview
+    ? PETEK_WAFFLE_THEME_ID
+    : venscoffeePetekMenu
+      ? VENS_COFFEE_THEME_ID
+      : result.data.themeId;
 
   return (
     <MenuTemplateRenderer
