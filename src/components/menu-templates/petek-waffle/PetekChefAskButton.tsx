@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { ChefHat, Sparkles } from "lucide-react";
 
-import { resolveChefAvatarSrc, resolveChefDisplayName } from "@/lib/chef/chef-identity";
+import { resolveChefAvatarSrc } from "@/lib/chef/chef-identity";
 import { MenuChefChat } from "../chef/MenuChefChat";
 
 type PetekChefAskButtonProps = {
@@ -21,7 +21,7 @@ export function PetekChefAskButton({
 }: PetekChefAskButtonProps) {
   const [open, setOpen] = useState(false);
   const [chatMounted, setChatMounted] = useState(false);
-  const displayName = resolveChefDisplayName(chefDisplayName, chefName);
+  const displayName = "Waffle asistanı";
   const avatarSrc = resolveChefAvatarSrc(chefAvatarUrl);
 
   useEffect(() => {
@@ -71,7 +71,7 @@ export function PetekChefAskButton({
           <ChefHat className="h-5 w-5" strokeWidth={2.1} aria-hidden />
           <Sparkles className="pw-ai-ask-spark" strokeWidth={2.4} aria-hidden />
         </span>
-        <span>Waffle asistanına sor</span>
+        <span>Asistana sor</span>
       </button>
     </>
   );
