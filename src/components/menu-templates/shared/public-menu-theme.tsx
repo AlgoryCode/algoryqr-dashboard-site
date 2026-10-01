@@ -43,7 +43,8 @@ export type PublicMenuThemeId =
   | "maison-noir"
   | "kahve-sokagi"
   | "lilas-doux"
-  | "petek-waffle";
+  | "petek-waffle"
+  | "vens-coffee";
 
 export type PublicMenuThemeLayout = "classic" | "editorial" | "elixir";
 export type PublicMenuHeroLogoPlacement = "center" | "start";
@@ -305,6 +306,11 @@ const PETEK_WAFFLE_CHROME: PublicMenuThemeChrome = {
   categoryMarks: PETEK_WAFFLE_CATEGORY_MARKS,
 };
 
+const VENS_COFFEE_CHROME: PublicMenuThemeChrome = {
+  ...PETEK_WAFFLE_CHROME,
+  id: "vens-coffee",
+};
+
 const CHROME_BY_ID: Record<PublicMenuThemeId, PublicMenuThemeChrome> = {
   luxury: LUXURY_CHROME,
   "petite-patisserie": PETITE_CHROME,
@@ -320,6 +326,7 @@ const CHROME_BY_ID: Record<PublicMenuThemeId, PublicMenuThemeChrome> = {
   "kahve-sokagi": KAHVE_SOKAGI_CHROME,
   "lilas-doux": LILAS_DOUX_CHROME,
   "petek-waffle": PETEK_WAFFLE_CHROME,
+  "vens-coffee": VENS_COFFEE_CHROME,
 };
 
 export function getPublicMenuThemeChrome(themeId: string): PublicMenuThemeChrome {
