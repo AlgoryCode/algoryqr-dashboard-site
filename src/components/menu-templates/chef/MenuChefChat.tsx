@@ -1,8 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUp, Hand, RotateCcw, ShoppingBag, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ArrowUp, Hand, RotateCcw, ShoppingBag, Sparkles, X } from "lucide-react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 
 import {
@@ -59,6 +59,7 @@ type MenuChefChatProps = {
   chefAvatarUrl: string;
   open: boolean;
   onClose: () => void;
+  origin?: { x: number; y: number };
   themeVariant?: "petek-waffle";
 };
 
@@ -85,6 +86,7 @@ function ChefAvatar({
   const content = (
     <span
       className="relative block overflow-hidden rounded-full bg-[#e8ebe9] shadow-[inset_0_0_0_1px_rgba(28,40,36,0.06)]"
+      data-chef-avatar
       style={{ width: size, height: size }}
     >
       <img
@@ -212,6 +214,7 @@ function AssistantBubble({
   onQuickAddSuccess,
   onCoachOpenCart,
   onCoachCompleteOrder,
+  themeVariant,
 }: {
   msg: Extract<ChefChatMessage, { role: "assistant" }>;
   animateEnter: boolean;
@@ -226,6 +229,7 @@ function AssistantBubble({
   onQuickAddSuccess?: () => void;
   onCoachOpenCart?: () => void;
   onCoachCompleteOrder?: () => void;
+  themeVariant?: "petek-waffle";
 }) {
   const onEnteredRef = useRef(onEntered);
   onEnteredRef.current = onEntered;
@@ -237,6 +241,7 @@ function AssistantBubble({
   const upsellBadges = msg.upsellBadges?.length ? msg.upsellBadges : undefined;
   const showFeedback = Boolean(msg.showRecommendationFeedback && onRecommendationFeedback);
   const coachActions = msg.coachActions;
+  const isPetekWelcome = themeVariant === "petek-waffle" && msg.id === "welcome";
 
   return (
     <motion.div
@@ -265,17 +270,22 @@ function AssistantBubble({
           <motion.div
             initial={animateEnter ? bubbleShellMotion.initial : false}
             animate={bubbleShellMotion.animate}
-            transition={{ ...bubbleTransition, delay: 0.06 }}
-            className="origin-bottom-left rounded-[1.35rem] rounded-bl-md border border-white/70 bg-white/80 px-4 py-3 text-[14.5px] leading-relaxed tracking-[-0.01em] text-[#24302c] shadow-[0_8px_28px_rgba(28,40,36,0.05)] backdrop-blur-sm"
+            transition={{ ...bubbleTransition, delay: isPetekWelcome ? 0.95 : 0.06 }}
+            className={cn(
+              "b bot origin-bottom-left rounded-[1.35rem] rounded-bl-md border border-white/70 bg-white/80 px-4 py-3 text-[14.5px] leading-relaxed tracking-[-0.01em] text-[#24302c] shadow-[0_8px_28px_rgba(28,40,36,0.05)] backdrop-blur-sm",
+              isPetekWelcome && "petek-welcome-message",
+            )}
           >
-            {msg.id === "welcome" ? (
+            {msg.id === "welcome" && !isPetekWelcome ? (
               <p className="mb-2 flex items-center gap-2 text-[15px] font-semibold text-[#1c2824]">
                 <span>Merhaba!</span>
                 <Hand className="h-5 w-5 animate-chef-hand-wave text-[#5f7a6d]" aria-hidden />
               </p>
             ) : null}
             {displayText ? (
-              <p className="whitespace-pre-wrap">{displayText}</p>
+              <p className={cn("whitespace-pre-wrap", isPetekWelcome && "petek-welcome-copy")}>
+                {displayText}
+              </p>
             ) : null}
             {coachActions?.openCart || coachActions?.completeOrder ? (
               <div className="mt-3 flex flex-wrap gap-2">
@@ -422,9 +432,14 @@ export function MenuChefChat({
   chefAvatarUrl,
   open,
   onClose,
+  origin,
   themeVariant,
 }: MenuChefChatProps) {
   const ordering = useOrderingOptional();
+  const isPetekWaffle = themeVariant === "petek-waffle";
+  const petekRevealOrigin = origin
+    ? `${origin.x}px ${origin.y}px`
+    : "calc(100% - 48px) calc(100% - 86px)";
   const menuLocale = useMenuLocaleOptional();
   const chefAnalytics = useChefChatAnalytics(publicId);
   const priorOrderProductIds = useChefPriorOrderProductIds(publicId, open);
@@ -437,8 +452,14 @@ export function MenuChefChat({
   } = useChefChatCatalog(publicId, open);
   const resolveChefChatProducts = useResolveChefChatProducts(publicId, chefMenuProducts);
   const saved = getChefChatSession(publicId);
+  const petekWelcomeText = menuLocale?.locale === "en"
+    ? "Hi! Are you in the mood for sweet or savory? Let's find something."
+    : "Merhaba! Canın tatlı mı tuzlu mu çekiyor? Birlikte bakalım.";
+  const initialWelcomeMessage = isPetekWaffle
+    ? { ...CHEF_WELCOME_MESSAGE, text: petekWelcomeText }
+    : CHEF_WELCOME_MESSAGE;
   const [messages, setMessages] = useState<ChefChatMessage[]>(
-    () => saved?.messages ?? [CHEF_WELCOME_MESSAGE],
+    () => saved?.messages ?? [initialWelcomeMessage],
   );
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -450,6 +471,7 @@ export function MenuChefChat({
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [addToastOpen, setAddToastOpen] = useState(false);
   const [streamingReply, setStreamingReply] = useState("");
+  const [petekWelcomeTyping, setPetekWelcomeTyping] = useState(false);
   const [portalReady, setPortalReady] = useState(false);
   const listRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -474,7 +496,7 @@ export function MenuChefChat({
     void fetch(`/api/menu/chef/badges?publicId=${encodeURIComponent(publicId)}`)
       .then((res) => res.json())
       .then((data: { welcomeMessage?: string }) => {
-        if (cancelled || !data.welcomeMessage?.trim()) return;
+        if (cancelled || isPetekWaffle || !data.welcomeMessage?.trim()) return;
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === "welcome" && msg.role === "assistant"
@@ -487,7 +509,17 @@ export function MenuChefChat({
     return () => {
       cancelled = true;
     };
-  }, [open, publicId]);
+  }, [isPetekWaffle, open, publicId]);
+
+  useEffect(() => {
+    if (!open || !isPetekWaffle || messages.some((msg) => msg.id !== "welcome")) {
+      setPetekWelcomeTyping(false);
+      return;
+    }
+    setPetekWelcomeTyping(true);
+    const timer = window.setTimeout(() => setPetekWelcomeTyping(false), 900);
+    return () => window.clearTimeout(timer);
+  }, [isPetekWaffle, messages, open]);
 
   useEffect(() => {
     if (!open) {
@@ -536,7 +568,7 @@ export function MenuChefChat({
     enteredIdsRef.current = new Set(["welcome"]);
     setConversationId(undefined);
     setInput("");
-    setMessages([{ ...CHEF_WELCOME_MESSAGE }]);
+    setMessages([{ ...initialWelcomeMessage }]);
     setResetConfirmOpen(false);
   };
 
@@ -769,10 +801,29 @@ export function MenuChefChat({
       {open ? (
         <motion.div
           key="chef-chat-shell"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          initial={
+            isPetekWaffle
+              ? {
+                  opacity: 1,
+                  clipPath: `circle(0 at ${petekRevealOrigin})`,
+                }
+              : { opacity: 0 }
+          }
+          animate={
+            isPetekWaffle
+              ? { opacity: 1, clipPath: `circle(150vmax at ${petekRevealOrigin})` }
+              : { opacity: 1 }
+          }
+          exit={
+            isPetekWaffle
+              ? { opacity: 1, clipPath: `circle(0 at ${petekRevealOrigin})` }
+              : { opacity: 0 }
+          }
+          transition={
+            isPetekWaffle
+              ? { duration: 0.75, ease: [0.7, 0, 0.2, 1] }
+              : { duration: 0.28, ease: [0.22, 1, 0.36, 1] }
+          }
           className={cn(
             "pointer-events-auto fixed inset-0 z-[100] flex h-[100dvh] w-full flex-col overflow-hidden overscroll-none bg-[#f3f5f4]",
             themeVariant === "petek-waffle" && "petek-waffle-chef-chat",
@@ -783,21 +834,53 @@ export function MenuChefChat({
               aria-hidden
               className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(255,255,255,0.9),_transparent_55%),radial-gradient(ellipse_at_bottom_right,_rgba(186,210,198,0.28),_transparent_45%),linear-gradient(180deg,#f7f8f7_0%,#eef1ef_100%)]"
             />
+            {isPetekWaffle ? (
+              <>
+                <div className="petek-chat-syrup" aria-hidden>
+                  <svg viewBox="0 0 560 110" preserveAspectRatio="xMidYMin slice">
+                    <rect x="0" y="0" width="560" height="26" style={{ "--petek-drip-index": 0 } as CSSProperties} />
+                    {[[30, 58], [110, 84], [205, 46], [300, 74], [395, 52], [480, 88], [535, 40]].map(([x, height], index) => {
+                      const width = index % 2 ? 14 : 18;
+                      return (
+                        <rect
+                          key={`${x}-${height}`}
+                          x={x}
+                          y="14"
+                          width={width}
+                          height={height}
+                          rx={width / 2}
+                          style={{ "--petek-drip-index": index + 1 } as CSSProperties}
+                        />
+                      );
+                    })}
+                  </svg>
+                </div>
+                <div className="petek-chat-rain" aria-hidden>
+                  {Array.from({ length: 16 }, (_, index) => (
+                    <span key={index} style={{ "--petek-rain-index": index } as CSSProperties} />
+                  ))}
+                </div>
+              </>
+            ) : null}
 
-            <header className="relative z-10 border-b border-[#1c2824]/[0.06] bg-white/55 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-xl">
+            <header className="ah relative z-10 border-b border-[#1c2824]/[0.06] bg-white/55 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-xl">
               <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
-                  <ChefAvatar
-                    size={42}
-                    src={chefAvatarUrl}
-                    name={chefDisplayName}
-                    onClick={() => setAvatarOpen(true)}
-                  />
+                  {isPetekWaffle ? (
+                    <Sparkles className="h-[18px] w-[18px] text-[#d93f6b]" fill="currentColor" aria-hidden />
+                  ) : (
+                    <ChefAvatar
+                      size={42}
+                      src={chefAvatarUrl}
+                      name={chefDisplayName}
+                      onClick={() => setAvatarOpen(true)}
+                    />
+                  )}
                   <div className="min-w-0">
                     <p className="truncate text-[15px] font-semibold tracking-[-0.01em] text-[#1c2824]">
-                      {chefDisplayName}
+                      {isPetekWaffle ? "Waffle asistanı" : chefDisplayName}
                     </p>
-                    <p className="mt-0.5 flex items-center gap-1.5 text-[12px] text-[#5f6f68]">
+                    <p className={cn("mt-0.5 flex items-center gap-1.5 text-[12px] text-[#5f6f68]", isPetekWaffle && "petek-chat-status")}>
                       <span className="relative flex h-1.5 w-1.5">
                         <span
                           className={`absolute inline-flex h-full w-full rounded-full ${
@@ -812,7 +895,9 @@ export function MenuChefChat({
                           }`}
                         />
                       </span>
-                      {catalogLoading
+                      {isPetekWaffle
+                        ? "Canın ne çekiyor?"
+                        : catalogLoading
                         ? "Menü ürünleri yükleniyor…"
                         : catalogReady
                           ? `Menü hazır · ${chefMenuProducts.length} ürün`
@@ -821,7 +906,19 @@ export function MenuChefChat({
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
-                  {ordering ? (
+                  {ordering && isPetekWaffle && ordering.cartCount > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        chefAnalytics.trackCartOpen("header");
+                        ordering.setCartOpen(true);
+                      }}
+                      className="petek-chat-cart-button"
+                      aria-label="Sepeti gör"
+                    >
+                      Sepet · {ordering.cartCount}
+                    </button>
+                  ) : ordering ? (
                     <button
                       type="button"
                       onClick={() => {
@@ -839,7 +936,7 @@ export function MenuChefChat({
                       ) : null}
                     </button>
                   ) : null}
-                  <button
+                  {!isPetekWaffle ? <button
                     type="button"
                     onClick={() => {
                       if (!canReset || loading) return;
@@ -851,11 +948,11 @@ export function MenuChefChat({
                   >
                     <RotateCcw className="h-3.5 w-3.5" strokeWidth={2.25} />
                     <span className="hidden sm:inline">Sıfırla</span>
-                  </button>
+                  </button> : null}
                   <button
                     type="button"
                     onClick={onClose}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#1c2824]/[0.04] text-[#3d4a45] transition hover:bg-[#1c2824]/[0.08] hover:text-[#1c2824]"
+                    className="petek-chat-close inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#1c2824]/[0.04] text-[#3d4a45] transition hover:bg-[#1c2824]/[0.08] hover:text-[#1c2824]"
                     aria-label="Kapat"
                   >
                     <X className="h-4 w-4" strokeWidth={2.25} />
@@ -864,10 +961,20 @@ export function MenuChefChat({
               </div>
             </header>
 
+            {isPetekWaffle ? (
+              <div className="petek-chat-title at" aria-hidden>
+                {"Ne yesek bugün?".split("").map((character, index) => (
+                  <span key={`${character}-${index}`} style={{ "--petek-title-index": index } as CSSProperties}>
+                    {character === " " ? "\u00a0" : character}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+
             <div
               ref={listRef}
               data-chef-scroll
-              className="relative z-10 flex-1 overflow-y-auto overscroll-contain px-4 py-5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+              className="am relative z-10 flex-1 overflow-y-auto overscroll-contain px-4 py-5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
             >
               <div className="mx-auto flex max-w-2xl flex-col gap-4">
                 <AnimatePresence mode="popLayout">
@@ -913,6 +1020,7 @@ export function MenuChefChat({
                                 }
                               : undefined
                           }
+                          themeVariant={themeVariant}
                         />
                       );
                     }
@@ -931,7 +1039,7 @@ export function MenuChefChat({
                           initial={shouldEnter ? bubbleShellMotion.initial : false}
                           animate={bubbleShellMotion.animate}
                           transition={{ ...bubbleTransition, delay: 0.04 }}
-                          className="origin-bottom-right whitespace-pre-wrap rounded-[1.35rem] rounded-br-md bg-[#2a3833] px-4 py-3 text-[14.5px] leading-relaxed tracking-[-0.01em] text-[#f4f7f5] shadow-[0_10px_28px_rgba(28,40,36,0.14)]"
+                          className="b me origin-bottom-right whitespace-pre-wrap rounded-[1.35rem] rounded-br-md bg-[#2a3833] px-4 py-3 text-[14.5px] leading-relaxed tracking-[-0.01em] text-[#f4f7f5] shadow-[0_10px_28px_rgba(28,40,36,0.14)]"
                         >
                           {msg.text}
                         </motion.div>
@@ -941,7 +1049,7 @@ export function MenuChefChat({
                 </AnimatePresence>
 
                 <AnimatePresence>
-                  {loading ? (
+                  {loading || petekWelcomeTyping ? (
                     <motion.div
                       key="chef-typing"
                       initial={{ opacity: 0, y: 10, x: -8 }}
@@ -956,7 +1064,7 @@ export function MenuChefChat({
                         name={chefDisplayName}
                         onClick={() => setAvatarOpen(true)}
                       />
-                      <div className="max-w-[min(100%,28rem)] rounded-[1.35rem] rounded-bl-md border border-white/70 bg-white/80 px-4 py-3.5 shadow-[0_8px_28px_rgba(28,40,36,0.05)] backdrop-blur-sm">
+                      <div className="b bot dots max-w-[min(100%,28rem)] rounded-[1.35rem] rounded-bl-md border border-white/70 bg-white/80 px-4 py-3.5 shadow-[0_8px_28px_rgba(28,40,36,0.05)] backdrop-blur-sm">
                         {streamingReply ? (
                           <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-[#24302c]">
                             {streamingReply}
@@ -975,8 +1083,18 @@ export function MenuChefChat({
               </div>
             </div>
 
+            {isPetekWaffle && !messages.some((message) => message.role === "user") ? (
+              <div className="petek-chat-quick-options ac" aria-label="Hızlı öneriler">
+                {["Tatlı bir şey", "Tuzlu olsun", "Çocuğum için", "200 ₺ altı"].map((label) => (
+                  <button key={label} type="button" disabled={loading || !catalogReady} onClick={() => void sendMessage(label)}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
             <form
-              className="relative z-10 border-t border-[#1c2824]/[0.06] bg-white/60 px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl"
+              className="ai-in relative z-10 border-t border-[#1c2824]/[0.06] bg-white/60 px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl"
               onSubmit={(e) => {
                 e.preventDefault();
                 void send();
@@ -991,7 +1109,9 @@ export function MenuChefChat({
                     catalogLoading
                       ? "Menü ürünleri yükleniyor…"
                       : catalogReady
-                        ? "Ne önerelim? Örn. etli ürünler"
+                        ? isPetekWaffle
+                          ? "Canın ne çekiyor?"
+                          : "Ne önerelim? Örn. etli ürünler"
                         : "Menü hazır değil, lütfen bekleyin"
                   }
                   className="min-w-0 flex-1 bg-transparent px-3.5 py-2.5 text-[14.5px] text-[#1c2824] outline-none placeholder:text-[#8a9a93]"
