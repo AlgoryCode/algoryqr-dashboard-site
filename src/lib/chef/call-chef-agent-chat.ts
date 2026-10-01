@@ -13,6 +13,7 @@ export type ChefAgentChatRequest = {
   publicId: string;
   message: string;
   userQuery?: string | null;
+  selectedProductId?: number;
   conversationId?: string;
   products: MenuProductApiItem[];
   cartProductIds?: number[];
@@ -25,6 +26,10 @@ export type ChefAgentChatRequest = {
 
 export type ChefAgentChatResponse = ChefAgentChatResponseParsed;
 
+export type ChefSuggestedProductGroup = NonNullable<
+  ChefAgentChatResponse["suggestedProducts"]
+>[number];
+
 export async function callChefAgentChat(
   payload: ChefAgentChatRequest,
 ): Promise<{ status: number; data: ChefAgentChatResponse }> {
@@ -36,6 +41,7 @@ export async function callChefAgentChat(
     {
       publicId: payload.publicId,
       userQuery,
+      selectedProductId: payload.selectedProductId,
       message: payload.message,
       conversationId: payload.conversationId,
       products: catalog,

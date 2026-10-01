@@ -1,5 +1,6 @@
 import type { ChefProductItem } from "@/lib/chef/chef-product-item";
 import type { SearchCompletePayload } from "@/lib/chef/search-complete";
+import type { ChefChatBadge } from "@/lib/chef/chef-chat-badges";
 
 export type ChefSearchStreamDone = {
   reply?: string;
@@ -8,6 +9,7 @@ export type ChefSearchStreamDone = {
   productIds?: number[];
   products?: ChefProductItem[];
   searchComplete?: SearchCompletePayload;
+  suggestedProducts?: ChefChatBadge[];
 };
 
 export async function consumeChefSearchSse(

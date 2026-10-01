@@ -15,6 +15,7 @@ export const chefSearchRequestBodySchema = z.object({
   message: z.string().trim().min(1).max(4000),
   /** Ham kullanıcı cümlesi — agent `userQuery` alanına aynen gider. */
   userQuery: z.string().trim().max(500).optional(),
+  selectedProductId: z.number().int().positive().optional(),
   conversationId: z.string().trim().min(1).max(100).optional(),
   menuProducts: z.array(menuProductBodySchema).min(1).max(400).optional(),
   cartProductIds: z.array(z.number().int().positive()).max(40).optional(),

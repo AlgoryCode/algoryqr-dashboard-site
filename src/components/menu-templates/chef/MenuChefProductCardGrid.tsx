@@ -16,6 +16,7 @@ type MenuChefProductCardGridProps = {
   showBlockTitle?: boolean;
   cardSource?: ChefProductCardSource;
   onQuickAddSuccess?: () => void;
+  onProductSelect?: (product: ChefProductItem) => void;
 };
 
 export function MenuChefProductCardGrid({
@@ -25,6 +26,7 @@ export function MenuChefProductCardGrid({
   showBlockTitle = false,
   cardSource = "bubble",
   onQuickAddSuccess,
+  onProductSelect,
 }: MenuChefProductCardGridProps) {
   if (products.length === 0) return null;
 
@@ -55,6 +57,7 @@ export function MenuChefProductCardGrid({
                       galleryIndex={galleryIndex >= 0 ? galleryIndex : 0}
                       cardSource={cardSource}
                       onQuickAddSuccess={onQuickAddSuccess}
+                      onProductSelect={onProductSelect ? () => onProductSelect(product) : undefined}
                     />
                   </div>
                 );

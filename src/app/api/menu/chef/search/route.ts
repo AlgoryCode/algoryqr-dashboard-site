@@ -30,6 +30,7 @@ export async function POST(req: Request) {
     const upstream = await callChefAgentChat({
       publicId: parsed.data.publicId,
       userQuery: parsed.data.userQuery ?? null,
+      selectedProductId: parsed.data.selectedProductId,
       message: parsed.data.message,
       conversationId: parsed.data.conversationId,
       products: menuProducts,
@@ -82,6 +83,7 @@ export async function POST(req: Request) {
       turnId: processed.turnId,
       productIds: processed.productIds,
       products: processed.products,
+      suggestedProducts: processed.suggestedProducts,
       menuSuggestions: [],
       ...(processed.searchComplete ? { searchComplete: processed.searchComplete } : {}),
       timing,
