@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-
 import type { MainCategoryApiItem, MenuProductApiItem } from "@/lib/api";
 import {
   MenuCategoryScrollSentinel,
@@ -9,10 +8,12 @@ import {
   useMenuPriceDisplayOptional,
   useOrderingOptional,
   usePublicMenuTheme,
+  useMenuLocaleOptional,
 } from "../shared";
 import type { MenuTemplateProps } from "../types";
 
 import { waffleArtKind, WaffleArt } from "./art";
+import { PetekChefAskButton, PetekChefPromptBar } from "./PetekChefAskButton";
 
 type SectionGroup = { title: string | null; products: MenuProductApiItem[] };
 
@@ -22,6 +23,26 @@ type MenuSection = {
   tone: number;
   groups: SectionGroup[];
 };
+
+function categoryNote(title: string, english: boolean): string | null {
+  const key = title.trim().toLocaleLowerCase("tr-TR");
+  const notes: Record<string, string> = english
+    ? { waffles: "Two slices per plate.", "on a stick": "Small portions to eat on the go.", extras: "Added to any waffle." }
+    : { waffle: "Her tabakta iki dilim.", "çubukta": "Elde yemek için, küçük porsiyon.", ekstralar: "Herhangi bir waffle'a eklenir." };
+  return notes[key] ?? null;
+}
+
+function ProductBadge({ product }: { product: MenuProductApiItem }) {
+  const tag = product.tags?.map((item) => item.name.trim()).find(Boolean);
+  const label = product.chefRecommended ? "Şefin seçimi" : tag;
+  return label ? <span className="pw-badge pw-product-badge">{label}</span> : null;
+}
+
+function titleLines(name: string): string[] {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return [parts[0] || "Petek Waffle"];
+  return [parts[0], parts.slice(1).join(" ")];
+}
 
 function buildSections(categories: MainCategoryApiItem[], products: MenuProductApiItem[]): MenuSection[] {
   const mains = [...categories].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
@@ -70,12 +91,6 @@ function buildSections(categories: MainCategoryApiItem[], products: MenuProductA
   return sections;
 }
 
-function titleLines(name: string): string[] {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length < 2) return [name.trim() || "Waffle"];
-  return [parts[0], parts.slice(1).join(" ")];
-}
-
 function PriceLabel({ product }: { product: MenuProductApiItem }) {
   const label = useMenuPriceDisplayOptional(product.price, product.currency);
   if (!label) return null;
@@ -85,12 +100,35 @@ function PriceLabel({ product }: { product: MenuProductApiItem }) {
 export function PetekWaffleMenuTemplate({ menu, products, categories = [] }: MenuTemplateProps) {
   const theme = usePublicMenuTheme();
   const ordering = useOrderingOptional();
+  const locale = useMenuLocaleOptional();
   const sections = useMemo(() => buildSections(categories, products), [categories, products]);
+  const favoriteProducts = useMemo(() => {
+    const names = ["Çikolatalı", "Dondurmalı", "Meyveli", "Antep fıstıklı", "Çikolata kaplamalı", "Milkshake"];
+    return names
+      .map((name) => products.find((product) => product.name.trim() === name))
+      .filter((product): product is MenuProductApiItem => Boolean(product))
+      .slice(0, 6);
+  }, [products]);
   const [activeId, setActiveId] = useState(sections[0]?.id ?? "");
   const [openProduct, setOpenProduct] = useState<MenuProductApiItem | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   const lines = titleLines(menu.businessName);
-  const slogan = menu.slogan?.trim() || "Siparişte hamurdan pişirilir, sıcak gelir.";
+  const slogan = locale?.locale === "en"
+    ? "Baked to order from fresh batter, served hot."
+    : menu.slogan?.trim() || "Siparişte hamurdan pişirilir, sıcak gelir.";
+  const english = locale?.locale === "en";
+  const copy = english
+    ? { favorites: "Most loved", footer: "Prices are in Turkish lira (₺). Check the item details for allergens or just ask us.", cart: "View cart", close: "Close", allergens: "Allergens", unspecified: "Not specified", add: "Add to cart" }
+    : { favorites: "En çok sevilenler", footer: "Fiyatlar ₺ cinsindendir. Alerjen bilgisi için ürün detayına bakın ya da bize sorun.", cart: "Sepeti gör", close: "Kapat", allergens: "Alerjen", unspecified: "Belirtilmemiş", add: "Sepete ekle" };
+
+  useEffect(() => {
+    if (!openProduct) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpenProduct(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [openProduct]);
 
   useEffect(() => {
     const nodes = sections
@@ -106,7 +144,7 @@ export function PetekWaffleMenuTemplate({ menu, products, categories = [] }: Men
       if (window.innerHeight + window.scrollY >= document.body.scrollHeight - 4) {
         index = nodes.length - 1;
       }
-      setActiveId(sections[index]?.id ?? sections[0].id);
+      setActiveId(sections[index]?.id ?? sections[0]?.id ?? "");
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -129,8 +167,28 @@ export function PetekWaffleMenuTemplate({ menu, products, categories = [] }: Men
   return (
     <div className={theme.rootClassName}>
       <style>{theme.styles}</style>
+      <div className="pw-mq" aria-label="Duyurular">
+        <div className="pw-mqi">
+          {(english
+            ? ["Waffle + coffee 280 ₺ until noon", "Second waffle on a stick 20% off", "Baked fresh to order"]
+            : ["Öğleye kadar waffle + kahve 280 ₺", "Çubukta waffle'da ikinci %20 indirimli", "Sıcak sıcak, siparişte pişer"]
+          ).map((item) => (
+            <span key={item}>{item}</span>
+          ))}
+          {(english
+            ? ["Waffle + coffee 280 ₺ until noon", "Second waffle on a stick 20% off", "Baked fresh to order"]
+            : ["Öğleye kadar waffle + kahve 280 ₺", "Çubukta waffle'da ikinci %20 indirimli", "Sıcak sıcak, siparişte pişer"]
+          ).map((item) => (
+            <span key={`${item}-copy`} aria-hidden>{item}</span>
+          ))}
+        </div>
+      </div>
       <header>
         <div className="pw-wrap">
+          <div className="pw-lang" role="group" aria-label="Dil">
+            <button type="button" aria-pressed={locale?.locale === "tr"} onClick={() => locale?.setLocale("tr")}>TR</button>
+            <button type="button" aria-pressed={locale?.locale === "en"} onClick={() => locale?.setLocale("en")}>EN</button>
+          </div>
           <span className="pw-sp" style={{ ["--r" as string]: "30deg", background: "#ffb3c6", right: "22%", top: 34 }} />
           <span className="pw-sp" style={{ ["--r" as string]: "-40deg", background: "#9fdcc3", right: "8%", top: 62 }} />
           <span className="pw-sp" style={{ ["--r" as string]: "70deg", background: "#ffd36b", right: "34%", top: 18 }} />
@@ -145,8 +203,32 @@ export function PetekWaffleMenuTemplate({ menu, products, categories = [] }: Men
           </h1>
           <p>{slogan}</p>
           {ordering?.tableName ? <p>Masa: {ordering.tableName}</p> : null}
+          <PetekChefPromptBar />
         </div>
       </header>
+      {favoriteProducts.length > 0 ? (
+        <section className="pw-fav" aria-label="En çok sevilenler">
+          <div className="pw-wrap"><h2>{copy.favorites}</h2></div>
+          <div className="pw-fs">
+            {favoriteProducts.map((product, index) => {
+              const kind = waffleArtKind(product.name, product.mainCategoryName ?? "");
+              return (
+                <article key={product.productId} className={`pw-fc pw-fc-${index % 4}`}>
+                  <button type="button" className="pw-fa" onClick={() => setOpenProduct(product)}>
+                    <WaffleArt kind={kind} />
+                    {index < 2 ? <span className="pw-badge">{english ? "Best seller" : "Çok sevilen"}</span> : <ProductBadge product={product} />}
+                  </button>
+                  <button type="button" className="pw-fn" onClick={() => setOpenProduct(product)}>{product.name}</button>
+                  <div className="pw-fp">
+                    <PriceLabel product={product} />
+                    <button type="button" className="pw-add" onClick={() => void addProduct(product)} aria-label={`Sepete ekle: ${product.name}`}>+</button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
       <nav>
         <div className="pw-wrap">
           {sections.map((section) => (
@@ -165,6 +247,7 @@ export function PetekWaffleMenuTemplate({ menu, products, categories = [] }: Men
         {sections.map((section) => (
           <section key={section.id} id={section.id} className={`pw-cat pw-c${section.tone}`}>
             <h2>{section.title}</h2>
+            {categoryNote(section.title, english) ? <p className="pw-note">{categoryNote(section.title, english)}</p> : null}
             {section.groups.map((group) => (
               <div key={group.title ?? section.id}>
                 {group.title ? <p className="pw-sub">{group.title}</p> : null}
@@ -178,6 +261,7 @@ export function PetekWaffleMenuTemplate({ menu, products, categories = [] }: Men
                         </span>
                         <span className="pw-tx">
                           <span className="pw-name">{product.name}</span>
+                          <ProductBadge product={product} />
                           {product.description ? <p className="pw-desc">{product.description}</p> : null}
                         </span>
                       </button>
@@ -203,14 +287,20 @@ export function PetekWaffleMenuTemplate({ menu, products, categories = [] }: Men
         <MenuProductScrollSentinel />
         <MenuCategoryScrollSentinel />
       </main>
-      <footer className="pw-wrap">Fiyatlar ₺ cinsindendir. Alerjen bilgisi için ürün detayına bakın ya da bize sorun.</footer>
+      <footer className="pw-wrap">{copy.footer}</footer>
       <div className={ordering && ordering.cartCount > 0 ? "pw-bar on" : "pw-bar"}>
         <button type="button" onClick={() => ordering?.setCartOpen(true)}>
-          <span>Sepeti gör ({ordering?.cartCount ?? 0})</span>
+          <span>{copy.cart} ({ordering?.cartCount ?? 0})</span>
           <CartTotal />
         </button>
       </div>
-      <button type="button" className={openProduct ? "pw-ov on" : "pw-ov"} aria-label="Kapat" onClick={() => setOpenProduct(null)} />
+      <PetekChefAskButton
+        publicId={menu.publicId ?? ""}
+        chefName={menu.chefName}
+        chefDisplayName={menu.chefDisplayName}
+        chefAvatarUrl={menu.chefAvatarUrl}
+      />
+      <button type="button" className={openProduct ? "pw-ov on" : "pw-ov"} aria-label={copy.close} onClick={() => setOpenProduct(null)} />
       <div className={openProduct ? "pw-sheet on" : "pw-sheet"} role="dialog" aria-modal="true">
         {openProduct ? (
           <ProductSheet
@@ -220,6 +310,7 @@ export function PetekWaffleMenuTemplate({ menu, products, categories = [] }: Men
               void addProduct(openProduct);
               setOpenProduct(null);
             }}
+            copy={copy}
           />
         ) : null}
       </div>
@@ -237,16 +328,18 @@ function ProductSheet({
   product,
   onClose,
   onAdd,
+  copy,
 }: {
   product: MenuProductApiItem;
   onClose: () => void;
   onAdd: () => void;
+  copy: { close: string; allergens: string; unspecified: string; add: string };
 }) {
   const kind = waffleArtKind(product.name, product.mainCategoryName ?? "");
   const allergens = (product.allergens ?? []).map((item) => item.name).filter(Boolean);
   return (
     <>
-      <button type="button" className="pw-x" aria-label="Kapat" onClick={onClose}>
+      <button type="button" className="pw-x" aria-label={copy.close} onClick={onClose}>
         ×
       </button>
       <div className="pw-big">
@@ -257,9 +350,9 @@ function ProductSheet({
         <PriceLabel product={product} />
       </p>
       {product.description ? <p>{product.description}</p> : null}
-      <p className="pw-meta">Alerjen: {allergens.length > 0 ? allergens.join(", ") : "Belirtilmemiş"}</p>
+      <p className="pw-meta">{copy.allergens}: {allergens.length > 0 ? allergens.join(", ") : copy.unspecified}</p>
       <button type="button" className="pw-cta" disabled={product.available === false} onClick={onAdd}>
-        Sepete ekle
+        {copy.add} · <PriceLabel product={product} />
       </button>
     </>
   );
