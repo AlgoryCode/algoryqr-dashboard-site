@@ -3,20 +3,23 @@
 import { ThumbsDown, ThumbsUp } from "lucide-react";
 
 import type { ChefTurnFeedbackValue } from "@/lib/chef/submit-chef-turn-feedback";
+import { cn } from "@/lib/utils";
 
 type MenuChefRecommendationFeedbackProps = {
   value?: ChefTurnFeedbackValue;
   disabled?: boolean;
   onSelect: (value: ChefTurnFeedbackValue) => void;
+  themeVariant?: "petek-waffle";
 };
 
 export function MenuChefRecommendationFeedback({
   value,
   disabled,
   onSelect,
+  themeVariant,
 }: MenuChefRecommendationFeedbackProps) {
   return (
-    <div className="flex items-center gap-1.5 pt-0.5">
+    <div className={cn("flex items-center gap-1.5 pt-0.5", themeVariant === "petek-waffle" && "petek-chef-feedback")}>
       <span className="mr-1 text-[11.5px] text-[#7a8a83]">Bu öneri işinize yaradı mı?</span>
       <button
         type="button"

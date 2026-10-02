@@ -22,8 +22,11 @@ export async function GET(req: Request) {
 
   const config = await getChefChatPublicConfig(parsed.data.publicId);
 
-  return NextResponse.json({
-    welcomeMessage: config.welcomeMessage,
-    badges: config.badges,
-  });
+  return NextResponse.json(
+    {
+      welcomeMessage: config.welcomeMessage,
+      badges: config.badges,
+    },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }

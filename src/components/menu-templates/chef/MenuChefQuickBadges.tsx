@@ -9,6 +9,7 @@ import type { ChefChatBadge } from "@/lib/chef/chef-chat-badges";
 
 type MenuChefQuickBadgesProps = {
   publicId: string;
+  open?: boolean;
   disabled?: boolean;
   onSelect: (badge: ChefChatBadge) => void;
   themeVariant?: "petek-waffle";
@@ -21,6 +22,7 @@ const badgeIcons: Record<string, typeof Sparkles> = {
 
 export function MenuChefQuickBadges({
   publicId,
+  open = true,
   disabled = false,
   onSelect,
   themeVariant,
@@ -28,10 +30,13 @@ export function MenuChefQuickBadges({
   const [badges, setBadges] = useState<ChefChatBadge[]>([]);
 
   useEffect(() => {
+    if (!open) return;
     let cancelled = false;
 
-    void fetch(`/api/menu/chef/badges?publicId=${publicId}`)
-      .then((res) => res.json())
+    void fetch(`/api/menu/chef/badges?publicId=${encodeURIComponent(publicId)}`, {
+      cache: "no-store",
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Chef badges request failed"))))
       .then((data: { badges?: ChefChatBadge[] }) => {
         if (cancelled) return;
         setBadges(Array.isArray(data.badges) ? data.badges : []);
@@ -43,7 +48,7 @@ export function MenuChefQuickBadges({
     return () => {
       cancelled = true;
     };
-  }, [publicId]);
+  }, [open, publicId]);
 
   if (badges.length === 0) return null;
 

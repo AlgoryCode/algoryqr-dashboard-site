@@ -338,6 +338,7 @@ function AssistantBubble({
           <MenuChefRecommendationFeedback
             value={msg.feedback}
             disabled={badgesDisabled}
+            themeVariant={themeVariant}
             onSelect={(feedback) => onRecommendationFeedback?.(feedback)}
           />
         ) : null}
@@ -1120,6 +1121,7 @@ export function MenuChefChat({
               <div className="mx-auto max-w-2xl">
                 <MenuChefQuickBadges
                   publicId={publicId}
+                  open={open}
                   disabled={loading || !catalogReady}
                   onSelect={(badge) => {
                     void sendBadge(badge);

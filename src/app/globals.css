@@ -565,7 +565,7 @@
   color: #4a1d2e !important;
 }
 .petek-waffle-chef-chat [data-chef-scroll] { scrollbar-color: #e9b8c6 transparent; }
-.petek-waffle-chef-chat [data-chef-scroll] .bg-white\/80 {
+.petek-waffle-chef-chat [data-chef-scroll] .b.bg-white\/80 {
   border-color: rgba(233,184,198,.7) !important;
   background: rgba(255,255,255,.84) !important;
   color: #4a1d2e !important;
@@ -768,7 +768,7 @@
 .petek-waffle-chef-chat [data-chef-scroll] > div {
   gap: 10px;
 }
-.petek-waffle-chef-chat [data-chef-scroll] .bg-white\/80 {
+.petek-waffle-chef-chat [data-chef-scroll] .b.bg-white\/80 {
   border: 0 !important;
   border-radius: 18px 18px 18px 6px !important;
   border: 1px solid rgba(217, 63, 107, 0.1) !important;
@@ -845,6 +845,30 @@
   border-color: #b92d58;
   background: #ffd6e0;
   color: #7f1d3b;
+}
+.petek-waffle-chef-chat .petek-chef-feedback {
+  gap: 7px;
+  padding-top: 3px;
+}
+.petek-waffle-chef-chat .petek-chef-feedback > span {
+  color: #8a5a6b;
+}
+.petek-waffle-chef-chat .petek-chef-feedback button {
+  width: 32px;
+  height: 32px;
+  border: 1.5px solid #e9b8c6;
+  background: #fff4f7;
+  color: #b92d58;
+  padding: 0;
+}
+.petek-waffle-chef-chat .petek-chef-feedback button:hover {
+  border-color: #d93f6b;
+  background: #ffd6e0;
+}
+.petek-waffle-chef-chat .petek-chef-feedback button[aria-pressed="true"] {
+  border-color: #d93f6b !important;
+  background: #d93f6b !important;
+  color: #fff !important;
 }
 .petek-waffle-chef-chat form {
   position: relative;
