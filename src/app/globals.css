@@ -698,7 +698,7 @@
   border-radius: 999px;
   background: #4a1d2e !important;
   padding: 0;
-  color: #fff;
+  color: #fff !important;
   box-shadow: 0 4px 12px rgba(74,29,46,.2);
 }
 .petek-waffle-chef-chat .petek-chat-cart-button-inline:hover {
