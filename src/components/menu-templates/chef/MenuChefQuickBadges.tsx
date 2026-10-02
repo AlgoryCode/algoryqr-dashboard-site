@@ -4,12 +4,14 @@ import { motion } from "framer-motion";
 import { Sparkles, TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { cn } from "@/lib/utils";
 import type { ChefChatBadge } from "@/lib/chef/chef-chat-badges";
 
 type MenuChefQuickBadgesProps = {
   publicId: string;
   disabled?: boolean;
   onSelect: (badge: ChefChatBadge) => void;
+  themeVariant?: "petek-waffle";
 };
 
 const badgeIcons: Record<string, typeof Sparkles> = {
@@ -21,6 +23,7 @@ export function MenuChefQuickBadges({
   publicId,
   disabled = false,
   onSelect,
+  themeVariant,
 }: MenuChefQuickBadgesProps) {
   const [badges, setBadges] = useState<ChefChatBadge[]>([]);
 
@@ -45,7 +48,12 @@ export function MenuChefQuickBadges({
   if (badges.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap gap-1.5 pt-2.5">
+    <div
+      className={cn(
+        "flex flex-wrap gap-1.5 pt-2.5",
+        themeVariant === "petek-waffle" && "petek-chef-quick-badges",
+      )}
+    >
       {badges.map((badge, index) => {
         const Icon = badgeIcons[badge.id] ?? Sparkles;
         return (
@@ -58,7 +66,10 @@ export function MenuChefQuickBadges({
             transition={{ delay: index * 0.04, duration: 0.22 }}
             whileTap={{ scale: 0.97 }}
             onClick={() => onSelect(badge)}
-            className="inline-flex items-center gap-1.5 rounded-full border border-[#1c2824]/10 bg-[#f7f8f7] px-2.5 py-1 text-[12px] font-medium tracking-[-0.01em] text-[#2a3833] transition hover:border-[#2a3833]/20 hover:bg-white disabled:pointer-events-none disabled:opacity-40"
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border border-[#1c2824]/10 bg-[#f7f8f7] px-2.5 py-1 text-[12px] font-medium tracking-[-0.01em] text-[#2a3833] transition hover:border-[#2a3833]/20 hover:bg-white disabled:pointer-events-none disabled:opacity-40",
+              themeVariant === "petek-waffle" && "petek-chef-quick-badge",
+            )}
           >
             <Icon className="h-3.5 w-3.5 text-[#5f7a6d]" strokeWidth={2.25} />
             {badge.label}

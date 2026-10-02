@@ -856,6 +856,25 @@
 .petek-waffle-chef-chat .petek-chat-quick-options button:hover {
   background: #ffd6e0;
 }
+.petek-waffle-chef-chat .petek-chef-quick-badges {
+  gap: 7px;
+  padding-top: 12px;
+}
+.petek-waffle-chef-chat .petek-chef-quick-badge {
+  border: 1.5px solid #d93f6b;
+  background: #fff4f7;
+  color: #9f244c;
+  font-family: "Fredoka", ui-sans-serif, system-ui, sans-serif;
+  box-shadow: 0 3px 10px rgba(217, 63, 107, .08);
+}
+.petek-waffle-chef-chat .petek-chef-quick-badge svg {
+  color: #d93f6b;
+}
+.petek-waffle-chef-chat .petek-chef-quick-badge:hover {
+  border-color: #b92d58;
+  background: #ffd6e0;
+  color: #7f1d3b;
+}
 .petek-waffle-chef-chat form {
   position: relative;
   z-index: 1;

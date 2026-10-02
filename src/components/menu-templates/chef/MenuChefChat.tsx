@@ -324,6 +324,7 @@ function AssistantBubble({
                 publicId={publicId}
                 disabled={badgesDisabled}
                 onSelect={onBadgeSelect}
+                themeVariant={themeVariant}
               />
             ) : null}
           </motion.div>
