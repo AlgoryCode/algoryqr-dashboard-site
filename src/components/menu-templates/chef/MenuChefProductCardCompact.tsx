@@ -71,12 +71,12 @@ export function MenuChefProductCardCompact({
     }
   };
 
-  const widthClass = size === "sm" ? "w-[5.5rem]" : "w-[6.75rem]";
+  const widthClass = size === "sm" ? "w-[6.75rem]" : "w-[8rem]";
   const nameClass =
     size === "sm"
       ? "line-clamp-2 text-[10px] font-semibold leading-snug"
-      : "line-clamp-2 text-[11px] font-semibold leading-snug";
-  const priceClass = size === "sm" ? "text-[10px]" : "text-[10.5px]";
+      : "line-clamp-2 text-[12px] font-semibold leading-snug";
+  const priceClass = size === "sm" ? "text-[10px]" : "text-[11px]";
 
   return (
     <div className={`relative ${widthClass} shrink-0 snap-start`}>
@@ -96,7 +96,7 @@ export function MenuChefProductCardCompact({
             </div>
           )}
         </div>
-        <div className={`flex min-h-0 flex-1 flex-col gap-0.5 ${size === "sm" ? "p-1.5" : "p-2"}`}>
+        <div className={`flex min-h-0 flex-1 flex-col gap-0.5 ${size === "sm" ? "p-2" : "p-2.5"}`}>
           {caption ? (
             <p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[#6b7a73]">{caption}</p>
           ) : null}
