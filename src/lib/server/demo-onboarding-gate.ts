@@ -22,6 +22,7 @@ export type PersonalDemoStatus = {
   onboardingDone?: boolean;
   setup?: { completed?: boolean; complete?: boolean; done?: boolean } | null;
   onboarding?: { completed?: boolean; complete?: boolean; done?: boolean } | null;
+  [key: string]: unknown;
 };
 
 export async function fetchPersonalDemoStatus(accessToken: string): Promise<PersonalDemoStatus | null> {
@@ -93,7 +94,42 @@ export function getPersonalDemoSetupState(
     status.onboarding?.done,
   ];
   const known = values.find((value) => typeof value === "boolean");
-  return typeof known === "boolean" ? known : null;
+  if (typeof known === "boolean") return known;
+
+  // The API has returned a few different DTO shapes across deployments. Read
+  // the persisted setup marker recursively, but never use generic `active` or
+  // `enabled` flags as an onboarding decision.
+  const explicitState = findExplicitSetupState(status);
+  if (explicitState !== null) return explicitState;
+
+  // GET /demo/setup may return the saved wizard answers instead of a boolean.
+  // Their presence is the DB-backed proof that the wizard was submitted.
+  const savedAnswers = ["businessType", "usagePurpose", "staffCountBand", "branchCountBand"];
+  if (savedAnswers.some((key) => typeof status[key] === "string" && status[key])) return true;
+
+  return null;
+}
+
+function findExplicitSetupState(value: unknown, depth = 0): boolean | null {
+  if (!value || typeof value !== "object" || depth > 3) return null;
+  for (const [rawKey, child] of Object.entries(value)) {
+    const key = rawKey.replace(/[-_\s]/g, "").toLowerCase();
+    const isSetupKey =
+      key.includes("setup") || key.includes("onboarding") || key.includes("installation") || key.includes("configured");
+    if (isSetupKey) {
+      if (typeof child === "boolean") return child;
+      if (typeof child === "string") {
+        const normalized = child.trim().toLowerCase();
+        if (["completed", "complete", "done", "finished", "skipped", "configured", "installed", "true"].includes(normalized)) {
+          return true;
+        }
+        if (["pending", "incomplete", "not_started", "false"].includes(normalized)) return false;
+      }
+    }
+    const nested = findExplicitSetupState(child, depth + 1);
+    if (nested !== null) return nested;
+  }
+  return null;
 }
 
 /** Site BFF paths (no `/api` prefix) allowed while demo onboarding is incomplete. */

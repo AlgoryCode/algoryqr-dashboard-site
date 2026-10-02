@@ -16,6 +16,8 @@ describe("demo-onboarding-gate", () => {
   it("reads the persisted setup state returned by the API", () => {
     expect(getPersonalDemoSetupState({ demo: true, setupCompleted: true })).toBe(true);
     expect(getPersonalDemoSetupState({ demo: true, onboarding: { done: false } })).toBe(false);
+    expect(getPersonalDemoSetupState({ demo: true, setupStatus: "COMPLETED" })).toBe(true);
+    expect(getPersonalDemoSetupState({ businessType: "cafe", usagePurpose: "digital_menu" })).toBe(true);
     expect(getPersonalDemoSetupState({ demo: true })).toBe(null);
   });
 
