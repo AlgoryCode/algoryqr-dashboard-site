@@ -7,6 +7,9 @@ import { API_BASE_URL } from "@/lib/config";
 
 type PublicMenuMeta = {
   menuId?: number;
+  menu?: {
+    menuId?: number;
+  };
 };
 
 async function resolveMenuId(publicId: string): Promise<number | null> {
@@ -15,7 +18,7 @@ async function resolveMenuId(publicId: string): Promise<number | null> {
     { validateStatus: () => true, timeout: 15_000 },
   );
   if (upstream.status >= 400) return null;
-  const menuId = upstream.data?.menuId;
+  const menuId = upstream.data?.menu?.menuId ?? upstream.data?.menuId;
   return typeof menuId === "number" && menuId > 0 ? menuId : null;
 }
 
