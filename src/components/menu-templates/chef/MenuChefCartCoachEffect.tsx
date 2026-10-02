@@ -9,6 +9,7 @@ import {
   cartCourseRoles,
   missingCourseRoles,
 } from "@/lib/chef/chef-cart-coach";
+import { pickCrossSellProducts } from "@/lib/chef/pick-cross-sell-products";
 import type { MenuProductApiItem } from "@/lib/api";
 
 import type { useOrderingOptional } from "../shared";
@@ -45,8 +46,22 @@ export function MenuChefCartCoachEffect({
 
     const present = cartCourseRoles(productIds, chefMenuProducts);
     const missing = missingCourseRoles(present);
-    const text = buildCartCoachMessage(missing);
-    const badges = buildUpsellBadges(missing);
+    const anchorProductId = productIds[productIds.length - 1];
+    const anchorProduct = chefMenuProducts.find((product) => product.productId === anchorProductId);
+    const suggestedProducts =
+      missing.length > 0 && anchorProduct
+        ? pickCrossSellProducts({
+            anchorProductId,
+            catalog: chefMenuProducts,
+            cartProductIds: productIds,
+            maxItems: 2,
+          })
+        : [];
+    const text = buildCartCoachMessage(missing, {
+      anchorName: anchorProduct?.name,
+      suggestedProductNames: suggestedProducts.map((product) => product.name),
+    });
+    const badges = suggestedProducts.length > 0 ? [] : buildUpsellBadges(missing);
     if (!text) return;
 
     setMessages((prev) => {
@@ -59,6 +74,7 @@ export function MenuChefCartCoachEffect({
           id: coachId,
           role: "assistant",
           text,
+          products: suggestedProducts.length > 0 ? suggestedProducts : undefined,
           upsellBadges: badges.length > 0 ? badges : undefined,
           coachActions:
             missing.length === 0 ? { openCart: true, completeOrder: true } : undefined,

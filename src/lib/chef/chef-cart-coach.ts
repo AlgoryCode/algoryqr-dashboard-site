@@ -47,9 +47,21 @@ export function buildUpsellBadges(missing: MenuCourseRole[]): ChefChatBadge[] {
   }));
 }
 
-export function buildCartCoachMessage(missing: MenuCourseRole[]): string | null {
+export function buildCartCoachMessage(
+  missing: MenuCourseRole[],
+  context?: {
+    anchorName?: string;
+    suggestedProductNames?: string[];
+  },
+): string | null {
   if (missing.length === 0) {
     return "Menünüz tamam görünüyor. Sepeti kontrol edebilir veya siparişi tamamlamak için aşağıdaki butonları kullanabilirsiniz.";
+  }
+  const suggestedProductNames = (context?.suggestedProductNames ?? []).filter(Boolean);
+  if (suggestedProductNames.length > 0) {
+    const suggestions = suggestedProductNames.slice(0, 2).join(" veya ");
+    const anchor = context?.anchorName ? `${context.anchorName} yanına` : "Menünüze";
+    return `Sepetiniz güzel gidiyor. ${anchor} ${suggestions} çok yakışır. Aşağıdan seçebilir veya kendi isteğinizi yazabilirsiniz.`;
   }
   if (missing.length === 3) {
     return "Güzel bir başlangıç. Menünüzü ana yemek, serin bir içecek ve hafif bir tatlıyla tamamlamak ister misiniz? Aşağıdaki önerilere bakabilirsiniz.";
