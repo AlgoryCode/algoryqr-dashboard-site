@@ -1353,8 +1353,10 @@ function KitchenOrderDetailContent({
               {items.map((item, index) => {
                 const options = (item.selectedOptions ?? [])
                   .filter((option) => option.optionName)
-                  .map((option) => (option.groupName ? `${option.groupName}: ${option.optionName}` : option.optionName))
-                  .join(" · ");
+                  .map((option) => ({
+                    groupName: option.groupName?.trim() || null,
+                    optionName: option.optionName,
+                  }));
                 return (
                   <li
                     key={`${order.id}-${item.id ?? item.productId}-${index}`}
@@ -1365,7 +1367,19 @@ function KitchenOrderDetailContent({
                         <span className="font-semibold text-slate-900">{item.quantity}×</span>{" "}
                         <span className="font-medium">{item.productName || `#${item.productId}`}</span>
                       </p>
-                      {options ? <p className="text-xs text-slate-500">{options}</p> : null}
+                      {options.length > 0 ? (
+                        <p className="text-xs text-slate-500">
+                          {options.map((option, optionIndex) => (
+                            <span key={`${option.groupName ?? "option"}-${option.optionName}-${optionIndex}`}>
+                              {optionIndex > 0 ? " · " : null}
+                              {option.groupName ? (
+                                <span className="font-semibold text-slate-700">{option.groupName}: </span>
+                              ) : null}
+                              {option.optionName}
+                            </span>
+                          ))}
+                        </p>
+                      ) : null}
                       {item.note ? (
                         <p className="mt-0.5 text-xs font-medium text-amber-700">Not: {item.note}</p>
                       ) : null}
