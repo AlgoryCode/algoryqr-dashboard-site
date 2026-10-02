@@ -2,7 +2,11 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { getUserFromAccessToken } from "@/lib/auth-user";
-import { readDemoSetupDoneFromRequest, readDemoTrialAccountFromRequest } from "@/lib/server/demo-onboarding-cookies";
+import {
+  readDemoSetupDoneFromRequest,
+  readDemoTrialAccountFromRequest,
+} from "@/lib/server/demo-onboarding-cookies";
+import { fetchPersonalDemoStatus, getPersonalDemoSetupState } from "@/lib/server/demo-onboarding-gate";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import DemoSetupPageClient from "./DemoSetupPageClient";
 
@@ -22,7 +26,9 @@ export default async function DemoSetupPage() {
     redirect(DASHBOARD_ROUTES.root);
   }
 
-  if (readDemoSetupDoneFromRequest(cookieStore)) {
+  const setupDone = readDemoSetupDoneFromRequest(cookieStore) ||
+    getPersonalDemoSetupState(await fetchPersonalDemoStatus(accessToken)) === true;
+  if (setupDone) {
     redirect(DASHBOARD_ROUTES.root);
   }
 

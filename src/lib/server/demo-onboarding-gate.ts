@@ -1,7 +1,8 @@
 import axios from "axios";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { authUrl } from "@/lib/config";
+import { API_BASE_URL, authUrl } from "@/lib/config";
+import { buildUpstreamAuthHeaders } from "@/lib/auth-user";
 import {
   readDemoSetupDoneFromRequest,
   readDemoTrialAccountFromRequest,
@@ -34,11 +35,33 @@ export async function fetchPersonalDemoStatus(accessToken: string): Promise<Pers
       validateStatus: () => true,
       timeout: DEMO_STATUS_TIMEOUT_MS,
     });
-    if (upstream.status < 200 || upstream.status >= 300) return null;
-    return upstream.data ?? null;
+    if (upstream.status >= 200 && upstream.status < 300) {
+      const status = upstream.data ?? null;
+      if (getPersonalDemoSetupState(status) !== null) return status;
+      const setupStatus = await fetchPersistedDemoSetupStatus(accessToken);
+      return setupStatus ? { ...status, ...setupStatus } : status;
+    }
+    return fetchPersistedDemoSetupStatus(accessToken);
   } catch {
-    return null;
+    return fetchPersistedDemoSetupStatus(accessToken);
   }
+}
+
+async function fetchPersistedDemoSetupStatus(accessToken: string): Promise<PersonalDemoStatus | null> {
+  if (!API_BASE_URL) return null;
+  for (const path of ["/demo/setup/status", "/demo/setup"]) {
+    try {
+      const response = await axios.get<PersonalDemoStatus>(`${API_BASE_URL}${path}`, {
+        headers: { ...buildUpstreamAuthHeaders(accessToken), Accept: "application/json" },
+        validateStatus: () => true,
+        timeout: DEMO_STATUS_TIMEOUT_MS,
+      });
+      if (response.status >= 200 && response.status < 300 && response.data) return response.data;
+    } catch {
+      // Try the compatible endpoint spelling next.
+    }
+  }
+  return null;
 }
 
 export function isPersonalDemoAccount(status: PersonalDemoStatus | null | undefined): boolean {
