@@ -62,7 +62,10 @@ export function MenuChefCartCoachEffect({
       suggestedProductNames: suggestedProducts.map((product) => product.name),
     });
     const badges = suggestedProducts.length > 0 ? [] : buildUpsellBadges(missing);
-    if (!text) return;
+    if (!text) {
+      setMessages((prev) => prev.filter((msg) => !msg.id.startsWith("coach-")));
+      return;
+    }
 
     setMessages((prev) => {
       const coachId = `coach-${sig}`;

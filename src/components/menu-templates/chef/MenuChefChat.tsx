@@ -47,7 +47,6 @@ import { MenuChefChatTrackedEffects } from "./MenuChefChatTrackedEffects";
 import { MenuChefProductCardGrid } from "./MenuChefProductCardGrid";
 import { MenuChefRecommendationFeedback } from "./MenuChefRecommendationFeedback";
 import { MenuChefQuickBadges } from "./MenuChefQuickBadges";
-import { MenuChefAddToast } from "./MenuChefAddToast";
 import { MenuChefSearchComplete } from "./MenuChefSearchComplete";
 import { useChefChatCatalog } from "./use-chef-chat-catalog";
 import { useResolveChefChatProducts } from "./use-resolve-chef-chat-products";
@@ -475,7 +474,6 @@ export function MenuChefChat({
   const [sendPulse, setSendPulse] = useState(0);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
-  const [addToastOpen, setAddToastOpen] = useState(false);
   const [streamingReply, setStreamingReply] = useState("");
   const [petekWelcomeTyping, setPetekWelcomeTyping] = useState(false);
   const [portalReady, setPortalReady] = useState(false);
@@ -807,11 +805,6 @@ export function MenuChefChat({
     }
   };
 
-  const showAddToast = () => {
-    setAddToastOpen(true);
-    window.setTimeout(() => setAddToastOpen(false), 4500);
-  };
-
   const sendMessage = async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || loading || !catalogReady) return;
@@ -972,7 +965,7 @@ export function MenuChefChat({
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
-                  {!isPetekWaffle ? <button
+                  <button
                     type="button"
                     onClick={() => {
                       if (!canReset || loading) return;
@@ -984,7 +977,7 @@ export function MenuChefChat({
                   >
                     <RotateCcw className="h-3.5 w-3.5" strokeWidth={2.25} />
                     <span className="hidden sm:inline">Sıfırla</span>
-                  </button> : null}
+                  </button>
                   <button
                     type="button"
                     onClick={onClose}
@@ -1038,7 +1031,6 @@ export function MenuChefChat({
                               ? (feedback) => handleRecommendationFeedback(msg.id, feedback)
                               : undefined
                           }
-                          onQuickAddSuccess={showAddToast}
                           onProductSelect={(product) => {
                             void runAgentSearch(
                               `${product.name} ürününü seçtim. Bir sonraki adımda ne önerirsin?`,
@@ -1207,29 +1199,30 @@ export function MenuChefChat({
                 <motion.div
                   key={cartFlyAnimation.key}
                   initial={{
-                    left: cartFlyAnimation.sourceRect.left + cartFlyAnimation.sourceRect.width / 2 - 56,
-                    top: cartFlyAnimation.sourceRect.top + cartFlyAnimation.sourceRect.height / 2 - 14,
+                    left: cartFlyAnimation.sourceRect.left + cartFlyAnimation.sourceRect.width / 2 - 30,
+                    top: cartFlyAnimation.sourceRect.top + cartFlyAnimation.sourceRect.height / 2 - 30,
                     scale: 1,
                     opacity: 1,
                   }}
                   animate={{
-                    left: cartFlyAnimation.targetRect.left + 2,
-                    top: cartFlyAnimation.targetRect.top + 4,
-                    scale: 0.35,
+                    left: cartFlyAnimation.targetRect.left + 10,
+                    top: cartFlyAnimation.targetRect.top + 10,
+                    scale: 0.38,
                     opacity: 0,
                   }}
-                  transition={{ duration: 0.68, ease: [0.22, 1, 0.36, 1] }}
-                  className="pointer-events-none fixed z-[160] flex h-7 w-28 items-center gap-1.5 rounded-full bg-[#4a1d2e] px-2.5 text-[10px] font-semibold text-white shadow-[0_8px_20px_rgba(74,29,46,0.28)]"
+                  transition={{ duration: 0.82, ease: [0.22, 1, 0.36, 1] }}
+                  className="pointer-events-none fixed z-[160] h-[60px] w-[60px] overflow-hidden rounded-[1.1rem] border-2 border-[#d93f6b] bg-white p-1 shadow-[0_10px_28px_rgba(217,63,107,0.35)]"
                 >
                   {cartFlyAnimation.imageUrl ? (
                     <span
-                      className="h-5 w-5 shrink-0 rounded-full bg-cover bg-center"
+                      className="block h-full w-full rounded-[0.8rem] bg-cover bg-center"
                       style={{ backgroundImage: `url(${cartFlyAnimation.imageUrl})` }}
                     />
                   ) : (
-                    <ShoppingBag className="h-3.5 w-3.5 shrink-0" strokeWidth={2.2} aria-hidden />
+                    <span className="flex h-full w-full items-center justify-center rounded-[0.8rem] bg-[#d93f6b] text-white">
+                      <ShoppingBag className="h-6 w-6" strokeWidth={2.2} aria-hidden />
+                    </span>
                   )}
-                  <span className="truncate">{cartFlyAnimation.name}</span>
                 </motion.div>
               ) : null}
             </AnimatePresence>
@@ -1244,19 +1237,6 @@ export function MenuChefChat({
               open={resetConfirmOpen}
               onCancel={() => setResetConfirmOpen(false)}
               onConfirm={resetChat}
-            />
-            <MenuChefAddToast
-              open={addToastOpen}
-              onDismiss={() => setAddToastOpen(false)}
-              onOpenCart={
-                ordering
-                  ? () => {
-                      chefAnalytics.trackCartOpen("cross_sell");
-                      ordering.setCartOpen(true);
-                      setAddToastOpen(false);
-                    }
-                  : undefined
-              }
             />
           </div>
         </motion.div>

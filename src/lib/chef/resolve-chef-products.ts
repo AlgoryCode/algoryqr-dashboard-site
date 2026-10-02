@@ -28,9 +28,13 @@ export async function resolveChefProducts(input: ResolveChefProductsInput): Prom
   const productIds = extractChefProductIds(input);
   if (
     normalizedFromPayload.length > 0 &&
-    (productIds.length === 0 || normalizedFromPayload.length >= productIds.length)
+    productIds.length === 0
   ) {
-    return normalizedFromPayload;
+    const byId = catalogById(input.catalog ?? []);
+    return normalizedFromPayload.map((item) => {
+      const canonical = byId.get(item.productId);
+      return canonical ? mapMenuProductToChefItem(canonical) : item;
+    });
   }
   if (productIds.length === 0) {
     return normalizedFromPayload;

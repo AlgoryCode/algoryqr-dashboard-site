@@ -27,5 +27,6 @@ export function mapMenuProductToChefItem(product: MenuProductApiItem): ChefProdu
     chefRecommended: product.chefRecommended === true,
     allergens: (product.allergens ?? []).map((entry) => entry.name || entry.slug).filter(Boolean),
     nutrition: (product.nutrition as Record<string, unknown> | null | undefined) ?? null,
+    optionGroups: product.optionGroups,
   };
 }

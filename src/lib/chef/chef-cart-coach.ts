@@ -55,7 +55,7 @@ export function buildCartCoachMessage(
   },
 ): string | null {
   if (missing.length === 0) {
-    return "Menünüz tamam görünüyor. Siparişinizi gözden geçirmek için sepeti inceleyebilir veya siparişe geçebilirsiniz.";
+    return null;
   }
   const suggestedProductNames = (context?.suggestedProductNames ?? []).filter(Boolean);
   if (suggestedProductNames.length > 0) {

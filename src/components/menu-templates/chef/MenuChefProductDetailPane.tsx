@@ -13,7 +13,6 @@ import { useMenuPriceDisplay } from "../shared/menu-currency";
 import { useChefChatAnalyticsOptional } from "./ChefChatAnalyticsContext";
 import { useChefChatCatalogProducts } from "./ChefChatCatalogContext";
 import { useChefProductGalleryOptional } from "./ChefProductGallery";
-import { MenuChefAddToast } from "./MenuChefAddToast";
 import { MenuChefCrossSellStrip } from "./MenuChefCrossSellStrip";
 
 type MenuChefProductDetailPaneProps = {
@@ -29,9 +28,7 @@ export function MenuChefProductDetailPane({ item }: MenuChefProductDetailPanePro
   const priceLabel = useMenuPriceDisplay(item.price ?? undefined, item.currency || "TRY");
   const [addBusy, setAddBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [added, setAdded] = useState(false);
   const [crossSellItems, setCrossSellItems] = useState<ChefProductItem[]>([]);
-  const [addToastOpen, setAddToastOpen] = useState(false);
   const addLabel = locale?.t.addToCart ?? "Sepete Ekle";
 
   const cartProductIds = useMemo(
@@ -44,17 +41,16 @@ export function MenuChefProductDetailPane({ item }: MenuChefProductDetailPanePro
     setAddBusy(true);
     setError(null);
     try {
-      const failure = await ordering.beginAddProduct(chefItemToMenuProduct(item), 1, {
+      const sourceProduct = catalog.find((entry) => entry.productId === item.productId) ?? chefItemToMenuProduct(item);
+      const failure = await ordering.beginAddProduct(sourceProduct, 1, {
         openCart: false,
+        deferOptions: true,
       });
       if (failure) {
         setError(failure);
         return;
       }
       analytics?.trackProductAdd(item.productId, "gallery");
-      setAdded(true);
-      setAddToastOpen(true);
-      window.setTimeout(() => setAddToastOpen(false), 4500);
 
       if (isChefCrossSellEnabled() && catalog.length > 0) {
         const suggestions = pickCrossSellProducts({
@@ -84,8 +80,10 @@ export function MenuChefProductDetailPane({ item }: MenuChefProductDetailPanePro
     setAddBusy(true);
     setError(null);
     try {
-      const failure = await ordering.beginAddProduct(chefItemToMenuProduct(product), 1, {
+      const sourceProduct = catalog.find((entry) => entry.productId === product.productId) ?? chefItemToMenuProduct(product);
+      const failure = await ordering.beginAddProduct(sourceProduct, 1, {
         openCart: false,
+        deferOptions: true,
       });
       if (failure) {
         setError(failure);
@@ -123,11 +121,6 @@ export function MenuChefProductDetailPane({ item }: MenuChefProductDetailPanePro
           </p>
         ) : null}
       </div>
-      {added ? (
-        <p className="rounded-[0.7rem] bg-emerald-50 px-3 py-2 text-[13px] font-medium text-emerald-900">
-          Sepete eklendi
-        </p>
-      ) : null}
       {ordering && item.available !== false ? (
         <button
           type="button"
@@ -154,19 +147,6 @@ export function MenuChefProductDetailPane({ item }: MenuChefProductDetailPanePro
         />
       ) : null}
       {error ? <p className="text-[12px] text-[#b42318]">{error}</p> : null}
-      <MenuChefAddToast
-        open={addToastOpen}
-        onDismiss={() => setAddToastOpen(false)}
-        onOpenCart={
-          ordering
-            ? () => {
-                analytics?.trackCartOpen("cross_sell");
-                ordering.setCartOpen(true);
-                setAddToastOpen(false);
-              }
-            : undefined
-        }
-      />
     </div>
   );
 }

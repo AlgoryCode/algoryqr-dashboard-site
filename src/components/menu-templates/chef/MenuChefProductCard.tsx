@@ -1,18 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import type { MouseEvent } from "react";
 import { Info, Loader2, Plus } from "lucide-react";
 
 import type { ChefProductItem } from "@/lib/chef/chef-product-item";
+import { getPublicProductRequest } from "@/lib/api";
 
 import { useMenuPriceDisplay } from "../shared/menu-currency";
 import {
   chefItemToMenuProduct,
-  useMenuLocaleOptional,
   useOrderingOptional,
 } from "../shared";
 
 import { useChefProductGalleryOptional } from "./ChefProductGallery";
+import { useChefChatCatalogProducts } from "./ChefChatCatalogContext";
 
 type MenuChefProductCardProps = {
   item: ChefProductItem;
@@ -28,14 +30,14 @@ export function MenuChefProductCard({
   showProductId = false,
 }: MenuChefProductCardProps) {
   const ordering = useOrderingOptional();
-  const locale = useMenuLocaleOptional();
   const gallery = useChefProductGalleryOptional();
+  const catalog = useChefChatCatalogProducts();
   const priceLabel = useMenuPriceDisplay(item.price ?? undefined, item.currency || "TRY");
   const [addBusy, setAddBusy] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const cardRef = useRef<HTMLElement>(null);
 
   const canAddToOrder = Boolean(ordering) && item.available !== false;
-  const addLabel = locale?.t.addToCart ?? "Sepete Ekle";
   const errorText = localError || ordering?.error || null;
 
   const openDetail = () => {
@@ -47,15 +49,44 @@ export function MenuChefProductCard({
     gallery?.openGallery(list, index >= 0 ? index : 0);
   };
 
-  const handleAddToOrder = async () => {
+  const handleAddToOrder = async (event: MouseEvent<HTMLButtonElement>) => {
     if (!ordering || item.available === false) return;
+    const sourceRect =
+      cardRef.current?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect();
     setAddBusy(true);
     setLocalError(null);
     try {
-      const failure = await ordering.beginAddProduct(chefItemToMenuProduct(item), 1, {
+      let sourceProduct = catalog.find((entry) => entry.productId === item.productId) ?? chefItemToMenuProduct(item);
+      if (!sourceProduct.optionGroups?.length) {
+        try {
+          sourceProduct = await getPublicProductRequest(ordering.publicId, item.productId);
+        } catch {
+          // Keep the catalog item; the checkout guard will still block an incomplete order.
+        }
+      }
+      const failure = await ordering.beginAddProduct(sourceProduct, 1, {
         openCart: false,
+        deferOptions: true,
       });
-      if (failure) setLocalError(failure);
+      if (failure) {
+        setLocalError(failure);
+        return;
+      }
+
+      window.dispatchEvent(
+        new CustomEvent("chef-product-added", {
+          detail: {
+            name: item.name,
+            imageUrl: item.imageUrl,
+            sourceRect: {
+              left: sourceRect.left,
+              top: sourceRect.top,
+              width: sourceRect.width,
+              height: sourceRect.height,
+            },
+          },
+        }),
+      );
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : "Sepete eklenemedi");
     } finally {
@@ -64,7 +95,7 @@ export function MenuChefProductCard({
   };
 
   return (
-    <article className="flex w-full flex-col overflow-hidden rounded-[1.1rem] border border-white/80 bg-white/85 shadow-[0_8px_24px_rgba(28,40,36,0.06)] backdrop-blur-sm">
+    <article ref={cardRef} className="flex w-full flex-col overflow-hidden rounded-[1.1rem] border border-white/80 bg-white/85 shadow-[0_8px_24px_rgba(28,40,36,0.06)] backdrop-blur-sm">
       <div className="aspect-[16/10] w-full overflow-hidden bg-[#e8ebe9]">
         {item.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -93,20 +124,20 @@ export function MenuChefProductCard({
         {priceLabel ? (
           <p className="text-[14px] font-semibold tabular-nums text-[#2a3833]">{priceLabel}</p>
         ) : null}
-        <div className="mt-1 flex gap-2">
+        <div className="mt-1 flex items-center gap-2">
           {canAddToOrder && ordering ? (
             <button
               type="button"
               disabled={addBusy || ordering.loading}
-              onClick={() => void handleAddToOrder()}
-              className="inline-flex flex-1 items-center justify-center gap-1 rounded-[0.7rem] bg-[#1c2824] px-3 py-2.5 text-[12.5px] font-medium text-white transition hover:bg-[#2a3833] disabled:opacity-50"
+              onClick={(event) => void handleAddToOrder(event)}
+              className="petek-chef-add-button inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#d93f6b] text-white shadow-[0_5px_14px_rgba(217,63,107,0.22)] transition hover:bg-[#b92d58] disabled:opacity-50"
+              aria-label={`${item.name} sepete ekle`}
             >
               {addBusy || ordering.loading ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2.25} />
               ) : (
-                <Plus className="h-3.5 w-3.5" strokeWidth={2.25} />
+                <Plus className="h-5 w-5" strokeWidth={2.5} />
               )}
-              {addLabel}
             </button>
           ) : null}
           <button

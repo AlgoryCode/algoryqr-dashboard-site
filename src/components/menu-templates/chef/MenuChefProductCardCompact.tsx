@@ -1,10 +1,11 @@
 "use client";
 
-import { Loader2, ShoppingBag } from "lucide-react";
-import { useState } from "react";
+import { Loader2, Plus } from "lucide-react";
+import { useRef, useState } from "react";
 
 import type { ChefProductItem } from "@/lib/chef/chef-product-item";
 import { isChefCardQuickAddEnabled } from "@/lib/chef/chef-funnel-flags";
+import { getPublicProductRequest } from "@/lib/api";
 
 import { chefItemToMenuProduct, useOrderingOptional } from "../shared";
 import { useMenuPriceDisplay } from "../shared/menu-currency";
@@ -12,6 +13,7 @@ import { useMenuPriceDisplay } from "../shared/menu-currency";
 import type { ChefProductCardSource } from "@/hooks/use-chef-chat-analytics";
 
 import { useChefChatAnalyticsOptional } from "./ChefChatAnalyticsContext";
+import { useChefChatCatalogProducts } from "./ChefChatCatalogContext";
 import { useChefProductGalleryOptional } from "./ChefProductGallery";
 
 type MenuChefProductCardCompactProps = {
@@ -38,10 +40,12 @@ export function MenuChefProductCardCompact({
   onQuickAddSuccess,
 }: MenuChefProductCardCompactProps) {
   const gallery = useChefProductGalleryOptional();
+  const catalog = useChefChatCatalogProducts();
   const analytics = useChefChatAnalyticsOptional();
   const ordering = useOrderingOptional();
   const priceLabel = useMenuPriceDisplay(item.price ?? undefined, item.currency || "TRY");
   const [addBusy, setAddBusy] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
   const quickAddEnabled = isChefCardQuickAddEnabled();
 
   const openDetail = () => {
@@ -59,12 +63,23 @@ export function MenuChefProductCardCompact({
     if (!ordering || item.available === false || addBusy) return;
     setAddBusy(true);
     try {
-      const failure = await ordering.beginAddProduct(chefItemToMenuProduct(item), 1, {
+      let sourceProduct = catalog.find((entry) => entry.productId === item.productId) ?? chefItemToMenuProduct(item);
+      if (!sourceProduct.optionGroups?.length) {
+        try {
+          sourceProduct = await getPublicProductRequest(ordering.publicId, item.productId);
+        } catch {
+          // Keep the catalog item; the checkout guard will still block an incomplete order.
+        }
+      }
+      const failure = await ordering.beginAddProduct(sourceProduct, 1, {
         openCart: false,
+        deferOptions: true,
       });
       if (!failure) {
         analytics?.trackProductAdd(item.productId, cardSource);
-        const sourceRect = (event.currentTarget as HTMLButtonElement).getBoundingClientRect();
+        const sourceRect =
+          cardRef.current?.getBoundingClientRect() ??
+          (event.currentTarget as HTMLButtonElement).getBoundingClientRect();
         window.dispatchEvent(
           new CustomEvent("chef-product-added", {
             detail: {
@@ -95,6 +110,7 @@ export function MenuChefProductCardCompact({
 
   return (
     <div
+      ref={cardRef}
       className={`relative ${widthClass} shrink-0 snap-start overflow-hidden rounded-lg border border-white/90 bg-white shadow-[0_3px_12px_rgba(28,40,36,0.07)]`}
     >
       <button
@@ -131,13 +147,13 @@ export function MenuChefProductCardCompact({
             type="button"
             onClick={(event) => void handleQuickAdd(event)}
             disabled={addBusy || ordering.loading}
-            className="petek-chef-add-button inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#2a3833] text-white shadow-md transition hover:bg-[#1f2b27] disabled:opacity-50"
+            className="petek-chef-add-button inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#d93f6b] text-white shadow-[0_5px_14px_rgba(217,63,107,0.22)] transition hover:bg-[#b92d58] disabled:opacity-50"
             aria-label={`${item.name} sepete ekle`}
           >
             {addBusy || ordering.loading ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
             ) : (
-              <ShoppingBag className="h-3.5 w-3.5" strokeWidth={2.4} aria-hidden />
+              <Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden />
             )}
           </button>
         ) : null}

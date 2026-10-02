@@ -1,3 +1,5 @@
+import type { MenuProductOptionGroupApiItem } from "@/lib/api";
+
 export type ChefProductItem = {
   productId: number;
   menuId: number;
@@ -13,4 +15,5 @@ export type ChefProductItem = {
   chefRecommended?: boolean;
   allergens?: string[];
   nutrition?: Record<string, unknown> | null;
+  optionGroups?: MenuProductOptionGroupApiItem[];
 };

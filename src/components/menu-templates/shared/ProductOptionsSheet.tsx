@@ -13,13 +13,13 @@ import {
 } from "@/lib/product-options";
 
 import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { MenuPriceText, useMenuPriceDisplay } from "./menu-currency";
 import { useMenuLocaleOptional } from "./menu-locale";
 import { Tx } from "@/components/google-translate-provider";
@@ -29,6 +29,7 @@ type ProductOptionsSheetProps = {
   product: MenuProductApiItem | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  requireSelection?: boolean;
   onConfirm: (input: {
     selectedOptionIds: number[];
     quantity: number;
@@ -76,6 +77,7 @@ export function ProductOptionsSheet({
   product,
   open,
   onOpenChange,
+  requireSelection = false,
   onConfirm,
 }: ProductOptionsSheetProps) {
   const locale = useMenuLocaleOptional();
@@ -99,7 +101,9 @@ export function ProductOptionsSheet({
   const delta = optionDeltaTotal(groups, selectedOptionIds);
   const unitPrice = basePrice + delta;
   const lineLabel = useMenuPriceDisplay(unitPrice * quantity, product?.currency || "TRY");
-  const valid = areOptionSelectionsValid(groups, selectedOptionIds);
+  const valid =
+    areOptionSelectionsValid(groups, selectedOptionIds) &&
+    (!requireSelection || selectedOptionIds.length > 0);
 
   const sortedGroups = useMemo(
     () =>
@@ -112,29 +116,29 @@ export function ProductOptionsSheet({
   if (!product) return null;
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="bottom"
-        overlayClassName="z-[90]"
-        className={`${theme.rootClassName} pw-options-sheet z-[90] max-h-[90vh] overflow-y-auto rounded-t-2xl border-t border-[var(--lx-border)] bg-[var(--lx-bg)] p-0 text-[var(--lx-fg)]`}
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        overlayClassName="z-[130]"
+        showCloseButton={false}
+        className={`${theme.rootClassName} pw-options-sheet fixed left-1/2 top-1/2 z-[130] flex h-[min(88dvh,48rem)] max-h-[calc(100dvh-1rem)] w-[min(92vw,34rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-[var(--lx-border)] bg-[var(--lx-bg)] p-0 text-[var(--lx-fg)] shadow-[0_24px_70px_rgba(28,40,36,0.24)]`}
         dir={locale?.dir}
       >
-        <div className="pw-options-inner space-y-4 px-4 pb-8 pt-4">
+        <div data-chef-scroll className="pw-options-inner min-h-0 w-full flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pb-8 pt-4 [touch-action:pan-y]">
           <style>{theme.styles}</style>
           <div className="pw-options-sticky-header">
-            <SheetHeader className="pw-options-header text-left">
-              <SheetTitle className="flex items-center gap-2">
+            <DialogHeader className="pw-options-header text-left">
+              <DialogTitle className="flex items-center gap-2">
                 <span className="pw-options-title-icon" aria-hidden="true"><Cookie className="h-4 w-4" /></span>
                 <Tx>{product.name}</Tx>
-              </SheetTitle>
-              <SheetDescription className="pw-options-price">
+              </DialogTitle>
+              <DialogDescription className="pw-options-price">
                 <MenuPriceText price={unitPrice} currency={product.currency || "TRY"} />
-              </SheetDescription>
-            </SheetHeader>
-            <SheetClose className="pw-options-close" aria-label="Kapat">
+              </DialogDescription>
+            </DialogHeader>
+            <DialogClose className="pw-options-close" aria-label="Kapat">
               <X className="h-5 w-5" />
               <span className="sr-only">Kapat</span>
-            </SheetClose>
+            </DialogClose>
           </div>
 
           {sortedGroups.map((group) => {
@@ -264,7 +268,7 @@ export function ProductOptionsSheet({
             </button>
           </div>
         </div>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }

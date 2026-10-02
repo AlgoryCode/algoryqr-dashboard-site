@@ -12,6 +12,7 @@ import { chefItemToMenuProduct, useOrderingOptional } from "../shared";
 import { useMenuPriceDisplay } from "../shared/menu-currency";
 
 import { ChefPanelGroupTitle, ChefPanelSectionTitle } from "./ChefPanelSectionTitle";
+import { useChefChatCatalogProducts } from "./ChefChatCatalogContext";
 import { MenuChefProductCardCompact } from "./MenuChefProductCardCompact";
 
 type MenuChefMenuSuggestionsProps = {
@@ -29,6 +30,7 @@ function MenuChefMenuSuggestionCard({
   animateEnter?: boolean;
 }) {
   const ordering = useOrderingOptional();
+  const catalog = useChefChatCatalogProducts();
   const totalLabel = useMenuPriceDisplay(suggestion.totalPrice, suggestion.currency);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +47,10 @@ function MenuChefMenuSuggestionCard({
     setError(null);
     try {
       for (const line of suggestion.lines) {
-        const failure = await ordering.beginAddProduct(chefItemToMenuProduct(line.product), 1);
+        const sourceProduct = catalog.find((entry) => entry.productId === line.product.productId) ?? chefItemToMenuProduct(line.product);
+        const failure = await ordering.beginAddProduct(sourceProduct, 1, {
+          deferOptions: true,
+        });
         if (failure) {
           setError(failure);
           return;

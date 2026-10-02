@@ -18,6 +18,8 @@ import { CampaignCartPreview } from "./CampaignCartPreview";
 import { useCartSheetHostOptional } from "./cart-sheet-host-context";
 import { useOrdering } from "./ordering-context";
 import { usePublicMenuTheme } from "./public-menu-theme";
+import { usePublicMenuProducts } from "./use-public-menu-products";
+import { areOptionSelectionsValid } from "@/lib/product-options";
 
 export function CartSheet() {
   const cartSheetHost = useCartSheetHostOptional();
@@ -36,6 +38,7 @@ export function CartSheet() {
     setNote,
     updateQty,
     submitOrder,
+    openOptionsForCartLine,
     submitting,
     error,
     tableName,
@@ -44,6 +47,7 @@ export function CartSheet() {
   const t = locale?.t;
   const [successId, setSuccessId] = useState<number | null>(null);
   const theme = usePublicMenuTheme();
+  const { products: menuProducts } = usePublicMenuProducts();
   const currency = cart?.currency || localItems[0]?.currency || "TRY";
   const totalLabel = useMenuPriceDisplay(cartTotal, currency);
 
@@ -83,12 +87,26 @@ export function CartSheet() {
           ) : (
             <ul className="pw-cart-items space-y-3">
               {localItems.map((item) => (
-                <li
-                  key={item.lineKey}
-                  className="pw-cart-item flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5"
-                >
+                (() => {
+                  const product = menuProducts.find((entry) => entry.productId === item.productId);
+                  const optionGroups = product?.optionGroups ?? item.optionGroups;
+                  const optionsMissing = Boolean(
+                    (item.optionsRequired || optionGroups?.length) &&
+                      (item.selectedOptionIds.length === 0 ||
+                        !areOptionSelectionsValid(optionGroups, item.selectedOptionIds)),
+                  );
+                  return (
+                    <li
+                      key={item.lineKey}
+                      className="pw-cart-item flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5"
+                    >
                   <span className="pw-cart-item-icon" aria-hidden="true"><ReceiptText className="h-4 w-4" /></span>
-                  <div className="min-w-0 flex-1">
+                  <button
+                    type="button"
+                    disabled={!optionsMissing}
+                    onClick={() => void openOptionsForCartLine(item.lineKey)}
+                    className="min-w-0 flex-1 text-left disabled:cursor-default"
+                  >
                     <p className="truncate text-sm font-semibold"><Tx>{item.productName}</Tx></p>
                     {item.selectedOptions?.length ? (
                       <div className="pw-cart-options">
@@ -102,7 +120,12 @@ export function CartSheet() {
                     <p className="pw-cart-unit-price text-xs text-muted-foreground">
                       <MenuPriceText price={item.unitPrice} currency={currency} />
                     </p>
-                  </div>
+                    {optionsMissing ? (
+                      <span className="mt-1 inline-flex rounded-full bg-[#d93f6b]/10 px-2 py-0.5 text-[10px] font-semibold text-[#b92d58]">
+                        Seçim gerekli · düzenle
+                      </span>
+                    ) : null}
+                  </button>
                   <div className="pw-cart-quantity flex items-center gap-2">
                     <button
                       type="button"
@@ -122,7 +145,9 @@ export function CartSheet() {
                       <Plus className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                </li>
+                    </li>
+                  );
+                })()
               ))}
             </ul>
           )}

@@ -22,6 +22,7 @@ export function chefItemToMenuProduct(item: ChefProductItem): MenuProductApiItem
     imageUrl: item.imageUrl ?? undefined,
     available: item.available,
     nutrition: (item.nutrition as NutritionFacts | null | undefined) ?? null,
+    optionGroups: item.optionGroups,
   };
 }
 

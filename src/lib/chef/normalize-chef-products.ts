@@ -1,4 +1,5 @@
 import type { ChefProductItem } from "@/lib/chef/chef-product-item";
+import type { MenuProductOptionGroupApiItem } from "@/lib/api";
 
 const MAX_PRODUCTS = 10;
 
@@ -35,6 +36,9 @@ function normalizeItem(raw: unknown): ChefProductItem | null {
   const mainCategoryName = asString(item.mainCategoryName);
   const available = typeof item.available === "boolean" ? item.available : true;
   const chefRecommended = item.chefRecommended === true;
+  const optionGroups = Array.isArray(item.optionGroups)
+    ? (item.optionGroups as MenuProductOptionGroupApiItem[])
+    : undefined;
   const allergens = Array.isArray(item.allergens)
     ? item.allergens
         .map((entry) => {
@@ -68,6 +72,7 @@ function normalizeItem(raw: unknown): ChefProductItem | null {
     chefRecommended,
     allergens,
     nutrition,
+    optionGroups,
   };
 }
 
