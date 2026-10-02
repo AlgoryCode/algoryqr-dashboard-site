@@ -110,8 +110,7 @@ export function ChefQuickOptionsEditor({ menuId, value, onChange }: ChefQuickOpt
 
         {value.quickOptions.length === 0 ? (
           <p className="rounded-md border border-dashed border-border/70 px-3 py-4 text-xs text-muted-foreground">
-            Henüz hızlı seçenek yok. Boş bırakırsanız varsayılan rozetler (Şefin önerisi, En popüler)
-            kullanılır.
+            Henüz hızlı seçenek yok. Boş bırakırsanız chat içinde hızlı seçenek gösterilmez.
           </p>
         ) : null}
 

@@ -827,35 +827,6 @@
   z-index: 1;
   animation: petek-welcome-copy-in 0.75s ease-out 1.02s both;
 }
-.petek-waffle-chef-chat .petek-chat-quick-options {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  width: 100%;
-  max-width: 42rem;
-  gap: 7px;
-  margin: 0 auto;
-  overflow-x: auto;
-  padding: 0 20px 12px;
-  justify-content: center;
-  scrollbar-width: none;
-}
-.petek-waffle-chef-chat .petek-chat-quick-options::-webkit-scrollbar {
-  display: none;
-}
-.petek-waffle-chef-chat .petek-chat-quick-options button {
-  flex: none;
-  border: 1.5px solid #d93f6b;
-  border-radius: 999px;
-  background: transparent;
-  padding: 5px 12px;
-  color: #d93f6b;
-  font-family: "Fredoka", ui-sans-serif, system-ui, sans-serif;
-  font-size: 14px;
-}
-.petek-waffle-chef-chat .petek-chat-quick-options button:hover {
-  background: #ffd6e0;
-}
 .petek-waffle-chef-chat .petek-chef-quick-badges {
   gap: 7px;
   padding-top: 12px;

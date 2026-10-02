@@ -207,7 +207,6 @@ function AssistantBubble({
   onAvatarClick,
   chefAvatarUrl,
   chefDisplayName,
-  publicId,
   badgesDisabled,
   onBadgeSelect,
   onRecommendationFeedback,
@@ -223,7 +222,6 @@ function AssistantBubble({
   onAvatarClick: () => void;
   chefAvatarUrl: string;
   chefDisplayName: string;
-  publicId: string;
   badgesDisabled: boolean;
   onBadgeSelect: (badge: ChefChatBadge) => void;
   onRecommendationFeedback?: (feedback: ChefTurnFeedbackValue) => void;
@@ -317,14 +315,6 @@ function AssistantBubble({
                 badges={upsellBadges}
                 disabled={badgesDisabled}
                 onSelect={onBadgeSelect}
-              />
-            ) : null}
-            {msg.id === "welcome" || msg.showEmptyStateBadges ? (
-              <MenuChefQuickBadges
-                publicId={publicId}
-                disabled={badgesDisabled}
-                onSelect={onBadgeSelect}
-                themeVariant={themeVariant}
               />
             ) : null}
           </motion.div>
@@ -1030,7 +1020,6 @@ export function MenuChefChat({
                           onAvatarClick={() => setAvatarOpen(true)}
                           chefAvatarUrl={chefAvatarUrl}
                           chefDisplayName={chefDisplayName}
-                          publicId={publicId}
                           badgesDisabled={loading || !catalogReady}
                           onBadgeSelect={(badge) => {
                             void sendBadge(badge);
@@ -1127,15 +1116,18 @@ export function MenuChefChat({
               </div>
             </div>
 
-            {isPetekWaffle && !messages.some((message) => message.role === "user") ? (
-              <div className="petek-chat-quick-options ac" aria-label="Hızlı öneriler">
-                {["Tatlı bir şey", "Tuzlu olsun", "Çocuğum için", "200 ₺ altı"].map((label) => (
-                  <button key={label} type="button" disabled={loading || !catalogReady} onClick={() => void sendMessage(label)}>
-                    {label}
-                  </button>
-                ))}
+            <div className="px-4 pb-2">
+              <div className="mx-auto max-w-2xl">
+                <MenuChefQuickBadges
+                  publicId={publicId}
+                  disabled={loading || !catalogReady}
+                  onSelect={(badge) => {
+                    void sendBadge(badge);
+                  }}
+                  themeVariant={themeVariant}
+                />
               </div>
-            ) : null}
+            </div>
 
             <form
               className="ai-in relative z-10 border-t border-[#1c2824]/[0.06] bg-white/60 px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl"
