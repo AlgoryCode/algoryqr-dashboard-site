@@ -69,6 +69,17 @@ function nextId() {
   return `chef-msg-${messageSeq}`;
 }
 
+type ChefProductAddedDetail = {
+  name: string;
+  imageUrl?: string | null;
+  sourceRect: { left: number; top: number; width: number; height: number };
+};
+
+type CartFlyAnimation = ChefProductAddedDetail & {
+  targetRect: { left: number; top: number };
+  key: number;
+};
+
 const EMPTY_RECOMMENDATION_TEXT =
   "Bu soruya uygun ürün bulamadım. Aşağıdaki hazır filtreleri deneyebilirsiniz.";
 
@@ -468,6 +479,9 @@ export function MenuChefChat({
   const [streamingReply, setStreamingReply] = useState("");
   const [petekWelcomeTyping, setPetekWelcomeTyping] = useState(false);
   const [portalReady, setPortalReady] = useState(false);
+  const [cartFlyAnimation, setCartFlyAnimation] = useState<CartFlyAnimation | null>(null);
+  const cartPulseRef = useRef(0);
+  const [cartPulse, setCartPulse] = useState(0);
   const listRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const enteredIdsRef = useRef(
@@ -484,6 +498,30 @@ export function MenuChefChat({
       setChefChatCartHost?.(false);
     };
   }, [open, setChefChatCartHost]);
+
+  useEffect(() => {
+    const onProductAdded = (event: Event) => {
+      const detail = (event as CustomEvent<ChefProductAddedDetail>).detail;
+      if (!detail?.sourceRect) return;
+      const target = document.querySelector<HTMLElement>("[data-chef-cart-target]");
+      if (!target) return;
+      const targetRect = target.getBoundingClientRect();
+      const key = cartPulseRef.current + 1;
+      cartPulseRef.current = key;
+      setCartPulse(key);
+      setCartFlyAnimation({
+        ...detail,
+        targetRect: { left: targetRect.left, top: targetRect.top },
+        key,
+      });
+      window.setTimeout(() => {
+        setCartFlyAnimation((current) => (current?.key === key ? null : current));
+      }, 720);
+    };
+
+    window.addEventListener("chef-product-added", onProductAdded);
+    return () => window.removeEventListener("chef-product-added", onProductAdded);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -934,36 +972,6 @@ export function MenuChefChat({
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
-                  {ordering && isPetekWaffle && ordering.cartCount > 0 ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        chefAnalytics.trackCartOpen("header");
-                        ordering.setCartOpen(true);
-                      }}
-                      className="petek-chat-cart-button"
-                      aria-label="Sepeti gör"
-                    >
-                      Sepet · {ordering.cartCount}
-                    </button>
-                  ) : ordering ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        chefAnalytics.trackCartOpen("header");
-                        ordering.setCartOpen(true);
-                      }}
-                      className="relative inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#1c2824]/[0.04] text-[#3d4a45] transition hover:bg-[#1c2824]/[0.08] hover:text-[#1c2824]"
-                      aria-label="Sepet"
-                    >
-                      <ShoppingBag className="h-4 w-4" strokeWidth={2.1} aria-hidden />
-                      {ordering.cartCount > 0 ? (
-                        <span className="absolute -right-0.5 -top-0.5 inline-flex h-[1.1rem] min-w-[1.1rem] items-center justify-center rounded-full bg-[#2a3833] px-1 text-[10px] font-semibold leading-none text-white">
-                          {ordering.cartCount > 99 ? "99+" : ordering.cartCount}
-                        </span>
-                      ) : null}
-                    </button>
-                  ) : null}
                   {!isPetekWaffle ? <button
                     type="button"
                     onClick={() => {
@@ -1139,6 +1147,29 @@ export function MenuChefChat({
               }}
             >
               <div className="mx-auto flex max-w-2xl items-center gap-2 rounded-full border border-[#1c2824]/[0.08] bg-white/90 p-1.5 shadow-[0_10px_30px_rgba(28,40,36,0.06)]">
+                {ordering ? (
+                  <motion.button
+                    key={`cart-${cartPulse}`}
+                    type="button"
+                    data-chef-cart-target
+                    onClick={() => {
+                      chefAnalytics.trackCartOpen("input");
+                      ordering.setCartOpen(true);
+                    }}
+                    initial={false}
+                    animate={cartPulse > 0 ? { scale: [1, 1.18, 1] } : { scale: 1 }}
+                    transition={{ duration: 0.42, ease: "easeOut" }}
+                    className="petek-chat-cart-button-inline relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1c2824]/[0.04] text-[#3d4a45] transition hover:bg-[#1c2824]/[0.08] hover:text-[#1c2824]"
+                    aria-label={`Sepeti aç${ordering.cartCount > 0 ? `, ${ordering.cartCount} ürün` : ""}`}
+                  >
+                    <ShoppingBag className="h-4 w-4" strokeWidth={2.1} aria-hidden />
+                    {ordering.cartCount > 0 ? (
+                      <span className="absolute -right-0.5 -top-0.5 inline-flex h-[1.1rem] min-w-[1.1rem] items-center justify-center rounded-full bg-[#2a3833] px-1 text-[10px] font-semibold leading-none text-white">
+                        {ordering.cartCount > 99 ? "99+" : ordering.cartCount}
+                      </span>
+                    ) : null}
+                  </motion.button>
+                ) : null}
                 <input
                   ref={inputRef}
                   value={input}
@@ -1170,6 +1201,38 @@ export function MenuChefChat({
                 </motion.button>
               </div>
             </form>
+
+            <AnimatePresence>
+              {cartFlyAnimation ? (
+                <motion.div
+                  key={cartFlyAnimation.key}
+                  initial={{
+                    left: cartFlyAnimation.sourceRect.left + cartFlyAnimation.sourceRect.width / 2 - 56,
+                    top: cartFlyAnimation.sourceRect.top + cartFlyAnimation.sourceRect.height / 2 - 14,
+                    scale: 1,
+                    opacity: 1,
+                  }}
+                  animate={{
+                    left: cartFlyAnimation.targetRect.left + 2,
+                    top: cartFlyAnimation.targetRect.top + 4,
+                    scale: 0.35,
+                    opacity: 0,
+                  }}
+                  transition={{ duration: 0.68, ease: [0.22, 1, 0.36, 1] }}
+                  className="pointer-events-none fixed z-[160] flex h-7 w-28 items-center gap-1.5 rounded-full bg-[#4a1d2e] px-2.5 text-[10px] font-semibold text-white shadow-[0_8px_20px_rgba(74,29,46,0.28)]"
+                >
+                  {cartFlyAnimation.imageUrl ? (
+                    <span
+                      className="h-5 w-5 shrink-0 rounded-full bg-cover bg-center"
+                      style={{ backgroundImage: `url(${cartFlyAnimation.imageUrl})` }}
+                    />
+                  ) : (
+                    <ShoppingBag className="h-3.5 w-3.5 shrink-0" strokeWidth={2.2} aria-hidden />
+                  )}
+                  <span className="truncate">{cartFlyAnimation.name}</span>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
 
             <ChefAvatarLightbox
               open={avatarOpen}

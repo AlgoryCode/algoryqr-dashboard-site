@@ -64,6 +64,21 @@ export function MenuChefProductCardCompact({
       });
       if (!failure) {
         analytics?.trackProductAdd(item.productId, cardSource);
+        const sourceRect = (event.currentTarget as HTMLButtonElement).getBoundingClientRect();
+        window.dispatchEvent(
+          new CustomEvent("chef-product-added", {
+            detail: {
+              name: item.name,
+              imageUrl: item.imageUrl,
+              sourceRect: {
+                left: sourceRect.left,
+                top: sourceRect.top,
+                width: sourceRect.width,
+                height: sourceRect.height,
+              },
+            },
+          }),
+        );
         onQuickAddSuccess?.();
       }
     } finally {

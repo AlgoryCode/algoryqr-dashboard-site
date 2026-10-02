@@ -14,7 +14,7 @@ import {
 
 export type ChefRecommendationRequestMode = "general" | "default" | "cart" | "badge";
 export type ChefProductCardSource = "bubble" | "panel" | "cross_sell" | "menu_suggestion";
-export type ChefCartOpenSource = "header" | "coach" | "cross_sell" | "complete_cta";
+export type ChefCartOpenSource = "header" | "input" | "coach" | "cross_sell" | "complete_cta";
 
 export type ChefChatAnalytics = {
   setConversationId: (id: string | undefined) => void;
