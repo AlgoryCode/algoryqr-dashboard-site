@@ -1351,12 +1351,18 @@ function KitchenOrderDetailContent({
           ) : (
             <ul className="divide-y divide-slate-100 rounded-xl border border-slate-100">
               {items.map((item, index) => {
-                const options = (item.selectedOptions ?? [])
+                const optionGroups = (item.selectedOptions ?? [])
                   .filter((option) => option.optionName)
-                  .map((option) => ({
-                    groupName: option.groupName?.trim() || null,
-                    optionName: option.optionName,
-                  }));
+                  .reduce<Array<{ groupName: string | null; optionNames: string[] }>>((groups, option) => {
+                    const groupName = option.groupName?.trim() || null;
+                    const existing = groups.find((group) => group.groupName === groupName);
+                    if (existing) {
+                      existing.optionNames.push(option.optionName);
+                    } else {
+                      groups.push({ groupName, optionNames: [option.optionName] });
+                    }
+                    return groups;
+                  }, []);
                 return (
                   <li
                     key={`${order.id}-${item.id ?? item.productId}-${index}`}
@@ -1367,18 +1373,29 @@ function KitchenOrderDetailContent({
                         <span className="font-semibold text-slate-900">{item.quantity}×</span>{" "}
                         <span className="font-medium">{item.productName || `#${item.productId}`}</span>
                       </p>
-                      {options.length > 0 ? (
-                        <p className="text-xs text-slate-500">
-                          {options.map((option, optionIndex) => (
-                            <span key={`${option.groupName ?? "option"}-${option.optionName}-${optionIndex}`}>
-                              {optionIndex > 0 ? " · " : null}
-                              {option.groupName ? (
-                                <span className="font-semibold text-slate-700">{option.groupName}: </span>
+                      {optionGroups.length > 0 ? (
+                        <div className="mt-1 space-y-1.5 text-xs text-slate-600">
+                          {optionGroups.map((group, groupIndex) => (
+                            <div
+                              key={`${group.groupName ?? "option"}-${groupIndex}`}
+                              className="flex flex-wrap items-center gap-1.5 rounded-md bg-slate-50 px-2 py-1"
+                            >
+                              {group.groupName ? (
+                                <span className="font-semibold text-slate-700">{group.groupName}:</span>
                               ) : null}
-                              {option.optionName}
-                            </span>
+                              <span className="flex flex-wrap gap-1">
+                                {group.optionNames.map((optionName, optionIndex) => (
+                                  <span
+                                    key={`${optionName}-${optionIndex}`}
+                                    className="rounded bg-white px-1.5 py-0.5 text-slate-600 ring-1 ring-slate-200"
+                                  >
+                                    {optionName}
+                                  </span>
+                                ))}
+                              </span>
+                            </div>
                           ))}
-                        </p>
+                        </div>
                       ) : null}
                       {item.note ? (
                         <p className="mt-0.5 text-xs font-medium text-amber-700">Not: {item.note}</p>
