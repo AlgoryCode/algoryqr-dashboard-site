@@ -499,7 +499,7 @@ export function MenuChefChat({
     void fetch(`/api/menu/chef/badges?publicId=${encodeURIComponent(publicId)}`)
       .then((res) => res.json())
       .then((data: { welcomeMessage?: string }) => {
-        if (cancelled || isPetekWaffle || !data.welcomeMessage?.trim()) return;
+        if (cancelled || !data.welcomeMessage?.trim()) return;
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === "welcome" && msg.role === "assistant"
@@ -512,7 +512,7 @@ export function MenuChefChat({
     return () => {
       cancelled = true;
     };
-  }, [isPetekWaffle, open, publicId]);
+  }, [open, publicId]);
 
   useEffect(() => {
     if (!open || !isPetekWaffle || messages.some((msg) => msg.id !== "welcome")) {
