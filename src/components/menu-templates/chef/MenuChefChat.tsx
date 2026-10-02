@@ -288,24 +288,24 @@ function AssistantBubble({
               </p>
             ) : null}
             {coachActions?.openCart || coachActions?.completeOrder ? (
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                 {coachActions.openCart && onCoachOpenCart ? (
                   <button
                     type="button"
                     onClick={onCoachOpenCart}
-                    className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[#1c2824]/10 bg-white px-3.5 text-[13px] font-medium text-[#2a3833] transition hover:bg-[#1c2824]/[0.04]"
+                    className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full border border-[#1c2824]/10 bg-white px-3.5 text-[13px] font-medium text-[#2a3833] transition hover:bg-[#1c2824]/[0.04]"
                   >
                     <ShoppingBag className="h-3.5 w-3.5" aria-hidden />
-                    Sepeti göster
+                    Sepeti incele
                   </button>
                 ) : null}
                 {coachActions.completeOrder && onCoachCompleteOrder ? (
                   <button
                     type="button"
                     onClick={onCoachCompleteOrder}
-                    className="inline-flex h-9 items-center rounded-full bg-[#2a3833] px-3.5 text-[13px] font-medium text-white transition hover:bg-[#1f2b27]"
+                    className="inline-flex h-9 flex-1 items-center justify-center rounded-full bg-[#2a3833] px-3.5 text-[13px] font-medium text-white transition hover:bg-[#1f2b27]"
                   >
-                    Siparişi tamamla
+                    Siparişe geç
                   </button>
                 ) : null}
               </div>
