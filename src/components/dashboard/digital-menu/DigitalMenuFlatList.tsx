@@ -3,7 +3,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BookOpen, ChevronRight, Loader2, Plus, Search } from "lucide-react";
+import { BookOpen, ChevronRight, ExternalLink, Loader2, Plus, Search } from "lucide-react";
 
 import { DigitalMenuBranchFilterStrip } from "@/components/dashboard/digital-menu/DigitalMenuBranchFilterStrip";
 import { EmptyState } from "@/components/dashboard/EmptyState";
@@ -14,6 +14,7 @@ import { useBranches } from "@/hooks/use-branches";
 import { canCreateMenuOnBranch, type BranchItem, type BranchListResponse } from "@/lib/branch";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { ACCOUNT_CARD } from "@/lib/dashboard-surface";
+import { resolvePublicMenuHref } from "@/lib/public-menu-href";
 import {
   DEFAULT_MENU_DIRECTORY_FILTERS,
   filterMenuDirectory,
@@ -37,15 +38,14 @@ function MenuDirectoryRow({
   menu: DigitalMenuDirectoryItem;
   showBranchName: boolean;
 }) {
+  const publicMenuHref = resolvePublicMenuHref({ publicId: menu.publicId });
+
   return (
-    <Link
-      href={DASHBOARD_ROUTES.digitalMenuEdit(menu.qrId)}
-      className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-[#fafafa]"
-    >
+    <div className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-[#fafafa]">
       <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#f3f3f1] text-zinc-500">
         <BookOpen className="h-5 w-5" strokeWidth={1.75} aria-hidden />
       </span>
-      <span className="min-w-0 flex-1">
+      <Link href={DASHBOARD_ROUTES.digitalMenuEdit(menu.qrId)} className="min-w-0 flex-1">
         <span className="block truncate text-sm font-semibold text-zinc-950">{menu.businessName}</span>
         {showBranchName ? (
           <span className="mt-0.5 block truncate text-xs text-muted-foreground">{menu.branchName}</span>
@@ -59,9 +59,23 @@ function MenuDirectoryRow({
           />
           {menu.active ? "Yayında" : "Pasif"}
         </span>
-      </span>
-      <ChevronRight className="h-4 w-4 shrink-0 text-zinc-950" />
-    </Link>
+      </Link>
+      {publicMenuHref ? (
+        <a
+          href={publicMenuHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-white px-2.5 py-2 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-400 hover:bg-zinc-50"
+          aria-label={`${menu.businessName} menüsünü aç`}
+        >
+          <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+          <span className="hidden sm:inline">Menüyü aç</span>
+        </a>
+      ) : null}
+      <Link href={DASHBOARD_ROUTES.digitalMenuEdit(menu.qrId)} aria-label={`${menu.businessName} düzenle`}>
+        <ChevronRight className="h-4 w-4 shrink-0 text-zinc-950" />
+      </Link>
+    </div>
   );
 }
 

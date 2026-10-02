@@ -3,6 +3,7 @@ import { api } from "@/lib/api/client";
 export type BranchMenuSummary = {
   menuId: number;
   qrId: number;
+  publicId?: string | null;
   businessName: string;
   active: boolean;
 };

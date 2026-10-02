@@ -3,6 +3,7 @@ import type { BranchItem } from "@/lib/branch";
 export type DigitalMenuDirectoryItem = {
   menuId: number;
   qrId: number;
+  publicId?: string | null;
   businessName: string;
   branchId: number;
   branchName: string;
@@ -28,6 +29,7 @@ export function flattenBranchMenus(branches: BranchItem[]): DigitalMenuDirectory
     branch.menus.map((menu) => ({
       menuId: menu.menuId,
       qrId: menu.qrId,
+      publicId: menu.publicId,
       businessName: menu.businessName?.trim() || `Menü #${menu.qrId}`,
       branchId: branch.id,
       branchName: branch.name,
