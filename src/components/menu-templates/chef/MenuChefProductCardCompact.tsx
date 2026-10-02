@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { Loader2, ShoppingBag } from "lucide-react";
 import { useState } from "react";
 
 import type { ChefProductItem } from "@/lib/chef/chef-product-item";
@@ -117,7 +117,7 @@ export function MenuChefProductCardCompact({
           {addBusy || ordering.loading ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
           ) : (
-            <span aria-hidden="true">+</span>
+            <ShoppingBag className="h-3.5 w-3.5" strokeWidth={2.4} aria-hidden />
           )}
         </button>
       ) : null}

@@ -1117,8 +1117,8 @@ export function MenuChefChat({
               </div>
             </div>
 
-            <div className="px-4 pb-2">
-              <div className="mx-auto max-w-2xl">
+            <div className="relative z-20 shrink-0 px-4 pb-2">
+              <div className="mx-auto flex max-w-2xl justify-center">
                 <MenuChefQuickBadges
                   publicId={publicId}
                   open={open}
