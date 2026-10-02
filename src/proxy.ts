@@ -10,6 +10,12 @@ import {
   readDemoTrialAccountFromRequest,
 } from "@/lib/server/demo-onboarding-cookies";
 import { resolveDashboardPathForRequest } from "@/lib/server/access-session-gate";
+import {
+  fetchPersonalDemoStatus,
+  getPersonalDemoSetupState,
+  isPersonalDemoAccount,
+} from "@/lib/server/demo-onboarding-gate";
+import { setDemoSetupDoneCookie } from "@/lib/server/demo-onboarding-cookies";
 
 const DEMO_SETUP_PATH = "/demo-kurulum";
 
@@ -29,9 +35,13 @@ function readRefreshToken(request: NextRequest): string | null {
   );
 }
 
+function hasDemoSetupDoneCookie(request: NextRequest): boolean {
+  return readDemoSetupDoneFromRequest(request.cookies);
+}
+
 function isDemoSetupPending(request: NextRequest): boolean {
   const cookies = request.cookies;
-  return readDemoTrialAccountFromRequest(cookies) && !readDemoSetupDoneFromRequest(cookies);
+  return readDemoTrialAccountFromRequest(cookies) && !hasDemoSetupDoneCookie(request);
 }
 
 export async function proxy(request: NextRequest) {
@@ -51,8 +61,15 @@ export async function proxy(request: NextRequest) {
     if (!accessToken) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
-    if (!isDemoSetupPending(request)) {
-      return NextResponse.redirect(new URL("/dashboard/genel-bakis", request.url));
+    let setupDoneFromDb = false;
+    if (readDemoTrialAccountFromRequest(request.cookies) && !hasDemoSetupDoneCookie(request)) {
+      const status = await fetchPersonalDemoStatus(accessToken);
+      setupDoneFromDb = isPersonalDemoAccount(status) && getPersonalDemoSetupState(status) === true;
+    }
+    if (!isDemoSetupPending(request) || setupDoneFromDb) {
+      const response = NextResponse.redirect(new URL("/dashboard/genel-bakis", request.url));
+      if (setupDoneFromDb) setDemoSetupDoneCookie(response);
+      return response;
     }
     return NextResponse.next();
   }
@@ -75,17 +92,27 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Cookies are only a fast path. After a new login/session, verify the
+  // persisted setup flag before deciding whether the wizard is required.
+  let setupDoneFromDb = false;
+  if (readDemoTrialAccountFromRequest(request.cookies) && !hasDemoSetupDoneCookie(request)) {
+    const status = await fetchPersonalDemoStatus(accessToken);
+    setupDoneFromDb = isPersonalDemoAccount(status) && getPersonalDemoSetupState(status) === true;
+  }
+
   // Demo user who hasn't completed setup → redirect to /demo-kurulum
-  if (isDemoSetupPending(request)) {
+  if (isDemoSetupPending(request) && !setupDoneFromDb) {
     return NextResponse.redirect(new URL(DEMO_SETUP_PATH, request.url));
   }
 
   const nextPath = await resolveDashboardPathForRequest(pathname, accessToken);
-  if (!nextPath || nextPath === pathname) {
-    return NextResponse.next();
+  const response = !nextPath || nextPath === pathname
+    ? NextResponse.next()
+    : NextResponse.redirect(new URL(nextPath, request.url));
+  if (setupDoneFromDb) {
+    setDemoSetupDoneCookie(response);
   }
-
-  return NextResponse.redirect(new URL(nextPath, request.url));
+  return response;
 }
 
 export const config = {

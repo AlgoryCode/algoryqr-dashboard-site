@@ -1,10 +1,9 @@
 import axios from "axios";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { authUrl } from "@/lib/config";
+import { API_BASE_URL, authUrl } from "@/lib/config";
+import { buildUpstreamAuthHeaders } from "@/lib/auth-user";
 import {
-  DEMO_SETUP_DONE_COOKIE,
-  DEMO_TRIAL_ACCOUNT_COOKIE,
   readDemoSetupDoneFromRequest,
   readDemoTrialAccountFromRequest,
 } from "@/lib/server/demo-onboarding-cookies";
@@ -14,6 +13,15 @@ const DEMO_STATUS_TIMEOUT_MS = 8_000;
 export type PersonalDemoStatus = {
   demo?: boolean;
   active?: boolean;
+  /** Persisted by the demo setup endpoint in the auth/API database. */
+  setupCompleted?: boolean;
+  setupComplete?: boolean;
+  setupDone?: boolean;
+  onboardingCompleted?: boolean;
+  onboardingComplete?: boolean;
+  onboardingDone?: boolean;
+  setup?: { completed?: boolean; complete?: boolean; done?: boolean } | null;
+  onboarding?: { completed?: boolean; complete?: boolean; done?: boolean } | null;
 };
 
 export async function fetchPersonalDemoStatus(accessToken: string): Promise<PersonalDemoStatus | null> {
@@ -27,15 +35,65 @@ export async function fetchPersonalDemoStatus(accessToken: string): Promise<Pers
       validateStatus: () => true,
       timeout: DEMO_STATUS_TIMEOUT_MS,
     });
-    if (upstream.status < 200 || upstream.status >= 300) return null;
-    return upstream.data ?? null;
+    if (upstream.status >= 200 && upstream.status < 300) {
+      const status = upstream.data ?? null;
+      if (getPersonalDemoSetupState(status) !== null) return status;
+      const setupStatus = await fetchPersistedDemoSetupStatus(accessToken);
+      return setupStatus ? { ...status, ...setupStatus } : status;
+    }
+    return fetchPersistedDemoSetupStatus(accessToken);
   } catch {
-    return null;
+    return fetchPersistedDemoSetupStatus(accessToken);
   }
+}
+
+async function fetchPersistedDemoSetupStatus(accessToken: string): Promise<PersonalDemoStatus | null> {
+  if (!API_BASE_URL) return null;
+  for (const path of ["/demo/setup/status", "/demo/setup"]) {
+    try {
+      const response = await axios.get<PersonalDemoStatus>(`${API_BASE_URL}${path}`, {
+        headers: { ...buildUpstreamAuthHeaders(accessToken), Accept: "application/json" },
+        validateStatus: () => true,
+        timeout: DEMO_STATUS_TIMEOUT_MS,
+      });
+      if (response.status >= 200 && response.status < 300 && response.data) return response.data;
+    } catch {
+      // Try the compatible endpoint spelling next.
+    }
+  }
+  return null;
 }
 
 export function isPersonalDemoAccount(status: PersonalDemoStatus | null | undefined): boolean {
   return status?.demo === true && status.active !== false;
+}
+
+/**
+ * Reads the persisted setup flag without coupling the dashboard to one backend
+ * response spelling. Older auth deployments may not return the flag yet; in
+ * that case we deliberately return null so the existing pending-cookie flow is
+ * preserved until the API is upgraded.
+ */
+export function getPersonalDemoSetupState(
+  status: PersonalDemoStatus | null | undefined,
+): boolean | null {
+  if (!status) return null;
+  const values = [
+    status.setupCompleted,
+    status.setupComplete,
+    status.setupDone,
+    status.onboardingCompleted,
+    status.onboardingComplete,
+    status.onboardingDone,
+    status.setup?.completed,
+    status.setup?.complete,
+    status.setup?.done,
+    status.onboarding?.completed,
+    status.onboarding?.complete,
+    status.onboarding?.done,
+  ];
+  const known = values.find((value) => typeof value === "boolean");
+  return typeof known === "boolean" ? known : null;
 }
 
 /** Site BFF paths (no `/api` prefix) allowed while demo onboarding is incomplete. */

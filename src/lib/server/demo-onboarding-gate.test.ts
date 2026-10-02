@@ -1,12 +1,22 @@
 import { describe, expect, it } from "vitest";
 
-import { isDemoOnboardingApiAllowed, isPersonalDemoAccount } from "./demo-onboarding-gate";
+import {
+  getPersonalDemoSetupState,
+  isDemoOnboardingApiAllowed,
+  isPersonalDemoAccount,
+} from "./demo-onboarding-gate";
 
 describe("demo-onboarding-gate", () => {
   it("detects personal demo accounts", () => {
     expect(isPersonalDemoAccount({ demo: true, active: true })).toBe(true);
     expect(isPersonalDemoAccount({ demo: true, active: false })).toBe(false);
     expect(isPersonalDemoAccount({ demo: false })).toBe(false);
+  });
+
+  it("reads the persisted setup state returned by the API", () => {
+    expect(getPersonalDemoSetupState({ demo: true, setupCompleted: true })).toBe(true);
+    expect(getPersonalDemoSetupState({ demo: true, onboarding: { done: false } })).toBe(false);
+    expect(getPersonalDemoSetupState({ demo: true })).toBe(null);
   });
 
   it("allows onboarding APIs while setup is pending", () => {
