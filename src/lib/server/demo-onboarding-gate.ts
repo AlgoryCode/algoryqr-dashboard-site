@@ -50,7 +50,7 @@ export async function fetchPersonalDemoStatus(accessToken: string): Promise<Pers
 
 async function fetchPersistedDemoSetupStatus(accessToken: string): Promise<PersonalDemoStatus | null> {
   if (!API_BASE_URL) return null;
-  for (const path of ["/demo/setup/status", "/demo/setup"]) {
+  for (const path of ["/account/myprofile", "/demo/setup/status", "/demo/setup"]) {
     try {
       const response = await axios.get<PersonalDemoStatus>(`${API_BASE_URL}${path}`, {
         headers: { ...buildUpstreamAuthHeaders(accessToken), Accept: "application/json" },

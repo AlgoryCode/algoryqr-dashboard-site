@@ -18,6 +18,8 @@ describe("demo-onboarding-gate", () => {
     expect(getPersonalDemoSetupState({ demo: true, onboarding: { done: false } })).toBe(false);
     expect(getPersonalDemoSetupState({ demo: true, setupStatus: "COMPLETED" })).toBe(true);
     expect(getPersonalDemoSetupState({ businessType: "cafe", usagePurpose: "digital_menu" })).toBe(true);
+    expect(getPersonalDemoSetupState({ businessType: "cafe", usagePurpose: "waiter_orders" })).toBe(true);
+    expect(getPersonalDemoSetupState({ businessType: null, usagePurpose: null })).toBe(null);
     expect(getPersonalDemoSetupState({ demo: true })).toBe(null);
   });
 
