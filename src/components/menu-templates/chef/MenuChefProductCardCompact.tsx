@@ -79,11 +79,13 @@ export function MenuChefProductCardCompact({
   const priceClass = size === "sm" ? "text-[10px]" : "text-[11px]";
 
   return (
-    <div className={`relative ${widthClass} shrink-0 snap-start`}>
+    <div
+      className={`relative ${widthClass} shrink-0 snap-start overflow-hidden rounded-lg border border-white/90 bg-white shadow-[0_3px_12px_rgba(28,40,36,0.07)]`}
+    >
       <button
         type="button"
         onClick={openDetail}
-        className={`flex w-full flex-col overflow-hidden rounded-lg border border-white/90 bg-white text-left shadow-[0_3px_12px_rgba(28,40,36,0.07)] transition hover:brightness-[0.98] active:scale-[0.98]`}
+        className="flex w-full flex-col overflow-hidden text-left transition hover:brightness-[0.98] active:scale-[0.98]"
         aria-label={`${item.name}${priceLabel ? `, ${priceLabel}` : ""} — detay`}
       >
         <div className="relative aspect-square w-full overflow-hidden bg-[#e8ebe9]">
@@ -101,26 +103,30 @@ export function MenuChefProductCardCompact({
             <p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[#6b7a73]">{caption}</p>
           ) : null}
           <p className={`${nameClass} tracking-[-0.01em] text-[#1c2824]`}>{item.name}</p>
-          {priceLabel ? (
-            <p className={`${priceClass} font-semibold tabular-nums text-[#2a3833]`}>{priceLabel}</p>
-          ) : null}
         </div>
       </button>
-      {quickAddEnabled && ordering && item.available !== false ? (
-        <button
-          type="button"
-          onClick={(event) => void handleQuickAdd(event)}
-          disabled={addBusy || ordering.loading}
-          className="petek-chef-add-button absolute bottom-1 right-1 inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#2a3833] text-white shadow-md transition hover:bg-[#1f2b27] disabled:opacity-50"
-          aria-label={`${item.name} sepete ekle`}
-        >
-          {addBusy || ordering.loading ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-          ) : (
-            <ShoppingBag className="h-3.5 w-3.5" strokeWidth={2.4} aria-hidden />
-          )}
-        </button>
-      ) : null}
+      <div className="flex min-h-10 items-center justify-between gap-2 border-t border-[#1c2824]/[0.06] px-2.5 py-1.5">
+        {priceLabel ? (
+          <p className={`${priceClass} min-w-0 truncate font-semibold tabular-nums text-[#2a3833]`}>{priceLabel}</p>
+        ) : (
+          <span />
+        )}
+        {quickAddEnabled && ordering && item.available !== false ? (
+          <button
+            type="button"
+            onClick={(event) => void handleQuickAdd(event)}
+            disabled={addBusy || ordering.loading}
+            className="petek-chef-add-button inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#2a3833] text-white shadow-md transition hover:bg-[#1f2b27] disabled:opacity-50"
+            aria-label={`${item.name} sepete ekle`}
+          >
+            {addBusy || ordering.loading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+            ) : (
+              <ShoppingBag className="h-3.5 w-3.5" strokeWidth={2.4} aria-hidden />
+            )}
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }
