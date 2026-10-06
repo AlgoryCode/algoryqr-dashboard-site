@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { SHOP_PATH } from "@/lib/access-session-gate";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import {
   fetchAccessSessionWithToken,
@@ -11,6 +12,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
+
+function accessToken(userId = 7): string {
+  const payload = Buffer.from(JSON.stringify({ userId }), "utf8").toString("base64url");
+  return `hdr.${payload}.sig`;
+}
 
 function mockFetchOk(body: unknown, status = 200) {
   vi.stubGlobal(
@@ -24,29 +30,29 @@ function mockFetchOk(body: unknown, status = 200) {
 }
 
 describe("resolveDashboardPathForRequest", () => {
-  it("redirects genel-bakis to packages when REQUIRE_PURCHASE", async () => {
+  it("redirects genel-bakis to the shop when REQUIRE_PURCHASE", async () => {
     mockFetchOk({ decision: "REQUIRE_PURCHASE" });
     const next = await resolveDashboardPathForRequest(
       DASHBOARD_ROUTES.overview,
-      "token",
+      accessToken(),
     );
-    expect(next).toBe(DASHBOARD_ROUTES.accountPackages);
+    expect(next).toBe(SHOP_PATH);
   });
 
-  it("keeps packages path when REQUIRE_PURCHASE", async () => {
+  it("redirects packages path to the shop when REQUIRE_PURCHASE", async () => {
     mockFetchOk({ decision: "REQUIRE_PURCHASE" });
     const next = await resolveDashboardPathForRequest(
       DASHBOARD_ROUTES.accountPackages,
-      "token",
+      accessToken(),
     );
-    expect(next).toBe(DASHBOARD_ROUTES.accountPackages);
+    expect(next).toBe(SHOP_PATH);
   });
 
   it("redirects to demo register when START_PACKAGE", async () => {
     mockFetchOk({ decision: "START_PACKAGE" });
     const next = await resolveDashboardPathForRequest(
       DASHBOARD_ROUTES.overview,
-      "token",
+      accessToken(),
     );
     expect(next).toBe(DASHBOARD_ROUTES.demoRegister);
   });
@@ -55,7 +61,7 @@ describe("resolveDashboardPathForRequest", () => {
     mockFetchOk({ decision: "ALLOW" });
     const next = await resolveDashboardPathForRequest(
       DASHBOARD_ROUTES.overview,
-      "token",
+      accessToken(),
     );
     expect(next).toBe(DASHBOARD_ROUTES.overview);
   });
@@ -64,7 +70,7 @@ describe("resolveDashboardPathForRequest", () => {
     mockFetchOk({ decision: "ALLOW" }, 500);
     const next = await resolveDashboardPathForRequest(
       DASHBOARD_ROUTES.overview,
-      "token",
+      accessToken(),
     );
     expect(next).toBeNull();
   });
@@ -73,7 +79,7 @@ describe("resolveDashboardPathForRequest", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network")));
     const next = await resolveDashboardPathForRequest(
       DASHBOARD_ROUTES.overview,
-      "token",
+      accessToken(),
     );
     expect(next).toBeNull();
   });
@@ -82,7 +88,11 @@ describe("resolveDashboardPathForRequest", () => {
 describe("fetchAccessSessionWithToken", () => {
   it("parses decision from context payload", async () => {
     mockFetchOk({ decision: "REQUIRE_PAYMENT", packageCode: "PRO" });
-    const session = await fetchAccessSessionWithToken("token");
+    const session = await fetchAccessSessionWithToken(accessToken());
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/users/7/package"),
+      expect.objectContaining({ method: "GET" }),
+    );
     expect(session).toEqual({
       decision: "REQUIRE_PAYMENT",
       packageCode: "PRO",
@@ -98,7 +108,7 @@ describe("resolvePostAuthDashboardPathWithAccessToken", () => {
   it("falls back to return path when session fetch fails", async () => {
     mockFetchOk({}, 401);
     const next = await resolvePostAuthDashboardPathWithAccessToken(
-      "token",
+      accessToken(),
       DASHBOARD_ROUTES.overview,
     );
     expect(next).toBe(DASHBOARD_ROUTES.overview);

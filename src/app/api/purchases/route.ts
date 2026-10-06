@@ -23,7 +23,33 @@ export async function POST(req: Request) {
       paymentMethodId?: number;
       recurringConsent?: boolean;
       couponCode?: string;
+      identityNumber?: string;
       modules?: Array<{ productCode: string; quantity: number }>;
+      cart?: {
+        package: {
+          id: number;
+          code: string;
+          name: string;
+          billingPeriod: "MONTHLY" | "YEARLY";
+          amount: number;
+          currency: string;
+        };
+        items: Array<{
+          productCode: string;
+          productName: string;
+          quantity: number;
+          unlimited: boolean;
+        }>;
+        modules: Array<{
+          productCode: string;
+          productName: string;
+          quantity: number;
+          unitPrice: number;
+          vatRate: number;
+          billingType: "RECURRING" | "ONE_TIME";
+          lineTotal: number;
+        }>;
+      };
     };
     if (body.packageId == null) {
       return NextResponse.json({ message: "Paket id zorunludur" }, { status: 400 });

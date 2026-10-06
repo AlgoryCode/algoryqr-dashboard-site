@@ -30,7 +30,7 @@ export default function PackageAccessGate() {
     if (!decision) return;
     if (decision === "ALLOW") return;
     if (decision === "START_PACKAGE" && isStartAllowlistedPath(pathname)) return;
-    if ((decision === "REQUIRE_PURCHASE" || decision === "REQUIRE_PAYMENT") && isPurchaseAllowlistedPath(pathname)) {
+    if (decision === "REQUIRE_PAYMENT" && isPurchaseAllowlistedPath(pathname)) {
       return;
     }
     const next = destinationForDecision(decision, pathname);

@@ -18,6 +18,7 @@ import {
   resolveSafeReturnUrl,
 } from "@/lib/trial-flow";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
+import { clearPackageAccess, loadPackageAccess } from "@/lib/load-package-access";
 import { fetchSessionContextClient, pathForSession } from "@/lib/session-context";
 import { SESSION_CONTEXT_QUERY_KEY } from "@/hooks/use-session-context";
 import {
@@ -51,8 +52,9 @@ const Login = () => {
   const googleAuthHref = buildGoogleAuthStartUrl("login", returnPath);
   const registerHref = "/register";
 
-  const redirectAfterAuth = async () => {
-    const session = await fetchSessionContextClient();
+  const redirectAfterAuth = async (userId?: number) => {
+    await loadPackageAccess(true, userId);
+    const session = await fetchSessionContextClient(userId);
     if (session) {
       queryClient.setQueryData(SESSION_CONTEXT_QUERY_KEY, session);
     }
@@ -117,6 +119,7 @@ const Login = () => {
   }, [searchParams]);
 
   const cancelTwoFactor = async () => {
+    clearPackageAccess();
     await getSiteSameOriginAxios().post("/auth/logout", {}).catch(() => undefined);
     setAwaiting2FA(false);
     setTotpCode("");
@@ -140,7 +143,7 @@ const Login = () => {
     queryClient.removeQueries({ queryKey: MY_PROFILE_QUERY_KEY });
     queryClient.removeQueries({ queryKey: ["demoAccount"] });
     toast({ title: "Başarılı", description: "Giriş yapıldı!" });
-    await redirectAfterAuth();
+    await redirectAfterAuth(data.userId);
   };
 
   const handleDemoLogin = async () => {
@@ -253,14 +256,14 @@ const Login = () => {
     }
     setLoading(true);
     try {
-      await authService.completeTwoFactorLogin(code);
+      const data = await authService.completeTwoFactorLogin(code);
       setAwaiting2FA(false);
       setTotpCode("");
       setTwoFactorHintEmail(null);
       queryClient.removeQueries({ queryKey: MY_PROFILE_QUERY_KEY });
       queryClient.removeQueries({ queryKey: ["demoAccount"] });
       toast({ title: "Başarılı", description: "Giriş yapıldı!" });
-      await redirectAfterAuth();
+      await redirectAfterAuth(data.userId);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "2FA doğrulanamadı";
       toast({ title: "Hata", description: message, variant: "destructive" });

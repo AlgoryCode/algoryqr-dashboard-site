@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { PlanPackageApiItem } from "@/lib/api";
-import { YEARLY_MULTIPLIER, cartPricing, formatCartMoney, selectableModules } from "@/lib/package-cart";
+import {
+  YEARLY_MULTIPLIER,
+  buildPurchaseCart,
+  cartPricing,
+  formatCartMoney,
+  selectableModules,
+} from "@/lib/package-cart";
 
 function makePackage(overrides: Partial<PlanPackageApiItem> = {}): PlanPackageApiItem {
   return {
@@ -167,6 +173,59 @@ describe("cartPricing", () => {
 
     expect(pricing.grandTotal).toBe(0);
     expect(pricing.lines).toEqual([]);
+  });
+});
+
+describe("buildPurchaseCart", () => {
+  it("sends package products and selected modules together", () => {
+    const pkg = makePackage({
+      items: [
+        { id: 1, productId: 3, productCode: "QR_MENU", productName: "QR Menü", quantity: 1, unlimited: false },
+      ],
+    });
+    const pricing = cartPricing(pkg, [{ productCode: "QR_BRANCH", quantity: 2 }], "MONTHLY");
+
+    expect(buildPurchaseCart(pkg, "MONTHLY", pricing.lines)).toEqual({
+      package: {
+        id: 7,
+        code: "STARTER_PACKAGE",
+        name: "Başlangıç",
+        billingPeriod: "MONTHLY",
+        amount: 1000,
+        currency: "TRY",
+      },
+      items: [
+        { productCode: "QR_MENU", productName: "QR Menü", quantity: 1, unlimited: false },
+      ],
+      modules: [
+        {
+          productCode: "QR_BRANCH",
+          productName: "Ek şube",
+          quantity: 2,
+          unitPrice: 500,
+          vatRate: 20,
+          billingType: "RECURRING",
+          lineTotal: 1200,
+        },
+      ],
+    });
+  });
+
+  it("keeps an empty module list when the buyer adds none", () => {
+    const pkg = makePackage({
+      items: [
+        { id: 2, productCode: "QR_CREATE", productName: "QR Oluşturma", quantity: 0, unlimited: true },
+      ],
+    });
+
+    const cart = buildPurchaseCart(pkg, "YEARLY", []);
+
+    expect(cart.package.billingPeriod).toBe("YEARLY");
+    expect(cart.package.amount).toBe(10000);
+    expect(cart.items).toEqual([
+      { productCode: "QR_CREATE", productName: "QR Oluşturma", quantity: 0, unlimited: true },
+    ]);
+    expect(cart.modules).toEqual([]);
   });
 });
 

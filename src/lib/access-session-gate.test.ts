@@ -1,23 +1,22 @@
 import { describe, expect, it } from "vitest";
 
-import { destinationForDecision, parseAccessSession } from "./access-session-gate";
+import { SHOP_PATH, destinationForDecision, parseAccessSession } from "./access-session-gate";
 import { DASHBOARD_ROUTES } from "./dashboard-routes";
 
 describe("access-session-gate", () => {
   it("maps decisions to dashboard paths", () => {
     expect(destinationForDecision("START_PACKAGE", null)).toBe(DASHBOARD_ROUTES.demoRegister);
-    expect(destinationForDecision("REQUIRE_PURCHASE", null)).toBe(DASHBOARD_ROUTES.accountPackages);
+    expect(destinationForDecision("REQUIRE_PURCHASE", null)).toBe(SHOP_PATH);
     expect(destinationForDecision("REQUIRE_PAYMENT", null)).toBe(DASHBOARD_ROUTES.accountPackages);
     expect(destinationForDecision("ALLOW", "/dashboard/dijital-menu")).toBe("/dashboard/dijital-menu");
     expect(destinationForDecision("ALLOW", null)).toBe(DASHBOARD_ROUTES.root);
   });
 
   it("keeps purchase and start allowlisted return paths", () => {
-    expect(destinationForDecision("REQUIRE_PURCHASE", DASHBOARD_ROUTES.accountPackages)).toBe(
+    expect(destinationForDecision("REQUIRE_PURCHASE", DASHBOARD_ROUTES.accountPackages)).toBe(SHOP_PATH);
+    expect(destinationForDecision("REQUIRE_PURCHASE", DASHBOARD_ROUTES.modules)).toBe(SHOP_PATH);
+    expect(destinationForDecision("REQUIRE_PAYMENT", DASHBOARD_ROUTES.accountPackages)).toBe(
       DASHBOARD_ROUTES.accountPackages,
-    );
-    expect(destinationForDecision("REQUIRE_PURCHASE", DASHBOARD_ROUTES.modules)).toBe(
-      DASHBOARD_ROUTES.modules,
     );
     expect(destinationForDecision("START_PACKAGE", DASHBOARD_ROUTES.trialStart)).toBe(
       DASHBOARD_ROUTES.trialStart,

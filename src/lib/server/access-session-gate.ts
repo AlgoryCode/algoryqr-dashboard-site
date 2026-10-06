@@ -1,3 +1,5 @@
+import { activePackagePath } from "@/lib/active-package-path";
+import { getUserIdFromAccessToken } from "@/lib/auth-user";
 import { API_BASE_URL } from "@/lib/config";
 import {
   destinationForDecision,
@@ -11,11 +13,12 @@ const ACCESS_CONTEXT_TIMEOUT_MS = 10_000;
 export async function fetchAccessSessionWithToken(
   accessToken: string,
 ): Promise<AccessSession | null> {
-  if (!API_BASE_URL || !accessToken) return null;
+  const userId = getUserIdFromAccessToken(accessToken);
+  if (!API_BASE_URL || !accessToken || userId == null) return null;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ACCESS_CONTEXT_TIMEOUT_MS);
   try {
-    const response = await fetch(`${API_BASE_URL}/access/context`, {
+    const response = await fetch(`${API_BASE_URL}${activePackagePath(userId)}`, {
       method: "GET",
       headers: {
         Accept: "application/json",

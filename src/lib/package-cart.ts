@@ -226,6 +226,69 @@ export function cartPricing(
   };
 }
 
+export type PurchaseCartItem = {
+  productCode: string;
+  productName: string;
+  quantity: number;
+  unlimited: boolean;
+};
+
+export type PurchaseCartModule = {
+  productCode: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  vatRate: number;
+  billingType: ProductBillingType;
+  lineTotal: number;
+};
+
+export type PurchaseCart = {
+  package: {
+    id: number;
+    code: string;
+    name: string;
+    billingPeriod: BillingPeriod;
+    amount: number;
+    currency: string;
+  };
+  items: PurchaseCartItem[];
+  modules: PurchaseCartModule[];
+};
+
+export function buildPurchaseCart(
+  pkg: PlanPackageApiItem,
+  billingPeriod: BillingPeriod,
+  lines: CartModuleLine[],
+): PurchaseCart {
+  const packagePrice = resolvePackagePricing(pkg, billingPeriod);
+  return {
+    package: {
+      id: pkg.id,
+      code: pkg.code,
+      name: pkg.name,
+      billingPeriod,
+      amount: packagePrice.amount,
+      currency: pkg.currency,
+    },
+    items: (pkg.items ?? []).map((item) => ({
+      productCode: item.productCode,
+      productName: item.productName,
+      quantity: item.quantity,
+      unlimited: item.unlimited,
+    })),
+    modules: lines.map((line) => ({
+      productCode: line.productCode,
+      productName: line.productName,
+      quantity: line.quantity,
+      unitPrice: line.unitPrice,
+      vatRate: line.vatRate,
+      billingType: line.billingType,
+      lineTotal: line.lineTotal,
+    })),
+  };
+}
+
 export function usePackageCart() {
   const cart = useSyncExternalStore(subscribeToCart, readCart, () => EMPTY_CART);
   const hydrated = useSyncExternalStore(

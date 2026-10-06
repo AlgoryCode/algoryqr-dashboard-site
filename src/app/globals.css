@@ -1128,3 +1128,44 @@
 .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #64748b;
 }
+
+.shop-step {
+  transition: opacity 240ms ease;
+}
+
+.shop-step.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shop-step {
+    transition: none;
+  }
+}
+
+.shop-store {
+  --background: 0 0% 100%;
+  --foreground: 221 39% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 221 39% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 221 39% 11%;
+  --primary: 12 90% 43%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 14% 96%;
+  --secondary-foreground: 221 39% 11%;
+  --muted: 220 14% 96%;
+  --muted-foreground: 220 9% 32%;
+  --accent: 220 14% 96%;
+  --accent-foreground: 221 39% 11%;
+  --destructive: 0 70% 50%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
+  --ring: 12 80% 43%;
+  color-scheme: light;
+  background: #f6f6f5;
+  color: hsl(var(--foreground));
+  font-family: var(--font-sans);
+}

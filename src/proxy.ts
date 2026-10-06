@@ -9,7 +9,11 @@ import {
   readDemoSetupDoneFromRequest,
   readDemoTrialAccountFromRequest,
 } from "@/lib/server/demo-onboarding-cookies";
-import { resolveDashboardPathForRequest } from "@/lib/server/access-session-gate";
+import { SHOP_PATH, destinationForDecision } from "@/lib/access-session-gate";
+import {
+  fetchAccessSessionWithToken,
+  resolveDashboardPathForRequest,
+} from "@/lib/server/access-session-gate";
 import {
   fetchPersonalDemoStatus,
   getPersonalDemoSetupState,
@@ -74,6 +78,10 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  if (pathname === SHOP_PATH || pathname.startsWith(`${SHOP_PATH}/`)) {
+    return gateShop(request);
+  }
+
   // ── Dashboard routes ──
   if (!pathname.startsWith("/dashboard")) {
     return NextResponse.next();
@@ -115,6 +123,45 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
+async function gateShop(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  const accessToken = readAccessToken(request);
+  const refreshToken = readRefreshToken(request);
+
+  if (!accessToken && !refreshToken) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("returnUrl", `${pathname}${request.nextUrl.search}`);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  if (!accessToken) {
+    return NextResponse.next();
+  }
+
+  let setupDoneFromDb = false;
+  if (readDemoTrialAccountFromRequest(request.cookies) && !hasDemoSetupDoneCookie(request)) {
+    const status = await fetchPersonalDemoStatus(accessToken);
+    setupDoneFromDb = isPersonalDemoAccount(status) && getPersonalDemoSetupState(status) === true;
+  }
+
+  if (isDemoSetupPending(request) && !setupDoneFromDb) {
+    return NextResponse.redirect(new URL(DEMO_SETUP_PATH, request.url));
+  }
+
+  const session = await fetchAccessSessionWithToken(accessToken);
+  if (!session || session.decision === "REQUIRE_PURCHASE") {
+    const response = NextResponse.next();
+    if (setupDoneFromDb) setDemoSetupDoneCookie(response);
+    return response;
+  }
+
+  const response = NextResponse.redirect(
+    new URL(destinationForDecision(session.decision, null), request.url),
+  );
+  if (setupDoneFromDb) setDemoSetupDoneCookie(response);
+  return response;
+}
+
 export const config = {
-  matcher: ["/dashboard/:path*", "/demo-kurulum/:path*", "/api/:path*"],
+  matcher: ["/dashboard/:path*", "/demo-kurulum/:path*", "/magaza", "/magaza/:path*", "/api/:path*"],
 };

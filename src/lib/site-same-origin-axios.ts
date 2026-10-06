@@ -4,6 +4,7 @@ import axios, { AxiosError, type AxiosInstance, type InternalAxiosRequestConfig 
 
 import { getJsonErrorText } from "@/lib/api-error-text";
 import { ApiError } from "@/lib/api/errors";
+import { clearPackageAccess, loadPackageAccess } from "@/lib/load-package-access";
 
 let refreshPromise: Promise<boolean> | null = null;
 
@@ -41,13 +42,17 @@ export async function refreshSiteSession(): Promise<boolean> {
           validateStatus: (s) => s < 500,
         });
         if (r.status === 401) {
+          clearPackageAccess();
           await axios.post("/api/auth/logout", {}, { withCredentials: true, validateStatus: () => true }).catch(() => undefined);
           if (window.location.pathname !== "/login") {
             window.location.assign("/login");
           }
           return false;
         }
-        if (r.status >= 200 && r.status < 300) return true;
+        if (r.status >= 200 && r.status < 300) {
+          void loadPackageAccess(true);
+          return true;
+        }
         return false;
       } catch {
         return false;
@@ -90,6 +95,7 @@ export function getSiteSameOriginAxios(): AxiosInstance {
         && isEmailNotVerified(error.response?.data)
         && !isPublicAuthApiPath(requestUrl)
       ) {
+        clearPackageAccess();
         await axios
           .post("/api/auth/logout", {}, { withCredentials: true, validateStatus: () => true })
           .catch(() => undefined);

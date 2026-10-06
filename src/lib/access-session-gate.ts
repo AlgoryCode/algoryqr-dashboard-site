@@ -30,6 +30,8 @@ const START_ALLOWLIST_PREFIXES = [
   DASHBOARD_ROUTES.trialStart,
 ] as const;
 
+export const SHOP_PATH = "/magaza";
+
 export function isPurchaseAllowlistedPath(pathname: string): boolean {
   return PURCHASE_ALLOWLIST_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
@@ -55,6 +57,9 @@ export function destinationForDecision(
       return returnPath;
     }
     return DASHBOARD_ROUTES.demoRegister;
+  }
+  if (decision === "REQUIRE_PURCHASE") {
+    return SHOP_PATH;
   }
   if (returnPath && isPurchaseAllowlistedPath(pathname)) {
     return returnPath;
