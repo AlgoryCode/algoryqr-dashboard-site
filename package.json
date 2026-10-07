@@ -72,9 +72,12 @@
     "tailwind-merge": "^3.5.0",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^1.1.2",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@storybook/addon-docs": "^10.6.0",
+    "@storybook/nextjs-vite": "^10.6.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -82,14 +85,12 @@
     "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "eslint-plugin-storybook": "^10.6.0",
     "postcss": "^8.5.8",
+    "storybook": "^10.6.0",
     "tailwindcss": "^3.4.19",
     "typescript": "^5",
-    "vitest": "^4.1.10",
-    "storybook": "^10.6.0",
-    "@storybook/nextjs-vite": "^10.6.0",
-    "@storybook/addon-docs": "^10.6.0",
     "vite": "latest",
-    "eslint-plugin-storybook": "^10.6.0"
+    "vitest": "^4.1.10"
   }
 }
