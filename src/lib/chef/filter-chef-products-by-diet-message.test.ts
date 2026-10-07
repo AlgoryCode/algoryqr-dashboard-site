@@ -12,6 +12,10 @@ function chefItem(id: number): ChefProductItem {
     name: `P${id}`,
     price: 10,
     currency: "TRY",
+    description: null,
+    subCategoryId: null,
+    imageUrl: null,
+    available: true,
   };
 }
 

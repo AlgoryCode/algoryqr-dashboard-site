@@ -26,8 +26,8 @@ describe("expandChefRecommendationsForUserQuery", () => {
   ];
 
   const agentPicks: ChefProductItem[] = [
-    { productId: 1, menuId: 1, name: "Kavrulmuş Susamlı Katmer", price: 790, currency: "TRY" },
-    { productId: 2, menuId: 1, name: "Karışık Meyve", price: 550, currency: "TRY" },
+    { productId: 1, menuId: 1, name: "Kavrulmuş Susamlı Katmer", price: 790, currency: "TRY", description: null, subCategoryId: null, imageUrl: null, available: true },
+    { productId: 2, menuId: 1, name: "Karışık Meyve", price: 550, currency: "TRY", description: null, subCategoryId: null, imageUrl: null, available: true },
   ];
 
   it("fills all desserts when user asks about tatlılar", () => {

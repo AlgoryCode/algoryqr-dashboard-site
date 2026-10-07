@@ -4,8 +4,8 @@ import { buildChefAgentContextMessage } from "./chef-agent-message";
 
 describe("buildChefAgentContextMessage", () => {
   const catalog = [
-    { productId: 1, menuId: 1, name: "Burger" },
-    { productId: 2, menuId: 1, name: "Kola" },
+    { productId: 1, menuId: 1, name: "Burger", currency: "TRY", subCategoryId: 1, sortOrder: 0, available: true },
+    { productId: 2, menuId: 1, name: "Kola", currency: "TRY", subCategoryId: 1, sortOrder: 1, available: true },
   ] as const;
 
   it("adds cart context without embedding the guest sentence", () => {

@@ -5,14 +5,17 @@ import type { MenuProductApiItem } from "@/lib/api";
 import type { ChefProductItem } from "./chef-product-item";
 import { rankChefRecommendations } from "./rank-chef-recommendations";
 
-function item(id: number, mainCategoryId = 1): ChefProductItem {
+function item(id: number, _mainCategoryId = 1): ChefProductItem {
   return {
     productId: id,
     menuId: 1,
     name: `Product ${id}`,
     price: 100,
     currency: "TRY",
-    mainCategoryId,
+    description: null,
+    subCategoryId: null,
+    imageUrl: null,
+    available: true,
   };
 }
 

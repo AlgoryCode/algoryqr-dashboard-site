@@ -35,7 +35,7 @@ describe("chef pairing", () => {
 
   it("does not include anchor in pairing picks", () => {
     const agent: ChefProductItem[] = [
-      { productId: 1, menuId: 1, name: "Ayva Tatlısı", price: 100, currency: "TRY" },
+      { productId: 1, menuId: 1, name: "Ayva Tatlısı", price: 100, currency: "TRY", description: null, subCategoryId: null, imageUrl: null, available: true },
     ];
     const { products } = resolveChefPairingRecommendations(
       agent,

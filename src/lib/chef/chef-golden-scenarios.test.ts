@@ -24,7 +24,7 @@ function loadScenarios(): GoldenScenario[] {
 }
 
 function chefItem(id: number, price = 100): ChefProductItem {
-  return { productId: id, menuId: 1, name: `P${id}`, price, currency: "TRY" };
+  return { productId: id, menuId: 1, name: `P${id}`, price, currency: "TRY", description: null, subCategoryId: null, imageUrl: null, available: true };
 }
 
 describe("chef golden scenarios (BFF offline checks)", () => {

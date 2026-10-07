@@ -19,7 +19,7 @@ describe("alignChefRecommendationsWithUserQuery", () => {
 
   it("keeps agent picks when present", () => {
     const agent: ChefProductItem[] = [
-      { productId: 10, menuId: 1, name: "Tavuk Pirzola", price: 100, currency: "TRY" },
+      { productId: 10, menuId: 1, name: "Tavuk Pirzola", price: 100, currency: "TRY", description: null, subCategoryId: null, imageUrl: null, available: true },
     ];
     const result = alignChefRecommendationsWithUserQuery({
       agentProducts: agent,
