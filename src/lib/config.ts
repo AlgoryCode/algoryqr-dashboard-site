@@ -49,6 +49,7 @@ const AUTH_ROUTES = {
   demoUsernameAvailable: "/api/v1/auth/demo/username-available",
   refresh: "/api/v1/auth/refresh",
   logout: "/api/v1/auth/logout",
+  access: "/api/v1/auth/access",
   googleAuthorize: "/api/v1/auth/google/authorize",
   googleRedeem: "/api/v1/auth/google/redeem",
 } as const;

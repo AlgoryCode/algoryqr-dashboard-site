@@ -40,6 +40,23 @@ export function clearLegacyAlgoryAuthCookies(response: NextResponse) {
   response.cookies.set("algory_refresh_token", "", clear);
 }
 
+export type ActivePackageSnapshot = {
+  packageCode: string | null;
+  packageName: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  products: string[];
+  scopes: string[];
+};
+
+export function setActivePackageCookie(response: NextResponse, snapshot: ActivePackageSnapshot | null) {
+  if (!snapshot) {
+    response.cookies.set("activePackage", "", { ...cookieOptions, maxAge: 0 });
+    return;
+  }
+  response.cookies.set("activePackage", JSON.stringify(snapshot), cookieOptions);
+}
+
 export function setAuthCookies(
   response: NextResponse,
   accessToken?: string,
@@ -99,6 +116,7 @@ export function clearAuthCookies(response: NextResponse) {
   response.cookies.set("accessTokenExp", "", clearOptions);
   response.cookies.set("refreshTokenExp", "", clearOptions);
   response.cookies.set("userId", "", clearOptions);
+  response.cookies.set("activePackage", "", clearOptions);
   clearLegacyAlgoryAuthCookies(response);
   clearDemoOnboardingCookies(response);
   response.cookies.set("algory_2fa_pending", "", { ...baseOptions, maxAge: 0 });
