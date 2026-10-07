@@ -1354,12 +1354,14 @@ function KitchenOrderDetailContent({
                 const optionGroups = (item.selectedOptions ?? [])
                   .filter((option) => option.optionName)
                   .reduce<Array<{ groupName: string | null; optionNames: string[] }>>((groups, option) => {
+                    const optionName = option.optionName;
+                    if (!optionName) return groups;
                     const groupName = option.groupName?.trim() || null;
                     const existing = groups.find((group) => group.groupName === groupName);
                     if (existing) {
-                      existing.optionNames.push(option.optionName);
+                      existing.optionNames.push(optionName);
                     } else {
-                      groups.push({ groupName, optionNames: [option.optionName] });
+                      groups.push({ groupName, optionNames: [optionName] });
                     }
                     return groups;
                   }, []);

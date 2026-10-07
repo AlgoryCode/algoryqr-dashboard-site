@@ -1,4 +1,6 @@
 import { destinationForDecision, parseAccessSession, type AccessSession } from "@/lib/access-session-gate";
+import { activePackagePath } from "@/lib/active-package-path";
+import { getStoredUser } from "@/lib/api/storage";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { getSiteSameOriginAxios } from "@/lib/site-same-origin-axios";
 
@@ -49,13 +51,25 @@ export function parseSessionContext(payload: unknown): SessionContext | null {
   };
 }
 
-export async function fetchSessionContextClient(): Promise<SessionContext | null> {
+export async function fetchSessionContextClient(userId?: number | null): Promise<SessionContext | null> {
+  const resolved = positiveUserId(userId) ?? storedUserId();
+  const path = resolved != null ? activePackagePath(resolved) : "/access/context";
   try {
-    const response = await getSiteSameOriginAxios().get("/access/context");
+    const response = await getSiteSameOriginAxios().get(path);
     return parseSessionContext(response.data);
   } catch {
     return null;
   }
+}
+
+function positiveUserId(value: unknown): number | null {
+  if (typeof value !== "number" && typeof value !== "string") return null;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function storedUserId(): number | null {
+  return positiveUserId(getStoredUser()?.id);
 }
 
 export function pathForSession(
