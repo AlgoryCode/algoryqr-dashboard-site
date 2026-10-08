@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getExpFromAccessToken } from "@/lib/auth-user";
 import { setAuthCookies, setTokenExpiryCookies } from "@/lib/server/auth-cookies";
-import { fetchCurrentSessionRefreshExpiresAt } from "@/lib/server/session-expiry";
+import { resolveRefreshCookieExpiry } from "@/lib/server/session-expiry";
 
 type ImpersonateBody = {
   accessToken?: string;
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     }
 
     const accessTokenExpiresAt = getExpFromAccessToken(accessToken) ?? undefined;
-    const refreshTokenExpiresAt = await fetchCurrentSessionRefreshExpiresAt(accessToken);
+    const refreshTokenExpiresAt = await resolveRefreshCookieExpiry(refreshToken, null, accessToken);
 
     const response = NextResponse.json({ ok: true, userId }, { status: 200 });
     setAuthCookies(response, accessToken, refreshToken, userId);

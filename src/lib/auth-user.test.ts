@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getAccessProfileFromToken, hasScope } from "./auth-user";
+import { getAccessProfileFromToken, hasScope, resolveRefreshExpiresAt } from "./auth-user";
 
 function encodePayload(payload: Record<string, unknown>): string {
   return Buffer.from(JSON.stringify(payload)).toString("base64url");
@@ -9,6 +9,20 @@ function encodePayload(payload: Record<string, unknown>): string {
 function buildToken(payload: Record<string, unknown>): string {
   return `header.${encodePayload(payload)}.signature`;
 }
+
+describe("refresh token expiry", () => {
+  it("reads exp from the refresh token payload", () => {
+    const exp = 1_800_000_000;
+    const token = buildToken({ exp, typ: "refresh" });
+    expect(resolveRefreshExpiresAt(token, null)).toBe(exp);
+  });
+
+  it("keeps the iso expiry when the refresh token is not a jwt", () => {
+    expect(resolveRefreshExpiresAt("session.raw", "2026-10-08T07:00:00.000Z")).toBe(
+      Math.floor(Date.parse("2026-10-08T07:00:00.000Z") / 1000),
+    );
+  });
+});
 
 describe("auth-user access profile", () => {
   it("returns empty products and scopes when token claims are empty", () => {
