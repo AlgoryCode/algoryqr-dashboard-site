@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
-import { getExpFromAccessToken } from "@/lib/auth-user";
+import { getExpFromAccessToken, getExpFromJwt } from "@/lib/auth-user";
 import {
   readAccessTokenFromCookies,
+  readRefreshTokenFromCookies,
   setRefreshTokenExpiryCookie,
   setTokenExpiryCookies,
 } from "@/lib/server/auth-cookies";
@@ -30,6 +31,14 @@ export async function GET() {
 
   let refreshTokenExpiresAt = readExpiryFromCookie(cookieStore, "refreshTokenExp");
   let shouldPersistRefreshExp = false;
+
+  if (refreshTokenExpiresAt == null) {
+    const fromToken = getExpFromJwt(readRefreshTokenFromCookies(cookieStore));
+    if (fromToken != null) {
+      refreshTokenExpiresAt = fromToken;
+      shouldPersistRefreshExp = true;
+    }
+  }
 
   if (refreshTokenExpiresAt == null && accessToken) {
     const fromSession = await fetchCurrentSessionRefreshExpiresAt(accessToken);

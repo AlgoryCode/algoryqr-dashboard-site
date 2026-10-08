@@ -23,7 +23,7 @@ import {
   clearMerchantReturnUrlCookie,
   readMerchantReturnUrl,
 } from "@/lib/server/merchant-auth-cookies";
-import { fetchCurrentSessionRefreshExpiresAt } from "@/lib/server/session-expiry";
+import { resolveRefreshCookieExpiry } from "@/lib/server/session-expiry";
 import {
   type GoogleAuthErrorCode,
   googleAuthErrorRedirect,
@@ -188,9 +188,12 @@ export async function GET(req: NextRequest) {
       getExpFromAccessToken(accessToken) ??
       undefined;
     const refreshTokenExpiresAt =
-      readPositiveNumber(data.refreshTokenExpiresAt) ??
-      isoToEpochSeconds(readString(data.refreshExpiresAt)) ??
-      (await fetchCurrentSessionRefreshExpiresAt(accessToken));
+      (await resolveRefreshCookieExpiry(
+        refreshToken,
+        readString(data.refreshExpiresAt),
+        accessToken,
+      )) ??
+      readPositiveNumber(data.refreshTokenExpiresAt);
     const userId =
       readPositiveNumber(data.userId) ??
       getUserIdFromAccessToken(accessToken) ??
