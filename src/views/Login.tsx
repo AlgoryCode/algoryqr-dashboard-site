@@ -134,7 +134,7 @@ const Login = () => {
     }
     queryClient.removeQueries({ queryKey: MY_PROFILE_QUERY_KEY });
     queryClient.removeQueries({ queryKey: ["demoAccount"] });
-    toast({ title: "Başarılı", description: "Giriş yapıldı!" });
+    toast({ title: "Başarılı", description: "Giriş yapıldı!", variant: "success" });
     await redirectAfterAuth(data.userId);
   };
 
@@ -254,7 +254,7 @@ const Login = () => {
       setTwoFactorHintEmail(null);
       queryClient.removeQueries({ queryKey: MY_PROFILE_QUERY_KEY });
       queryClient.removeQueries({ queryKey: ["demoAccount"] });
-      toast({ title: "Başarılı", description: "Giriş yapıldı!" });
+      toast({ title: "Başarılı", description: "Giriş yapıldı!", variant: "success" });
       await redirectAfterAuth(data.userId);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "2FA doğrulanamadı";
@@ -397,9 +397,14 @@ const Login = () => {
                   <Label htmlFor="password">Şifre</Label>
                   <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
                 </div>
-                <Button variant="hero" size="lg" className="w-full" type="submit" disabled={loading}>
-                  {loading ? "Giriş yapılıyor..." : "Giriş Yap"}
-                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button variant="hero" size="lg" className="w-full" type="submit" disabled={loading}>
+                    {loading ? "Giriş yapılıyor..." : "Giriş Yap"}
+                  </Button>
+                  <Button variant="outline" size="lg" className="w-full" asChild>
+                    <Link href={registerHref}>Kayıt ol</Link>
+                  </Button>
+                </div>
               </form>
               {demoAvailable ? (
                 <Button
@@ -417,23 +422,17 @@ const Login = () => {
           )}
 
           {!awaiting2FA && !awaitingEmailVerification && (
-            <p className="text-center text-xs text-muted-foreground space-y-1">
-              <span className="block">
-                Hesabınız yok mu?{" "}
-                <Link href={registerHref} className="text-primary hover:underline font-medium">
-                  Kayıt ol
-                </Link>
-              </span>
-              <span className="block">
-                <Link href={DASHBOARD_ROUTES.demoLogin} className="text-primary hover:underline font-medium">
-                  Demo girişi
-                </Link>
-                {" · "}
-                <Link href={DASHBOARD_ROUTES.demoRegister} className="text-primary hover:underline font-medium">
-                  Demoyu başlat
-                </Link>
-              </span>
-            </p>
+            <div className="space-y-2">
+              <p className="text-center text-xs text-muted-foreground">Demo hesabınız yok mu?</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="ghost" size="sm" className="w-full text-muted-foreground" asChild>
+                  <Link href={DASHBOARD_ROUTES.demoRegister}>Demo hesabı oluştur</Link>
+                </Button>
+                <Button variant="ghost" size="sm" className="w-full text-muted-foreground" asChild>
+                  <Link href={DASHBOARD_ROUTES.demoLogin}>Demo giriş</Link>
+                </Button>
+              </div>
+            </div>
           )}
         </div>
       </div>

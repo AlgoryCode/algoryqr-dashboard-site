@@ -68,7 +68,7 @@ const DemoLogin = () => {
       if (session) {
         queryClient.setQueryData(SESSION_CONTEXT_QUERY_KEY, session);
       }
-      toast({ title: "Başarılı", description: "Demo girişi yapıldı." });
+      toast({ title: "Başarılı", description: "Demo girişi yapıldı.", variant: "success" });
       router.push(pathForSession(session, DASHBOARD_ROUTES.overview));
       router.refresh();
     } catch (err) {
