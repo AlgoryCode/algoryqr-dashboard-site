@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { DocumentLocale } from "@/components/DocumentLocale";
+import { FlowLogDock } from "@/components/flow-log/FlowLogDock";
 import { MenuLocaleProvider } from "@/components/menu-templates/shared/menu-locale";
 import { MenuCurrencyProvider } from "@/components/menu-templates/shared/menu-currency";
 
@@ -27,6 +28,7 @@ export default function Providers({ children }: ProvidersProps) {
               {children}
               <Toaster />
               <Sonner />
+              <FlowLogDock />
             </TooltipProvider>
           </MenuCurrencyProvider>
         </MenuLocaleProvider>

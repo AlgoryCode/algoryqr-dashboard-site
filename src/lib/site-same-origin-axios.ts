@@ -4,6 +4,7 @@ import axios, { AxiosError, type AxiosInstance, type InternalAxiosRequestConfig 
 
 import { getJsonErrorText } from "@/lib/api-error-text";
 import { ApiError } from "@/lib/api/errors";
+import { recordFlow } from "@/lib/flow-log";
 import { clearPackageAccess, loadPackageAccess } from "@/lib/load-package-access";
 
 let refreshPromise: Promise<boolean> | null = null;
@@ -64,7 +65,7 @@ export async function refreshSiteSession(): Promise<boolean> {
   return refreshPromise;
 }
 
-type SiteRetryCfg = InternalAxiosRequestConfig & { __site401Retried?: boolean };
+type SiteRetryCfg = InternalAxiosRequestConfig & { __site401Retried?: boolean; __flowStarted?: number };
 
 let siteInstance: AxiosInstance | null = null;
 
@@ -83,9 +84,33 @@ export function getSiteSameOriginAxios(): AxiosInstance {
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     withCredentials: true,
   });
+  siteInstance.interceptors.request.use((config) => {
+    (config as SiteRetryCfg).__flowStarted = Date.now();
+    return config;
+  });
   siteInstance.interceptors.response.use(
-    (r) => r,
+    (response) => {
+      const config = response.config as SiteRetryCfg;
+      recordFlow({
+        scope: "api",
+        method: (config.method || "GET").toUpperCase(),
+        path: `${config.baseURL ?? ""}${config.url ?? ""}`,
+        status: response.status,
+        durationMs: config.__flowStarted ? Date.now() - config.__flowStarted : 0,
+        body: response.data,
+      });
+      return response;
+    },
     async (error: AxiosError) => {
+      const config = error.config as SiteRetryCfg | undefined;
+      recordFlow({
+        scope: "api",
+        method: (config?.method || "GET").toUpperCase(),
+        path: `${config?.baseURL ?? ""}${config?.url ?? ""}`,
+        status: error.response?.status ?? 0,
+        durationMs: config?.__flowStarted ? Date.now() - config.__flowStarted : 0,
+        body: error.response?.data ?? error.message,
+      });
       const status = error.response?.status;
       const cfg = error.config as SiteRetryCfg | undefined;
       const requestUrl = `${cfg?.baseURL ?? ""}${cfg?.url ?? ""}`;
