@@ -51,7 +51,7 @@ const DemoRegister = () => {
         demoRegistered: "1",
         username: trimmedUsername,
       });
-      router.push(`/login?${params.toString()}`);
+      router.push(`/demo/login?${params.toString()}`);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Demo kayıt başarısız";
       toast({ title: "Hata", description: message, variant: "destructive" });
@@ -114,8 +114,8 @@ const DemoRegister = () => {
 
         <p className="text-center text-xs text-muted-foreground">
           Zaten üye misiniz?{" "}
-          <Link href="/login" className="text-primary hover:underline font-medium">
-            Zaten hesabınız var — giriş yap
+          <Link href="/demo/login" className="text-primary hover:underline font-medium">
+            Zaten demo hesabınız var — giriş yap
           </Link>
         </p>
       </div>

@@ -62,8 +62,8 @@ export default function DemoLanding() {
 
           <p className="text-xs text-muted-foreground">
             Zaten üye misiniz?{" "}
-            <Link href="/login" className="text-primary hover:underline font-medium">
-              Giriş yap
+            <Link href={DASHBOARD_ROUTES.demoLogin} className="text-primary hover:underline font-medium">
+              Demo girişi
             </Link>
           </p>
         </div>

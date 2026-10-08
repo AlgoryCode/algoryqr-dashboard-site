@@ -79,20 +79,12 @@ const Login = () => {
     if (searchParams.get("demoRegistered") !== "1") return;
     demoRegisteredToastShown.current = true;
     const registeredUsername = searchParams.get("username")?.trim();
+    const params = new URLSearchParams({ demoRegistered: "1" });
     if (registeredUsername) {
-      setEmail(registeredUsername);
+      params.set("username", registeredUsername);
     }
-    toast({
-      title: "Kayıt tamam",
-      description: "Kullanıcı adınız ve şifrenizle giriş yapın; panelde hazırlık animasyonu ve kurulum adımları sizi bekliyor.",
-    });
-    const cleanParams = new URLSearchParams();
-    if (returnPath && returnPath !== "/") {
-      cleanParams.set("returnUrl", returnPath);
-    }
-    const next = cleanParams.toString() ? `/login?${cleanParams.toString()}` : "/login";
-    router.replace(next);
-  }, [returnPath, router, searchParams, toast]);
+    router.replace(`/demo/login?${params.toString()}`);
+  }, [router, searchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -433,6 +425,10 @@ const Login = () => {
                 </Link>
               </span>
               <span className="block">
+                <Link href={DASHBOARD_ROUTES.demoLogin} className="text-primary hover:underline font-medium">
+                  Demo girişi
+                </Link>
+                {" · "}
                 <Link href={DASHBOARD_ROUTES.demoRegister} className="text-primary hover:underline font-medium">
                   Demoyu başlat
                 </Link>

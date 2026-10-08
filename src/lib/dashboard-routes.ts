@@ -180,6 +180,7 @@ export const DASHBOARD_ROUTES = {
   trialStart: "/dashboard/deneme/baslat",
   trialExpired: "/dashboard/deneme/bitti",
   demoLanding: "/demo",
+  demoLogin: "/demo/login",
   demoRegister: "/demo/register",
   welcomeOnboarding: "/dashboard/karsilama",
 } as const;
