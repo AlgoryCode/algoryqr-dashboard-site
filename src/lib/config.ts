@@ -43,10 +43,11 @@ const LOCAL_AUTH_BASE = "http://localhost:8080";
 const AUTH_ROUTES = {
   login: "/api/v1/auth/basicauth/login",
   register: "/api/v1/auth/basicauth/register",
+  demoLogin: "/api/v1/auth/demo/login",
   demoRegister: "/api/v1/auth/demo/register",
   demoProvision: "/api/v1/auth/demo/provision",
   demoStatus: "/api/v1/auth/demo/status",
-  demoUsernameAvailable: "/api/v1/auth/demo/username-available",
+  demoUsernameAvailable: "/api/v1/auth/demo/register",
   refresh: "/api/v1/auth/refresh",
   logout: "/api/v1/auth/logout",
   access: "/api/v1/auth/access",
