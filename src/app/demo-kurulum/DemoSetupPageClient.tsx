@@ -25,6 +25,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 
 import { BrandLogo } from "@/components/BrandLogo";
+import { DemoSetupLogout } from "@/components/dashboard/DemoSetupLogout";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError } from "@/lib/api";
@@ -363,7 +364,10 @@ export default function DemoSetupPageClient({ userId }: { userId: number | null 
 
   // ── Render ───
   return (
-    <div className="min-h-svh bg-background">
+    <div className="flex min-h-svh flex-col bg-background">
+      <header className="sticky top-0 z-20 flex justify-end bg-background/80 px-4 py-3 backdrop-blur-sm sm:px-6">
+        <DemoSetupLogout />
+      </header>
       <AnimatePresence mode="wait">
         {phase === "provisioning" ? (
           <motion.div
@@ -372,9 +376,9 @@ export default function DemoSetupPageClient({ userId }: { userId: number | null 
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.35 }}
-            className="flex min-h-svh flex-col"
+            className="flex flex-1 flex-col"
           >
-            <div className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-8 px-4 py-10 sm:py-14">
+            <div className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-8 px-4 pb-10 pt-4 sm:pb-14">
               <div className="space-y-4 text-center">
                 <div className="flex justify-center">
                   <BrandLogo className="h-9" />
@@ -459,9 +463,9 @@ export default function DemoSetupPageClient({ userId }: { userId: number | null 
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: "easeOut" }}
-            className="flex min-h-svh flex-col"
+            className="flex flex-1 flex-col"
           >
-            <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-8 sm:py-12">
+            <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 pb-8 pt-4 sm:pb-12">
               <div className="space-y-1">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   {DEMO_TRIAL_SHORT_LABEL} · {WIZARD_STEPS.indexOf(wizardStep) + 1} / {WIZARD_STEPS.length}
