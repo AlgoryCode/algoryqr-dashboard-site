@@ -32,7 +32,7 @@ describe("API_BASE_URL", () => {
     expect(config.authUrl("refresh")).toBe("https://prod.auth.algorycode.com/api/v1/auth/tokens/refresh");
   });
 
-  it("MENU_APP_ORIGIN_whenStageEnv_thenUsesDashboardHost", async () => {
+  it("MENU_APP_ORIGIN_isFixedToMenuSite", async () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("APP_ENV", "stage");
     vi.stubEnv("MENU_APP_ORIGIN", "");
@@ -40,17 +40,17 @@ describe("API_BASE_URL", () => {
     vi.stubEnv("APP_URL", "");
     vi.stubEnv("NEXT_PUBLIC_APP_URL", "");
     const config = await loadConfig();
-    expect(config.MENU_APP_ORIGIN).toBe("https://stage.dashboard.algorycode.com");
+    expect(config.MENU_APP_ORIGIN).toBe("https://menu.algorycode.com");
   });
 
-  it("MENU_APP_ORIGIN_whenLegacyQrEnv_thenFallsBackToDashboard", async () => {
+  it("MENU_APP_ORIGIN_ignoresLegacyQrEnv", async () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("APP_ENV", "stage");
     vi.stubEnv("NEXT_PUBLIC_MENU_APP_ORIGIN", "https://stage.qr.algorycode.com");
     vi.stubEnv("APP_URL", "");
     vi.stubEnv("NEXT_PUBLIC_APP_URL", "");
     const config = await loadConfig();
-    expect(config.MENU_APP_ORIGIN).toBe("https://stage.dashboard.algorycode.com");
+    expect(config.MENU_APP_ORIGIN).toBe("https://menu.algorycode.com");
   });
 
   it("resolveApiBaseUrl_whenUnsetOutsideProduction_thenUsesLocalhost", async () => {

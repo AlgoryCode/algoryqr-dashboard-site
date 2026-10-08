@@ -2,7 +2,9 @@
 
 import { api } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
+import { MENU_APP_ORIGIN } from "@/lib/config";
 import { isDateUsablePurchase, pickActivePurchase } from "@/lib/product-access";
+import { resolvePublicMenuHref } from "@/lib/public-menu-href";
 
 export { ApiError, getApiErrorCode } from "@/lib/api/errors";
 export {
@@ -82,6 +84,7 @@ export type QrRequestDetails =
       themeId: string;
       chefName?: string;
       chefAvatarKey?: string;
+      publicOrigin?: string;
       products?: Array<{
         name: string;
         description?: string;
@@ -810,7 +813,13 @@ function appendPublicProductParams(params: URLSearchParams, query: PublicProduct
 
 export async function getMenuByQrIdRequest(qrId: number | string): Promise<MenuProfileApiItem> {
   const response = await api.get<MenuProfileApiItem>(`/menu/by-qr/${qrId}`);
-  return response.data;
+  return {
+    ...response.data,
+    publicUrl: resolvePublicMenuHref({
+      publicUrl: response.data.publicUrl,
+      publicId: response.data.publicId,
+    }),
+  };
 }
 
 export interface ActiveMenuSummaryApiItem {
@@ -1264,10 +1273,14 @@ export async function submitPublicProductRatingRequest(
 }
 
 export async function createQrRequest(payload: CreateQrRequestBody): Promise<CreateQrResponse> {
+  const details =
+    payload.type === "menu" && "businessName" in payload.details
+      ? { ...payload.details, publicOrigin: MENU_APP_ORIGIN }
+      : payload.details;
   const requestBody = {
     qrName: payload.qrName,
     type: payload.type,
-    details: payload.details,
+    details,
   };
   const response = await api.post<CreateQrGatewayResponse>("/features/QR_MENU/qrs", requestBody);
   const now = new Date().toISOString();
@@ -1278,7 +1291,7 @@ export async function createQrRequest(payload: CreateQrRequestBody): Promise<Cre
       id: qrId != null ? String(qrId) : `temp-${Date.now()}`,
       qrName: payload.qrName,
       type: payload.type,
-      details: payload.details,
+      details,
       imgSrc: response.data.imgSrc,
       status: "active",
       createdAt: now,
@@ -1286,7 +1299,9 @@ export async function createQrRequest(payload: CreateQrRequestBody): Promise<Cre
       scans: 0,
     },
     qrId,
-    publicUrl: response.data.publicUrl,
+    publicUrl: response.data.publicUrl
+      ? resolvePublicMenuHref({ publicUrl: response.data.publicUrl })
+      : response.data.publicUrl,
     menuId: response.data.menuId,
   };
 }

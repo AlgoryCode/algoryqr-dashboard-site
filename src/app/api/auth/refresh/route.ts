@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 
 import { getExpFromAccessToken } from "@/lib/auth-user";
 import { authUrl } from "@/lib/config";
-import { resolveLoginUserId } from "@/lib/server/active-package";
+import { applyActivePackageCookie, resolveLoginUserId } from "@/lib/server/active-package";
 import {
   clearAuthCookies,
   readRefreshTokenFromCookies,
@@ -80,6 +80,7 @@ export async function POST(req: Request) {
       refreshTokenValue,
       userId,
     );
+    await applyActivePackageCookie(response, userId, typeof accessToken === "string" ? accessToken : undefined);
     setTokenExpiryCookies(
       response,
       accessTokenExpiresAt ?? undefined,

@@ -62,9 +62,9 @@ export function ModernBistroCategoryView({
   const hasSubcategories = (category.children ?? []).length > 0;
 
   return (
-    <main className="mx-auto min-h-[60vh] max-w-xl pb-8">
+    <main className="mx-auto min-h-[60vh] max-w-xl pb-8 lg:max-w-6xl">
       <div className="sticky top-12 z-30 border-b border-[var(--mb-border)] bg-[var(--mb-surface)]">
-        <div className="mx-auto flex max-w-xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
+        <div className="mx-auto flex max-w-xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6 lg:max-w-6xl">
           <div className="flex min-w-0 items-center gap-2.5">
             <button
               type="button"
@@ -102,7 +102,7 @@ export function ModernBistroCategoryView({
             Bu filtrede ürün bulunmuyor.
           </p>
         ) : (
-          <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {displayedProducts.map((product) => (
               <ModernBistroProductCard
                 key={product.productId}

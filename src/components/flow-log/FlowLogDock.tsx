@@ -7,6 +7,8 @@ import {
   clientFlowLogEnabled,
   getFlowLogEntries,
   getServerFlowSnapshot,
+  hydrateFlowLog,
+  ingestServerFlow,
   recordFlow,
   subscribeFlowLog,
   type FlowEntry,
@@ -24,7 +26,23 @@ export function FlowLogDock() {
     const active = clientFlowLogEnabled();
     setEnabled(active);
     if (!active) return;
+    hydrateFlowLog();
     installFetchLog();
+    let stop = false;
+    const pull = () => {
+      void fetch("/api/flow-log", { cache: "no-store" })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((body: { entries?: FlowEntry[] } | null) => {
+          if (!stop && body?.entries) ingestServerFlow(body.entries);
+        })
+        .catch(() => undefined);
+    };
+    pull();
+    const timer = window.setInterval(pull, 1000);
+    return () => {
+      stop = true;
+      window.clearInterval(timer);
+    };
   }, []);
 
   if (!enabled) return null;
@@ -34,7 +52,7 @@ export function FlowLogDock() {
   const warnings = entries.filter((entry) => entry.level === "warn").length;
 
   return (
-    <section className="fixed bottom-4 right-4 z-[80] w-[min(440px,calc(100vw-2rem))] text-zinc-100">
+    <section className="fixed bottom-4 right-4 z-[80] w-[min(640px,calc(100vw-2rem))] text-zinc-100">
       {open ? (
         <div className="overflow-hidden rounded-xl border border-zinc-700 bg-zinc-950 shadow-2xl">
           <header className="flex items-center justify-between gap-2 border-b border-zinc-800 px-3 py-2">
@@ -103,10 +121,11 @@ function FlowRow({ entry }: { entry: FlowEntry }) {
           {entry.status || "—"} · {entry.durationMs}ms
         </span>
       </div>
-      <p className="text-zinc-400">
+      {entry.requestSummary ? <p className="break-all text-zinc-300">istek {entry.requestSummary}</p> : null}
+      {entry.summary ? <p className="break-all text-zinc-300">cevap {entry.summary}</p> : null}
+      <p className="text-zinc-500">
         {entry.scope}
         {entry.anomaly ? ` · ${entry.anomaly}` : ""}
-        {entry.summary ? ` · ${entry.summary}` : ""}
       </p>
     </li>
   );
@@ -135,6 +154,7 @@ function installFetchLog(): void {
         path,
         status: response.status,
         durationMs: Date.now() - started,
+        request: init?.body,
         body,
       });
       return response;

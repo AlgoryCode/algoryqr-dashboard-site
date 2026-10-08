@@ -249,7 +249,7 @@ export default function SubscriptionSection({ onNotify }: SubscriptionSectionPro
         invalidateSubscriptionOverview(queryClient),
         invalidateSubscription(queryClient),
         invalidatePackageUsage(queryClient),
-        invalidateAccessProfile(queryClient),
+        invalidateAccessProfile(),
       ]);
       onNotify("info", "Yenileme dönem sonunda kapatılacak.");
     },

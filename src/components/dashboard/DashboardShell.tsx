@@ -60,6 +60,7 @@ import {
 } from "@/contexts/dashboard-banners";
 import { useTokenRefresh } from "@/hooks/use-token-refresh";
 import { useAccessProfile } from "@/hooks/use-access-profile";
+import { clearPackageAccess } from "@/lib/load-package-access";
 import { useAccessSession } from "@/hooks/use-commerce";
 import { SESSION_CONTEXT_QUERY_KEY } from "@/hooks/use-session-context";
 import { useQueryClient } from "@tanstack/react-query";
@@ -228,6 +229,7 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
     if (typeof window !== "undefined") {
       localStorage.removeItem("algory_user");
     }
+    clearPackageAccess();
     await axios.post("/api/auth/logout", undefined, { withCredentials: true }).catch(() => undefined);
     router.push("/login");
     router.refresh();
@@ -416,12 +418,12 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
             onOpenSearch={() => setCommandOpen(true)}
           />
 
-          <div className="hidden px-6 pt-3 lg:block">
-            <div className="mx-auto flex w-full max-w-[560px] items-center gap-2.5">
+          <div className="hidden px-8 pt-3 lg:block">
+            <div className="flex w-full items-center gap-2.5">
               <button
                 type="button"
                 onClick={() => setCommandOpen(true)}
-                className="flex h-12 min-w-0 flex-1 items-center gap-2.5 rounded-[14px] border border-border bg-muted/40 px-3.5 text-left transition-colors hover:bg-muted/60"
+                className="flex h-11 w-full max-w-xl items-center gap-2.5 rounded-[14px] border border-border bg-muted/40 px-3.5 text-left transition-colors hover:bg-muted/60"
               >
                 <Search className="size-[18px] shrink-0 text-muted-foreground opacity-70" />
                 <span className="min-w-0 flex-1 truncate text-[15px] text-muted-foreground">
@@ -431,14 +433,19 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
                   Ctrl K
                 </kbd>
               </button>
-              <DashboardAssistantLauncher />
-              <TrialReminderHeaderBadge />
+              <div className="ml-auto flex items-center gap-2.5">
+                <DashboardAssistantLauncher />
+                <TrialReminderHeaderBadge />
+              </div>
             </div>
           </div>
 
           <div
             className={cn(
-              pathname === DASHBOARD_ROUTES.onlineOrderOrders
+              pathname === DASHBOARD_ROUTES.onlineOrderOrders ||
+              pathname === DASHBOARD_ROUTES.reportsHub ||
+              pathname === DASHBOARD_ROUTES.analyticsLegacy ||
+              pathname === DASHBOARD_ROUTES.analyticsMenuLegacy
                 ? "mx-auto w-full max-w-[90rem]"
                 : DASHBOARD_CONTENT,
               isOnlineBoard ? "p-4 lg:px-6 lg:pt-4 lg:pb-0" : "p-6 lg:p-8",

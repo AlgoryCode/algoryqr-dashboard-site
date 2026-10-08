@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { ApiError } from "@/lib/api/errors";
+import { loadPackageAccess } from "@/lib/load-package-access";
 import { getSiteSameOriginAxios } from "@/lib/site-same-origin-axios";
 
 const REFRESH_BUFFER_SECONDS = 30;
@@ -46,6 +47,7 @@ export function useTokenRefresh(accessTokenExpiresAt?: number) {
         .then((res) => {
           const nextExp = res.data?.accessTokenExpiresAt;
           if (nextExp != null) setExpFromApi(nextExp);
+          void loadPackageAccess(true);
         })
         .catch((err: unknown) => {
           const status = err instanceof ApiError ? err.status : 0;

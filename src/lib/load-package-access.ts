@@ -2,7 +2,7 @@
 
 import { getStoredUser } from "@/lib/api/storage";
 import { recordFlow } from "@/lib/flow-log";
-import { readPackageAccess } from "@/lib/package-access";
+import { readPackageSnapshot } from "@/lib/package-access";
 import { usePackageStore, type PackageAccessStatus } from "@/stores/package-access-store";
 import type { AccessProfile } from "@/lib/auth-user";
 
@@ -21,16 +21,16 @@ export function loadPackageAccess(force = false, userId?: number | null): Promis
   const run = fetchPackageAccess(userId)
     .then((result) => {
       if (ticket !== generation) return usePackageStore.getState().profile;
-      if (result.status === "ready" && result.profile) {
-        usePackageStore.getState().setProfile(result.profile);
-        return result.profile;
+      if (result.status === "ready" && result.snapshot) {
+        usePackageStore.getState().setSnapshot(result.snapshot);
+        return result.snapshot.profile;
       }
-      usePackageStore.setState({ profile: null, status: result.status });
+      usePackageStore.setState({ profile: null, periodEnd: null, entitlements: [], status: result.status });
       return null;
     })
     .catch(() => {
       if (ticket !== generation) return usePackageStore.getState().profile;
-      usePackageStore.setState({ profile: null, status: "guest" });
+      usePackageStore.setState({ profile: null, periodEnd: null, entitlements: [], status: "guest" });
       return null;
     });
 
@@ -48,7 +48,7 @@ export function clearPackageAccess() {
 
 type FetchResult = {
   status: Extract<PackageAccessStatus, "ready" | "guest">;
-  profile: AccessProfile | null;
+  snapshot: ReturnType<typeof readPackageSnapshot>;
 };
 
 async function fetchPackageAccess(userId?: number | null): Promise<FetchResult> {
@@ -63,10 +63,10 @@ async function fetchPackageAccess(userId?: number | null): Promise<FetchResult> 
       status: response.status,
       summary: "Paket profili alınamadı",
     });
-    return { status: "guest", profile: null };
+    return { status: "guest", snapshot: null };
   }
-  const profile = readPackageAccess(await response.json());
-  if (!profile) {
+  const snapshot = readPackageSnapshot(await response.json());
+  if (!snapshot) {
     recordFlow({
       scope: "entitlement",
       method: "GET",
@@ -75,20 +75,20 @@ async function fetchPackageAccess(userId?: number | null): Promise<FetchResult> 
       anomaly: "PAKET_OKUNAMADI",
       summary: "Paket cevabı profili üretmedi",
     });
-    return { status: "guest", profile: null };
+    return { status: "guest", snapshot: null };
   }
-  const products = profile.products.join(", ");
+  const products = snapshot.profile.products.join(", ");
   recordFlow({
     scope: "entitlement",
     method: "GET",
     path,
     status: response.status,
-    anomaly: profile.activePackage ? null : "PAKET_YOK",
-    summary: profile.activePackage
-      ? `Paket ${profile.activePackage}. Ürünler: ${products || "yok"}`
+    anomaly: snapshot.profile.activePackage ? null : "PAKET_YOK",
+    summary: snapshot.profile.activePackage
+      ? `Paket ${snapshot.profile.activePackage}. Ürünler: ${products || "yok"}`
       : "Aktif paket yok",
   });
-  return { status: "ready", profile };
+  return { status: "ready", snapshot };
 }
 
 function storedUserId(): number | null {

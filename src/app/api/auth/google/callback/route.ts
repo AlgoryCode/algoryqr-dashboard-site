@@ -11,6 +11,7 @@ import {
   setAuthCookies,
   setTokenExpiryCookies,
 } from "@/lib/server/auth-cookies";
+import { applyActivePackageCookie } from "@/lib/server/active-package";
 import { applyPersonalDemoTrialCookie } from "@/lib/server/apply-demo-onboarding-cookies";
 import { getAppOrigin } from "@/lib/server/app-origin";
 import { clientContextHeaders } from "@/lib/server/client-headers";
@@ -211,6 +212,7 @@ export async function GET(req: NextRequest) {
       clearMerchantReturnUrlCookie(response);
       setAuthCookies(response, accessToken, refreshToken, userId);
       setTokenExpiryCookies(response, accessTokenExpiresAt, refreshTokenExpiresAt);
+      await applyActivePackageCookie(response, userId, accessToken);
       await applyPersonalDemoTrialCookie(response, accessToken);
       return response;
     }
@@ -242,6 +244,7 @@ export async function GET(req: NextRequest) {
       accessTokenExpiresAt,
       refreshTokenExpiresAt,
     );
+    await applyActivePackageCookie(response, userId, accessToken);
     await applyPersonalDemoTrialCookie(response, accessToken);
     return response;
   } catch {

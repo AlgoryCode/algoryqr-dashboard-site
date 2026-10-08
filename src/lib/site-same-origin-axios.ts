@@ -43,6 +43,13 @@ export async function refreshSiteSession(): Promise<boolean> {
           withCredentials: true,
           validateStatus: (s) => s < 500,
         });
+        recordFlow({
+          scope: "api",
+          method: "POST",
+          path: "/api/auth/refresh",
+          status: r.status,
+          body: r.data,
+        });
         if (r.status === 401) {
           clearPackageAccess();
           await axios.post("/api/auth/logout", {}, { withCredentials: true, validateStatus: () => true }).catch(() => undefined);
@@ -98,6 +105,7 @@ export function getSiteSameOriginAxios(): AxiosInstance {
         path: `${config.baseURL ?? ""}${config.url ?? ""}`,
         status: response.status,
         durationMs: config.__flowStarted ? Date.now() - config.__flowStarted : 0,
+        request: config.data,
         body: response.data,
       });
       return response;
@@ -110,6 +118,7 @@ export function getSiteSameOriginAxios(): AxiosInstance {
         path: `${config?.baseURL ?? ""}${config?.url ?? ""}`,
         status: error.response?.status ?? 0,
         durationMs: config?.__flowStarted ? Date.now() - config.__flowStarted : 0,
+        request: config?.data,
         body: error.response?.data ?? error.message,
       });
       const status = error.response?.status;

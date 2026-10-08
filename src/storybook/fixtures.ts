@@ -65,7 +65,7 @@ function exactBody(path: string): unknown | undefined {
   if (path.startsWith("/menu/chef/search")) return chefAgentPreview();
   if (path.startsWith("/menu/chef/badge-search")) return chefAgentPreview();
   if (path.startsWith("/menu/chef/badges")) return chefBadgesPreview();
-  if (path.startsWith("/access/context")) return sessionContext();
+  if (path.startsWith("/access/context") || /\/users\/\d+\/package$/.test(path)) return sessionContext();
   if (path.startsWith("/account/payment-methods")) return paymentMethods();
   if (path.startsWith("/purchases/my/entitlements")) return [];
   if (path.startsWith("/purchases/my")) return [activePurchase()];

@@ -1,4 +1,5 @@
 import { readKitchenOrderList } from "@/lib/kitchen-queue";
+import { loadPackageAccess } from "@/lib/load-package-access";
 import { applyOrderFlow, writeOrderFlowStatus } from "@/lib/order-flow";
 import type { StoreOrderAction, StoreOrderDetail, StoreOrderPage, StoreOrderSummary } from "@/lib/store-api";
 import { formatStoreAddress } from "@/lib/store-ui";
@@ -74,6 +75,7 @@ async function fetchStore(path: string, init?: RequestInit): Promise<Response> {
     body: "{}",
   });
   if (!refreshed.ok) return first;
+  void loadPackageAccess(true);
   return request();
 }
 

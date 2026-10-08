@@ -73,7 +73,7 @@ export function OverviewPage({
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {showCiroWorth ? (
           <div className="col-span-2 min-w-0">
             <CiroWorthCard

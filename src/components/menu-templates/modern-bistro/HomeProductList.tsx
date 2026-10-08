@@ -16,7 +16,7 @@ export function ModernBistroHomeProductList({
   if (products.length === 0) return null;
 
   return (
-    <div className="grid grid-cols-1 gap-4">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       {products.map((product) => (
         <ModernBistroProductCard
           key={product.productId}

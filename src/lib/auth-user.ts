@@ -1,4 +1,4 @@
-﻿export interface AuthUser {
+export interface AuthUser {
   id?: string;
   email: string;
   first_name?: string;
@@ -117,7 +117,7 @@ function parseJwtPayload(token: string): JwtPayload | null {
   }
 }
 
-/** ISO-8601 tarih/saat ÔåÆ Unix epoch (saniye). */
+/** ISO-8601 tarih/saat → Unix epoch (saniye). */
 export function isoToEpochSeconds(iso?: string | null): number | null {
   if (!iso?.trim()) return null;
   const ms = Date.parse(iso);
@@ -125,8 +125,8 @@ export function isoToEpochSeconds(iso?: string | null): number | null {
 }
 
 /**
- * JWT access token'dan exp (saniye cinsinden epoch) d├Âner; yoksa null.
- * Backend exp'i bazen ms veriyor (├Ârn. Spring 300000 ms); > 1e12 ise ms kabul edip saniyeye ├ğeviriyoruz.
+ * JWT access token'dan exp (saniye cinsinden epoch) döner; yoksa null.
+ * Backend exp'i bazen ms veriyor (örn. Spring 300000 ms); > 1e12 ise ms kabul edip saniyeye çeviriyoruz.
  */
 export function getExpFromJwt(token?: string | null): number | null {
   if (!token) return null;
@@ -157,12 +157,12 @@ function parseNumericClaim(value: unknown): number | null {
   return null;
 }
 
-/** JWT claim `userId`, `accountId`, `customerId` veya `id`. */
 export function getUserIdFromAccessToken(token?: string | null): number | null {
   if (!token) return null;
   const payload = parseJwtPayload(token);
   if (!payload) return null;
   return (
+    parseNumericClaim(payload.merchantId) ??
     parseNumericClaim(payload.userId) ??
     parseNumericClaim(payload.accountId) ??
     parseNumericClaim(payload.customerId) ??
@@ -286,11 +286,14 @@ function parseAuthProvider(value: unknown): AuthProvider | null {
 
 export function hasScope(profile: AccessProfile | null | undefined, scope: ProductScope): boolean {
   if (!profile) return false;
-  if (profile.scopes.includes(scope)) return true;
-  if (scope === "SMART_REPORTING_OWNER" && profile.scopes.includes("QR_ANALYTICS_OWNER")) {
-    return true;
+  if (scope === "SMART_REPORTING_OWNER" || scope === "QR_ANALYTICS_OWNER") {
+    return hasProduct(profile, "SMART_REPORTING") || hasProduct(profile, "QR_ANALYTICS");
   }
-  return false;
+  if (scope.endsWith("_OWNER")) {
+    const product = normalizeProductCode(scope.slice(0, -"_OWNER".length));
+    if (product) return hasProduct(profile, product);
+  }
+  return profile.scopes.includes(scope);
 }
 
 export function hasProduct(profile: AccessProfile | null | undefined, product: ProductCode): boolean {

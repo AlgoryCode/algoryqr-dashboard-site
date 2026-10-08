@@ -2,6 +2,7 @@ import { UserQrApiItem } from "@/lib/api";
 import { createInitialMenuData } from "@/components/dashboard/qr-create/MenuDetails";
 import { getMenuTemplate, resolveMenuThemeId } from "@/components/menu-templates/registry";
 import { QrTypeData, QrTypeValue } from "@/components/dashboard/qr-create/QrTypeDetails";
+import { MENU_APP_ORIGIN } from "@/lib/config";
 
 export type DashboardQrItem = {
   id: number;
@@ -48,6 +49,7 @@ export const getQrDetailsByType = (type: QrTypeValue, data: QrTypeData) => {
       themeId: data.menu.themeId,
       chefName: data.menu.chefName,
       chefAvatarKey: data.menu.chefAvatarKey,
+      publicOrigin: MENU_APP_ORIGIN,
     };
   }
   return data.location;

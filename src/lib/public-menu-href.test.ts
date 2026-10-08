@@ -7,49 +7,49 @@ describe("resolvePublicMenuHref", () => {
     vi.unstubAllEnvs();
   });
 
-  it("appends /content to dashboard menu URLs", () => {
+  it("uses the fixed menu domain for dashboard menu URLs", () => {
     expect(
       resolvePublicMenuHref({
         publicUrl: "https://stage.dashboard.algorycode.com/menu/abc123",
         publicId: "abc123",
       }),
-    ).toBe("https://stage.dashboard.algorycode.com/menu/abc123/content");
+    ).toBe("https://menu.algorycode.com/menu/abc123/content");
   });
 
-  it("rewrites stage.qr publicUrl to the dashboard origin", () => {
+  it("rewrites stage.qr publicUrl to the fixed menu origin", () => {
     expect(
       resolvePublicMenuHref({
         publicUrl: "https://stage.qr.algorycode.com/menu/scxtG9KR5FrK0RlLjcYPUw",
         publicId: "scxtG9KR5FrK0RlLjcYPUw",
       }),
-    ).toBe("https://stage.dashboard.algorycode.com/menu/scxtG9KR5FrK0RlLjcYPUw/content");
+    ).toBe("https://menu.algorycode.com/menu/scxtG9KR5FrK0RlLjcYPUw/content");
   });
 
-  it("rewrites legacy qr.algorycode.com publicUrl to the dashboard origin", () => {
+  it("rewrites legacy qr.algorycode.com publicUrl to the fixed menu origin", () => {
     expect(
       resolvePublicMenuHref({
         publicUrl: "https://qr.algorycode.com/menu/pub-1",
         publicId: "pub-1",
       }),
-    ).toBe("https://stage.dashboard.algorycode.com/menu/pub-1/content");
+    ).toBe("https://menu.algorycode.com/menu/pub-1/content");
   });
 
-  it("rewrites localhost publicUrl using configured menu origin", () => {
+  it("rewrites localhost publicUrl to the fixed menu origin", () => {
     expect(
       resolvePublicMenuHref({
         publicUrl: "http://localhost:3000/menu/pub-1",
         publicId: "pub-1",
       }),
-    ).toBe("https://stage.dashboard.algorycode.com/menu/pub-1/content");
+    ).toBe("https://menu.algorycode.com/menu/pub-1/content");
   });
 
-  it("prefers NEXT_PUBLIC_MENU_APP_ORIGIN over baked localhost module default", () => {
+  it("ignores runtime menu origin overrides", () => {
     vi.stubEnv("NEXT_PUBLIC_MENU_APP_ORIGIN", "https://stage.dashboard.algorycode.com");
     expect(
       resolvePublicMenuHref({
         publicUrl: "https://stage.qr.algorycode.com/menu/pub-1",
         publicId: "pub-1",
       }),
-    ).toBe("https://stage.dashboard.algorycode.com/menu/pub-1/content");
+    ).toBe("https://menu.algorycode.com/menu/pub-1/content");
   });
 });

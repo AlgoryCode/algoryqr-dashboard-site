@@ -120,21 +120,27 @@ export function OrdersPage({ revenue }: { revenue: MenuRevenueReportResponse }) 
     <div className="space-y-3">
       <SparkKpiStrip items={kpiItems} />
 
-      {dailyOrderTrend.length > 0 ? (
-        <HighlightBarChart
-          title="Günlük sipariş"
-          description="Dönem içindeki adisyon sayısı"
-          value={metrics.orders.toLocaleString("tr-TR")}
-          data={dailyOrderTrend}
-        />
-      ) : null}
+      <div
+        className={`grid gap-3 ${
+          dailyOrderTrend.length > 0 && hourlyOrderTrend.some((row) => row.value > 0) ? "lg:grid-cols-2" : ""
+        }`}
+      >
+        {dailyOrderTrend.length > 0 ? (
+          <HighlightBarChart
+            title="Günlük sipariş"
+            description="Dönem içindeki adisyon sayısı"
+            value={metrics.orders.toLocaleString("tr-TR")}
+            data={dailyOrderTrend}
+          />
+        ) : null}
 
-      {hourlyOrderTrend.some((row) => row.value > 0) ? (
-        <RetentionStepChart
-          title="Saatlik sipariş yoğunluğu"
-          data={hourlyOrderTrend.map((row) => ({ label: row.label, value: row.value }))}
-        />
-      ) : null}
+        {hourlyOrderTrend.some((row) => row.value > 0) ? (
+          <RetentionStepChart
+            title="Saatlik sipariş yoğunluğu"
+            data={hourlyOrderTrend.map((row) => ({ label: row.label, value: row.value }))}
+          />
+        ) : null}
+      </div>
 
       {channelOrderRows.length > 0 ? (
         <div className="grid gap-3 lg:grid-cols-2">

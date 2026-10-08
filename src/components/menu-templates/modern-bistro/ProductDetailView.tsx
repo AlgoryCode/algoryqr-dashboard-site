@@ -36,7 +36,7 @@ export function ModernBistroProductDetailView({
 
   return (
     <div className="min-h-[60vh] pb-8">
-      <div className="mx-auto max-w-xl space-y-4 px-4 pt-3 sm:px-6">
+      <div className="mx-auto max-w-xl space-y-4 px-4 pt-3 sm:px-6 lg:max-w-3xl">
         <button
           type="button"
           onClick={onBack}

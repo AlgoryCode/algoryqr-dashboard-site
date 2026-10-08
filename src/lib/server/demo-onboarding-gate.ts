@@ -165,6 +165,9 @@ export function isDemoOnboardingApiAllowed(pathname: string, method: string): bo
   if (sitePath.startsWith("/auth/")) {
     return true;
   }
+  if (upperMethod === "GET" && (sitePath === "/access/context" || /^\/users\/\d+\/package$/.test(sitePath))) {
+    return true;
+  }
   return DEMO_ONBOARDING_API_ALLOWLIST.some(
     (entry) => entry.method === upperMethod && (sitePath === entry.path || sitePath.startsWith(`${entry.path}/`)),
   );

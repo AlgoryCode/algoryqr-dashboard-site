@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 
 import { getExpFromAccessToken } from "@/lib/auth-user";
 import { API_BASE_URL } from "@/lib/config";
-import { resolveLoginUserId } from "@/lib/server/active-package";
+import { applyActivePackageCookie, resolveLoginUserId } from "@/lib/server/active-package";
 import { setAuthCookies, setTokenExpiryCookies } from "@/lib/server/auth-cookies";
 import { applyPersonalDemoTrialCookie } from "@/lib/server/apply-demo-onboarding-cookies";
 import { clientContextHeaders } from "@/lib/server/client-headers";
@@ -82,6 +82,7 @@ export async function POST(req: Request) {
 
     setAuthCookies(response, accessTokenValue, refreshTokenValue, userId);
     setTokenExpiryCookies(response, accessTokenExpiresAt, refreshTokenExpiresAt);
+    await applyActivePackageCookie(response, userId, accessTokenValue);
     await applyPersonalDemoTrialCookie(response, accessTokenValue);
 
     return response;

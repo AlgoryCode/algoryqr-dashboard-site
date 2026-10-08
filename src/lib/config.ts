@@ -41,15 +41,15 @@ const PROD_AUTH_BASE = "https://prod.auth.algorycode.com";
 const LOCAL_AUTH_BASE = "http://localhost:8080";
 
 const AUTH_ROUTES = {
-  login: "/api/v1/auth/basicauth/login",
-  register: "/api/v1/auth/basicauth/register",
+  login: "/api/v1/auth/login",
+  register: "/api/v1/auth/register",
   demoLogin: "/api/v1/auth/demo/login",
   demoRegister: "/api/v1/auth/demo/register",
-  demoProvision: "/api/v1/auth/demo/provision",
-  demoStatus: "/api/v1/auth/demo/status",
+  demoProvision: "/api/v1/auth/register",
+  demoStatus: "/api/v1/auth/access",
   demoUsernameAvailable: "/api/v1/auth/demo/register",
-  refresh: "/api/v1/auth/refresh",
-  logout: "/api/v1/auth/logout",
+  refresh: "/api/v1/auth/tokens/refresh",
+  logout: "/api/v1/auth/tokens/revoke",
   access: "/api/v1/auth/access",
   googleAuthorize: "/api/v1/auth/google/authorize",
   googleRedeem: "/api/v1/auth/google/redeem",
@@ -118,34 +118,11 @@ export const STORE_APP_ORIGIN = trimTrailingSlash(
     "http://localhost:3006",
 );
 
-function isLegacyMenuAppOrigin(origin: string): boolean {
-  try {
-    const host = new URL(origin).hostname.toLowerCase();
-    return host === "qr.algorycode.com" || host === "www.qr.algorycode.com" || host === "stage.qr.algorycode.com";
-  } catch {
-    return false;
-  }
-}
-
-function resolveMenuAppOrigin(): string {
-  const fromEnv = readRuntimeEnv("NEXT_PUBLIC_MENU_APP_ORIGIN") || readRuntimeEnv("MENU_APP_ORIGIN");
-  if (fromEnv && !isLegacyMenuAppOrigin(fromEnv)) return fromEnv;
-  const appUrl = readRuntimeEnv("APP_URL") || readRuntimeEnv("NEXT_PUBLIC_APP_URL");
-  if (appUrl && !isLegacyMenuAppOrigin(appUrl)) return appUrl;
-  const deployEnv = (process.env.APP_ENV || process.env.DEPLOY_ENV || "").trim().toLowerCase();
-  if (deployEnv === "stage" || deployEnv === "staging") return "https://stage.dashboard.algorycode.com";
-  if (deployEnv === "prod" || deployEnv === "production") return "https://dashboard.algorycode.com";
-  try {
-    const host = new URL(resolveApiBaseUrl()).hostname.toLowerCase();
-    if (host.startsWith("stage.")) return "https://stage.dashboard.algorycode.com";
-    if (host.startsWith("prod.")) return "https://dashboard.algorycode.com";
-  } catch {
-    // ignore
-  }
-  return "http://localhost:3002";
-}
-
-export const MENU_APP_ORIGIN = trimTrailingSlash(resolveMenuAppOrigin());
+/**
+ * Public menu links intentionally use one stable host in every environment.
+ * The menu site owns this hostname; it must not follow the dashboard/API host.
+ */
+export const MENU_APP_ORIGIN = "https://menu.algorycode.com";
 
 export const MARKETING_APP_ORIGIN = trimTrailingSlash(
   process.env.NEXT_PUBLIC_MARKETING_APP_ORIGIN?.trim() ||
