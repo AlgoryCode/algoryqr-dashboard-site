@@ -22,6 +22,7 @@ export function installUpstreamFlowLog(): void {
         path: response.config.url || "",
         status: response.status,
         durationMs: elapsed(config),
+        request: config.data,
         body: response.data,
       });
       return response;
@@ -34,6 +35,7 @@ export function installUpstreamFlowLog(): void {
         path: config?.url || "",
         status: error.response?.status ?? 0,
         durationMs: elapsed(config),
+        request: config?.data,
         body: error.response?.data ?? error.message,
       });
       return Promise.reject(error);

@@ -1,28 +1,30 @@
 "use client";
 
-import { useMemo } from "react";
-import type { QueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 
-import { SESSION_CONTEXT_QUERY_KEY, useSessionContext } from "@/hooks/use-session-context";
-import { toAccessProfile } from "@/lib/auth-user";
-
-export const ACCESS_PROFILE_QUERY_KEY = SESSION_CONTEXT_QUERY_KEY;
+import { loadPackageAccess } from "@/lib/load-package-access";
+import { usePackageStore } from "@/stores/package-access-store";
 
 export function useAccessProfile(enabled = true) {
-  const query = useSessionContext(enabled);
-  const data = useMemo(() => {
-    if (!query.data) return undefined;
-    return toAccessProfile({
-      packageCode: query.data.packageCode ?? null,
-      products: query.data.products,
-      scopes: query.data.scopes,
-      roles: query.data.user.role ? [query.data.user.role] : [],
-      provider: query.data.user.provider,
-    });
-  }, [query.data]);
-  return { ...query, data };
+  const profile = usePackageStore((state) => state.profile);
+  const status = usePackageStore((state) => state.status);
+
+  useEffect(() => {
+    if (!enabled || status !== "idle") return;
+    void loadPackageAccess();
+  }, [enabled, status]);
+
+  const pending = enabled && (status === "idle" || status === "loading");
+  return {
+    data: status === "ready" ? profile ?? undefined : undefined,
+    isLoading: pending,
+    isPending: pending,
+    isSuccess: status === "ready",
+    isError: false,
+    status: status === "ready" ? ("success" as const) : ("pending" as const),
+  };
 }
 
-export function invalidateAccessProfile(queryClient: QueryClient) {
-  return queryClient.invalidateQueries({ queryKey: ACCESS_PROFILE_QUERY_KEY });
+export function invalidateAccessProfile() {
+  return loadPackageAccess(true);
 }

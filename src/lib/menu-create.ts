@@ -1,3 +1,5 @@
+import { MENU_APP_ORIGIN } from "@/lib/config";
+
 export type MenuCreateProfile = {
   businessName: string;
   slogan?: string;
@@ -36,6 +38,7 @@ export function buildMenuCreateDetails(
     themeId: menu.themeId,
     chefName: menu.chefName,
     chefAvatarKey: menu.chefAvatarKey,
+    publicOrigin: MENU_APP_ORIGIN,
     products,
     ...(options.sourceMenuId != null ? { sourceMenuId: options.sourceMenuId } : {}),
     ...(options.branchId != null ? { branchId: options.branchId } : {}),

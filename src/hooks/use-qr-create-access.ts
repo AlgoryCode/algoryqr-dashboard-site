@@ -3,67 +3,43 @@
 import { useMemo } from "react";
 
 import { useAccessProfile } from "@/hooks/use-access-profile";
-import { useActivePackages, useSubscription } from "@/hooks/use-subscription";
-import { aggregatePackageUsage } from "@/lib/api";
-import { hasScope } from "@/lib/auth-user";
+import { hasProduct } from "@/lib/auth-user";
 import {
   formatQrCreateQuotaLabel,
   hasQrCreateQuotaRemaining,
   summarizeQrCreateQuota,
   type QrCreateQuotaSummary,
 } from "@/lib/entitlement-display";
-import {
-  hasActivePackageProduct,
-  hasActiveProductAccess,
-} from "@/lib/product-access";
+import { usePackageStore } from "@/stores/package-access-store";
 
 const QR_CREATE_PRODUCT = "QR_CREATE";
 
 export function useQrCreateAccess() {
   const { data: accessProfile, isLoading: accessLoading } = useAccessProfile();
-  const subscription = useSubscription();
-  const packages = useActivePackages();
-
-  const activePurchase = subscription.data?.activePurchase ?? null;
-  const catalogPackages = packages.data ?? [];
-  const entitlements = subscription.data?.entitlements ?? [];
-  const purchases = subscription.data?.purchases ?? [];
-
-  const hasScopeAccess = hasScope(accessProfile, "QR_CREATE_OWNER");
-  const hasProductAccess =
-    hasScopeAccess ||
-    hasActiveProductAccess(entitlements, purchases, QR_CREATE_PRODUCT) ||
-    hasActivePackageProduct(activePurchase, catalogPackages, QR_CREATE_PRODUCT);
+  const entitlements = usePackageStore((state) => state.entitlements);
+  const hasProductAccess = hasProduct(accessProfile, QR_CREATE_PRODUCT);
+  const right = entitlements.find((item) => item.productCode === QR_CREATE_PRODUCT) ?? null;
 
   const qrQuota = useMemo<QrCreateQuotaSummary | null>(() => {
-    if (hasScopeAccess) {
-      return summarizeQrCreateQuota({
-        remaining: Number.POSITIVE_INFINITY,
-        total: 0,
-        used: 0,
-        unlimited: true,
-        usable: true,
-      });
-    }
-    const usage = aggregatePackageUsage(entitlements, purchases);
-    if (!hasProductAccess && !usage.usable) {
-      return null;
-    }
+    if (!right) return null;
+    const total = right.quantity ?? 0;
+    const used = right.usedQuantity ?? 0;
+    const remaining = right.unlimited ? Number.POSITIVE_INFINITY : Math.max(0, total - used);
     return summarizeQrCreateQuota({
-      remaining: usage.remaining,
-      total: usage.total,
-      used: usage.used,
-      unlimited: usage.unlimited,
-      usable: usage.usable || hasProductAccess,
+      remaining,
+      total,
+      used,
+      unlimited: right.unlimited,
+      usable: right.open,
     });
-  }, [entitlements, hasProductAccess, hasScopeAccess, purchases]);
+  }, [right]);
 
-  const hasQuotaRemaining = hasScopeAccess || hasQrCreateQuotaRemaining(qrQuota);
+  const hasQuotaRemaining = hasQrCreateQuotaRemaining(qrQuota);
   const canCreateQr = hasProductAccess && hasQuotaRemaining;
   const qrQuotaLabel = formatQrCreateQuotaLabel(qrQuota);
 
   return {
-    accessLoading: accessLoading || subscription.isLoading || packages.isLoading,
+    accessLoading,
     canCreateQr,
     hasProductAccess,
     hasQuotaRemaining,

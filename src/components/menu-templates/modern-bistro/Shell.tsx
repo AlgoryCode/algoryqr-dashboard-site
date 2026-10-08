@@ -34,7 +34,7 @@ export function ModernBistroShell({ menu, children, onBrandClick }: ModernBistro
   return (
     <div className={`${theme.rootClassName} flex min-h-[100dvh] flex-col`}>
       <style>{theme.styles}</style>
-      <div className="mx-auto flex w-full max-w-xl flex-1 flex-col">
+      <div className="mx-auto flex w-full max-w-xl flex-1 flex-col lg:max-w-6xl">
         <ModernBistroHeroBanner
           businessName={menu.businessName}
           logoUrl={menu.logoUrl}

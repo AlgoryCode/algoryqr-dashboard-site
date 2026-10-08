@@ -19,6 +19,7 @@ import {
   useHydrateAccountOverviewCaches,
 } from "@/hooks/use-account-overview";
 import { useAccessProfile } from "@/hooks/use-access-profile";
+import { clearPackageAccess, loadPackageAccess } from "@/lib/load-package-access";
 import type { MyProfile } from "@/hooks/use-my-profile";
 import {
   ArrowLeft,
@@ -252,6 +253,7 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
           .then((res) => {
             const exp = res.data?.accessTokenExpiresAt;
             if (exp != null) setAccessTokenExpiresAt(exp);
+            void loadPackageAccess(true);
             onNotify("info", "Token otomatik yenilendi.");
             fetchTokenExp();
             const nextAt =
@@ -264,6 +266,7 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
           .catch((err: unknown) => {
             const status = err instanceof ApiError ? err.status : 0;
             if (status === 401) {
+              clearPackageAccess();
               onNotify("warning", "Oturum sonlandı. Tekrar giriş yapın.");
               router.push("/login");
               router.refresh();
@@ -285,6 +288,7 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
       if (typeof window !== "undefined") {
         localStorage.removeItem("algory_user");
       }
+      clearPackageAccess();
       await getSiteSameOriginAxios().post("/auth/logout", {}).catch(() => undefined);
       router.push("/login");
       router.refresh();
@@ -321,6 +325,7 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
           }
         }
         onNotify("info", "Access token yenilendi.");
+        void loadPackageAccess(true);
         fetchTokenExp();
       })
       .catch((err: unknown) => {
@@ -381,6 +386,7 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
   };
 
   const handlePasswordChangeSuccess = async () => {
+    clearPackageAccess();
     await getSiteSameOriginAxios().post("/auth/logout", {}).catch(() => undefined);
     router.replace("/login");
   };
@@ -388,6 +394,7 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
   const handleEmailChangeSuccess = async () => {
     try {
       await getSiteSameOriginAxios().post("/auth/refresh", {});
+      void loadPackageAccess(true);
       const profile = await queryClient.fetchQuery({
         queryKey: MY_PROFILE_QUERY_KEY,
         queryFn: async () => {
@@ -406,6 +413,7 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
       onNotify("info", "E-posta adresiniz güncellendi. Oturumunuz yeni e-posta ile yenilendi.");
     } catch {
       onNotify("warning", "E-posta güncellendi fakat oturum yenilenemedi. Lütfen tekrar giriş yapın.");
+      clearPackageAccess();
       await getSiteSameOriginAxios().post("/auth/logout", {}).catch(() => undefined);
       router.replace("/login");
     }

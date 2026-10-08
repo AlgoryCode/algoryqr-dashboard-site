@@ -1,22 +1,18 @@
 "use client";
 
-import { useActivePackages, useSubscription } from "@/hooks/use-subscription";
+import { useAccessProfile } from "@/hooks/use-access-profile";
+import { useActivePackages } from "@/hooks/use-subscription";
+import { hasProduct } from "@/lib/auth-user";
 import { filterCatalogPackages } from "@/lib/package-display";
-import { hasActivePackageProduct, packageIncludesProduct } from "@/lib/product-access";
+import { packageIncludesProduct } from "@/lib/product-access";
 
 const SMART_REPORTING_PRODUCT = "SMART_REPORTING";
 
 export function useSmartReportingAccess() {
-  const subscription = useSubscription();
+  const { data: accessProfile, isLoading: accessLoading } = useAccessProfile();
   const packages = useActivePackages();
-  const activePurchase = subscription.data?.activePurchase ?? null;
   const catalogPackages = packages.data ?? [];
-
-  const canUseSmartReporting = hasActivePackageProduct(
-    activePurchase,
-    catalogPackages,
-    SMART_REPORTING_PRODUCT,
-  );
+  const canUseSmartReporting = hasProduct(accessProfile, SMART_REPORTING_PRODUCT);
 
   const smartReportingPackageNames = filterCatalogPackages(catalogPackages)
     .filter((pkg) => packageIncludesProduct(pkg, SMART_REPORTING_PRODUCT))
@@ -24,7 +20,7 @@ export function useSmartReportingAccess() {
     .filter((name): name is string => !!name);
 
   return {
-    accessLoading: subscription.isLoading || packages.isLoading,
+    accessLoading: accessLoading || packages.isLoading,
     canUseSmartReporting,
     smartReportingPackageNames,
   };

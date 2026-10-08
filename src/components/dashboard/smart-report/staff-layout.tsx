@@ -32,7 +32,7 @@ export function StaffPage({
 
   return (
     <div className="space-y-3.5">
-      <section className="grid grid-cols-2 gap-2.5" aria-label="Personel özeti">
+      <section className="grid grid-cols-2 gap-2.5 lg:grid-cols-4" aria-label="Personel özeti">
         <KpiCard
           label="Bahşiş"
           value={formatMoney(score.tip)}
@@ -58,17 +58,28 @@ export function StaffPage({
         />
       </section>
 
-      {star ? (
-        <SpotlightCard
-          row={star}
-          formatMoney={formatMoney}
-          role={roleLabel(star, roles)}
-          share={Math.round(star.revenueSharePercent ?? revenueShare(toAmount(star.revenue), score.revenue))}
-        />
-      ) : null}
+      <div className="grid items-start gap-3.5 lg:grid-cols-5">
+        {star ? (
+          <div className="lg:col-span-2">
+            <SpotlightCard
+              row={star}
+              formatMoney={formatMoney}
+              role={roleLabel(star, roles)}
+              share={Math.round(star.revenueSharePercent ?? revenueShare(toAmount(star.revenue), score.revenue))}
+            />
+          </div>
+        ) : null}
+        <div className={star ? "lg:col-span-3" : "lg:col-span-5"}>
+          <ShareChartCard rows={rows} roles={roles} />
+        </div>
+      </div>
 
-      <ShareChartCard rows={rows} roles={roles} />
-
+      <div
+        className={cn(
+          "grid items-start gap-3.5",
+          showOps && rows.length > 0 && "lg:grid-cols-[18rem_minmax(0,1fr)]",
+        )}
+      >
       {showOps ? (
         <section className={cn(CARD, "p-4")} aria-label="Operasyon">
           <div className="mb-3 flex items-center justify-between gap-3">
@@ -99,6 +110,7 @@ export function StaffPage({
       ) : null}
 
       {rows.length > 0 ? <StaffTable rows={rows} formatMoney={formatMoney} roles={roles} /> : null}
+      </div>
     </div>
   );
 }

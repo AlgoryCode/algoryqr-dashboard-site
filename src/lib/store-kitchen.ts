@@ -1,4 +1,5 @@
 import { kitchenOrderOrigin, readKitchenOrderList } from "@/lib/kitchen-queue";
+import { loadPackageAccess } from "@/lib/load-package-access";
 import {
   applyKitchenOrderFlow,
   applyOrderFlow,
@@ -54,6 +55,7 @@ async function fetchStore(path: string, init?: RequestInit): Promise<Response> {
     body: "{}",
   });
   if (!refreshed.ok) return first;
+  void loadPackageAccess(true);
   return request();
 }
 

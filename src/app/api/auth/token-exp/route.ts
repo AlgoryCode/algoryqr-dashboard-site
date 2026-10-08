@@ -2,12 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
 import { getExpFromAccessToken } from "@/lib/auth-user";
-import {
-  readAccessTokenFromCookies,
-  setRefreshTokenExpiryCookie,
-  setTokenExpiryCookies,
-} from "@/lib/server/auth-cookies";
-import { fetchCurrentSessionRefreshExpiresAt } from "@/lib/server/session-expiry";
+import { readAccessTokenFromCookies } from "@/lib/server/auth-cookies";
 
 function readExpiryFromCookie(
   cookieStore: Awaited<ReturnType<typeof cookies>>,
@@ -28,29 +23,10 @@ export async function GET() {
     readExpiryFromCookie(cookieStore, "accessTokenExp") ??
     null;
 
-  let refreshTokenExpiresAt = readExpiryFromCookie(cookieStore, "refreshTokenExp");
-  let shouldPersistRefreshExp = false;
+  const refreshTokenExpiresAt = readExpiryFromCookie(cookieStore, "refreshTokenExp");
 
-  if (refreshTokenExpiresAt == null && accessToken) {
-    const fromSession = await fetchCurrentSessionRefreshExpiresAt(accessToken);
-    if (fromSession != null) {
-      refreshTokenExpiresAt = fromSession;
-      shouldPersistRefreshExp = true;
-    }
-  }
-
-  const response = NextResponse.json({
+  return NextResponse.json({
     accessTokenExpiresAt,
     refreshTokenExpiresAt,
   });
-
-  if (shouldPersistRefreshExp && refreshTokenExpiresAt != null) {
-    if (accessTokenExpiresAt != null) {
-      setTokenExpiryCookies(response, accessTokenExpiresAt, refreshTokenExpiresAt);
-    } else {
-      setRefreshTokenExpiryCookie(response, refreshTokenExpiresAt);
-    }
-  }
-
-  return response;
 }

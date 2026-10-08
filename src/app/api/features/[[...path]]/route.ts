@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { buildUpstreamAuthHeaders, resolveSessionUserId } from "@/lib/auth-user";
-import { API_BASE_URL } from "@/lib/config";
+import { API_BASE_URL, MENU_APP_ORIGIN } from "@/lib/config";
 import { readAccessTokenFromCookies } from "@/lib/server/auth-cookies";
 
 type RouteContext = { params: Promise<{ path?: string[] }> };
@@ -43,7 +43,15 @@ async function proxy(req: Request, method: string, path: string[]) {
   }
   if (suffix === "/QR_MENU/qrs" && data && typeof data === "object") {
     const userId = resolveSessionUserId(accessToken, cookieStore);
-    data = { ...(data as Record<string, unknown>), userId };
+    const body = data as Record<string, unknown>;
+    const details = body.details;
+    data = {
+      ...body,
+      userId,
+      ...(details && typeof details === "object" && body.type === "menu"
+        ? { details: { ...(details as Record<string, unknown>), publicOrigin: MENU_APP_ORIGIN } }
+        : {}),
+    };
   }
   try {
     const upstream = await axios.request({

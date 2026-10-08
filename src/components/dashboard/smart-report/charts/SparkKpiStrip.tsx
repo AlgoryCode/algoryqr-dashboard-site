@@ -2,14 +2,15 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { DASHBOARD_METRIC_LABEL, DASHBOARD_METRIC_VALUE, DASHBOARD_STAT_TILE } from "@/lib/dashboard-surface";
+import { cn } from "@/lib/utils";
 
 import type { SparkKpi } from "../shadcn-spark";
 import { MiniLineSpark } from "./FadeLineSpark";
 import { DeltaText } from "./DeltaPill";
 
-export function SparkKpiStrip({ items }: { items: SparkKpi[] }) {
+export function SparkKpiStrip({ items, className }: { items: SparkKpi[]; className?: string }) {
   return (
-    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+    <div className={cn("grid grid-cols-2 gap-3 xl:grid-cols-4", className)}>
       {items.map((item) => (
         <SparkKpiCard key={item.title} item={item} />
       ))}

@@ -109,7 +109,7 @@ export default function PurchaseDetailView({ purchaseId }: PurchaseDetailViewPro
         queryClient.invalidateQueries({ queryKey: ["purchaseSummary", purchaseId] }),
         invalidateSubscription(queryClient),
         invalidatePackageUsage(queryClient),
-        invalidateAccessProfile(queryClient),
+        invalidateAccessProfile(),
       ]);
     },
     onError: (error: unknown) => {

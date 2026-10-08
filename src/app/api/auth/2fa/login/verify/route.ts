@@ -2,13 +2,12 @@ import axios from "axios";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { getExpFromAccessToken } from "@/lib/auth-user";
+import { getExpFromAccessToken, resolveRefreshExpiresAt } from "@/lib/auth-user";
 import { API_BASE_URL } from "@/lib/config";
+import { applyActivePackageCookie, resolveLoginUserId } from "@/lib/server/active-package";
 import { setAuthCookies, setTokenExpiryCookies } from "@/lib/server/auth-cookies";
 import { applyPersonalDemoTrialCookie } from "@/lib/server/apply-demo-onboarding-cookies";
 import { clientContextHeaders } from "@/lib/server/client-headers";
-import { fetchCurrentSessionRefreshExpiresAt } from "@/lib/server/session-expiry";
-
 /** POST /authservice/2fa/login/verify — Bearer pending JWT + { code }. */
 export async function POST(req: Request) {
   try {
@@ -55,14 +54,15 @@ export async function POST(req: Request) {
 
     const accessToken = (data.accessToken as string) || (data.access_token as string);
     const refreshToken = (data.refreshToken as string) || (data.refresh_token as string);
+    const userId = resolveLoginUserId(data.userId, accessToken);
     const accessTokenExpiresAt = getExpFromAccessToken(accessToken) ?? undefined;
-    const refreshTokenExpiresAt =
-      typeof accessToken === "string"
-        ? await fetchCurrentSessionRefreshExpiresAt(accessToken)
-        : undefined;
+    const refreshTokenExpiresAt = resolveRefreshExpiresAt(
+      typeof refreshToken === "string" ? refreshToken : undefined,
+      typeof data.refreshExpiresAt === "string" ? data.refreshExpiresAt : null,
+    );
 
     const response = NextResponse.json(
-      { ...data, accessTokenExpiresAt, refreshTokenExpiresAt },
+      { ...data, userId, accessTokenExpiresAt, refreshTokenExpiresAt },
       { status: 200 },
     );
 
@@ -79,9 +79,10 @@ export async function POST(req: Request) {
       response,
       typeof accessToken === "string" ? accessToken : undefined,
       typeof refreshToken === "string" ? refreshToken : undefined,
-      typeof data.userId === "number" ? data.userId : undefined,
+      userId,
     );
     setTokenExpiryCookies(response, accessTokenExpiresAt, refreshTokenExpiresAt);
+    await applyActivePackageCookie(response, userId, typeof accessToken === "string" ? accessToken : undefined);
     await applyPersonalDemoTrialCookie(response, typeof accessToken === "string" ? accessToken : undefined);
 
     return response;

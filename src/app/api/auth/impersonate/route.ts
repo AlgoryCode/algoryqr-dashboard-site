@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { getExpFromAccessToken } from "@/lib/auth-user";
+import { getExpFromAccessToken, resolveRefreshExpiresAt } from "@/lib/auth-user";
+import { applyActivePackageCookie } from "@/lib/server/active-package";
 import { setAuthCookies, setTokenExpiryCookies } from "@/lib/server/auth-cookies";
-import { fetchCurrentSessionRefreshExpiresAt } from "@/lib/server/session-expiry";
-
 type ImpersonateBody = {
   accessToken?: string;
   refreshToken?: string;
@@ -22,11 +21,11 @@ export async function POST(req: Request) {
     }
 
     const accessTokenExpiresAt = getExpFromAccessToken(accessToken) ?? undefined;
-    const refreshTokenExpiresAt = await fetchCurrentSessionRefreshExpiresAt(accessToken);
 
     const response = NextResponse.json({ ok: true, userId }, { status: 200 });
     setAuthCookies(response, accessToken, refreshToken, userId);
-    setTokenExpiryCookies(response, accessTokenExpiresAt, refreshTokenExpiresAt ?? undefined);
+    setTokenExpiryCookies(response, accessTokenExpiresAt, resolveRefreshExpiresAt(refreshToken));
+    await applyActivePackageCookie(response, userId, accessToken);
     return response;
   } catch {
     return NextResponse.json({ message: "Sunucu hatası" }, { status: 500 });

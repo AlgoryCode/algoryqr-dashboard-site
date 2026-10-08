@@ -6,6 +6,8 @@ import type { MenuRevenueReportResponse } from "@/lib/api";
 import { useBranchRevenueReport } from "@/hooks/use-branch-revenue-report";
 import { comparePeriodRange } from "@/reporting";
 
+import { cn } from "@/lib/utils";
+
 import { activeWindow, CHART_COLORS, pctDelta } from "./chart-config";
 import { CategorySalesCard } from "./charts/CategorySalesCard";
 import { CiroWorthCard } from "./charts/CiroWorthCard";
@@ -46,15 +48,20 @@ export function CiroPage({
   const priorTotal = compareQuery.data ? readCiroMetrics(compareQuery.data).total : null;
 
   return (
-    <div className="space-y-3">
-      <CiroWorthCard
-        total={formatMoney(metrics.total)}
-        delta={priorTotal == null ? null : pctDelta(metrics.total, priorTotal)}
-        points={buildCiroWorthSeries(revenue)}
-        formatValue={formatMoney}
+    <div className="space-y-3 lg:grid lg:grid-cols-12 lg:items-start lg:gap-4 lg:space-y-0">
+      <div className="lg:col-span-7">
+        <CiroWorthCard
+          total={formatMoney(metrics.total)}
+          delta={priorTotal == null ? null : pctDelta(metrics.total, priorTotal)}
+          points={buildCiroWorthSeries(revenue)}
+          formatValue={formatMoney}
+        />
+      </div>
+      <SparkKpiStrip
+        className="lg:col-span-5 lg:grid-cols-2 xl:grid-cols-2"
+        items={buildCiroSparkKpis(revenue, compareQuery.data, formatMoney)}
       />
-      <SparkKpiStrip items={buildCiroSparkKpis(revenue, compareQuery.data, formatMoney)} />
-      <div className="grid gap-3 xl:grid-cols-2">
+      <div className="grid gap-3 lg:col-span-12 lg:grid-cols-2">
         <RemainSplitCard
           title="Tahsilat"
           percent={metrics.cashShare}
@@ -77,40 +84,44 @@ export function CiroPage({
           ]}
         />
       </div>
-      {hourly.length > 0 ? <RetentionStepChart title="Saatlik ciro" data={hourly} /> : null}
-      <PeakTrackCard
-        title="Kanal"
-        value={formatMoney(channels.total)}
-        rows={channels.rows.map((row) => ({
-          name: row.label,
-          value: row.revenue,
-          display: formatMoney(row.revenue),
-          hint: `${row.orders.toLocaleString("tr-TR")} sipariş`,
-        }))}
-        accent={CHART_COLORS.c1}
-      />
-      <CategorySalesCard
-        title="Kategori cirosu"
-        compact={categories.compact}
-        delta={categories.delta}
-        slices={categories.slices}
-      />
-      <DualRankCard
-        title="Ne çok satıldı, ne çok kazandırdı"
-        leftTitle="Adet"
-        rightTitle="Ciro"
-        left={volume.byQuantity.map((row) => ({
-          name: row.name,
-          value: row.quantity.toLocaleString("tr-TR"),
-          weight: row.quantity,
-        }))}
-        right={volume.byRevenue.map((row) => ({
-          name: row.name,
-          value: formatMoney(row.revenue),
-          weight: row.revenue,
-        }))}
-        footer={volumeFooter(volume)}
-      />
+      <div className={cn("grid gap-3 lg:col-span-12", hourly.length > 0 && "lg:grid-cols-2")}>
+        {hourly.length > 0 ? <RetentionStepChart title="Saatlik ciro" data={hourly} /> : null}
+        <PeakTrackCard
+          title="Kanal"
+          value={formatMoney(channels.total)}
+          rows={channels.rows.map((row) => ({
+            name: row.label,
+            value: row.revenue,
+            display: formatMoney(row.revenue),
+            hint: `${row.orders.toLocaleString("tr-TR")} sipariş`,
+          }))}
+          accent={CHART_COLORS.c1}
+        />
+      </div>
+      <div className="grid gap-3 lg:col-span-12 lg:grid-cols-2">
+        <CategorySalesCard
+          title="Kategori cirosu"
+          compact={categories.compact}
+          delta={categories.delta}
+          slices={categories.slices}
+        />
+        <DualRankCard
+          title="Ne çok satıldı, ne çok kazandırdı"
+          leftTitle="Adet"
+          rightTitle="Ciro"
+          left={volume.byQuantity.map((row) => ({
+            name: row.name,
+            value: row.quantity.toLocaleString("tr-TR"),
+            weight: row.quantity,
+          }))}
+          right={volume.byRevenue.map((row) => ({
+            name: row.name,
+            value: formatMoney(row.revenue),
+            weight: row.revenue,
+          }))}
+          footer={volumeFooter(volume)}
+        />
+      </div>
     </div>
   );
 }

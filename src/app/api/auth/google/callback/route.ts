@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import {
   getExpFromAccessToken,
+  getExpFromJwt,
   getUserIdFromAccessToken,
   isoToEpochSeconds,
 } from "@/lib/auth-user";
@@ -11,6 +12,7 @@ import {
   setAuthCookies,
   setTokenExpiryCookies,
 } from "@/lib/server/auth-cookies";
+import { applyActivePackageCookie } from "@/lib/server/active-package";
 import { applyPersonalDemoTrialCookie } from "@/lib/server/apply-demo-onboarding-cookies";
 import { getAppOrigin } from "@/lib/server/app-origin";
 import { clientContextHeaders } from "@/lib/server/client-headers";
@@ -23,7 +25,6 @@ import {
   clearMerchantReturnUrlCookie,
   readMerchantReturnUrl,
 } from "@/lib/server/merchant-auth-cookies";
-import { fetchCurrentSessionRefreshExpiresAt } from "@/lib/server/session-expiry";
 import {
   type GoogleAuthErrorCode,
   googleAuthErrorRedirect,
@@ -188,9 +189,10 @@ export async function GET(req: NextRequest) {
       getExpFromAccessToken(accessToken) ??
       undefined;
     const refreshTokenExpiresAt =
+      getExpFromJwt(refreshToken) ??
       readPositiveNumber(data.refreshTokenExpiresAt) ??
       isoToEpochSeconds(readString(data.refreshExpiresAt)) ??
-      (await fetchCurrentSessionRefreshExpiresAt(accessToken));
+      undefined;
     const userId =
       readPositiveNumber(data.userId) ??
       getUserIdFromAccessToken(accessToken) ??
@@ -208,6 +210,7 @@ export async function GET(req: NextRequest) {
       clearMerchantReturnUrlCookie(response);
       setAuthCookies(response, accessToken, refreshToken, userId);
       setTokenExpiryCookies(response, accessTokenExpiresAt, refreshTokenExpiresAt);
+      await applyActivePackageCookie(response, userId, accessToken);
       await applyPersonalDemoTrialCookie(response, accessToken);
       return response;
     }
@@ -239,6 +242,7 @@ export async function GET(req: NextRequest) {
       accessTokenExpiresAt,
       refreshTokenExpiresAt,
     );
+    await applyActivePackageCookie(response, userId, accessToken);
     await applyPersonalDemoTrialCookie(response, accessToken);
     return response;
   } catch {

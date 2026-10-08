@@ -2,7 +2,7 @@ import axios, { AxiosError } from "axios";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { API_BASE_URL } from "@/lib/config";
+import { API_BASE_URL, authUrl } from "@/lib/config";
 import { clientContextHeaders } from "@/lib/server/client-headers";
 import {
   clearStaffAuthCookies,
@@ -89,8 +89,8 @@ async function handleLogin(request: Request) {
 
   try {
     const upstream = await axios.post<Record<string, unknown>>(
-      `${API_BASE_URL}/waiter/auth/login`,
-      { merchantId, username, password },
+      authUrl("login"),
+      { identifier: username, password },
       {
         headers: {
           Accept: "application/json",
@@ -112,8 +112,26 @@ async function handleLogin(request: Request) {
 
     const accessToken = typeof data.accessToken === "string" ? data.accessToken : undefined;
     const refreshToken = typeof data.refreshToken === "string" ? data.refreshToken : undefined;
-    const app = appForStaffRole(data.staffRole);
-    const response = NextResponse.json(publicStaffProfile(data));
+    const access = accessToken
+      ? await axios.get<Record<string, unknown>>(authUrl("access"), {
+          headers: { Accept: "application/json", Authorization: `Bearer ${accessToken}` },
+          validateStatus: () => true,
+          timeout: 20_000,
+        })
+      : null;
+    const accessBody = (access && typeof access.data === "object" && access.data != null ? access.data : {}) as Record<
+      string,
+      unknown
+    >;
+    const profile = (typeof accessBody.profile === "object" && accessBody.profile != null
+      ? accessBody.profile
+      : {}) as Record<string, unknown>;
+    const staff = {
+      ...profile,
+      staffRole: typeof accessBody.role === "string" ? accessBody.role : profile.role,
+    };
+    const app = appForStaffRole(staff.staffRole);
+    const response = NextResponse.json(publicStaffProfile(staff));
     setStaffAuthCookies(response, app, accessToken, refreshToken, staffIdFrom(data));
     return response;
   } catch (error) {
@@ -131,7 +149,7 @@ async function handleRefresh(request: Request) {
 
   try {
     const upstream = await axios.post<Record<string, unknown>>(
-      `${API_BASE_URL}/waiter/auth/refresh`,
+      authUrl("refresh"),
       { refreshToken },
       {
         headers: {
@@ -176,7 +194,7 @@ async function handleLogout(request: Request) {
   const refreshToken = readStaffRefreshTokenFromCookies(cookieStore, app);
   try {
     await axios.post(
-      `${API_BASE_URL}/waiter/auth/logout`,
+      authUrl("logout"),
       refreshToken ? { refreshToken } : {},
       {
         headers: {

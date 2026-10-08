@@ -14,7 +14,6 @@ import {
 import BranchReportDashboard from "@/components/dashboard/smart-report/BranchReportDashboard";
 import { MenuReportSection } from "@/components/dashboard/smart-report/MenuReportSection";
 import { OrdersPage } from "@/components/dashboard/smart-report/orders-layout";
-import { OverviewPage } from "@/components/dashboard/smart-report/overview-layout";
 import AnalyticsWaiterPerformancePanel from "@/components/dashboard/AnalyticsWaiterPerformancePanel";
 import { useBranchAnalyticsReport } from "@/hooks/use-branch-analytics-report";
 import { useBranchRevenueReport } from "@/hooks/use-branch-revenue-report";
@@ -53,7 +52,7 @@ function useTooltipStyle() {
   };
 }
 
-type ReportView = "overview" | "menu" | "revenue" | "orders" | "personnel";
+type ReportView = "menu" | "revenue" | "orders" | "personnel";
 
 export default function AnalyticsTab() {
   const router = useRouter();
@@ -68,14 +67,15 @@ export default function AnalyticsTab() {
     return Number.isSafeInteger(raw) && raw > 0 ? raw : null;
   }, [searchParams]);
   const [period, setPeriod] = useState<AnalyticsPeriod>("30d");
-  const [reportView, setReportView] = useState<ReportView>("overview");
+  const [reportView, setReportView] = useState<ReportView>("revenue");
   const [waiterId, setWaiterId] = useState<number | null>(null);
-  const activeReportView: ReportView = reportView;
   const tooltipStyle = useTooltipStyle();
-  const { data: accessProfile } = useAccessProfile();
+  const { data: accessProfile, isPending: accessPending } = useAccessProfile();
   const canUseSmartReporting = hasScope(accessProfile, "SMART_REPORTING_OWNER");
   const canUseWaiterPanel = hasScope(accessProfile, "WAITER_PANEL_OWNER");
   const canUseRevenue = canUseSmartReporting || canUseWaiterPanel;
+  const activeReportView: ReportView =
+    !accessPending && !canUseRevenue && reportView !== "menu" ? "menu" : reportView;
   const {
     branches,
     selection,
@@ -96,9 +96,7 @@ export default function AnalyticsTab() {
     activeReportView === "menu"
       ? branchId != null && menuId != null
       : branchId != null &&
-          (activeReportView === "overview" ||
-        activeReportView === "revenue" ||
-        activeReportView === "orders"),
+          (activeReportView === "revenue" || activeReportView === "orders"),
   );
   const revenueQuery = useBranchRevenueReport(
     branchId,
@@ -107,8 +105,7 @@ export default function AnalyticsTab() {
     range.to,
     canUseRevenue &&
       branchId != null &&
-      (activeReportView === "overview" ||
-        activeReportView === "revenue" ||
+      (activeReportView === "revenue" ||
         activeReportView === "orders" ||
         activeReportView === "personnel" ||
         (activeReportView === "menu" && menuId != null)),
@@ -201,20 +198,15 @@ export default function AnalyticsTab() {
   const revenueLoading = selectionLoading || revenueQuery.isLoading;
   const ordersLoading = revenueLoading;
   const personnelLoading = selectionLoading || personnelQuery.isLoading;
-  const overviewLoading =
-    selectionLoading ||
-    reportQuery.isLoading ||
-    (canUseRevenue && revenueQuery.isLoading);
-  const loading =
-    activeReportView === "overview"
-      ? overviewLoading
-      : activeReportView === "revenue"
-        ? revenueLoading
-        : activeReportView === "orders"
-          ? ordersLoading
-          : activeReportView === "personnel"
-            ? personnelLoading
-            : menuLoading;
+  const loading = accessPending
+    ? activeReportView !== "menu"
+    : activeReportView === "revenue"
+      ? revenueLoading
+      : activeReportView === "orders"
+        ? ordersLoading
+        : activeReportView === "personnel"
+          ? personnelLoading
+          : menuLoading;
   const menuOrderCount = revenueQuery.data?.kpis?.orderCount ?? null;
 
   return (
@@ -244,10 +236,11 @@ export default function AnalyticsTab() {
         </div>
       ) : (
         <div className="space-y-3">
-          <SlidingTabSelect
+          {!accessPending ? (
+            <SlidingTabSelect
               variant="nav"
               ariaLabel="Rapor türü"
-              value={reportView}
+              value={activeReportView}
               onValueChange={(next) => {
                 if (next === "revenue" && !canUseRevenue) {
                   return;
@@ -264,13 +257,13 @@ export default function AnalyticsTab() {
                 setReportView(next as ReportView);
               }}
               items={[
-                { value: "overview", label: "Genel Bakış" },
-                { value: "menu", label: "Menü" },
                 ...(canUseRevenue ? [{ value: "revenue" as const, label: "Ciro" }] : []),
+                { value: "menu", label: "Menü" },
                 ...(canUseRevenue ? [{ value: "orders" as const, label: "Sipariş" }] : []),
                 ...(canUseRevenue ? [{ value: "personnel" as const, label: "Personel" }] : []),
               ]}
             />
+          ) : null}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <BranchReportPicker
               branches={branches}
@@ -346,33 +339,13 @@ export default function AnalyticsTab() {
         </div>
       ) : null}
 
-      {activeReportView === "overview" &&
-      branchId != null &&
-      reportQuery.isError &&
-      (!canUseRevenue || revenueQuery.isError) ? (
-        <div className="rounded-2xl border border-[#e5e7eb] bg-white shadow-none dark:border-border dark:bg-card p-6 text-sm text-muted-foreground">
-          Rapor yüklenemedi. Yetkinizi ve menü sahipliğini kontrol edin.
-        </div>
-      ) : null}
-
-      {activeReportView === "overview" &&
-      branchId != null &&
-      !overviewLoading &&
-      !(reportQuery.isError && (!canUseRevenue || revenueQuery.isError)) ? (
-        <OverviewPage
-          revenue={revenueQuery.data}
-          visits={reportQuery.data}
-          canUseRevenue={canUseRevenue}
-        />
-      ) : null}
-
       {activeReportView === "menu" && branchId != null && menuId != null && reportQuery.isError ? (
         <div className="rounded-2xl border border-[#e5e7eb] bg-white shadow-none dark:border-border dark:bg-card p-6 text-sm text-muted-foreground">
           Menü raporu yüklenemedi. Yetkinizi ve menü sahipliğini kontrol edin.
         </div>
       ) : null}
 
-      {activeReportView === "revenue" && branchId != null && !canUseRevenue ? (
+      {activeReportView === "revenue" && branchId != null && !accessPending && !canUseRevenue ? (
         <div className="rounded-2xl border border-[#e5e7eb] bg-white shadow-none dark:border-border dark:bg-card p-6 text-sm text-muted-foreground">
           Ciro raporları Pro veya Ultimate paket ile kullanılabilir.{" "}
           <Link
@@ -401,7 +374,7 @@ export default function AnalyticsTab() {
         />
       ) : null}
 
-      {activeReportView === "orders" && branchId != null && !canUseRevenue ? (
+      {activeReportView === "orders" && branchId != null && !accessPending && !canUseRevenue ? (
         <div className="rounded-2xl border border-[#e5e7eb] bg-white shadow-none dark:border-border dark:bg-card p-6 text-sm text-muted-foreground">
           Sipariş raporları Pro veya Ultimate paket ile kullanılabilir.{" "}
           <Link
@@ -428,7 +401,7 @@ export default function AnalyticsTab() {
         <OrdersPage revenue={revenueQuery.data} />
       ) : null}
 
-      {activeReportView === "personnel" && branchId != null && !canUseRevenue ? (
+      {activeReportView === "personnel" && branchId != null && !accessPending && !canUseRevenue ? (
         <div className="rounded-2xl border border-[#e5e7eb] bg-white shadow-none dark:border-border dark:bg-card p-6 text-sm text-muted-foreground">
           Personel raporları Pro veya Ultimate paket ile kullanılabilir.{" "}
           <Link

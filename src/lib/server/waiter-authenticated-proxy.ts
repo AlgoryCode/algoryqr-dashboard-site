@@ -2,7 +2,7 @@ import axios, { AxiosError } from "axios";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { API_BASE_URL } from "@/lib/config";
+import { API_BASE_URL, authUrl } from "@/lib/config";
 import {
   clearStaffAuthCookies,
   readStaffAccessTokenFromCookies,
@@ -24,7 +24,7 @@ async function tryRefreshStaffTokens(app: StaffApp): Promise<RefreshedWaiterToke
   if (!refreshToken) return null;
 
   const upstream = await axios.post<Record<string, unknown>>(
-    `${API_BASE_URL}/waiter/auth/refresh`,
+    authUrl("refresh"),
     { refreshToken },
     {
       headers: { Accept: "application/json", "Content-Type": "application/json" },
