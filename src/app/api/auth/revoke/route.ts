@@ -2,7 +2,7 @@ import axios from "axios";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { API_BASE_URL } from "@/lib/config";
+import { authUrl } from "@/lib/config";
 import { readRefreshTokenFromCookies } from "@/lib/server/auth-cookies";
 
 /** Backend refresh iptali; upstream sözleşmesi: `Cookie: refresh_token=…` (rent-fe’de yok, korunuyor). */
@@ -16,10 +16,10 @@ export async function POST() {
     }
 
     const upstream = await axios.post(
-      `${API_BASE_URL}/basicauth/revoke-refreshtoken`,
-      null,
+      authUrl("logout"),
+      { refreshToken },
       {
-        headers: { Cookie: `refresh_token=${refreshToken}` },
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
         validateStatus: () => true,
         timeout: 15_000,
       },

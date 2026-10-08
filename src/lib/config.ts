@@ -41,14 +41,14 @@ const PROD_AUTH_BASE = "https://prod.auth.algorycode.com";
 const LOCAL_AUTH_BASE = "http://localhost:8080";
 
 const AUTH_ROUTES = {
-  login: "/api/v1/auth/basicauth/login",
-  register: "/api/v1/auth/basicauth/register",
-  demoRegister: "/api/v1/auth/demo/register",
-  demoProvision: "/api/v1/auth/demo/provision",
-  demoStatus: "/api/v1/auth/demo/status",
-  demoUsernameAvailable: "/api/v1/auth/demo/username-available",
-  refresh: "/api/v1/auth/refresh",
-  logout: "/api/v1/auth/logout",
+  login: "/api/v1/auth/login",
+  register: "/api/v1/auth/register",
+  demoRegister: "/api/v1/auth/register",
+  demoProvision: "/api/v1/auth/register",
+  demoStatus: "/api/v1/auth/access",
+  demoUsernameAvailable: "/api/v1/auth/register",
+  refresh: "/api/v1/auth/tokens/refresh",
+  logout: "/api/v1/auth/tokens/revoke",
   access: "/api/v1/auth/access",
   googleAuthorize: "/api/v1/auth/google/authorize",
   googleRedeem: "/api/v1/auth/google/redeem",
