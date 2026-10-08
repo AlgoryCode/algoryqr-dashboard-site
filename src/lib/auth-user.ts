@@ -1,4 +1,4 @@
-export interface AuthUser {
+﻿export interface AuthUser {
   id?: string;
   email: string;
   first_name?: string;
@@ -117,7 +117,7 @@ function parseJwtPayload(token: string): JwtPayload | null {
   }
 }
 
-/** ISO-8601 tarih/saat → Unix epoch (saniye). */
+/** ISO-8601 tarih/saat ÔåÆ Unix epoch (saniye). */
 export function isoToEpochSeconds(iso?: string | null): number | null {
   if (!iso?.trim()) return null;
   const ms = Date.parse(iso);
@@ -125,8 +125,8 @@ export function isoToEpochSeconds(iso?: string | null): number | null {
 }
 
 /**
- * JWT access token'dan exp (saniye cinsinden epoch) döner; yoksa null.
- * Backend exp'i bazen ms veriyor (örn. Spring 300000 ms); > 1e12 ise ms kabul edip saniyeye çeviriyoruz.
+ * JWT access token'dan exp (saniye cinsinden epoch) d├Âner; yoksa null.
+ * Backend exp'i bazen ms veriyor (├Ârn. Spring 300000 ms); > 1e12 ise ms kabul edip saniyeye ├ğeviriyoruz.
  */
 export function getExpFromAccessToken(token?: string | null): number | null {
   if (!token) return null;
@@ -283,6 +283,16 @@ export function hasScope(profile: AccessProfile | null | undefined, scope: Produ
 }
 
 export function hasProduct(profile: AccessProfile | null | undefined, product: ProductCode): boolean {
+  const present = productInPackage(profile, product);
+  if (typeof window !== "undefined") {
+    void import("@/lib/flow-log").then(({ recordProductCheck }) => {
+      recordProductCheck(product, present, profile?.activePackage ?? null);
+    });
+  }
+  return present;
+}
+
+function productInPackage(profile: AccessProfile | null | undefined, product: ProductCode): boolean {
   if (!profile) return false;
   if (profile.products.includes(product)) return true;
   if (product === "QR_ANALYTICS" && profile.products.includes("SMART_REPORTING")) return true;
