@@ -16,6 +16,7 @@ import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { BrandLogo } from "@/components/BrandLogo";
+import { DemoSetupLogout } from "@/components/dashboard/DemoSetupLogout";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError } from "@/lib/api";
@@ -136,7 +137,10 @@ export function DemoProvisioningOverlay({ onReady }: DemoProvisioningOverlayProp
       animate={{ opacity: 1 }}
       transition={{ duration: 0.35 }}
     >
-      <div className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-8 px-4 py-10 sm:py-14">
+      <div className="flex justify-end px-4 pt-4 sm:px-6 sm:pt-6">
+        <DemoSetupLogout />
+      </div>
+      <div className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-8 px-4 pb-10 sm:pb-14">
         <div className="space-y-4 text-center">
           <div className="flex justify-center">
             <BrandLogo className="h-9" />

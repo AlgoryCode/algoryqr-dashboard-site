@@ -1,6 +1,6 @@
 import axios from "axios";
 
-import { getUserIdFromAccessToken, isoToEpochSeconds } from "@/lib/auth-user";
+import { getUserIdFromAccessToken, resolveRefreshExpiresAt } from "@/lib/auth-user";
 import { API_BASE_URL } from "@/lib/config";
 
 type SessionRow = {
@@ -32,9 +32,20 @@ export async function fetchCurrentSessionRefreshExpiresAt(
     }
     const rows = Array.isArray(upstream.data?.content) ? upstream.data.content : [];
     const current = rows.find((session) => session.current === true) ?? rows[0];
-    const exp = isoToEpochSeconds(current?.refreshExpiresAt ?? null);
+    const exp = resolveRefreshExpiresAt(null, current?.refreshExpiresAt ?? null);
     return exp ?? undefined;
   } catch {
     return undefined;
   }
+}
+
+export async function resolveRefreshCookieExpiry(
+  refreshToken: string | undefined,
+  refreshExpiresAt: string | null | undefined,
+  accessToken: string | undefined,
+): Promise<number | undefined> {
+  const fromToken = resolveRefreshExpiresAt(refreshToken, refreshExpiresAt);
+  if (fromToken != null) return fromToken;
+  if (!accessToken) return undefined;
+  return fetchCurrentSessionRefreshExpiresAt(accessToken);
 }

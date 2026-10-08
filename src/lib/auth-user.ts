@@ -128,13 +128,24 @@ export function isoToEpochSeconds(iso?: string | null): number | null {
  * JWT access token'dan exp (saniye cinsinden epoch) d├Âner; yoksa null.
  * Backend exp'i bazen ms veriyor (├Ârn. Spring 300000 ms); > 1e12 ise ms kabul edip saniyeye ├ğeviriyoruz.
  */
-export function getExpFromAccessToken(token?: string | null): number | null {
+export function getExpFromJwt(token?: string | null): number | null {
   if (!token) return null;
   const payload = parseJwtPayload(token);
   if (!payload || typeof payload.exp !== "number") return null;
   const exp = payload.exp;
   if (exp >= 1e12) return Math.floor(exp / 1000);
   return exp;
+}
+
+export function getExpFromAccessToken(token?: string | null): number | null {
+  return getExpFromJwt(token);
+}
+
+export function resolveRefreshExpiresAt(
+  refreshToken?: string | null,
+  refreshExpiresAt?: string | null,
+): number | undefined {
+  return getExpFromJwt(refreshToken) ?? isoToEpochSeconds(refreshExpiresAt) ?? undefined;
 }
 
 function parseNumericClaim(value: unknown): number | null {

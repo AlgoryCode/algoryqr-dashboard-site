@@ -4,10 +4,11 @@ import { NextResponse } from "next/server";
 
 import { getExpFromAccessToken } from "@/lib/auth-user";
 import { API_BASE_URL } from "@/lib/config";
+import { resolveLoginUserId } from "@/lib/server/active-package";
 import { setAuthCookies, setTokenExpiryCookies } from "@/lib/server/auth-cookies";
 import { applyPersonalDemoTrialCookie } from "@/lib/server/apply-demo-onboarding-cookies";
 import { clientContextHeaders } from "@/lib/server/client-headers";
-import { fetchCurrentSessionRefreshExpiresAt } from "@/lib/server/session-expiry";
+import { resolveRefreshCookieExpiry } from "@/lib/server/session-expiry";
 
 /** POST /authservice/2fa/login/verify — Bearer pending JWT + { code }. */
 export async function POST(req: Request) {
@@ -55,14 +56,18 @@ export async function POST(req: Request) {
 
     const accessToken = (data.accessToken as string) || (data.access_token as string);
     const refreshToken = (data.refreshToken as string) || (data.refresh_token as string);
-    const accessTokenExpiresAt = getExpFromAccessToken(accessToken) ?? undefined;
-    const refreshTokenExpiresAt =
-      typeof accessToken === "string"
-        ? await fetchCurrentSessionRefreshExpiresAt(accessToken)
-        : undefined;
+    const accessTokenValue = typeof accessToken === "string" ? accessToken : undefined;
+    const refreshTokenValue = typeof refreshToken === "string" ? refreshToken : undefined;
+    const userId = resolveLoginUserId(data.userId, accessTokenValue);
+    const accessTokenExpiresAt = getExpFromAccessToken(accessTokenValue) ?? undefined;
+    const refreshTokenExpiresAt = await resolveRefreshCookieExpiry(
+      refreshTokenValue,
+      typeof data.refreshExpiresAt === "string" ? data.refreshExpiresAt : null,
+      accessTokenValue,
+    );
 
     const response = NextResponse.json(
-      { ...data, accessTokenExpiresAt, refreshTokenExpiresAt },
+      { ...data, userId, accessTokenExpiresAt, refreshTokenExpiresAt },
       { status: 200 },
     );
 
@@ -75,14 +80,9 @@ export async function POST(req: Request) {
     };
     response.cookies.set("algory_2fa_pending", "", clearPending);
 
-    setAuthCookies(
-      response,
-      typeof accessToken === "string" ? accessToken : undefined,
-      typeof refreshToken === "string" ? refreshToken : undefined,
-      typeof data.userId === "number" ? data.userId : undefined,
-    );
+    setAuthCookies(response, accessTokenValue, refreshTokenValue, userId);
     setTokenExpiryCookies(response, accessTokenExpiresAt, refreshTokenExpiresAt);
-    await applyPersonalDemoTrialCookie(response, typeof accessToken === "string" ? accessToken : undefined);
+    await applyPersonalDemoTrialCookie(response, accessTokenValue);
 
     return response;
   } catch {
