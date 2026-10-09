@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ComponentType } from "react";
+import { useEffect, type ComponentType } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -13,7 +13,6 @@ import {
   IdCard,
   LayoutGrid,
   Megaphone,
-  Menu,
   MessageSquare,
   Package,
   QrCode,
@@ -27,6 +26,7 @@ import {
   Warehouse,
 } from "lucide-react";
 
+import { DashboardAssistantLauncher } from "@/components/dashboard/DashboardAssistantChat";
 import { DigitalMenuIcon } from "@/components/icons/DigitalMenuIcon";
 import { NavBadge } from "@/components/dashboard/NavBadge";
 import {
@@ -71,6 +71,8 @@ type DashboardMobileNavProps = {
   items: DashboardNavItem[];
   pendingOrderCount: number;
   onOpenSearch?: () => void;
+  moreOpen: boolean;
+  onMoreOpenChange: (open: boolean) => void;
 };
 
 function tabClass(active: boolean) {
@@ -80,21 +82,29 @@ function tabClass(active: boolean) {
   );
 }
 
-export function DashboardMobileNav({ items, pendingOrderCount, onOpenSearch }: DashboardMobileNavProps) {
+export function DashboardMobileNav({
+  items,
+  pendingOrderCount,
+  onOpenSearch,
+  moreOpen,
+  onMoreOpenChange,
+}: DashboardMobileNavProps) {
   const pathname = usePathname();
-  const [moreOpen, setMoreOpen] = useState(false);
   const { primary, overflow } = splitMobileDashboardNav(items);
-  const moreActive = overflow.some((item) => isDashboardNavActive(pathname, item.href, item.key));
-  const showMoreTab = overflow.length > 0 || Boolean(onOpenSearch);
-  const columns = showMoreTab ? primary.length + 1 : primary.length;
+  const columns = Math.max(primary.length, 1);
+
+  useEffect(() => {
+    onMoreOpenChange(false);
+  }, [pathname, onMoreOpenChange]);
 
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden"
       aria-label="Mobil gezinme"
     >
+      <div className="flex items-stretch gap-0 px-1">
       <div
-        className="grid"
+        className="grid min-w-0 flex-1"
         style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
       >
         {primary.map((item) => {
@@ -115,16 +125,17 @@ export function DashboardMobileNav({ items, pendingOrderCount, onOpenSearch }: D
             </Link>
           );
         })}
-        {showMoreTab ? (
-          <button type="button" className={tabClass(moreActive)} onClick={() => setMoreOpen(true)}>
-            <Menu className="size-4" />
-            <span>Daha fazla</span>
-          </button>
-        ) : null}
+      </div>
+        <div className="flex items-stretch border-l border-border">
+          <DashboardAssistantLauncher appearance="bar" />
+        </div>
       </div>
 
-      <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
-        <SheetContent side="bottom" className="max-h-[70vh] rounded-t-2xl">
+      <Sheet open={moreOpen} onOpenChange={onMoreOpenChange}>
+        <SheetContent
+          side="left"
+          className="flex h-full w-[min(18rem,85vw)] flex-col gap-0 overflow-y-auto border-r bg-card p-4 sm:max-w-xs"
+        >
           <SheetHeader>
             <SheetTitle>Daha fazla</SheetTitle>
           </SheetHeader>
@@ -133,7 +144,7 @@ export function DashboardMobileNav({ items, pendingOrderCount, onOpenSearch }: D
               <button
                 type="button"
                 onClick={() => {
-                  setMoreOpen(false);
+                  onMoreOpenChange(false);
                   onOpenSearch();
                 }}
                 className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground"
@@ -153,7 +164,7 @@ export function DashboardMobileNav({ items, pendingOrderCount, onOpenSearch }: D
                 <Link
                   key={item.key}
                   href={item.href}
-                  onClick={() => setMoreOpen(false)}
+                  onClick={() => onMoreOpenChange(false)}
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm",
                     active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",

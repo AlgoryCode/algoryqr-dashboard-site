@@ -62,8 +62,9 @@ export function useOverviewDashboard(
       queryFn: () => getBranchRevenueReportRequest(branch.id, keys.lastWeek, keys.today),
       enabled: access.revenue,
       staleTime: 60_000,
-      refetchInterval: 120_000,
-      retry: 1,
+      retry: false,
+      refetchOnWindowFocus: (query) => query.state.status !== "error",
+      refetchInterval: (query) => (query.state.status === "error" ? false : 120_000),
     })),
     combine: combineResults,
   });
@@ -128,6 +129,7 @@ export function useOverviewDashboard(
       enabled: access.shifts,
       staleTime: 5 * 60_000,
       retry: false,
+      refetchOnWindowFocus: (query) => query.state.status !== "error",
     })),
     combine: combineResults,
   });
