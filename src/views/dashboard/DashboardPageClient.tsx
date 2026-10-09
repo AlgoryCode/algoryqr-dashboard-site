@@ -31,6 +31,7 @@ import BranchCreateView from "@/views/dashboard/BranchCreateView";
 import BranchDetailView from "@/views/dashboard/BranchDetailView";
 import BranchSettingsView from "@/views/dashboard/BranchSettingsView";
 import DigitalMenuView from "@/views/dashboard/DigitalMenuView";
+import MyBranchesView from "@/views/dashboard/MyBranchesView";
 import DigitalMenuMenusView from "@/views/dashboard/DigitalMenuMenusView";
 import DigitalMenuCreateView from "@/views/dashboard/DigitalMenuCreateView";
 import DigitalMenuEditorView from "@/views/dashboard/DigitalMenuEditorView";
@@ -543,6 +544,10 @@ export default function DashboardPageClient({ initialUser = null }: DashboardPag
 
   if (pathname === DASHBOARD_ROUTES.digitalMenuMenus) {
     return <DigitalMenuMenusView />;
+  }
+
+  if (pathname === DASHBOARD_ROUTES.myBranches) {
+    return <MyBranchesView />;
   }
 
   if (pathname === DASHBOARD_ROUTES.digitalMenu) {

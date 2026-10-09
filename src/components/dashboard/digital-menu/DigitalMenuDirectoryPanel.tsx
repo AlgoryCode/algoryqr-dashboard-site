@@ -103,7 +103,7 @@ function branchMatches(
   return { branch, menus };
 }
 
-export function DigitalMenuDirectoryPanel() {
+export function DigitalMenuDirectoryPanel({ title = "Şubeler" }: { title?: string }) {
   const router = useRouter();
   const { searchParams, setQuery: setListQuery } = useListQueryState();
   const branchesQuery = useBranches(true);
@@ -211,7 +211,7 @@ export function DigitalMenuDirectoryPanel() {
         ) : (
           <div className="space-y-4">
             <div className="space-y-1">
-              <h2 className="text-2xl font-semibold tracking-tight text-zinc-950">Şubeler</h2>
+              <h2 className="text-2xl font-semibold tracking-tight text-zinc-950">{title}</h2>
               <p className="text-sm text-zinc-950">
                 {groups.length} şube ve {totalMenus} menü. Satıra dokunarak şube detayına gidin.
               </p>

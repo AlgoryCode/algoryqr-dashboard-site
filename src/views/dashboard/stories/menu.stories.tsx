@@ -12,6 +12,7 @@ const meta = {
 export default meta;
 
 export const DijitalMenu = dashboardPage("Menü ve şubeler", DASHBOARD_ROUTES.digitalMenu);
+export const Subelerim = dashboardPage("Şubelerim", DASHBOARD_ROUTES.myBranches);
 export const Menuler = dashboardPage("Menüler", DASHBOARD_ROUTES.digitalMenuMenus);
 export const MenuOlustur = dashboardPage("Menü oluştur", DASHBOARD_ROUTES.digitalMenuCreate, { branch: "1" });
 export const MenuDuzenle = dashboardPage("Menü düzenle", DASHBOARD_ROUTES.digitalMenuEdit(34));

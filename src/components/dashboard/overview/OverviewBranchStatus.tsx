@@ -59,7 +59,7 @@ export function OverviewBranchStatus({
           </p>
         </div>
         <Link
-          href={DASHBOARD_ROUTES.digitalMenu}
+          href={DASHBOARD_ROUTES.myBranches}
           className="text-xs font-medium text-foreground underline-offset-2 hover:underline"
         >
           Şube yönetimi

@@ -10,6 +10,7 @@ export const DASHBOARD_ROUTES = {
   /** Old menu-nested reports path; kept for redirects and bookmarks. */
   analyticsMenuLegacy: "/dashboard/dijital-menu/analitik",
   digitalMenu: "/dashboard/dijital-menu",
+  myBranches: "/dashboard/dijital-menu/subelerim",
   digitalMenuMenus: "/dashboard/dijital-menu/menuler",
   digitalMenuProducts: "/dashboard/dijital-menu/urunler",
   digitalMenuProductCreate: "/dashboard/dijital-menu/urunler/yeni",
@@ -297,7 +298,7 @@ export const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
     key: "myBranches",
     label: "Şube yönetimi",
     mobileLabel: "Şubelerim",
-    href: DASHBOARD_ROUTES.digitalMenu,
+    href: DASHBOARD_ROUTES.myBranches,
     requiredScope: "QR_MENU_OWNER",
   },
   {
@@ -553,6 +554,10 @@ export function buildDashboardBreadcrumbs(
       crumbs[crumbs.length - 1] = { label: "Menü & Şubeler" };
       return crumbs;
     }
+    if (pathname === DASHBOARD_ROUTES.myBranches) {
+      crumbs[crumbs.length - 1] = { label: "Şubelerim" };
+      return crumbs;
+    }
     if (pathname === DASHBOARD_ROUTES.digitalMenuMenus) {
       crumbs.push({ label: "Şubeler" });
       return crumbs;
@@ -692,7 +697,7 @@ export function buildDashboardBreadcrumbs(
 }
 
 export function isBranchesHubNavActive(pathname: string): boolean {
-  if (pathname === DASHBOARD_ROUTES.digitalMenu) {
+  if (pathname === DASHBOARD_ROUTES.digitalMenu || pathname === DASHBOARD_ROUTES.myBranches) {
     return true;
   }
   if (pathname === DASHBOARD_ROUTES.branchCreate) {

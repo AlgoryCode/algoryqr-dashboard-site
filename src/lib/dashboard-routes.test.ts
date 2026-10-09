@@ -167,6 +167,8 @@ describe("module sidebar active state", () => {
     expect(activeKeys(DASHBOARD_ROUTES.feedback)).toEqual(["feedback"]);
     expect(activeKeys(DASHBOARD_ROUTES.digitalMenuMenus)).toEqual(["myMenus"]);
     expect(activeKeys(DASHBOARD_ROUTES.digitalMenu)).toEqual(["myBranches"]);
+    expect(DASHBOARD_ROUTES.myBranches).toBe("/dashboard/dijital-menu/subelerim");
+    expect(activeKeys(DASHBOARD_ROUTES.myBranches)).toEqual(["myBranches"]);
     expect(activeKeys(DASHBOARD_ROUTES.restaurantLayoutForBranch(4))).toEqual(["restaurantLayout"]);
     expect(activeKeys(DASHBOARD_ROUTES.smartReports)).toEqual(["smartReports"]);
     expect(activeKeys(DASHBOARD_ROUTES.reportsHub)).toEqual(["reports"]);

@@ -112,7 +112,7 @@ const OVERVIEW_MODULES: OverviewModule[] = [
     description: "Şubeler, çalışma bilgileri, ödeme ve entegrasyonlar",
     icon: Settings,
     links: [
-      { label: "Şubeler", href: DASHBOARD_ROUTES.digitalMenu, requiredScope: "QR_MENU_OWNER" },
+      { label: "Şubeler", href: DASHBOARD_ROUTES.myBranches, requiredScope: "QR_MENU_OWNER" },
       { label: "Entegrasyonlar", href: DASHBOARD_ROUTES.integrations, requiredScope: "QR_MENU_OWNER" },
       { label: "Hesap", href: DASHBOARD_ROUTES.account },
     ],
