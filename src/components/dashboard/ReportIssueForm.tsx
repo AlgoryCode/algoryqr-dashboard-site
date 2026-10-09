@@ -98,7 +98,7 @@ export function ReportIssueForm({ className, onSuccess }: ReportIssueFormProps) 
       toast({
         title: "Eksik bilgi",
         description: "Başlık, konu ve açıklama alanlarını doldurun.",
-        variant: "destructive",
+        variant: "warning",
       });
       return;
     }
@@ -117,6 +117,7 @@ export function ReportIssueForm({ className, onSuccess }: ReportIssueFormProps) 
       toast({
         title: "Geri bildiriminiz alındı",
         description: "En kısa sürede size dönüş yapacağız.",
+        variant: "success",
       });
 
       setForm({ title: "", subject: "", description: "" });

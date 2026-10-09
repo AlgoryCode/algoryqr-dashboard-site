@@ -120,14 +120,15 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
   const router = useRouter();
   const pathname = usePathname();
   const queryClient = useQueryClient();
-  const { data: accountOverview, isLoading: accountOverviewLoading } = useAccountOverview();
-  useHydrateAccountOverviewCaches(queryClient, accountOverview);
-  const { data: myProfile, isLoading: myProfileLoading, isError: myProfileError } = useMyProfile();
-  const { data: accessProfile } = useAccessProfile();
-  const isGoogleAccount = isGoogleAuthProvider(accessProfile?.provider);
   const [page, setPage] = useState<SettingsPage>("main");
   const view: SettingsView =
     pathname === DASHBOARD_ROUTES.accountSecurity ? "security" : page;
+  const needsProfile = view === "profile" || view === "notifications" || view === "security";
+  const { data: accountOverview, isLoading: accountOverviewLoading } = useAccountOverview(false);
+  useHydrateAccountOverviewCaches(queryClient, accountOverview);
+  const { data: myProfile, isLoading: myProfileLoading, isError: myProfileError } = useMyProfile(needsProfile);
+  const { data: accessProfile } = useAccessProfile();
+  const isGoogleAccount = isGoogleAuthProvider(accessProfile?.provider);
 
   const [accessTokenExpiresAt, setAccessTokenExpiresAt] = useState<number | null>(null);
   const [refreshTokenExpiresAt, setRefreshTokenExpiresAt] = useState<number | null>(null);
@@ -169,8 +170,8 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
       : null;
   const currentSession =
     sessionsSection?.ok
-      ? sessionsSection.data.openSessions.find((session) => session.current) ??
-        sessionsSection.data.page.content.find((session) => session.current) ??
+      ? sessionsSection.data?.openSessions?.find((session) => session.current) ??
+        sessionsSection.data?.page?.content?.find((session) => session.current) ??
         null
       : null;
 

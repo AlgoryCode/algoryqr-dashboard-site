@@ -28,23 +28,24 @@ export async function fetchAccountOverviewClient(): Promise<AccountOverview> {
 }
 
 export function hydrateAccountOverviewCaches(queryClient: QueryClient, overview: AccountOverview) {
-  if (overview.profile.ok) {
+  if (overview.profile?.ok) {
     queryClient.setQueryData<MyProfile>(MY_PROFILE_QUERY_KEY, overview.profile.data);
   }
 
-  if (overview.subscription.ok) {
+  if (overview.subscription?.ok && overview.subscription.data) {
     const subscriptionPayload = overview.subscription.data;
+    const entitlements = subscriptionPayload.entitlements ?? [];
     const activePurchase = subscriptionPayload.activePackage
       ? mapPurchaseSummaryToApiItem(subscriptionPayload.activePackage)
       : null;
     const purchasesForUsage = activePurchase ? [activePurchase] : [];
     const overviewData: SubscriptionOverviewData = {
       activePackage: subscriptionPayload.activePackage,
-      entitlements: subscriptionPayload.entitlements,
+      entitlements,
       addonPurchases: subscriptionPayload.addonPurchases ?? [],
       branchQuota: subscriptionPayload.branchQuota ?? null,
       menuQuota: subscriptionPayload.menuQuota ?? null,
-      usage: aggregatePackageUsage(subscriptionPayload.entitlements, purchasesForUsage),
+      usage: aggregatePackageUsage(entitlements, purchasesForUsage),
       activePurchase,
       fulfillmentDetails: subscriptionPayload.fulfillmentDetails ?? [],
       fulfillmentActive: subscriptionPayload.fulfillmentActive ?? false,
@@ -52,25 +53,26 @@ export function hydrateAccountOverviewCaches(queryClient: QueryClient, overview:
     queryClient.setQueryData(SUBSCRIPTION_OVERVIEW_QUERY_KEY, overviewData);
   }
 
-  if (overview.purchases.ok) {
+  if (overview.purchases?.ok && Array.isArray(overview.purchases.data)) {
     const purchases = overview.purchases.data;
-    const usage = overview.subscription.ok
-      ? aggregatePackageUsage(overview.subscription.data.entitlements, purchases)
-      : aggregatePackageUsage([], purchases);
+    const entitlements =
+      overview.subscription?.ok && overview.subscription.data
+        ? overview.subscription.data.entitlements ?? []
+        : [];
     const subscriptionData: SubscriptionData = {
-      usage,
-      entitlements: overview.subscription.ok ? overview.subscription.data.entitlements : [],
+      usage: aggregatePackageUsage(entitlements, purchases),
+      entitlements,
       purchases,
       activePurchase: pickActivePurchase(purchases),
     };
     queryClient.setQueryData(SUBSCRIPTION_QUERY_KEY, subscriptionData);
   }
 
-  if (overview.billingAddresses.ok) {
+  if (overview.billingAddresses?.ok && Array.isArray(overview.billingAddresses.data)) {
     queryClient.setQueryData(BILLING_ADDRESSES_QUERY_KEY, overview.billingAddresses.data);
   }
 
-  if (overview.paymentMethods.ok) {
+  if (overview.paymentMethods?.ok && Array.isArray(overview.paymentMethods.data)) {
     queryClient.setQueryData(PAYMENT_METHODS_QUERY_KEY, overview.paymentMethods.data);
   }
 }

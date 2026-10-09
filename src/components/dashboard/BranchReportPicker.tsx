@@ -23,18 +23,18 @@ export function defaultMenuQrForBranch(branch: BranchItem): number | null {
 
 export function preferredMenuQrForBranch(branch: BranchItem): number | null {
   const stored = readStoredMenuQrId();
-  if (stored != null && branch.menus.some((menu) => menu.qrId === stored)) {
+  if (stored != null && (branch.menus ?? []).some((menu) => menu.qrId === stored)) {
     return stored;
   }
   return defaultMenuQrForBranch(branch);
 }
 
 function resolveMenuQr(branch: BranchItem, preferredQr: number | null): number | null {
-  if (preferredQr != null && branch.menus.some((menu) => menu.qrId === preferredQr)) {
+  if (preferredQr != null && (branch.menus ?? []).some((menu) => menu.qrId === preferredQr)) {
     return preferredQr;
   }
   const stored = readStoredMenuQrId();
-  if (stored != null && branch.menus.some((menu) => menu.qrId === stored)) {
+  if (stored != null && (branch.menus ?? []).some((menu) => menu.qrId === stored)) {
     return stored;
   }
   return defaultMenuQrForBranch(branch);
@@ -106,7 +106,7 @@ export function useBranchReportSelection(
       }
     }
     if (initialQrId != null) {
-      const byQr = branches.find((item) => item.menus.some((menu) => menu.qrId === initialQrId));
+      const byQr = branches.find((item) => (item.menus ?? []).some((menu) => menu.qrId === initialQrId));
       if (byQr) {
         setBranchId(byQr.id);
         setQrId(initialQrId);
@@ -143,7 +143,7 @@ export function useBranchReportSelection(
 
   const selectedMenu = useMemo(() => {
     if (selectedBranch == null || qrId == null) return null;
-    return selectedBranch.menus.find((menu) => menu.qrId === qrId) ?? null;
+    return (selectedBranch.menus ?? []).find((menu) => menu.qrId === qrId) ?? null;
   }, [qrId, selectedBranch]);
 
   const selection = useMemo<BranchReportSelection | null>(() => {
@@ -195,16 +195,6 @@ export function BranchReportPicker({
   onWaiterSelect?: (waiterId: number | null) => void;
   disabled?: boolean;
 }) {
-  if (branches.length === 0) {
-    return (
-      <div className="min-w-[12rem] max-w-xs flex-1 text-sm text-muted-foreground">
-        <Link href={DASHBOARD_ROUTES.branchCreate} className="text-primary hover:underline">
-          Şube oluştur
-        </Link>
-      </div>
-    );
-  }
-
   const selectedBranch = useMemo(
     () =>
       selectedBranchId != null
@@ -220,6 +210,16 @@ export function BranchReportPicker({
       })),
     [selectedBranch],
   );
+
+  if (branches.length === 0) {
+    return (
+      <div className="min-w-[12rem] max-w-xs flex-1 text-sm text-muted-foreground">
+        <Link href={DASHBOARD_ROUTES.branchCreate} className="text-primary hover:underline">
+          Şube oluştur
+        </Link>
+      </div>
+    );
+  }
 
   const waiterOptions = [
     { value: ALL_WAITERS_VALUE, label: "Tüm personel" },

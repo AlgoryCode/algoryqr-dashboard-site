@@ -138,8 +138,9 @@ export function mapPurchaseSummaryToApiItem(summary: PurchaseSummaryApiItem): Pu
 }
 
 export function activePurchaseFromOverview(overview: AccountOverview | undefined): PurchaseApiItem | null {
-  if (!overview?.subscription.ok || !overview.subscription.data.activePackage) return null;
-  return mapPurchaseSummaryToApiItem(overview.subscription.data.activePackage);
+  const subscription = overview?.subscription;
+  if (!subscription?.ok || !subscription.data?.activePackage) return null;
+  return mapPurchaseSummaryToApiItem(subscription.data.activePackage);
 }
 
 export function sectionFromUpstream<T>(

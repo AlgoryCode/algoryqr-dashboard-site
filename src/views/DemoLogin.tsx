@@ -45,6 +45,7 @@ const DemoLogin = () => {
     toast({
       title: "Kayıt tamam",
       description: "Kullanıcı adınız ve şifrenizle giriş yapın.",
+      variant: "success",
     });
     router.replace(registeredUsername ? `/demo/login?username=${encodeURIComponent(registeredUsername)}` : "/demo/login");
   }, [router, searchParams, toast]);
@@ -118,19 +119,14 @@ const DemoLogin = () => {
           </Button>
         </form>
 
-        <p className="text-center text-xs text-muted-foreground space-y-1">
-          <span className="block">
-            Hesabınız yok mu?{" "}
-            <Link href={DASHBOARD_ROUTES.demoRegister} className="text-primary hover:underline font-medium">
-              Demo kayıt
-            </Link>
-          </span>
-          <span className="block">
-            <Link href="/login" className="text-primary hover:underline font-medium">
-              Üye girişi
-            </Link>
-          </span>
-        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="outline" size="lg" className="w-full" asChild>
+            <Link href={DASHBOARD_ROUTES.demoRegister}>Demo kayıt</Link>
+          </Button>
+          <Button variant="outline" size="lg" className="w-full" asChild>
+            <Link href="/login">Üye girişi</Link>
+          </Button>
+        </div>
       </div>
     </div>
   );
