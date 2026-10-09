@@ -100,8 +100,8 @@ export default function DigitalMenuCreateView() {
           email: profile.email?.trim() ?? "",
           address: profile.address?.trim() ?? "",
           themeId: (profile.themeId as MenuThemeId) || createInitialMenuData().themeId,
-          chefName: profile.chefName?.trim() ?? "",
-          chefAvatarKey: profile.chefAvatarKey?.trim() || "default",
+          chefName: "",
+          chefAvatarKey: "default",
           logoUrl: "",
           coverUrl: "",
         });
@@ -171,8 +171,6 @@ export default function DigitalMenuCreateView() {
             email: menu.email.trim() || undefined,
             address: menu.address.trim() || undefined,
             themeId: menu.themeId,
-            chefName: menu.chefName.trim() || undefined,
-            chefAvatarKey: menu.chefAvatarKey.trim() || undefined,
           },
           [],
           { sourceMenuId, branchId },
@@ -211,7 +209,7 @@ export default function DigitalMenuCreateView() {
   if (accessLoading || branchesQuery.isLoading) {
     return (
       <div className="space-y-6 animate-fade-in">
-        <DashboardPageHeader title="Menü QR Oluştur" hint="İşletme bilgilerini girin." />
+        <DashboardPageHeader title="Menü Oluşturma Sihirbazı" hint="İşletme bilgilerini girin." />
         <DashboardLoadingState label="Menü oluşturma ekranı hazırlanıyor…" />
       </div>
     );
@@ -242,7 +240,7 @@ export default function DigitalMenuCreateView() {
   return (
     <div className="space-y-6 animate-fade-in">
       <DashboardPageHeader
-        title="Menü QR Oluştur"
+        title="Menü Oluşturma Sihirbazı"
         hint={
           extraMenuQuotaLabel
             ? `${selectedBranch.name} şubesi için işletme bilgilerini girin. · ${extraMenuQuotaLabel}`
@@ -305,7 +303,7 @@ export default function DigitalMenuCreateView() {
 
       <div className={`${DASHBOARD_PANEL} space-y-5`}>
         <h2 className="text-base font-semibold text-foreground">İşletme Bilgileri</h2>
-        <MenuDetails value={menu} onChange={setMenu} />
+        <MenuDetails value={menu} onChange={setMenu} showChefIdentity={false} />
       </div>
 
       <div className="flex justify-end gap-2">
@@ -313,7 +311,7 @@ export default function DigitalMenuCreateView() {
           Vazgeç
         </Button>
         <Button type="button" variant="hero" disabled={saving || prefillLoading || !canCreateNewMenu} onClick={() => void submit()}>
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Menü QR Oluştur"}
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Menü Oluşturma Sihirbazı"}
         </Button>
       </div>
     </div>

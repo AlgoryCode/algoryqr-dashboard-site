@@ -49,16 +49,25 @@ type MenuDetailsProps = {
   menuId?: number | null;
   section?: MenuDetailsSection;
   qrPreview?: MenuQrPreviewProps | null;
+  showChefIdentity?: boolean;
 };
 
-export function MenuDetails({ value, onChange, menuId, section = "all", qrPreview }: MenuDetailsProps) {
+export function MenuDetails({
+  value,
+  onChange,
+  menuId,
+  section = "all",
+  qrPreview,
+  showChefIdentity = true,
+}: MenuDetailsProps) {
   const [avatars, setAvatars] = useState<ChefAvatarApiItem[]>([]);
   const [avatarsError, setAvatarsError] = useState<string | null>(null);
   const showInfo = section === "all" || section === "info";
   const showAppearance = section === "all" || section === "appearance";
+  const showChefFields = showInfo && showChefIdentity;
 
   useEffect(() => {
-    if (!showInfo) return;
+    if (!showChefFields) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -76,7 +85,7 @@ export function MenuDetails({ value, onChange, menuId, section = "all", qrPrevie
     return () => {
       cancelled = true;
     };
-  }, [showInfo]);
+  }, [showChefFields]);
 
   return (
     <div className="space-y-4">
@@ -103,50 +112,54 @@ export function MenuDetails({ value, onChange, menuId, section = "all", qrPrevie
               onChange={(e) => onChange({ ...value, slogan: e.target.value })}
             />
           </div>
-          <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground">Şef adı</Label>
-            <Input
-              placeholder={DEFAULT_CHEF_DISPLAY_NAME}
-              className="bg-background"
-              value={value.chefName}
-              onChange={(e) => onChange({ ...value, chefName: e.target.value })}
-              maxLength={80}
-            />
-            <p className="text-xs text-muted-foreground">
-              Boş bırakılırsa: {DEFAULT_CHEF_DISPLAY_NAME}
-            </p>
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground">Şef avatarı</Label>
-            {avatarsError ? (
-              <p className="text-xs text-destructive">{avatarsError}</p>
-            ) : null}
-            <div className="flex flex-wrap gap-2">
-              {avatars.map((avatar) => {
-                const selected = value.chefAvatarKey === avatar.key;
-                return (
-                  <button
-                    key={avatar.key}
-                    type="button"
-                    title={avatar.label}
-                    onClick={() => onChange({ ...value, chefAvatarKey: avatar.key })}
-                    className={cn(
-                      "relative h-16 w-16 overflow-hidden rounded-full border transition",
-                      selected
-                        ? "border-foreground ring-2 ring-foreground/20"
-                        : "border-border hover:border-foreground/30",
-                    )}
-                  >
-                    <img
-                      src={avatar.imageUrl}
-                      alt={avatar.label}
-                      className="h-full w-full object-cover object-top"
-                    />
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          {showChefFields ? (
+            <>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Şef adı</Label>
+                <Input
+                  placeholder={DEFAULT_CHEF_DISPLAY_NAME}
+                  className="bg-background"
+                  value={value.chefName}
+                  onChange={(e) => onChange({ ...value, chefName: e.target.value })}
+                  maxLength={80}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Boş bırakılırsa: {DEFAULT_CHEF_DISPLAY_NAME}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Şef avatarı</Label>
+                {avatarsError ? (
+                  <p className="text-xs text-destructive">{avatarsError}</p>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  {avatars.map((avatar) => {
+                    const selected = value.chefAvatarKey === avatar.key;
+                    return (
+                      <button
+                        key={avatar.key}
+                        type="button"
+                        title={avatar.label}
+                        onClick={() => onChange({ ...value, chefAvatarKey: avatar.key })}
+                        className={cn(
+                          "relative h-16 w-16 overflow-hidden rounded-full border transition",
+                          selected
+                            ? "border-foreground ring-2 ring-foreground/20"
+                            : "border-border hover:border-foreground/30",
+                        )}
+                      >
+                        <img
+                          src={avatar.imageUrl}
+                          alt={avatar.label}
+                          className="h-full w-full object-cover object-top"
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          ) : null}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground">Telefon</Label>

@@ -596,7 +596,7 @@ export function buildDashboardBreadcrumbs(
       return crumbs;
     }
     if (pathname === DASHBOARD_ROUTES.digitalMenuCreate) {
-      crumbs.push({ label: "Menü oluştur" });
+      crumbs.push({ label: "Menü Oluşturma Sihirbazı" });
       return crumbs;
     }
     if (pathname === DASHBOARD_ROUTES.branchCreate) {
