@@ -17,7 +17,9 @@ export function loadPackageAccess(force = false, userId?: number | null): Promis
   if (!force && inflight) return inflight;
 
   const ticket = ++generation;
-  usePackageStore.getState().setStatus("loading");
+  if (current.status !== "ready") {
+    usePackageStore.getState().setStatus("loading");
+  }
   const run = fetchPackageAccess(userId)
     .then((result) => {
       if (ticket !== generation) return usePackageStore.getState().profile;

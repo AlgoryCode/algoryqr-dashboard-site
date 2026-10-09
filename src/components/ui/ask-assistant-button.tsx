@@ -1,7 +1,7 @@
 "use client";
 
 import type { ButtonHTMLAttributes } from "react";
-import { MessageCircleQuestion } from "lucide-react";
+import { MessageCircleQuestion, Sparkles } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -51,17 +51,38 @@ function QuestionWithSparkles({ compact }: { compact: boolean }) {
 }
 
 export type AskAssistantButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  /** Mobilde veya dar alanda yalnızca soru ikonu */
   iconOnly?: boolean;
+  appearance?: "default" | "bar";
 };
 
 export function AskAssistantButton({
   className,
   children,
   iconOnly = false,
+  appearance = "default",
   ...props
 }: AskAssistantButtonProps) {
   const label = children ?? "Asistana Sor";
+
+  if (appearance === "bar") {
+    return (
+      <button
+        type="button"
+        className={cn(
+          "flex w-[4.5rem] shrink-0 flex-col items-center justify-center gap-1 self-stretch px-1 py-1.5 text-primary",
+          "transition-colors hover:bg-primary/10 active:bg-primary/15",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
+          className,
+        )}
+        {...props}
+      >
+        <span className="flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_6px_14px_-6px_hsl(var(--primary)/0.55)]">
+          <Sparkles className="size-4" strokeWidth={2.25} aria-hidden />
+        </span>
+        <span className="text-[11px] font-semibold leading-none">Asistan</span>
+      </button>
+    );
+  }
 
   return (
     <button
@@ -79,7 +100,9 @@ export function AskAssistantButton({
       {...props}
     >
       <QuestionWithSparkles compact={iconOnly} />
-      {!iconOnly ? <span className="hidden min-[421px]:inline">{label}</span> : null}
+      {!iconOnly ? (
+        <span className={children != null ? undefined : "hidden min-[421px]:inline"}>{label}</span>
+      ) : null}
     </button>
   );
 }

@@ -23,6 +23,7 @@ import {
   TrendingUp,
   Calculator,
   Megaphone,
+  Menu,
   Search,
   UtensilsCrossed,
   CalendarDays,
@@ -70,6 +71,7 @@ import {
   DASHBOARD_ROUTES,
   getVisibleDashboardNavGroups,
   isDashboardNavActive,
+  splitMobileDashboardNav,
   type DashboardNavKey,
 } from "@/lib/dashboard-routes";
 import { DASHBOARD_CONTENT } from "@/lib/dashboard-surface";
@@ -193,6 +195,12 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
     setOpenGroupIds((prev) => ({ ...prev, [groupId]: !(prev[groupId] ?? true) }));
   };
   const [commandOpen, setCommandOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const mobileOverflow = useMemo(
+    () => splitMobileDashboardNav(mobileNavItems).overflow,
+    [mobileNavItems],
+  );
+  const moreActive = mobileOverflow.some((item) => isDashboardNavActive(pathname, item.href, item.key));
   const toggleCommand = useCallback(() => setCommandOpen((open) => !open), []);
   useCommandPaletteHotkey(toggleCommand);
 
@@ -349,6 +357,10 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
           </nav>
 
           <div className="mt-3 shrink-0 space-y-1 border-t border-border pt-3">
+            <DashboardAssistantLauncher
+              iconOnly={collapsed}
+              className={cn(collapsed ? "h-10 w-10 min-w-0 px-0" : "h-10 w-full justify-start px-2.5")}
+            />
             <Tooltip open={collapsed ? undefined : false}>
               <TooltipTrigger asChild>
                 <Button
@@ -399,7 +411,7 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
             "relative min-h-0 flex-1 overflow-y-auto bg-background pb-20 lg:pb-0",
           )}
         >
-          <header className="flex items-center justify-between border-b border-border bg-card px-4 py-3 lg:hidden">
+          <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-card px-4 py-3 lg:hidden">
             <Link href={DASHBOARD_ROUTES.overview} className="flex items-center gap-2">
               <BrandLogo size="md" />
               <span className="text-base font-bold">
@@ -407,8 +419,19 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
               </span>
             </Link>
             <div className="flex items-center gap-2">
-              <DashboardAssistantLauncher iconOnly />
               <TrialReminderHeaderBadge compact />
+              <button
+                type="button"
+                className={cn(
+                  "inline-flex size-11 items-center justify-center rounded-lg",
+                  moreActive ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted",
+                )}
+                aria-expanded={moreOpen}
+                aria-label="Menü"
+                onClick={() => setMoreOpen(true)}
+              >
+                <Menu className="size-7" />
+              </button>
             </div>
           </header>
 
@@ -416,6 +439,8 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
             items={mobileNavItems}
             pendingOrderCount={0}
             onOpenSearch={() => setCommandOpen(true)}
+            moreOpen={moreOpen}
+            onMoreOpenChange={setMoreOpen}
           />
 
           <div className="hidden px-8 pt-3 lg:block">
@@ -434,7 +459,6 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
                 </kbd>
               </button>
               <div className="ml-auto flex items-center gap-2.5">
-                <DashboardAssistantLauncher />
                 <TrialReminderHeaderBadge />
               </div>
             </div>

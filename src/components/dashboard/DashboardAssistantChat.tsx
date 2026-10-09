@@ -280,18 +280,28 @@ export function DashboardAssistantChat({ open, onOpenChange }: DashboardAssistan
 type DashboardAssistantLauncherProps = {
   className?: string;
   iconOnly?: boolean;
+  label?: string;
+  appearance?: "default" | "bar";
 };
 
-export function DashboardAssistantLauncher({ className, iconOnly }: DashboardAssistantLauncherProps) {
+export function DashboardAssistantLauncher({
+  className,
+  iconOnly,
+  label = "Asistan Danış",
+  appearance = "default",
+}: DashboardAssistantLauncherProps) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <AskAssistantButton
         className={className}
         iconOnly={iconOnly}
-        aria-label="Asistana bir şey sor"
+        appearance={appearance}
+        aria-label={label}
         onClick={() => setOpen(true)}
-      />
+      >
+        {label}
+      </AskAssistantButton>
       <DashboardAssistantChat open={open} onOpenChange={setOpen} />
     </>
   );
