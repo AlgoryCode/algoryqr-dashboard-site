@@ -351,7 +351,7 @@ export default function DemoSetupPageClient({ userId }: { userId: number | null 
         markDemoSetupDone(userId, staffBand, branchBand);
       }
       await getSiteSameOriginAxios().post("/auth/demo/ack-setup").catch(() => undefined);
-      toast({ title: "Hazır!", description: "Panele yönlendiriliyorsunuz…" });
+      toast({ title: "Hazır!", description: "Panele yönlendiriliyorsunuz…", variant: "success" });
       router.push(DASHBOARD_ROUTES.overview);
       router.refresh();
     } catch (err) {

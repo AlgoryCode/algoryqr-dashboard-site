@@ -31,7 +31,7 @@ export function OverviewBranchStatus({
     try {
       await updateBranchRequest(branch.id, { name: branch.name, active: next });
       await invalidateBranches(queryClient);
-      toast({ title: next ? `${branch.name} açıldı.` : `${branch.name} kapatıldı.` });
+      toast({ title: next ? `${branch.name} açıldı.` : `${branch.name} kapatıldı.`, variant: "success" });
     } catch (error) {
       toast({
         title: error instanceof ApiError ? error.message : "Şube durumu güncellenemedi.",

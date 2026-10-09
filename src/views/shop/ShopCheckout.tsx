@@ -113,7 +113,7 @@ export default function ShopCheckout({ onBack }: { onBack: () => void }) {
     clear();
     await refreshAccessAfterEntitlementChange(queryClient);
     await invalidatePackageUsage(queryClient);
-    toast({ title: "Ödeme tamamlandı", description: "Paketiniz aktif edildi." });
+    toast({ title: "Ödeme tamamlandı", description: "Paketiniz aktif edildi.", variant: "success" });
     router.push(DASHBOARD_ROUTES.root);
     router.refresh();
   }, [clear, queryClient, router]);
@@ -158,7 +158,7 @@ export default function ShopCheckout({ onBack }: { onBack: () => void }) {
       await invalidateBillingAddresses(queryClient);
       if (response.data?.id) setBillingAddressId(response.data.id);
       setCreatingAddress(false);
-      toast({ title: "Fatura adresi kaydedildi" });
+      toast({ title: "Fatura adresi kaydedildi", variant: "success" });
     } catch (error) {
       toast({
         title: "Adres kaydedilemedi",

@@ -64,6 +64,7 @@ const Register = () => {
         toast({
           title: "Kayıt başarılı",
           description: REGISTER_SUCCESS_DESCRIPTION,
+          variant: "success",
           duration: 10000,
           action: loginAction,
         });
@@ -113,6 +114,7 @@ const Register = () => {
       toast({
         title: "Kayıt başarılı",
         description: REGISTER_SUCCESS_DESCRIPTION,
+        variant: "success",
         duration: 10000,
         action: (
           <ToastAction altText="Kodu gir" onClick={() => router.push(verificationHref)}>

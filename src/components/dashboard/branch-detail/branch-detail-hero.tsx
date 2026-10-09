@@ -161,7 +161,7 @@ export function InfoCard({
       });
       await invalidateBranches(queryClient);
       setEditing(false);
-      toast({ title: "Şube bilgileri güncellendi." });
+      toast({ title: "Şube bilgileri güncellendi.", variant: "success" });
     } catch (error) {
       toast({
         title: error instanceof ApiError ? error.message : "Şube güncellenemedi.",
@@ -482,7 +482,7 @@ function BranchPhoto({
       const updated = await uploadBranchPhotoRequest(branchId, file);
       setPreview(updated.photoUrl ?? null);
       await invalidateBranches(queryClient);
-      toast({ title: "Şube fotoğrafı güncellendi." });
+      toast({ title: "Şube fotoğrafı güncellendi.", variant: "success" });
     } catch (error) {
       toast({
         title: error instanceof ApiError ? error.message : "Fotoğraf yüklenemedi.",
@@ -499,7 +499,7 @@ function BranchPhoto({
       await deleteBranchPhotoRequest(branchId);
       setPreview(null);
       await invalidateBranches(queryClient);
-      toast({ title: "Şube fotoğrafı silindi." });
+      toast({ title: "Şube fotoğrafı silindi.", variant: "info" });
     } catch (error) {
       toast({
         title: error instanceof ApiError ? error.message : "Fotoğraf silinemedi.",

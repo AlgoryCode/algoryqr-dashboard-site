@@ -46,6 +46,7 @@ const DemoRegister = () => {
       toast({
         title: "Kayıt tamam",
         description: "Şimdi giriş yapın; panelde hazırlık animasyonu ve kurulum adımları başlayacak.",
+        variant: "success",
       });
       const params = new URLSearchParams({
         demoRegistered: "1",
@@ -112,12 +113,9 @@ const DemoRegister = () => {
           </Button>
         </form>
 
-        <p className="text-center text-xs text-muted-foreground">
-          Zaten üye misiniz?{" "}
-          <Link href="/demo/login" className="text-primary hover:underline font-medium">
-            Zaten demo hesabınız var — giriş yap
-          </Link>
-        </p>
+        <Button variant="outline" size="lg" className="w-full" asChild>
+          <Link href="/demo/login">Demo giriş</Link>
+        </Button>
       </div>
     </div>
   );
