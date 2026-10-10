@@ -31,29 +31,29 @@ describe("dashboard report routes", () => {
 describe("restaurant layout under branch settings", () => {
   it("nests the layout page under branch settings", () => {
     expect(DASHBOARD_ROUTES.restaurantLayoutForBranch(16)).toBe(
-      "/dashboard/dijital-menu/subeler/16/ayarlar/restoran-duzeni",
+      "/dashboard/subedetay/16/ayarlar/restoran-duzeni",
     );
     expect(DASHBOARD_ROUTES.restaurantLayoutForBranch(16, 20)).toBe(
-      "/dashboard/dijital-menu/subeler/16/ayarlar/restoran-duzeni?qr=20",
+      "/dashboard/subedetay/16/ayarlar/restoran-duzeni?qr=20",
     );
   });
 
   it("parses branch settings vs nested layout paths", () => {
-    expect(DASHBOARD_ROUTES.branchDetail(16)).toBe("/dashboard/dijital-menu/subeler/16");
-    expect(parseBranchDetailId("/dashboard/dijital-menu/subeler/16")).toBe(16);
-    expect(parseBranchDetailId("/dashboard/dijital-menu/subeler/16/ayarlar")).toBe(null);
-    expect(parseBranchDetailId("/dashboard/dijital-menu/subeler/yeni")).toBe(null);
-    expect(parseBranchSettingsId("/dashboard/dijital-menu/subeler/16/ayarlar")).toBe(16);
-    expect(parseBranchSettingsId("/dashboard/dijital-menu/subeler/16/ayarlar/restoran-duzeni")).toBe(
+    expect(DASHBOARD_ROUTES.branchDetail(16)).toBe("/dashboard/subedetay/16");
+    expect(parseBranchDetailId("/dashboard/subedetay/16")).toBe(16);
+    expect(parseBranchDetailId("/dashboard/subedetay/16/ayarlar")).toBe(null);
+    expect(parseBranchDetailId("/dashboard/subelerim/yeni")).toBe(null);
+    expect(parseBranchSettingsId("/dashboard/subedetay/16/ayarlar")).toBe(16);
+    expect(parseBranchSettingsId("/dashboard/subedetay/16/ayarlar/restoran-duzeni")).toBe(
       null,
     );
     expect(
-      parseRestaurantLayoutBranchId("/dashboard/dijital-menu/subeler/16/ayarlar/restoran-duzeni"),
+      parseRestaurantLayoutBranchId("/dashboard/subedetay/16/ayarlar/restoran-duzeni"),
     ).toBe(16);
-    expect(isRestaurantLayoutPath("/dashboard/dijital-menu/subeler/16/ayarlar/restoran-duzeni")).toBe(
+    expect(isRestaurantLayoutPath("/dashboard/subedetay/16/ayarlar/restoran-duzeni")).toBe(
       true,
     );
-    expect(isRestaurantLayoutPath("/dashboard/dijital-menu/subeler/16/ayarlar")).toBe(false);
+    expect(isRestaurantLayoutPath("/dashboard/subedetay/16/ayarlar")).toBe(false);
   });
 });
 
@@ -167,8 +167,10 @@ describe("module sidebar active state", () => {
     expect(activeKeys(DASHBOARD_ROUTES.feedback)).toEqual(["feedback"]);
     expect(activeKeys(DASHBOARD_ROUTES.digitalMenuMenus)).toEqual(["myMenus"]);
     expect(activeKeys(DASHBOARD_ROUTES.digitalMenu)).toEqual(["myBranches"]);
-    expect(DASHBOARD_ROUTES.myBranches).toBe("/dashboard/dijital-menu/subelerim");
+    expect(DASHBOARD_ROUTES.myBranches).toBe("/dashboard/subelerim");
+    expect(DASHBOARD_ROUTES.branchCreate).toBe("/dashboard/subelerim/yeni");
     expect(activeKeys(DASHBOARD_ROUTES.myBranches)).toEqual(["myBranches"]);
+    expect(activeKeys(DASHBOARD_ROUTES.branchDetail(16))).toEqual(["myBranches"]);
     expect(activeKeys(DASHBOARD_ROUTES.restaurantLayoutForBranch(4))).toEqual(["restaurantLayout"]);
     expect(activeKeys(DASHBOARD_ROUTES.smartReports)).toEqual(["smartReports"]);
     expect(activeKeys(DASHBOARD_ROUTES.reportsHub)).toEqual(["reports"]);

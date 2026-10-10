@@ -6,25 +6,16 @@ import { Plus } from "lucide-react";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { DigitalMenuFlatList, resolveCreateMenuHref } from "@/components/dashboard/digital-menu/DigitalMenuFlatList";
 import { Button } from "@/components/ui/button";
-import { useBranches } from "@/hooks/use-branches";
-import { flattenBranchMenus } from "@/lib/digital-menu-directory";
 
 export function DigitalMenuMenusPanel() {
   const router = useRouter();
-  const branchesQuery = useBranches(true);
-  const branches = branchesQuery.data?.content ?? [];
-  const menuCount = flattenBranchMenus(branches).length;
-  const createHref = resolveCreateMenuHref(branches, branchesQuery.data);
+  const createHref = resolveCreateMenuHref();
 
   return (
     <div className="space-y-6 animate-fade-in">
       <DashboardPageHeader
         title="Menülerim"
-        hint={
-          menuCount > 0
-            ? `${menuCount} dijital menü · düzenlemek için satıra dokunun.`
-            : "Tüm dijital menüleriniz tek listede."
-        }
+        hint="Menüler şubeden bağımsız oluşturulur. İsterseniz bir şubeye atayabilirsiniz."
         action={
           <Button
             variant="outline"

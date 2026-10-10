@@ -782,7 +782,7 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
   }
 
   const backHref =
-    branchId != null ? DASHBOARD_ROUTES.branchSettings(branchId) : DASHBOARD_ROUTES.digitalMenu;
+    branchId != null ? DASHBOARD_ROUTES.branchSettings(branchId) : DASHBOARD_ROUTES.myBranches;
   const hasBranchMenus = branchId == null || (allowedQrIds?.length ?? 0) > 0;
 
   return (

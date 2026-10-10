@@ -110,7 +110,7 @@ export default function BranchCreateView() {
         title="Yeni şube"
         hint="İsim, adres ve iletişim bilgilerini girin."
         back={
-          <Link href={DASHBOARD_ROUTES.digitalMenu} aria-label="Menüye dön" className={DASHBOARD_BACK}>
+          <Link href={DASHBOARD_ROUTES.myBranches} aria-label="Şubelerime dön" className={DASHBOARD_BACK}>
             <ArrowLeft className="h-4 w-4" />
           </Link>
         }
@@ -173,7 +173,7 @@ export default function BranchCreateView() {
         </div>
       ) : null}
       <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={() => router.push(DASHBOARD_ROUTES.digitalMenu)}>
+        <Button variant="outline" onClick={() => router.push(DASHBOARD_ROUTES.myBranches)}>
           Vazgeç
         </Button>
         <Button variant="hero" disabled={saving} onClick={() => void submit()}>

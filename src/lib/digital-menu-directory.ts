@@ -5,7 +5,7 @@ export type DigitalMenuDirectoryItem = {
   qrId: number;
   publicId?: string | null;
   businessName: string;
-  branchId: number;
+  branchId: number | null;
   branchName: string;
   active: boolean;
 };
@@ -23,6 +23,37 @@ export const DEFAULT_MENU_DIRECTORY_FILTERS: MenuDirectoryFilters = {
   status: "all",
   branchId: "all",
 };
+
+export function withUnassignedMenus(
+  branches: BranchItem[],
+  activeMenus: Array<{
+    menuId: number;
+    qrId: number;
+    branchId?: number | null;
+    businessName?: string | null;
+    active: boolean;
+    publicId?: string | null;
+  }>,
+): DigitalMenuDirectoryItem[] {
+  const fromBranches = flattenBranchMenus(branches);
+  const seen = new Set(fromBranches.map((menu) => menu.menuId));
+  const branchNameById = new Map(branches.map((branch) => [branch.id, branch.name]));
+  const extras = activeMenus
+    .filter((menu) => !seen.has(menu.menuId))
+    .map((menu) => ({
+      menuId: menu.menuId,
+      qrId: menu.qrId,
+      publicId: menu.publicId,
+      businessName: menu.businessName?.trim() || `Menü #${menu.qrId}`,
+      branchId: menu.branchId ?? null,
+      branchName:
+        menu.branchId != null
+          ? branchNameById.get(menu.branchId) ?? "Şube"
+          : "Şube atanmadı",
+      active: menu.active,
+    }));
+  return [...fromBranches, ...extras];
+}
 
 export function flattenBranchMenus(branches: BranchItem[]): DigitalMenuDirectoryItem[] {
   return branches.flatMap((branch) =>

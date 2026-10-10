@@ -27,7 +27,7 @@ export const SubeDetay = dashboardPage("Şube detay", DASHBOARD_ROUTES.branchDet
 export const SubeAyarlari = dashboardPage("Şube ayarları", DASHBOARD_ROUTES.branchSettings(1));
 export const RestoranDuzeni = dashboardPage(
   "Restoran düzeni",
-  "/dashboard/dijital-menu/subeler/1/ayarlar/restoran-duzeni",
+  "/dashboard/subedetay/1/ayarlar/restoran-duzeni",
   { qr: "34" },
 );
 export const QrKodlar = dashboardPage("QR kodları", DASHBOARD_ROUTES.qrCodes);

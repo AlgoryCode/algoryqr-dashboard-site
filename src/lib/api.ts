@@ -579,7 +579,7 @@ export interface NutritionFacts {
 
 export interface MenuProductApiItem {
   productId: number;
-  menuId: number;
+  menuId?: number | null;
   name: string;
   description?: string;
   price?: number | string;
@@ -838,6 +838,11 @@ export async function getMyActiveMenusRequest(): Promise<ActiveMenuSummaryApiIte
   return Array.isArray(response.data) ? response.data : [];
 }
 
+export async function getMyMenusRequest(): Promise<ActiveMenuSummaryApiItem[]> {
+  const response = await api.get<ActiveMenuSummaryApiItem[]>("/menu/my");
+  return Array.isArray(response.data) ? response.data : [];
+}
+
 export interface MenuProductsByQrApiResponse {
   menuId: number;
   qrId: number;
@@ -1067,6 +1072,38 @@ export async function createMenuProductRequest(
   payload: MenuProductRequestBody,
 ): Promise<MenuProductApiItem> {
   const response = await api.post<MenuProductApiItem>(`/menu/${menuId}/products`, payload);
+  return response.data;
+}
+
+export async function listCatalogProductsRequest(): Promise<MenuProductApiItem[]> {
+  const response = await api.get<MenuProductApiItem[]>("/menu/catalog/products");
+  return Array.isArray(response.data) ? response.data : [];
+}
+
+export async function createCatalogProductRequest(
+  payload: MenuProductRequestBody,
+): Promise<MenuProductApiItem> {
+  const response = await api.post<MenuProductApiItem>("/menu/catalog/products", payload);
+  return response.data;
+}
+
+export async function assignProductToMenuRequest(
+  menuId: number | string,
+  productId: number | string,
+  subCategoryId: number,
+): Promise<MenuProductApiItem> {
+  const response = await api.post<MenuProductApiItem>(
+    `/menu/${menuId}/products/${productId}/assign`,
+    { subCategoryId },
+  );
+  return response.data;
+}
+
+export async function assignMenuBranchRequest(
+  menuId: number | string,
+  branchId: number | null,
+): Promise<MenuProfileApiItem> {
+  const response = await api.put<MenuProfileApiItem>(`/menu/${menuId}/branch`, { branchId });
   return response.data;
 }
 

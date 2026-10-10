@@ -256,7 +256,7 @@ export default function BranchSettingsView({ branchId }: BranchSettingsViewProps
     if (leavingAfterDeleteRef.current || deleting || branchRemoved) return;
     if (branchQuery.isError) {
       notify("danger", branchQuery.error instanceof ApiError ? branchQuery.error.message : "Şube yüklenemedi.");
-      router.push(DASHBOARD_ROUTES.digitalMenu);
+      router.push(DASHBOARD_ROUTES.myBranches);
     }
   }, [branchQuery.error, branchQuery.isError, branchRemoved, deleting, notify, router]);
 
@@ -267,7 +267,7 @@ export default function BranchSettingsView({ branchId }: BranchSettingsViewProps
     queryClient.removeQueries({ queryKey: [...BRANCHES_QUERY_KEY, branchId] });
     await queryClient.invalidateQueries({ queryKey: BRANCHES_QUERY_KEY, exact: true });
     notify("info", "Şube silindi.");
-    router.push(DASHBOARD_ROUTES.digitalMenu);
+    router.push(DASHBOARD_ROUTES.myBranches);
   };
 
   const save = async () => {
@@ -427,7 +427,7 @@ export default function BranchSettingsView({ branchId }: BranchSettingsViewProps
         title="Şube ayarları"
         hint={branch?.name ?? "Şube bilgileri"}
         back={
-          <Link href={DASHBOARD_ROUTES.digitalMenu} aria-label="Menüye dön" className={DASHBOARD_BACK}>
+          <Link href={DASHBOARD_ROUTES.myBranches} aria-label="Şubelerime dön" className={DASHBOARD_BACK}>
             <ArrowLeft className="h-4 w-4" />
           </Link>
         }

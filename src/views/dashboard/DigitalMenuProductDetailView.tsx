@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -40,6 +41,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  listCatalogProductsRequest,
   MenuProductApiItem,
   MenuProductRequestBody,
   NutritionFacts,
@@ -114,10 +116,16 @@ export default function DigitalMenuProductDetailView({ productId }: DigitalMenuP
     const raw = Number(searchParams.get("menu"));
     return Number.isSafeInteger(raw) && raw > 0 ? raw : null;
   }, [searchParams]);
+  const scopedToMenu = initialQrId != null || storeMenuId != null;
   const { accessLoading, canUseDigitalMenu } = useDigitalMenuAccess();
   const { selection, loading: selectionLoading, error: selectionError } =
-    useDigitalMenuSelection(initialQrId, storeMenuId == null);
-  const menuId = storeMenuId ?? selection?.menu.menuId ?? null;
+    useDigitalMenuSelection(initialQrId, scopedToMenu && storeMenuId == null);
+  const menuId = storeMenuId ?? (scopedToMenu ? selection?.menu.menuId ?? null : null);
+  const catalogQuery = useQuery({
+    queryKey: ["catalog-products"],
+    queryFn: listCatalogProductsRequest,
+    enabled: !scopedToMenu,
+  });
   const qrId = storeMenuId != null ? null : selection?.qr.id ?? initialQrId;
   const productsQuery = useMenuProducts(menuId);
   const categoriesQuery = useMenuCategories(menuId);
@@ -134,9 +142,9 @@ export default function DigitalMenuProductDetailView({ productId }: DigitalMenuP
   const [summaryLoading, setSummaryLoading] = useState(false);
 
   const productFromQuery = useMemo(() => {
-    const products = productsQuery.data ?? [];
+    const products = scopedToMenu ? productsQuery.data ?? [] : catalogQuery.data ?? [];
     return products.find((item) => item.productId === productId) ?? null;
-  }, [productId, productsQuery.data]);
+  }, [catalogQuery.data, productId, productsQuery.data, scopedToMenu]);
 
   const product = productOverride?.productId === productId ? productOverride : productFromQuery;
   useDashboardPageLabel(product?.name);
@@ -210,7 +218,7 @@ export default function DigitalMenuProductDetailView({ productId }: DigitalMenuP
       notify("warning", "Ürün adı zorunludur.");
       return null;
     }
-    if (!next.subCategoryId) {
+    if (product?.menuId != null && !next.subCategoryId) {
       notify("warning", "Alt kategori seçin.");
       return null;
     }
@@ -272,6 +280,7 @@ export default function DigitalMenuProductDetailView({ productId }: DigitalMenuP
       if (menuId != null) {
         await invalidateMenuProducts(queryClient, menuId, qrId ?? undefined);
       }
+      await queryClient.invalidateQueries({ queryKey: ["catalog-products"] });
     } catch (error) {
       notify("danger", error instanceof Error ? error.message : "Durum güncellenemedi.");
     } finally {
@@ -292,6 +301,7 @@ export default function DigitalMenuProductDetailView({ productId }: DigitalMenuP
       if (menuId != null) {
         await invalidateMenuProducts(queryClient, menuId, qrId ?? undefined);
       }
+      await queryClient.invalidateQueries({ queryKey: ["catalog-products"] });
     } catch (error) {
       notify("danger", error instanceof Error ? error.message : "Ürün güncellenemedi.");
     } finally {
@@ -347,7 +357,9 @@ export default function DigitalMenuProductDetailView({ productId }: DigitalMenuP
     }
   };
 
-  const loadingProduct = Boolean(menuId) && productsQuery.isLoading;
+  const loadingProduct = scopedToMenu
+    ? Boolean(menuId) && productsQuery.isLoading
+    : catalogQuery.isLoading;
   const busy = saving || togglingAvailable || summaryLoading;
 
   return (
@@ -402,7 +414,7 @@ export default function DigitalMenuProductDetailView({ productId }: DigitalMenuP
           </div>
         </div>
 
-        {selectionLoading || loadingProduct ? (
+        {(scopedToMenu && selectionLoading) || loadingProduct ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
             Ürün yükleniyor…
@@ -421,6 +433,8 @@ export default function DigitalMenuProductDetailView({ productId }: DigitalMenuP
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                 />
               </div>
+              {product.menuId != null ? (
+                <>
               <div className="space-y-1.5">
                 <Label className="text-xs">Ana kategori</Label>
                 <SearchableSelect
@@ -452,6 +466,8 @@ export default function DigitalMenuProductDetailView({ productId }: DigitalMenuP
                   disabled={mainCategoryId === ""}
                 />
               </div>
+                </>
+              ) : null}
               <div className="space-y-1.5">
                 <Label className="text-xs">Fiyat</Label>
                 <MoneyInput

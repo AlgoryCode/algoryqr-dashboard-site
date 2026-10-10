@@ -10,7 +10,7 @@ export const DASHBOARD_ROUTES = {
   /** Old menu-nested reports path; kept for redirects and bookmarks. */
   analyticsMenuLegacy: "/dashboard/dijital-menu/analitik",
   digitalMenu: "/dashboard/dijital-menu",
-  myBranches: "/dashboard/dijital-menu/subelerim",
+  myBranches: "/dashboard/subelerim",
   digitalMenuMenus: "/dashboard/dijital-menu/menuler",
   digitalMenuProducts: "/dashboard/dijital-menu/urunler",
   digitalMenuProductCreate: "/dashboard/dijital-menu/urunler/yeni",
@@ -47,10 +47,9 @@ export const DASHBOARD_ROUTES = {
   digitalMenuCreate: "/dashboard/dijital-menu/olustur",
   digitalMenuCreateForBranch: (branchId: number | string) =>
     `/dashboard/dijital-menu/olustur?branch=${branchId}`,
-  branchCreate: "/dashboard/dijital-menu/subeler/yeni",
-  branchDetail: (branchId: number | string) => `/dashboard/dijital-menu/subeler/${branchId}`,
-  branchSettings: (branchId: number | string) =>
-    `/dashboard/dijital-menu/subeler/${branchId}/ayarlar`,
+  branchCreate: "/dashboard/subelerim/yeni",
+  branchDetail: (branchId: number | string) => `/dashboard/subedetay/${branchId}`,
+  branchSettings: (branchId: number | string) => `/dashboard/subedetay/${branchId}/ayarlar`,
   catalogProductCheckout: (code: string) =>
     `/dashboard/dijital-menu/urun-satin-al/${encodeURIComponent(code)}`,
   digitalMenuEdit: (qrId: number | string) => `/dashboard/dijital-menu/qr/${qrId}`,
@@ -89,7 +88,7 @@ export const DASHBOARD_ROUTES = {
     branchId: number | string,
     qrId?: number | string | null,
   ) => {
-    const path = `/dashboard/dijital-menu/subeler/${branchId}/ayarlar/restoran-duzeni`;
+    const path = `/dashboard/subedetay/${branchId}/ayarlar/restoran-duzeni`;
     if (qrId == null || qrId === "") return path;
     return `${path}?qr=${qrId}`;
   },
@@ -453,6 +452,36 @@ export function buildDashboardBreadcrumbs(
     return [{ label: "Modüller" }];
   }
 
+  if (isBranchesSectionActive(pathname)) {
+    if (pathname === DASHBOARD_ROUTES.myBranches) {
+      crumbs.push({ label: "Şubelerim" });
+      return crumbs;
+    }
+    crumbs.push({ label: "Şubelerim", href: DASHBOARD_ROUTES.myBranches });
+    if (pathname === DASHBOARD_ROUTES.branchCreate) {
+      crumbs.push({ label: "Şube oluştur" });
+      return crumbs;
+    }
+    const detailId = parseBranchDetailId(pathname);
+    if (detailId != null) {
+      crumbs.push({ label: currentLabel ?? "Şube detayı" });
+      return crumbs;
+    }
+    const settingsId = parseBranchSettingsId(pathname);
+    if (settingsId != null) {
+      crumbs.push({ label: currentLabel ?? "Şube", href: DASHBOARD_ROUTES.branchDetail(settingsId) });
+      crumbs.push({ label: "Ayarlar" });
+      return crumbs;
+    }
+    const layoutId = parseRestaurantLayoutBranchId(pathname);
+    if (layoutId != null) {
+      crumbs.push({ label: currentLabel ?? "Şube ayarları", href: DASHBOARD_ROUTES.branchSettings(layoutId) });
+      crumbs.push({ label: "Restoran düzeni" });
+      return crumbs;
+    }
+    return crumbs;
+  }
+
   if (isReservationsSectionActive(pathname)) {
     crumbs.push({ label: "Rezervasyonlar" });
     return crumbs;
@@ -554,10 +583,6 @@ export function buildDashboardBreadcrumbs(
       crumbs[crumbs.length - 1] = { label: "Menü & Şubeler" };
       return crumbs;
     }
-    if (pathname === DASHBOARD_ROUTES.myBranches) {
-      crumbs[crumbs.length - 1] = { label: "Şubelerim" };
-      return crumbs;
-    }
     if (pathname === DASHBOARD_ROUTES.digitalMenuMenus) {
       crumbs.push({ label: "Şubeler" });
       return crumbs;
@@ -590,30 +615,11 @@ export function buildDashboardBreadcrumbs(
       return crumbs;
     }
     if (isRestaurantLayoutPath(pathname)) {
-      const layoutBranchId = parseRestaurantLayoutBranchId(pathname);
-      if (layoutBranchId != null) {
-        crumbs.push({
-          label: currentLabel ?? "Şube ayarları",
-          href: DASHBOARD_ROUTES.branchSettings(layoutBranchId),
-        });
-      }
       crumbs.push({ label: "Restoran düzeni" });
       return crumbs;
     }
     if (pathname === DASHBOARD_ROUTES.digitalMenuCreate) {
       crumbs.push({ label: "Menü Oluşturma Sihirbazı" });
-      return crumbs;
-    }
-    if (pathname === DASHBOARD_ROUTES.branchCreate) {
-      crumbs.push({ label: "Şube oluştur" });
-      return crumbs;
-    }
-    if (parseBranchDetailId(pathname) != null) {
-      crumbs.push({ label: currentLabel ?? "Şube" });
-      return crumbs;
-    }
-    if (pathname.startsWith(`${DASHBOARD_ROUTES.digitalMenu}/subeler/`)) {
-      crumbs.push({ label: currentLabel ?? "Şube ayarları" });
       return crumbs;
     }
     if (pathname.startsWith(`${DASHBOARD_ROUTES.digitalMenu}/qr/`)) {
@@ -696,23 +702,18 @@ export function buildDashboardBreadcrumbs(
   return crumbs;
 }
 
+const BRANCH_DETAIL_PREFIX = "/dashboard/subedetay/";
+
+export function isBranchesSectionActive(pathname: string): boolean {
+  return (
+    pathname === DASHBOARD_ROUTES.myBranches ||
+    pathname.startsWith(`${DASHBOARD_ROUTES.myBranches}/`) ||
+    pathname.startsWith(BRANCH_DETAIL_PREFIX)
+  );
+}
+
 export function isBranchesHubNavActive(pathname: string): boolean {
-  if (pathname === DASHBOARD_ROUTES.digitalMenu || pathname === DASHBOARD_ROUTES.myBranches) {
-    return true;
-  }
-  if (pathname === DASHBOARD_ROUTES.branchCreate) {
-    return true;
-  }
-  if (parseBranchDetailId(pathname) != null) {
-    return true;
-  }
-  if (parseBranchSettingsId(pathname) != null) {
-    return true;
-  }
-  if (parseRestaurantLayoutBranchId(pathname) != null) {
-    return true;
-  }
-  return false;
+  return pathname === DASHBOARD_ROUTES.digitalMenu || isBranchesSectionActive(pathname);
 }
 
 function isMenuSubsectionPath(pathname: string): boolean {
@@ -851,25 +852,24 @@ function parsePositiveId(value: string | undefined): number | null {
 }
 
 export function parseBranchDetailId(pathname: string): number | null {
-  const prefix = `${DASHBOARD_ROUTES.digitalMenu}/subeler/`;
-  if (!pathname.startsWith(prefix)) return null;
-  const rest = pathname.slice(prefix.length);
+  if (!pathname.startsWith(BRANCH_DETAIL_PREFIX)) return null;
+  const rest = pathname.slice(BRANCH_DETAIL_PREFIX.length);
   if (!rest || rest.includes("/")) return null;
   return parsePositiveId(rest);
 }
 
 export function parseBranchSettingsId(pathname: string): number | null {
-  const prefix = `${DASHBOARD_ROUTES.digitalMenu}/subeler/`;
-  if (!pathname.startsWith(prefix)) return null;
-  const [idSlug, settingsSlug, extra] = pathname.slice(prefix.length).split("/");
+  if (!pathname.startsWith(BRANCH_DETAIL_PREFIX)) return null;
+  const [idSlug, settingsSlug, extra] = pathname.slice(BRANCH_DETAIL_PREFIX.length).split("/");
   if (settingsSlug !== "ayarlar" || extra) return null;
   return parsePositiveId(idSlug);
 }
 
 export function parseRestaurantLayoutBranchId(pathname: string): number | null {
-  const prefix = `${DASHBOARD_ROUTES.digitalMenu}/subeler/`;
-  if (!pathname.startsWith(prefix)) return null;
-  const [idSlug, settingsSlug, layoutSlug, extra] = pathname.slice(prefix.length).split("/");
+  if (!pathname.startsWith(BRANCH_DETAIL_PREFIX)) return null;
+  const [idSlug, settingsSlug, layoutSlug, extra] = pathname
+    .slice(BRANCH_DETAIL_PREFIX.length)
+    .split("/");
   if (settingsSlug !== "ayarlar" || layoutSlug !== "restoran-duzeni" || extra) return null;
   return parsePositiveId(idSlug);
 }

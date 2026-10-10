@@ -32,7 +32,8 @@ import { resolvePublicMenuHref } from "@/lib/public-menu-href";
 import { invalidateMenuByQr, useMenuByQr } from "@/hooks/use-menu-by-qr";
 import { invalidatePackageUsage } from "@/hooks/use-package-usage";
 import { invalidateSubscription } from "@/hooks/use-subscription";
-import { ApiError, deleteMenuRequest, updateMenuRequest } from "@/lib/api";
+import { ApiError, assignMenuBranchRequest, deleteMenuRequest, updateMenuRequest } from "@/lib/api";
+import { invalidateBranches, useBranches } from "@/hooks/use-branches";
 import Link from "next/link";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { refreshAccessAfterEntitlementChange } from "@/lib/refresh-access";
@@ -56,10 +57,12 @@ export default function DigitalMenuSettingsView({ qrId }: DigitalMenuSettingsVie
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [menu, setMenu] = useState<MenuData>(createInitialMenuData());
+  const [branchId, setBranchId] = useState<number | null>(null);
   const [menuHydratedFor, setMenuHydratedFor] = useState<number | null>(null);
   const [chefSettings, setChefSettings] = useState<ChefChatSettings>(createEmptyChefChatSettings());
   const [chefSaving, setChefSaving] = useState(false);
 
+  const branchesQuery = useBranches(canUseDigitalMenu);
   const profile = menuQuery.data ?? null;
   const menuId = profile?.menuId ?? null;
   const chefSettingsQuery = useChefChatSettings(menuId);
@@ -84,6 +87,7 @@ export default function DigitalMenuSettingsView({ qrId }: DigitalMenuSettingsVie
       logoUrl: profile.logoUrl ?? "",
       coverUrl: profile.coverUrl ?? "",
     });
+    setBranchId(profile.branchId ?? null);
     setMenuHydratedFor(profile.menuId ?? null);
   }, [menuHydratedFor, profile]);
 
@@ -133,6 +137,7 @@ export default function DigitalMenuSettingsView({ qrId }: DigitalMenuSettingsVie
     }
     setSaving(true);
     try {
+      await assignMenuBranchRequest(menuId, branchId);
       await updateMenuRequest(menuId, {
         businessName: menu.businessName.trim(),
         slogan: menu.slogan.trim(),
@@ -144,6 +149,8 @@ export default function DigitalMenuSettingsView({ qrId }: DigitalMenuSettingsVie
         chefAvatarKey: menu.chefAvatarKey.trim() || "default",
       });
       await invalidateMenuByQr(queryClient, qrId);
+      await invalidateBranches(queryClient);
+      await queryClient.invalidateQueries({ queryKey: ["myMenus"] });
       notify("info", "Menü bilgileri güncellendi.");
     } catch (error) {
       notify("danger", error instanceof ApiError ? error.message : "Menü güncellenemedi.");
@@ -223,6 +230,29 @@ export default function DigitalMenuSettingsView({ qrId }: DigitalMenuSettingsVie
             </TabsList>
             {(["info", "appearance"] as const).map((section) => (
               <TabsContent key={section} value={section} className="mt-0 space-y-5">
+                {section === "info" ? (
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground" htmlFor="settings-menu-branch">
+                      Şube
+                    </label>
+                    <select
+                      id="settings-menu-branch"
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      value={branchId ?? ""}
+                      onChange={(event) => {
+                        const next = Number(event.target.value);
+                        setBranchId(Number.isSafeInteger(next) && next > 0 ? next : null);
+                      }}
+                    >
+                      <option value="">Şube atanmadı</option>
+                      {(branchesQuery.data?.content ?? []).map((branch) => (
+                        <option key={branch.id} value={branch.id}>
+                          {branch.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
                 <MenuDetails
                   value={menu}
                   onChange={setMenu}

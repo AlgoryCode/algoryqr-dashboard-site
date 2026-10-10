@@ -31,6 +31,7 @@ import { Label } from "@/components/ui/label";
 import { MoneyInput, parseMoneyInput } from "@/components/ui/money-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  createCatalogProductRequest,
   createMenuProductRequest,
   MenuProductRequestBody,
   NutritionBasis,
@@ -113,9 +114,9 @@ export default function DigitalMenuProductCreateView() {
   }, [searchParams]);
 
   const { accessLoading, canUseDigitalMenu } = useDigitalMenuAccess();
-  const selectionState = useDigitalMenuSelection(initialQrId, storeMenuId == null);
-  const qrId = storeMenuId != null ? null : selectionState.selection?.qr.id ?? initialQrId;
-  const menuId = storeMenuId ?? selectionState.selection?.menu.menuId ?? 0;
+  const selectionState = useDigitalMenuSelection(initialQrId, initialQrId != null && storeMenuId == null);
+  const qrId = storeMenuId != null ? null : initialQrId;
+  const menuId = storeMenuId ?? (initialQrId != null ? selectionState.selection?.menu.menuId ?? 0 : 0);
 
   const categoriesQuery = useMenuCategories(menuId > 0 ? menuId : null);
   const tagsQuery = useMenuTags();
@@ -190,12 +191,8 @@ export default function DigitalMenuProductCreateView() {
       notify("warning", "Ürün adı zorunlu.");
       return;
     }
-    if (!form.subCategoryId) {
+    if (menuId > 0 && !form.subCategoryId) {
       notify("warning", "Alt kategori seçimi zorunlu.");
-      return;
-    }
-    if (menuId <= 0) {
-      notify("warning", "Menü bilgisi yüklenemedi.");
       return;
     }
 
@@ -207,7 +204,7 @@ export default function DigitalMenuProductCreateView() {
 
     setSaving(true);
     try {
-      const created = await createMenuProductRequest(menuId, {
+      const payload = {
         ...form,
         price:
           form.price != null && String(form.price).trim() !== ""
@@ -215,9 +212,16 @@ export default function DigitalMenuProductCreateView() {
             : undefined,
         nutrition,
         optionGroups: toOptionGroupsPayload(optionGroups),
-      });
-      notify("info", "Ürün eklendi.");
-      await invalidateMenuProducts(queryClient, menuId, qrId ?? undefined);
+      };
+      const created =
+        menuId > 0
+          ? await createMenuProductRequest(menuId, payload)
+          : await createCatalogProductRequest(payload);
+      notify("info", menuId > 0 ? "Ürün menüye eklendi." : "Ürün oluşturuldu.");
+      if (menuId > 0) {
+        await invalidateMenuProducts(queryClient, menuId, qrId ?? undefined);
+      }
+      await queryClient.invalidateQueries({ queryKey: ["catalog-products"] });
       router.push(
         qrId != null
           ? DASHBOARD_ROUTES.digitalMenuProductDetail(created.productId, qrId)
@@ -285,7 +289,11 @@ export default function DigitalMenuProductCreateView() {
     <div className="space-y-6 animate-fade-in">
         <DashboardPageHeader
           title="Ürün Ekle"
-          hint="Ürün bilgilerini girin ve bir alt kategoriye bağlayın."
+          hint={
+            menuId > 0
+              ? "Ürün bilgilerini girin ve bir alt kategoriye bağlayın."
+              : "Ürün menü seçmeden oluşturulur. Daha sonra bir menüye atayabilirsiniz."
+          }
           back={
             <Link href={backHref} aria-label="Ürün listesine dön" className={DASHBOARD_BACK}>
               <ArrowLeft className="h-4 w-4" />
@@ -302,6 +310,8 @@ export default function DigitalMenuProductCreateView() {
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
             </div>
+            {menuId > 0 ? (
+            <>
             <div className="space-y-1.5">
               <Label className="text-xs">Ana Kategori</Label>
               <SearchableSelect
@@ -333,6 +343,8 @@ export default function DigitalMenuProductCreateView() {
                 disabled={mainCategoryId === ""}
               />
             </div>
+            </>
+            ) : null}
             <div className="space-y-1.5">
               <Label className="text-xs">Fiyat</Label>
               <MoneyInput

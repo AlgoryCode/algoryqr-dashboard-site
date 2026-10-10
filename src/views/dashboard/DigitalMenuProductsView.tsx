@@ -5,12 +5,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
-import {
-  DigitalMenuPicker,
-  useDigitalMenuSelection,
-} from "@/components/dashboard/menu/DigitalMenuPicker";
+import { CatalogProductsPanel } from "@/components/dashboard/menu/CatalogProductsPanel";
 import MenuProductsPanel from "@/components/dashboard/menu/MenuProductsPanel";
-import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { DASHBOARD_BACK, DASHBOARD_PANEL } from "@/lib/dashboard-surface";
@@ -26,15 +22,16 @@ export default function DigitalMenuProductsView() {
     return Number.isSafeInteger(raw) && raw > 0 ? raw : null;
   }, [searchParams]);
   const fromHub = initialQrId != null;
-  const selectionState = useDigitalMenuSelection(undefined, !fromHub);
-  const qrId = fromHub ? initialQrId : selectionState.selection?.qr.id ?? null;
-  const menuId = fromHub ? null : selectionState.selection?.menu.menuId ?? null;
 
   return (
     <div className="space-y-6 animate-fade-in">
       <DashboardPageHeader
         title="Ürünler"
-        hint="Ürünleri seçili menüye ekleyin ve kategorilere bağlayın."
+        hint={
+          fromHub
+            ? "Bu menünün ürünleri. Yeni ürün oluşturabilir veya var olan bir ürünü ekleyebilirsiniz."
+            : "Ürünler menüden bağımsız oluşturulur. İstediğiniz menüye daha sonra atanır."
+        }
         back={
           fromHub ? (
             <Link
@@ -48,28 +45,15 @@ export default function DigitalMenuProductsView() {
         }
       />
 
-        {!fromHub ? (
-          <DigitalMenuPicker
-            menuQrs={selectionState.menuQrs}
-            selectedQrId={selectionState.selection?.qr.id ?? null}
-            onSelectQrId={(id) => void selectionState.selectQrId(id)}
-            disabled={selectionState.loading}
-          />
-        ) : null}
-
-        {qrId != null ? (
+        {fromHub ? (
           <div className={DASHBOARD_PANEL}>
-            <MenuProductsPanel
-              menuId={menuId ?? 0}
-              qrId={qrId}
-              presetCategoryId={presetCategoryId}
-            />
+            <MenuProductsPanel menuId={0} qrId={initialQrId} presetCategoryId={presetCategoryId} />
           </div>
-        ) : selectionState.loading ? (
-          <DashboardLoadingState label="Menü bilgisi yükleniyor..." />
-        ) : selectionState.error ? (
-          <p className="text-sm text-destructive">{selectionState.error}</p>
-        ) : null}
+        ) : (
+          <div className={DASHBOARD_PANEL}>
+            <CatalogProductsPanel />
+          </div>
+        )}
     </div>
   );
 }

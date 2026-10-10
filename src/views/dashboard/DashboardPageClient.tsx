@@ -193,8 +193,7 @@ export default function DashboardPageClient({ initialUser = null }: DashboardPag
     return code === "QR_BRANCH" || code === "QR_MENU" ? code : null;
   }, [pathname]);
 
-  const branchDetailId = useMemo(() => parseBranchDetailId(pathname), [pathname]);
-  const branchSettingsId = useMemo(() => parseBranchSettingsId(pathname), [pathname]);
+  const branchDetailId = useMemo(() => parseBranchDetailId(pathname), [pathname]);  const branchSettingsId = useMemo(() => parseBranchSettingsId(pathname), [pathname]);
   const restaurantLayoutBranchId = useMemo(
     () => parseRestaurantLayoutBranchId(pathname),
     [pathname],
@@ -549,7 +548,6 @@ export default function DashboardPageClient({ initialUser = null }: DashboardPag
   if (pathname === DASHBOARD_ROUTES.myBranches) {
     return <MyBranchesView />;
   }
-
   if (pathname === DASHBOARD_ROUTES.digitalMenu) {
     return <DigitalMenuView />;
   }

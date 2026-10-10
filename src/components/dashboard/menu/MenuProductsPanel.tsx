@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, ImageIcon, Loader2, Plus, Trash2, Pencil } from "lucide-react";
 
+import { AddExistingProductDialog } from "@/components/dashboard/menu/AddExistingProductDialog";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -79,6 +81,7 @@ export default function MenuProductsPanel({
   );
   const [filterName, setFilterName] = useState("");
   const [debouncedFilterName, setDebouncedFilterName] = useState("");
+  const [existingOpen, setExistingOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ productId: number; name: string } | null>(
     null,
   );
@@ -211,6 +214,16 @@ export default function MenuProductsPanel({
             <Plus className="h-3.5 w-3.5" />
             Ürün Ekle
           </Button>
+          {resolvedMenuId > 0 ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full shrink-0 sm:w-auto"
+              onClick={() => setExistingOpen(true)}
+            >
+              Var olan ürün ekle
+            </Button>
+          ) : null}
           {qrId != null ? (
             <Button
               size="sm"
@@ -355,6 +368,14 @@ export default function MenuProductsPanel({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {resolvedMenuId > 0 ? (
+        <AddExistingProductDialog
+          open={existingOpen}
+          onOpenChange={setExistingOpen}
+          menuId={resolvedMenuId}
+          qrId={qrId}
+        />
+      ) : null}
     </div>
   );
 }

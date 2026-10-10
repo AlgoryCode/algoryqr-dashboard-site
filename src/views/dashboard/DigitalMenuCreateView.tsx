@@ -39,7 +39,10 @@ export default function DigitalMenuCreateView() {
   const { notify } = useDashboardBanners();
   const { accessLoading, canUseDigitalMenu } = useDigitalMenuAccess();
   const branchesQuery = useBranches(canUseDigitalMenu);
-  const branchId = Number(searchParams.get("branch"));
+  const branchFromQuery = Number(searchParams.get("branch"));
+  const [branchId, setBranchId] = useState<number | null>(
+    Number.isSafeInteger(branchFromQuery) && branchFromQuery > 0 ? branchFromQuery : null,
+  );
   const selectedBranch = useMemo(
     () => branchesQuery.data?.content.find((item) => item.id === branchId) ?? null,
     [branchId, branchesQuery.data?.content],
@@ -47,19 +50,13 @@ export default function DigitalMenuCreateView() {
   const extraMenuQuotaLabel = formatBranchMenuQuota(branchesQuery.data?.menuQuota);
   const canCreateNewMenu = selectedBranch
     ? canCreateMenuOnBranch(selectedBranch, branchesQuery.data?.menuQuota)
-    : false;
+    : true;
   const { menuQrs, loading: menusLoading } = useDigitalMenuOptions(canUseDigitalMenu);
   const [menu, setMenu] = useState<MenuData>(createInitialMenuData());
   const [copyFromExisting, setCopyFromExisting] = useState(false);
   const [sourceQrId, setSourceQrId] = useState<number | null>(null);
   const [prefillLoading, setPrefillLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (!Number.isSafeInteger(branchId) || branchId <= 0) {
-      router.replace(DASHBOARD_ROUTES.digitalMenu);
-    }
-  }, [branchId, router]);
 
   useEffect(() => {
     if (!selectedBranch || copyFromExisting) return;
@@ -135,12 +132,7 @@ export default function DigitalMenuCreateView() {
       notify("warning", "Menü QR oluşturmak için PRO paket gerekli.");
       return;
     }
-    if (!Number.isSafeInteger(branchId) || branchId <= 0 || selectedBranch == null) {
-      notify("warning", "Menü oluşturmak için bir şube seçin.");
-      router.push(DASHBOARD_ROUTES.digitalMenu);
-      return;
-    }
-    if (!canCreateNewMenu) {
+    if (selectedBranch != null && !canCreateNewMenu) {
       router.push(DASHBOARD_ROUTES.catalogProductCheckout("QR_MENU"));
       return;
     }
@@ -173,7 +165,7 @@ export default function DigitalMenuCreateView() {
             themeId: menu.themeId,
           },
           [],
-          { sourceMenuId, branchId },
+          { sourceMenuId, branchId: branchId ?? undefined },
         ),
       });
       await invalidatePackageUsage(queryClient);
@@ -183,6 +175,7 @@ export default function DigitalMenuCreateView() {
       await Promise.all([
         invalidateUserQrs(queryClient, storedUser?.id != null ? String(storedUser.id) : "me"),
         invalidateMyActiveMenus(queryClient),
+        queryClient.invalidateQueries({ queryKey: ["myMenus"] }),
       ]);
       notify(
         "info",
@@ -206,7 +199,7 @@ export default function DigitalMenuCreateView() {
     }
   };
 
-  if (accessLoading || branchesQuery.isLoading) {
+  if (accessLoading) {
     return (
       <div className="space-y-6 animate-fade-in">
         <DashboardPageHeader title="Menü Oluşturma Sihirbazı" hint="İşletme bilgilerini girin." />
@@ -226,25 +219,16 @@ export default function DigitalMenuCreateView() {
     );
   }
 
-  if (!selectedBranch) {
-    return (
-      <div className="space-y-4 animate-fade-in">
-        <Button variant="outline" onClick={() => router.push(DASHBOARD_ROUTES.digitalMenu)}>
-          Şubelere dön
-        </Button>
-        <p className="text-sm text-muted-foreground">Menü oluşturmak için geçerli bir şube seçin.</p>
-      </div>
-    );
-  }
+  const branches = branchesQuery.data?.content ?? [];
 
   return (
     <div className="space-y-6 animate-fade-in">
       <DashboardPageHeader
         title="Menü Oluşturma Sihirbazı"
         hint={
-          extraMenuQuotaLabel
-            ? `${selectedBranch.name} şubesi için işletme bilgilerini girin. · ${extraMenuQuotaLabel}`
-            : `${selectedBranch.name} şubesi için işletme bilgilerini girin.`
+          selectedBranch
+            ? `${selectedBranch.name} şubesine atanacak.${extraMenuQuotaLabel ? ` · ${extraMenuQuotaLabel}` : ""}`
+            : "Şube seçmeden menü oluşturabilirsiniz. İsterseniz bir şubeye atayın."
         }
         back={
           <Link href={DASHBOARD_ROUTES.digitalMenu} aria-label="Menüye dön" className={DASHBOARD_BACK}>
@@ -303,6 +287,30 @@ export default function DigitalMenuCreateView() {
 
       <div className={`${DASHBOARD_PANEL} space-y-5`}>
         <h2 className="text-base font-semibold text-foreground">İşletme Bilgileri</h2>
+        <div className="space-y-2">
+          <label className="text-xs text-muted-foreground" htmlFor="menu-branch">
+            Şube
+          </label>
+          <select
+            id="menu-branch"
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            value={branchId ?? ""}
+            onChange={(event) => {
+              const next = Number(event.target.value);
+              setBranchId(Number.isSafeInteger(next) && next > 0 ? next : null);
+            }}
+          >
+            <option value="">Şube seçilmedi</option>
+            {branches.map((branch) => (
+              <option key={branch.id} value={branch.id}>
+                {branch.name}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground">
+            İsteğe bağlı. Menüyü daha sonra da bir şubeye atayabilirsiniz.
+          </p>
+        </div>
         <MenuDetails value={menu} onChange={setMenu} showChefIdentity={false} />
       </div>
 

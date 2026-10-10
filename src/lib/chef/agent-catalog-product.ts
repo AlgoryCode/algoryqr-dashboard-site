@@ -35,7 +35,7 @@ export function mapMenuProductToAgentCatalog(product: MenuProductApiItem): Agent
   const description = product.description?.trim();
   return {
     productId: product.productId,
-    menuId: product.menuId,
+    menuId: product.menuId ?? 0,
     name: product.name.trim(),
     description: description ? description.slice(0, 500) : null,
     subCategoryId: product.subCategoryId ?? null,

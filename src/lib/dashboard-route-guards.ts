@@ -6,6 +6,7 @@ import {
   isReservationsSectionActive,
   isRestaurantLayoutPath,
   isUberEatsSectionActive,
+  isBranchesSectionActive,
 } from "@/lib/dashboard-routes";
 
 function pathMatches(pathname: string, route: string): boolean {
@@ -46,6 +47,10 @@ export function resolveRequiredScope(pathname: string): ProductScope | null {
     return "QR_CREATE_OWNER";
   }
 
+  if (isBranchesSectionActive(pathname)) {
+    return "QR_MENU_OWNER";
+  }
+
   if (isDigitalMenuSectionActive(pathname)) {
     return "QR_MENU_OWNER";
   }
@@ -65,6 +70,7 @@ export const ROUTE_SCOPES: Partial<Record<string, ProductScope>> = {
   [DASHBOARD_ROUTES.smartReports]: "SMART_REPORTING_OWNER",
   [DASHBOARD_ROUTES.qrCodes]: "QR_CREATE_OWNER",
   [DASHBOARD_ROUTES.digitalMenu]: "QR_MENU_OWNER",
+  [DASHBOARD_ROUTES.myBranches]: "QR_MENU_OWNER",
   [DASHBOARD_ROUTES.uberEats]: "QR_MENU_OWNER",
   [DASHBOARD_ROUTES.uberEatsProducts]: "QR_MENU_OWNER",
   [DASHBOARD_ROUTES.uberEatsOrders]: "QR_MENU_OWNER",

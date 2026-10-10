@@ -10,16 +10,18 @@ import { EmptyState } from "@/components/dashboard/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useListQueryState } from "@/hooks/use-list-query-state";
+import { useQuery } from "@tanstack/react-query";
+
 import { useBranches } from "@/hooks/use-branches";
-import { canCreateMenuOnBranch, type BranchItem, type BranchListResponse } from "@/lib/branch";
+import { getMyMenusRequest } from "@/lib/api";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { ACCOUNT_CARD } from "@/lib/dashboard-surface";
 import { resolvePublicMenuHref } from "@/lib/public-menu-href";
 import {
   DEFAULT_MENU_DIRECTORY_FILTERS,
   filterMenuDirectory,
-  flattenBranchMenus,
   sortMenuDirectoryByMenuName,
+  withUnassignedMenus,
   type DigitalMenuDirectoryItem,
   type MenuDirectoryStatusFilter,
 } from "@/lib/digital-menu-directory";
@@ -79,17 +81,8 @@ function MenuDirectoryRow({
   );
 }
 
-export function resolveCreateMenuHref(branches: BranchItem[], list: BranchListResponse | undefined): string {
-  if (branches.length === 0) {
-    return list?.quota.canCreate
-      ? DASHBOARD_ROUTES.branchCreate
-      : DASHBOARD_ROUTES.catalogProductCheckout("QR_BRANCH");
-  }
-  const creatable = branches.find((branch) => canCreateMenuOnBranch(branch, list?.menuQuota));
-  if (creatable) {
-    return DASHBOARD_ROUTES.digitalMenuCreateForBranch(creatable.id);
-  }
-  return DASHBOARD_ROUTES.catalogProductCheckout("QR_MENU");
+export function resolveCreateMenuHref(): string {
+  return DASHBOARD_ROUTES.digitalMenuCreate;
 }
 
 type DigitalMenuFlatListProps = {
@@ -101,10 +94,17 @@ export function DigitalMenuFlatList({ toolbarEnd, listHeading }: DigitalMenuFlat
   const router = useRouter();
   const { searchParams, setQuery: setListQuery } = useListQueryState();
   const branchesQuery = useBranches(true);
+  const menusQuery = useQuery({
+    queryKey: ["myMenus"],
+    queryFn: getMyMenusRequest,
+  });
   const branches = branchesQuery.data?.content ?? [];
   const allMenus = useMemo(
-    () => sortMenuDirectoryByMenuName(flattenBranchMenus(branches)),
-    [branches],
+    () =>
+      sortMenuDirectoryByMenuName(
+        withUnassignedMenus(branches, menusQuery.data ?? []),
+      ),
+    [menusQuery.data, branches],
   );
 
   const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
@@ -122,10 +122,11 @@ export function DigitalMenuFlatList({ toolbarEnd, listHeading }: DigitalMenuFlat
     [allMenus, branchId, query, status],
   );
 
-  const createHref = resolveCreateMenuHref(branches, branchesQuery.data);
+  const createHref = resolveCreateMenuHref();
   const branchFilterOptions = useMemo(() => {
     const menuCountByBranch = new Map<number, number>();
     for (const menu of allMenus) {
+      if (menu.branchId == null) continue;
       menuCountByBranch.set(menu.branchId, (menuCountByBranch.get(menu.branchId) ?? 0) + 1);
     }
     return [...branches]
@@ -144,7 +145,7 @@ export function DigitalMenuFlatList({ toolbarEnd, listHeading }: DigitalMenuFlat
     setBranchId(next);
     setListQuery({ branch: next === "all" ? null : String(next) });
   };
-  const loading = branchesQuery.isLoading;
+  const loading = branchesQuery.isLoading || menusQuery.isLoading;
 
   return (
     <div className="space-y-4">
@@ -203,14 +204,12 @@ export function DigitalMenuFlatList({ toolbarEnd, listHeading }: DigitalMenuFlat
         <EmptyState
           title="Henüz menü yok"
           description={
-            branches.length === 0
-              ? "İlk menünüzü eklemek için bir şube oluşturun."
-              : "İlk dijital menünüzü oluşturarak başlayın."
+            "İlk dijital menünüzü oluşturarak başlayın. Şubeye daha sonra atayabilirsiniz."
           }
           action={
             <Button onClick={() => router.push(createHref)}>
               <Plus className="mr-2 h-4 w-4" />
-              {branches.length === 0 ? "Şube oluştur" : "Menü oluştur"}
+              Menü oluştur
             </Button>
           }
         />

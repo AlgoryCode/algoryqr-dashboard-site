@@ -14,7 +14,7 @@ function asNumber(value: number | string | null | undefined): number | null {
 export function mapMenuProductToChefItem(product: MenuProductApiItem): ChefProductItem {
   return {
     productId: product.productId,
-    menuId: product.menuId,
+    menuId: product.menuId ?? 0,
     name: product.name,
     description: product.description ?? null,
     subCategoryId: product.subCategoryId ?? null,
