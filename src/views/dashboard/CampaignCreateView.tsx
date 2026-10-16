@@ -11,6 +11,7 @@ import {
   useDigitalMenuAccess,
   useDigitalMenuSelection,
 } from "@/components/dashboard/menu/DigitalMenuPicker";
+import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { CampaignImageField } from "@/components/dashboard/menu/CampaignImageField";
 import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
@@ -47,7 +48,7 @@ export default function CampaignCreateView() {
   const qrFromQuery = Number(searchParams.get("qr"));
   const initialQrId = Number.isFinite(qrFromQuery) && qrFromQuery > 0 ? qrFromQuery : null;
 
-  const { accessLoading, canUseDigitalMenu } = useDigitalMenuAccess();
+  const { accessLoading, accessError, retryAccess, canUseDigitalMenu } = useDigitalMenuAccess();
   const { menuQrs, selection, loading, selectQrId } = useDigitalMenuSelection(
     initialQrId,
     canUseDigitalMenu && !accessLoading,
@@ -180,6 +181,10 @@ export default function CampaignCreateView() {
       notify("danger", err instanceof Error ? err.message : "Kampanya oluşturulamadı.");
     },
   });
+
+  if (accessError) {
+    return <AccessLoadError onRetry={() => void retryAccess()} />;
+  }
 
   if (accessLoading || loading) {
     return (

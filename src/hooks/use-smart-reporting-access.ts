@@ -9,7 +9,12 @@ import { packageIncludesProduct } from "@/lib/product-access";
 const SMART_REPORTING_PRODUCT = "SMART_REPORTING";
 
 export function useSmartReportingAccess() {
-  const { data: accessProfile, isLoading: accessLoading } = useAccessProfile();
+  const {
+    data: accessProfile,
+    isLoading: accessLoading,
+    isError: accessError,
+    refetch: retryAccess,
+  } = useAccessProfile();
   const packages = useActivePackages();
   const catalogPackages = packages.data ?? [];
   const canUseSmartReporting = hasProduct(accessProfile, SMART_REPORTING_PRODUCT);
@@ -21,6 +26,8 @@ export function useSmartReportingAccess() {
 
   return {
     accessLoading: accessLoading || packages.isLoading,
+    accessError,
+    retryAccess,
     canUseSmartReporting,
     smartReportingPackageNames,
   };

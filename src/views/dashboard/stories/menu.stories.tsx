@@ -18,6 +18,7 @@ export const MenuOlustur = dashboardPage("Menü oluştur", DASHBOARD_ROUTES.digi
 export const MenuDuzenle = dashboardPage("Menü düzenle", DASHBOARD_ROUTES.digitalMenuEdit(34));
 export const MenuAyarlari = dashboardPage("Menü ayarları", DASHBOARD_ROUTES.digitalMenuSettings(34));
 export const Kategoriler = dashboardPage("Kategoriler", DASHBOARD_ROUTES.digitalMenuCategories, qr);
+export const Opsiyonlar = dashboardPage("Opsiyonlar", DASHBOARD_ROUTES.digitalMenuOptions);
 export const Urunler = dashboardPage("Ürünler", DASHBOARD_ROUTES.digitalMenuProducts, qr);
 export const UrunOlustur = dashboardPage("Ürün oluştur", DASHBOARD_ROUTES.digitalMenuProductCreate, qr);
 export const UrunDetay = dashboardPage("Ürün detay", "/dashboard/dijital-menu/urunler/101", { qr: "34" });

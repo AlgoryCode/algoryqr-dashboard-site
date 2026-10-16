@@ -41,7 +41,7 @@ import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { PRODUCT_HINTS } from "@/lib/product-hints";
 import { createSmartSummaryRequest } from "@/lib/smart-summary";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
-import { useMenuCategories, useMenuAllergens, useMenuTags } from "@/hooks/use-menu-categories";
+import { useCatalogCategories, useMenuCategories, useMenuAllergens, useMenuTags } from "@/hooks/use-menu-categories";
 import { invalidateMenuProducts, useMenuProducts } from "@/hooks/use-menu-products";
 import { useSmartSummaryAccess } from "@/hooks/use-smart-summary-access";
 import { DASHBOARD_BACK, DASHBOARD_PANEL } from "@/lib/dashboard-surface";
@@ -119,9 +119,10 @@ export default function DigitalMenuProductCreateView() {
   const menuId = storeMenuId ?? (initialQrId != null ? selectionState.selection?.menu.menuId ?? 0 : 0);
 
   const categoriesQuery = useMenuCategories(menuId > 0 ? menuId : null);
+  const catalogCategoriesQuery = useCatalogCategories(menuId <= 0);
   const tagsQuery = useMenuTags();
   const allergensQuery = useMenuAllergens();
-  const categories = categoriesQuery.data ?? [];
+  const categories = (menuId > 0 ? categoriesQuery.data : catalogCategoriesQuery.data) ?? [];
   const tags = tagsQuery.data ?? [];
   const allergens = allergensQuery.data ?? [];
   const productsQuery = useMenuProducts(menuId > 0 ? menuId : null);
@@ -142,15 +143,22 @@ export default function DigitalMenuProductCreateView() {
   }, [categories, presetCategoryId]);
 
   useEffect(() => {
-    if (categoriesQuery.isError) {
+    const activeError = menuId > 0 ? categoriesQuery.error : catalogCategoriesQuery.error;
+    const activeIsError = menuId > 0 ? categoriesQuery.isError : catalogCategoriesQuery.isError;
+    if (activeIsError) {
       notify(
         "danger",
-        categoriesQuery.error instanceof Error
-          ? categoriesQuery.error.message
-          : "Kategoriler yüklenemedi.",
+        activeError instanceof Error ? activeError.message : "Kategoriler yüklenemedi.",
       );
     }
-  }, [categoriesQuery.error, categoriesQuery.isError, notify]);
+  }, [
+    catalogCategoriesQuery.error,
+    catalogCategoriesQuery.isError,
+    categoriesQuery.error,
+    categoriesQuery.isError,
+    menuId,
+    notify,
+  ]);
 
   const selectedMain = categories.find((main) => main.id === mainCategoryId);
   const subOptions = selectedMain?.subs ?? [];
@@ -292,7 +300,7 @@ export default function DigitalMenuProductCreateView() {
           hint={
             menuId > 0
               ? "Ürün bilgilerini girin ve bir alt kategoriye bağlayın."
-              : "Ürün menü seçmeden oluşturulur. Daha sonra bir menüye atayabilirsiniz."
+              : "Ürün menü olmadan oluşturulur. İsterseniz bir kategoriye bağlayın."
           }
           back={
             <Link href={backHref} aria-label="Ürün listesine dön" className={DASHBOARD_BACK}>
@@ -310,8 +318,6 @@ export default function DigitalMenuProductCreateView() {
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
             </div>
-            {menuId > 0 ? (
-            <>
             <div className="space-y-1.5">
               <Label className="text-xs">Ana Kategori</Label>
               <SearchableSelect
@@ -343,8 +349,6 @@ export default function DigitalMenuProductCreateView() {
                 disabled={mainCategoryId === ""}
               />
             </div>
-            </>
-            ) : null}
             <div className="space-y-1.5">
               <Label className="text-xs">Fiyat</Label>
               <MoneyInput

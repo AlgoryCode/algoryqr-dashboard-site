@@ -7,6 +7,7 @@ import { useState } from "react";
 
 import { useRequireScope } from "@/components/auth/RequireScope";
 import BranchSmartReportStory from "@/components/dashboard/BranchSmartReportStory";
+import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { Button } from "@/components/ui/button";
@@ -49,7 +50,7 @@ function formatDateTime(value?: string | null): string {
 }
 
 export default function SmartReportDetailView({ jobId }: Props) {
-  const { allowed, isLoading: accessLoading } = useRequireScope("SMART_REPORTING_OWNER");
+  const { allowed, isLoading: accessLoading, isError, retry } = useRequireScope("SMART_REPORTING_OWNER");
   const { toast } = useToast();
   const [pdfLoading, setPdfLoading] = useState(false);
 
@@ -62,6 +63,10 @@ export default function SmartReportDetailView({ jobId }: Props) {
       return isSmartReportPending(status) ? SMART_REPORT_POLL_INTERVAL_MS : false;
     },
   });
+
+  if (isError) {
+    return <AccessLoadError onRetry={() => void retry()} />;
+  }
 
   if (accessLoading) {
     return (

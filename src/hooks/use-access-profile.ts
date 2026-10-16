@@ -15,13 +15,15 @@ export function useAccessProfile(enabled = true) {
   }, [enabled, status]);
 
   const pending = enabled && (status === "idle" || status === "loading");
+  const failed = enabled && status === "error";
   return {
     data: status === "ready" ? profile ?? undefined : undefined,
     isLoading: pending,
     isPending: pending,
     isSuccess: status === "ready",
-    isError: false,
-    status: status === "ready" ? ("success" as const) : ("pending" as const),
+    isError: failed,
+    status: status === "ready" ? ("success" as const) : failed ? ("error" as const) : ("pending" as const),
+    refetch: () => loadPackageAccess(true),
   };
 }
 

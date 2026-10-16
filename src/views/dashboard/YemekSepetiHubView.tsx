@@ -11,6 +11,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
+import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { useDigitalMenuAccess } from "@/components/dashboard/menu/DigitalMenuPicker";
 import { ApiError } from "@/lib/api";
@@ -46,7 +47,7 @@ function SummaryField({ label, value, title }: { label: string; value: string; t
 export default function YemekSepetiHubView() {
   const { notify } = useDashboardBanners();
   const queryClient = useQueryClient();
-  const { accessLoading, canUseDigitalMenu } = useDigitalMenuAccess();
+  const { accessLoading, accessError, retryAccess, canUseDigitalMenu } = useDigitalMenuAccess();
   const [sellerId, setSellerId] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
@@ -114,6 +115,10 @@ export default function YemekSepetiHubView() {
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
+  }
+
+  if (accessError) {
+    return <AccessLoadError onRetry={() => void retryAccess()} />;
   }
 
   if (!canUseDigitalMenu) {

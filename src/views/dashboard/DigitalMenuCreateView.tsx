@@ -11,6 +11,7 @@ import {
   useDigitalMenuAccess,
   useDigitalMenuOptions,
 } from "@/components/dashboard/menu/DigitalMenuPicker";
+import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { MenuDetails, createInitialMenuData, type MenuData } from "@/components/dashboard/qr-create/MenuDetails";
@@ -37,7 +38,7 @@ export default function DigitalMenuCreateView() {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { notify } = useDashboardBanners();
-  const { accessLoading, canUseDigitalMenu } = useDigitalMenuAccess();
+  const { accessLoading, accessError, retryAccess, canUseDigitalMenu } = useDigitalMenuAccess();
   const branchesQuery = useBranches(canUseDigitalMenu);
   const branchFromQuery = Number(searchParams.get("branch"));
   const [branchId, setBranchId] = useState<number | null>(
@@ -206,6 +207,10 @@ export default function DigitalMenuCreateView() {
         <DashboardLoadingState label="Menü oluşturma ekranı hazırlanıyor…" />
       </div>
     );
+  }
+
+  if (accessError) {
+    return <AccessLoadError onRetry={() => void retryAccess()} />;
   }
 
   if (!canUseDigitalMenu) {

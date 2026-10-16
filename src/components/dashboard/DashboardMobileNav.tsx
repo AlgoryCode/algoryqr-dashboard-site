@@ -18,7 +18,6 @@ import {
   QrCode,
   Search,
   Sparkles,
-  Tags,
   TrendingUp,
   User,
   UsersRound,
@@ -50,7 +49,6 @@ const NAV_ICONS: Record<DashboardNavKey, ComponentType<{ className?: string }>> 
   myBranches: Building2,
   myMenus: DigitalMenuIcon,
   products: Package,
-  categories: Tags,
   uberEats: UtensilsCrossed,
   liveOrders: ChefHat,
   reservations: CalendarDays,
@@ -91,6 +89,7 @@ export function DashboardMobileNav({
 }: DashboardMobileNavProps) {
   const pathname = usePathname();
   const { primary, overflow } = splitMobileDashboardNav(items);
+  const primaryChildren = primary.flatMap((item) => item.children ?? []);
   const columns = Math.max(primary.length, 1);
 
   useEffect(() => {
@@ -102,14 +101,16 @@ export function DashboardMobileNav({
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden"
       aria-label="Mobil gezinme"
     >
-      <div className="flex items-stretch gap-0 px-1">
+      <div className="flex items-stretch gap-0 pl-1">
       <div
         className="grid min-w-0 flex-1"
         style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
       >
         {primary.map((item) => {
           const Icon = NAV_ICONS[item.key];
-          const active = isDashboardNavActive(pathname, item.href, item.key);
+          const active =
+            isDashboardNavActive(pathname, item.href, item.key) ||
+            (item.children ?? []).some((child) => isDashboardNavActive(pathname, child.href));
           const badgeCount = item.badgeKey === "pendingOrders" ? pendingOrderCount : 0;
           return (
             <Link key={item.key} href={item.href} className={tabClass(active)}>
@@ -126,7 +127,7 @@ export function DashboardMobileNav({
           );
         })}
       </div>
-        <div className="flex items-stretch border-l border-border">
+        <div className="-mt-px flex items-stretch self-stretch border-l border-border">
           <DashboardAssistantLauncher appearance="bar" />
         </div>
       </div>
@@ -161,18 +162,55 @@ export function DashboardMobileNav({
               const active = isDashboardNavActive(pathname, item.href, item.key);
               const badgeCount = item.badgeKey === "pendingOrders" ? pendingOrderCount : 0;
               return (
+                <div key={item.key} className="grid gap-1">
+                  <Link
+                    href={item.href}
+                    onClick={() => onMoreOpenChange(false)}
+                    className={cn(
+                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm",
+                      active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                    )}
+                  >
+                    <Icon className="size-4 shrink-0" />
+                    <span className="flex-1">{item.label}</span>
+                    <NavBadge count={badgeCount} />
+                  </Link>
+                  {(item.children ?? []).map((child) => {
+                    const childActive = isDashboardNavActive(pathname, child.href);
+                    return (
+                      <Link
+                        key={child.key}
+                        href={child.href}
+                        onClick={() => onMoreOpenChange(false)}
+                        className={cn(
+                          "flex items-center rounded-lg py-2 pl-10 pr-3 text-sm",
+                          childActive
+                            ? "bg-primary/10 text-primary"
+                            : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                        )}
+                      >
+                        {child.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              );
+            })}
+            {primaryChildren.map((child) => {
+              const childActive = isDashboardNavActive(pathname, child.href);
+              return (
                 <Link
-                  key={item.key}
-                  href={item.href}
+                  key={child.key}
+                  href={child.href}
                   onClick={() => onMoreOpenChange(false)}
                   className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm",
-                    active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                    "flex items-center rounded-lg px-3 py-2.5 text-sm",
+                    childActive
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                   )}
                 >
-                  <Icon className="size-4 shrink-0" />
-                  <span className="flex-1">{item.label}</span>
-                  <NavBadge count={badgeCount} />
+                  {child.label}
                 </Link>
               );
             })}

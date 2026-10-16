@@ -56,6 +56,7 @@ const OVERVIEW_MODULES: OverviewModule[] = [
       { label: "Menülerim", href: DASHBOARD_ROUTES.digitalMenuMenus, requiredScope: "QR_MENU_OWNER" },
       { label: "Ürünler", href: DASHBOARD_ROUTES.digitalMenuProducts, requiredScope: "QR_MENU_OWNER" },
       { label: "Kategoriler", href: DASHBOARD_ROUTES.digitalMenuCategories, requiredScope: "QR_MENU_OWNER" },
+      { label: "Opsiyonlar", href: DASHBOARD_ROUTES.digitalMenuOptions, requiredScope: "QR_MENU_OWNER" },
     ],
   },
   {
@@ -71,7 +72,7 @@ const OVERVIEW_MODULES: OverviewModule[] = [
     description: "Personel hesapları, roller ve performans",
     icon: IdCard,
     links: [
-      { label: "Personel", href: DASHBOARD_ROUTES.menuUsers, requiredScope: "WAITER_PANEL_OWNER" },
+      { label: "Personeller", href: DASHBOARD_ROUTES.menuUsers, requiredScope: "WAITER_PANEL_OWNER" },
       { label: "Performans", href: DASHBOARD_ROUTES.reportsHub, requiredScope: "SMART_REPORTING_OWNER" },
     ],
   },

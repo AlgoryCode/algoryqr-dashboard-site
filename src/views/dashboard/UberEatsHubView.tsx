@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
 import { IntegrationsSectionHeader } from "@/components/dashboard/IntegrationsSectionHeader";
 import { useDigitalMenuAccess } from "@/components/dashboard/menu/DigitalMenuPicker";
@@ -53,7 +54,7 @@ function SummaryField({ label, value, title }: { label: string; value: string; t
 export default function UberEatsHubView() {
   const { notify } = useDashboardBanners();
   const queryClient = useQueryClient();
-  const { accessLoading, canUseDigitalMenu } = useDigitalMenuAccess();
+  const { accessLoading, accessError, retryAccess, canUseDigitalMenu } = useDigitalMenuAccess();
   const [sellerId, setSellerId] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
@@ -118,6 +119,10 @@ export default function UberEatsHubView() {
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
+  }
+
+  if (accessError) {
+    return <AccessLoadError onRetry={() => void retryAccess()} />;
   }
 
   if (!canUseDigitalMenu) {

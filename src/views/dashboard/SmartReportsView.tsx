@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Clock, FileText, RefreshCw } from "lucide-react";
 
 import { useRequireScope } from "@/components/auth/RequireScope";
+import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { EmptyState } from "@/components/dashboard/EmptyState";
@@ -128,7 +129,7 @@ function QuotaCountdownCard({
 }
 
 export default function SmartReportsView() {
-  const { allowed, isLoading: accessLoading } = useRequireScope("SMART_REPORTING_OWNER");
+  const { allowed, isLoading: accessLoading, isError, retry } = useRequireScope("SMART_REPORTING_OWNER");
   const listQuery = useQuery({
     queryKey: ["smart-reports", "list", "all"],
     queryFn: () => listSmartReportsRequest({ page: 0, size: 50, status: "all" }),
@@ -143,6 +144,10 @@ export default function SmartReportsView() {
     queryFn: getSmartReportQuotaRequest,
     enabled: allowed,
   });
+
+  if (isError) {
+    return <AccessLoadError onRetry={() => void retry()} />;
+  }
 
   if (accessLoading) {
     return (

@@ -15,7 +15,12 @@ import { usePackageStore } from "@/stores/package-access-store";
 const QR_CREATE_PRODUCT = "QR_CREATE";
 
 export function useQrCreateAccess() {
-  const { data: accessProfile, isLoading: accessLoading } = useAccessProfile();
+  const {
+    data: accessProfile,
+    isLoading: accessLoading,
+    isError: accessError,
+    refetch: retryAccess,
+  } = useAccessProfile();
   const entitlements = usePackageStore((state) => state.entitlements);
   const hasProductAccess = hasProduct(accessProfile, QR_CREATE_PRODUCT);
   const right = entitlements.find((item) => item.productCode === QR_CREATE_PRODUCT) ?? null;
@@ -40,6 +45,8 @@ export function useQrCreateAccess() {
 
   return {
     accessLoading,
+    accessError,
+    retryAccess,
     canCreateQr,
     hasProductAccess,
     hasQuotaRemaining,

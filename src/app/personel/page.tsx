@@ -1,12 +1,7 @@
-import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
-import PersonelApp from "@/views/personel/PersonelApp";
-
-export const metadata: Metadata = {
-  title: "Personel",
-  robots: { index: false, follow: false },
-};
+import { STAFF_SITE_ORIGIN } from "@/lib/config";
 
 export default function StaffGatePage() {
-  return <PersonelApp />;
+  redirect(STAFF_SITE_ORIGIN);
 }

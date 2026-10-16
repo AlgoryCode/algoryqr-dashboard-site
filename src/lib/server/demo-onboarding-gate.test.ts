@@ -33,8 +33,11 @@ describe("demo-onboarding-gate", () => {
     expect(isDemoOnboardingApiAllowed("/api/waiter-panel/menu/1/areas", "POST")).toBe(true);
     expect(isDemoOnboardingApiAllowed("/api/waiter-panel/menu/1/tables", "POST")).toBe(true);
     expect(isDemoOnboardingApiAllowed("/api/waiter-panel/branch/1/waiters", "POST")).toBe(true);
+    expect(isDemoOnboardingApiAllowed("/api/waiter-panel/branch/1/staff", "POST")).toBe(true);
     expect(isDemoOnboardingApiAllowed("/api/waiter-panel/menu/1/areas", "GET")).toBe(true);
     expect(isDemoOnboardingApiAllowed("/api/waiter-panel/branch/1/waiters", "GET")).toBe(true);
+    expect(isDemoOnboardingApiAllowed("/api/waiter-panel/staff", "POST")).toBe(true);
+    expect(isDemoOnboardingApiAllowed("/api/waiter-panel/staff/4/branch", "PATCH")).toBe(true);
   });
 
   it("blocks general dashboard APIs until setup completes", () => {

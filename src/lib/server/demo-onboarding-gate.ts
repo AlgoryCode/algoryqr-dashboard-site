@@ -151,6 +151,9 @@ const DEMO_ONBOARDING_API_ALLOWLIST: ReadonlyArray<{ method: string; path: strin
   { method: "POST", path: "/waiter-panel/menu" },
   { method: "GET", path: "/waiter-panel/branch" },
   { method: "POST", path: "/waiter-panel/branch" },
+  { method: "GET", path: "/waiter-panel/staff" },
+  { method: "POST", path: "/waiter-panel/staff" },
+  { method: "PATCH", path: "/waiter-panel/staff" },
 ];
 
 function normalizeApiPath(pathname: string): string {

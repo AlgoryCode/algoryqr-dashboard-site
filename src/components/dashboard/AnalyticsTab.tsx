@@ -23,7 +23,7 @@ import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { DASHBOARD_BACK } from "@/lib/dashboard-surface";
 import { hasScope } from "@/lib/auth-user";
 import { SlidingTabSelect } from "@/components/ui/sliding-tab-select";
-import { listMenuUsers, STAFF_ROLE_LABEL } from "@/lib/waiter-api";
+import { listMenuUsers, STAFF_ROLE_LABEL } from "@/lib/personnel-management-api";
 import { filterStaffReport } from "@/components/dashboard/smart-report/staff-metrics";
 import {
   reportingPeriodRange,

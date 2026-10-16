@@ -6,11 +6,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 import MenuCategoriesPanel from "@/components/dashboard/menu/MenuCategoriesPanel";
-import {
-  DigitalMenuPicker,
-  useDigitalMenuSelection,
-} from "@/components/dashboard/menu/DigitalMenuPicker";
-import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { DASHBOARD_BACK, DASHBOARD_PANEL } from "@/lib/dashboard-surface";
@@ -22,20 +17,16 @@ export default function DigitalMenuCategoriesView() {
     const raw = Number(searchParams.get("qr"));
     return Number.isSafeInteger(raw) && raw > 0 ? raw : null;
   }, [searchParams]);
-  const fromHub = initialQrId != null;
-  const selectionState = useDigitalMenuSelection(initialQrId);
-  const qrId = selectionState.selection?.qr.id ?? initialQrId;
-  const menuId = selectionState.selection?.menu.menuId ?? 0;
 
   return (
     <div className="space-y-6 animate-fade-in">
       <DashboardPageHeader
         title="Kategoriler"
-        hint="Her menü için ana ve alt kategorileri oluşturun."
+        hint="Kategorileri tek başına oluşturun. Ürün eklerken bir kategoriye bağlayın."
         back={
-          fromHub ? (
+          initialQrId != null ? (
             <Link
-              href={DASHBOARD_ROUTES.digitalMenuEdit(initialQrId!)}
+              href={DASHBOARD_ROUTES.digitalMenuEdit(initialQrId)}
               aria-label="Menü editörüne dön"
               className={DASHBOARD_BACK}
             >
@@ -45,30 +36,16 @@ export default function DigitalMenuCategoriesView() {
         }
       />
 
-      {!fromHub ? (
-        <DigitalMenuPicker
-          menuQrs={selectionState.menuQrs}
-          selectedQrId={selectionState.selection?.qr.id ?? null}
-          onSelectQrId={(id) => void selectionState.selectQrId(id)}
-          disabled={selectionState.loading}
+      <div className={DASHBOARD_PANEL}>
+        <MenuCategoriesPanel
+          catalog
+          menuId={0}
+          qrId={0}
+          onAddProduct={(categoryId) => {
+            router.push(DASHBOARD_ROUTES.digitalMenuProductCreateFor(null, categoryId));
+          }}
         />
-      ) : null}
-
-      {qrId != null ? (
-        <div className={DASHBOARD_PANEL}>
-          <MenuCategoriesPanel
-            menuId={menuId}
-            qrId={qrId}
-            onAddProduct={(categoryId) => {
-              router.push(DASHBOARD_ROUTES.digitalMenuProductCreateFor(qrId, categoryId));
-            }}
-          />
-        </div>
-      ) : selectionState.loading ? (
-        <DashboardLoadingState label="Menü bilgisi yükleniyor..." />
-      ) : selectionState.error ? (
-        <p className="text-sm text-destructive">{selectionState.error}</p>
-      ) : null}
+      </div>
     </div>
   );
 }

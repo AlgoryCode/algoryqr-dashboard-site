@@ -4,7 +4,7 @@ import { create } from "zustand";
 
 import type { AccessProfile } from "@/lib/auth-user";
 
-export type PackageAccessStatus = "idle" | "loading" | "ready" | "guest";
+export type PackageAccessStatus = "idle" | "loading" | "ready" | "guest" | "error";
 
 export type PackageEntitlement = {
   productCode: string;

@@ -20,6 +20,7 @@ export type MenuData = {
   phone: string;
   email: string;
   address: string;
+  googleReviewsUrl: string;
   themeId: MenuThemeId;
   chefName: string;
   chefAvatarKey: string;
@@ -33,6 +34,7 @@ export const createInitialMenuData = (): MenuData => ({
   phone: "",
   email: "",
   address: "",
+  googleReviewsUrl: "",
   themeId: DEFAULT_MENU_THEME_ID,
   chefName: "",
   chefAvatarKey: "default",
@@ -188,6 +190,18 @@ export function MenuDetails({
               value={value.address}
               onChange={(e) => onChange({ ...value, address: e.target.value })}
             />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Google yorumlar linki</Label>
+            <Input
+              placeholder="https://maps.app.goo.gl/..."
+              className="bg-background"
+              value={value.googleReviewsUrl}
+              onChange={(e) => onChange({ ...value, googleReviewsUrl: e.target.value })}
+            />
+            <p className="text-xs text-muted-foreground">
+              Boş bırakılırsa müşteri menüsünde Google Yorumlar butonu gösterilmez.
+            </p>
           </div>
         </>
       ) : null}

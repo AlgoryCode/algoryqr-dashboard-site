@@ -14,7 +14,7 @@ export type DashboardCommandEntry = {
 
 const NAV_EXTRA_KEYWORDS: Partial<Record<string, string>> = {
   reservations: "rezervasyon masa misafir",
-  products: "ürün yemek fiyat tükendi",
+  products: "ürün yemek fiyat tükendi kategori opsiyon",
   feedback: "yorum puan şikayet geri bildirim",
   staff: "personel garson aşçı kurye kullanıcı",
   liveOrders: "sipariş mutfak canlı akış",
@@ -57,16 +57,33 @@ const EXTRA_COMMANDS: DashboardCommandEntry[] = [
   },
 ];
 
+const NAV_CHILD_KEYWORDS: Record<string, string> = {
+  categories: "kategori kategoriler",
+  options: "opsiyon opsiyonlar seçenek ekstra boyut porsiyon",
+};
+
 export function getDashboardCommandEntries(): DashboardCommandEntry[] {
-  const fromNav = DASHBOARD_NAV_ITEMS.map((item) => ({
-    id: item.key,
-    label: item.label,
-    href: item.href,
-    group: "Sayfalar",
-    keywords: `${item.label} ${item.mobileLabel} ${NAV_EXTRA_KEYWORDS[item.key] ?? ""}`.trim(),
-    requiredScope: item.requiredScope,
-    requiresAllowAccess: item.requiresAllowAccess,
-  }));
+  const fromNav = DASHBOARD_NAV_ITEMS.flatMap((item) => {
+    const parent: DashboardCommandEntry = {
+      id: item.key,
+      label: item.label,
+      href: item.href,
+      group: "Sayfalar",
+      keywords: `${item.label} ${item.mobileLabel} ${NAV_EXTRA_KEYWORDS[item.key] ?? ""}`.trim(),
+      requiredScope: item.requiredScope,
+      requiresAllowAccess: item.requiresAllowAccess,
+    };
+    const children = (item.children ?? []).map((child) => ({
+      id: `${item.key}-${child.key}`,
+      label: child.label,
+      href: child.href,
+      group: "Sayfalar",
+      keywords: `${child.label} ${item.label} ${NAV_CHILD_KEYWORDS[child.key] ?? ""}`.trim(),
+      requiredScope: item.requiredScope,
+      requiresAllowAccess: item.requiresAllowAccess,
+    }));
+    return [parent, ...children];
+  });
   return [...fromNav, ...EXTRA_COMMANDS];
 }
 

@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ChevronDown,
   Download,
   Loader2,
+  Minus,
   Pencil,
   Plus,
   Printer,
@@ -16,11 +17,7 @@ import {
   Trash2,
 } from "lucide-react";
 
-import {
-  DigitalMenuPicker,
-  useDigitalMenuAccess,
-  useDigitalMenuSelection,
-} from "@/components/dashboard/menu/DigitalMenuPicker";
+import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { LayoutFloorCanvas } from "@/components/dashboard/restaurant-layout/LayoutFloorCanvas";
@@ -29,6 +26,10 @@ import {
   type LayoutTableRowAction,
 } from "@/components/dashboard/restaurant-layout/LayoutTableList";
 import { LayoutCapacitySelect } from "@/components/dashboard/restaurant-layout/LayoutCapacitySelect";
+import {
+  LayoutBranchAssign,
+  RestaurantLayoutLibrary,
+} from "@/components/dashboard/restaurant-layout/RestaurantLayoutLibrary";
 import { useWaiterPanelAccess } from "@/components/dashboard/waiter/WaiterPanelAccess";
 import { downloadQrImage, getQrDataUrl } from "@/components/dashboard/qr/qr-actions";
 import {
@@ -42,25 +43,33 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
 import { useDashboardPageLabel } from "@/contexts/dashboard-page-label";
-import { useBranch } from "@/hooks/use-branches";
+import { useBranch, useBranches } from "@/hooks/use-branches";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
+import { cn } from "@/lib/utils";
 import { resolveSafeReturnUrl } from "@/lib/trial-flow";
 import { DASHBOARD_BACK } from "@/lib/dashboard-surface";
 import {
-  createMenuArea,
-  createMenuTable,
-  deleteMenuArea,
-  deleteMenuTable,
-  listMenuAreas,
-  listMenuTables,
+  assignCatalogLayout,
+  createCatalogArea,
+  createCatalogLayout,
+  createCatalogTable,
+  deleteCatalogArea,
+  deleteCatalogLayout,
+  deleteCatalogTable,
+  listCatalogAreas,
+  listCatalogLayouts,
+  listCatalogTables,
   OrderingApiError,
-  regenerateMenuTableQr,
-  updateMenuArea,
-  updateMenuTable,
+  regenerateCatalogTableQr,
+  updateCatalogArea,
+  updateCatalogLayout,
+  updateCatalogTable,
+  type CatalogLayout,
   type RestaurantArea,
   type RestaurantTable,
 } from "@/lib/ordering-api";
@@ -79,6 +88,7 @@ import {
   allocateTableNumber,
   clampTableCenter,
   isPlacedOnFloor,
+  MAX_TABLES_PER_RANGE,
   nextTableNumber,
   resolveTableCapacity,
   tablesInArea,
@@ -105,6 +115,8 @@ img{max-width:90vw;max-height:70vh}p{text-align:center;margin-top:12px}</style><
 type TableFilter = "active" | "passive";
 type TableDraft = { name: string; tableNumber: string; shape: LayoutShape; capacity: string };
 
+const LAYOUTS_KEY = ["catalog-layouts"] as const;
+
 const EMPTY_DRAFT: TableDraft = {
   name: "",
   tableNumber: "",
@@ -118,35 +130,29 @@ type RestaurantLayoutViewProps = {
 
 export default function RestaurantLayoutView({ branchId = null }: RestaurantLayoutViewProps) {
   const searchParams = useSearchParams();
-  const qrFromQuery = Number(searchParams.get("qr"));
-  const initialQrId = Number.isFinite(qrFromQuery) && qrFromQuery > 0 ? qrFromQuery : null;
+  const pathname = usePathname();
+  const router = useRouter();
+  const layoutParam = Number(searchParams.get("layout"));
+  const layoutId = Number.isFinite(layoutParam) && layoutParam > 0 ? layoutParam : null;
   const { notify } = useDashboardBanners();
   const queryClient = useQueryClient();
 
-  const { accessLoading: waiterAccessLoading, canUseWaiterPanel } = useWaiterPanelAccess();
-  const { accessLoading: menuAccessLoading, canUseDigitalMenu } = useDigitalMenuAccess();
-  const accessLoading = waiterAccessLoading || menuAccessLoading;
-  const branchQuery = useBranch(
-    branchId,
-    branchId != null && canUseWaiterPanel && canUseDigitalMenu && !accessLoading,
-  );
-  const allowedQrIds = useMemo(
-    () => (branchId == null ? null : (branchQuery.data?.menus.map((menu) => menu.qrId) ?? [])),
-    [branchId, branchQuery.data],
-  );
-  const branchReady = branchId == null || !branchQuery.isLoading;
-  const { menuQrs, selection, loading, error, selectQrId } = useDigitalMenuSelection(
-    initialQrId,
-    canUseWaiterPanel && canUseDigitalMenu && !accessLoading && branchReady,
-    allowedQrIds,
-  );
+  const { accessLoading: waiterAccessLoading, accessError, retryAccess, canUseWaiterPanel } = useWaiterPanelAccess();
+  const accessLoading = waiterAccessLoading;
+  const branchQuery = useBranch(branchId, branchId != null && canUseWaiterPanel && !accessLoading);
+  const branchesQuery = useBranches(canUseWaiterPanel && !accessLoading);
   useDashboardPageLabel(branchQuery.data?.name);
 
-  const menuId = selection?.menu.menuId ?? null;
+  const areasQueryKey = ["catalog-layout-areas", layoutId] as const;
+  const tablesQueryKey = ["catalog-layout-tables", layoutId] as const;
+
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [areaName, setAreaName] = useState("");
   const [tableRangeFrom, setTableRangeFrom] = useState("1");
-  const [tableRangeTo, setTableRangeTo] = useState("");
+  const [tableCount, setTableCount] = useState("8");
+  const [areaFormOpen, setAreaFormOpen] = useState(false);
+  const [customArea, setCustomArea] = useState(false);
+  const [detailAreaKeys, setDetailAreaKeys] = useState<string[]>([]);
   const [tableDrafts, setTableDrafts] = useState<Record<string, TableDraft>>({});
   const [openAreaKeys, setOpenAreaKeys] = useState<string[]>([]);
   const [regenerateConfirmOpen, setRegenerateConfirmOpen] = useState(false);
@@ -164,16 +170,22 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
   const [snapToGrid, setSnapToGrid] = useState(true);
   const [storedLayout, setStoredLayout] = useState<Record<number, FloorPlacement>>({});
 
+  const layoutsQuery = useQuery({
+    queryKey: LAYOUTS_KEY,
+    enabled: canUseWaiterPanel && !accessLoading,
+    queryFn: () => listCatalogLayouts(),
+  });
+
   const areasQuery = useQuery({
-    queryKey: ["menu-areas", menuId],
-    enabled: menuId != null,
-    queryFn: () => listMenuAreas(menuId!),
+    queryKey: areasQueryKey,
+    enabled: layoutId != null && canUseWaiterPanel && !accessLoading,
+    queryFn: () => listCatalogAreas(layoutId as number),
   });
 
   const tablesQuery = useQuery({
-    queryKey: ["menu-tables", menuId],
-    enabled: menuId != null,
-    queryFn: () => listMenuTables(menuId!),
+    queryKey: tablesQueryKey,
+    enabled: layoutId != null && canUseWaiterPanel && !accessLoading,
+    queryFn: () => listCatalogTables(layoutId as number),
   });
 
   const areas = areasQuery.data ?? [];
@@ -192,8 +204,14 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
   const suggestedAreas = useMemo(() => unusedSuggestedAreas(areas), [areas]);
 
   const tableRange = useMemo(
-    () => parseTableNumberRange(tableRangeFrom, tableRangeTo),
-    [tableRangeFrom, tableRangeTo],
+    () => {
+      const from = Number(tableRangeFrom);
+      const count = Number(tableCount);
+      const to =
+        Number.isInteger(from) && Number.isInteger(count) && count >= 1 ? String(from + count - 1) : "";
+      return parseTableNumberRange(tableRangeFrom, to);
+    },
+    [tableRangeFrom, tableCount],
   );
 
   const selectedId = selectedIds.length === 1 ? selectedIds[0]! : null;
@@ -207,12 +225,16 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
   };
 
   useEffect(() => {
-    if (menuId == null) {
-      setStoredLayout({});
-      return;
-    }
-    setStoredLayout(loadStoredFloorLayout(menuId));
-  }, [menuId]);
+    if (layoutId == null) return;
+    setStoredLayout(loadStoredFloorLayout(layoutId));
+    setSelectedIds([]);
+    setAreaFormOpen(false);
+    setAreaName("");
+    setCustomArea(false);
+    setTableCount("8");
+    setTableRangeFrom("1");
+    setIsEditing(false);
+  }, [layoutId]);
 
   useEffect(() => {
     const nextKeys = areas.map((area) => String(area.id));
@@ -225,19 +247,88 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
 
   const invalidateLayout = async () => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["menu-tables", menuId] }),
-      queryClient.invalidateQueries({ queryKey: ["menu-areas", menuId] }),
+      queryClient.invalidateQueries({ queryKey: ["catalog-layout-tables"] }),
+      queryClient.invalidateQueries({ queryKey: ["catalog-layout-areas"] }),
+      queryClient.invalidateQueries({ queryKey: LAYOUTS_KEY }),
     ]);
   };
 
+  const openLayout = (id: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("layout", String(id));
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const closeLayout = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("layout");
+    const query = params.toString();
+    router.push(query ? `${pathname}?${query}` : pathname);
+  };
+
+  const assignMutation = useMutation({
+    mutationFn: (payload: { layoutId: number; branchId: number | null }) =>
+      assignCatalogLayout(payload.layoutId, payload.branchId),
+    onSuccess: async (layout) => {
+      await invalidateLayout();
+      if (layout.branchName) {
+        notify(
+          "info",
+          layout.menuLinked
+            ? `Düzen ${layout.branchName} şubesine bağlandı. Masa QR kodları o şubenin menüsüne bağlandı.`
+            : `Düzen ${layout.branchName} şubesine bağlandı. Bu şubede menü olmadığı için QR kodu oluşmadı.`,
+        );
+        return;
+      }
+      notify("info", "Düzenin şube bağlantısı kaldırıldı.");
+    },
+    onError: (err) => {
+      notify("danger", err instanceof OrderingApiError ? err.message : "Düzen bağlanamadı.");
+    },
+  });
+
+  const createLayoutMutation = useMutation({
+    mutationFn: (name: string) => createCatalogLayout(name),
+    onSuccess: async (layout) => {
+      await queryClient.invalidateQueries({ queryKey: LAYOUTS_KEY });
+      openLayout(layout.id);
+    },
+    onError: (err) => {
+      notify("danger", err instanceof OrderingApiError ? err.message : "Düzen oluşturulamadı.");
+    },
+  });
+
+  const renameLayoutMutation = useMutation({
+    mutationFn: (payload: { layoutId: number; name: string }) =>
+      updateCatalogLayout(payload.layoutId, { name: payload.name }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: LAYOUTS_KEY });
+      notify("info", "Düzen adı güncellendi.");
+    },
+    onError: (err) => {
+      notify("danger", err instanceof OrderingApiError ? err.message : "Düzen güncellenemedi.");
+    },
+  });
+
+  const deleteLayoutMutation = useMutation({
+    mutationFn: (id: number) => deleteCatalogLayout(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: LAYOUTS_KEY });
+      notify("info", "Düzen silindi.");
+    },
+    onError: (err) => {
+      notify("danger", err instanceof OrderingApiError ? err.message : "Düzen silinemedi.");
+    },
+  });
+
   const rememberPlacement = (tableId: number, placement: FloorPlacement) => {
-    if (menuId == null) return;
-    setStoredLayout(upsertStoredFloorPlacement(menuId, tableId, placement));
+    if (layoutId == null) return;
+    setStoredLayout(upsertStoredFloorPlacement(layoutId, tableId, placement));
   };
 
   const createAreaMutation = useMutation({
     mutationFn: async (payload: { name: string; tableNumbers: number[] }) => {
-      const area = await createMenuArea(menuId!, payload.name);
+      const area = await createCatalogArea(layoutId as number, payload.name);
       const created: { table: RestaurantTable; placement: FloorPlacement }[] = [];
       const occupied: {
         layoutX?: number | null;
@@ -254,7 +345,7 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
             DEFAULT_LAYOUT_SHAPE,
             DEFAULT_TABLE_CAPACITY,
           );
-          const table = await createMenuTable(menuId!, {
+          const table = await createCatalogTable(layoutId as number, {
             name: tableNameForNumber(n),
             tableNumber: n,
             areaId: area.id,
@@ -293,7 +384,10 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
       }
       await invalidateLayout();
       setAreaName("");
-      setTableRangeTo("");
+      setCustomArea(false);
+      setTableCount("8");
+      setTableRangeFrom("1");
+      setAreaFormOpen(false);
       setOpenAreaKeys((prev) =>
         prev.includes(String(area.id)) ? prev : [...prev, String(area.id)],
       );
@@ -324,7 +418,7 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
 
   const updateAreaMutation = useMutation({
     mutationFn: (payload: { areaId: number; name: string }) =>
-      updateMenuArea(menuId!, payload.areaId, { name: payload.name }),
+      updateCatalogArea(layoutId as number, payload.areaId, { name: payload.name }),
     onSuccess: async () => {
       await invalidateLayout();
       setEditingAreaId(null);
@@ -337,7 +431,7 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
   });
 
   const deleteAreaMutation = useMutation({
-    mutationFn: (areaId: number) => deleteMenuArea(menuId!, areaId),
+    mutationFn: (areaId: number) => deleteCatalogArea(layoutId as number, areaId),
     onSuccess: async () => {
       await invalidateLayout();
       setDeleteAreaTarget(null);
@@ -359,7 +453,7 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
       layoutY: number;
       layoutShape: LayoutShape;
     }) =>
-      createMenuTable(menuId!, {
+      createCatalogTable(layoutId as number, {
         name: payload.name,
         tableNumber: payload.tableNumber,
         areaId: payload.areaId,
@@ -376,7 +470,7 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
         rotation: 0,
         shape: payload.layoutShape,
       });
-      await queryClient.invalidateQueries({ queryKey: ["menu-tables", menuId] });
+      await queryClient.invalidateQueries({ queryKey: tablesQueryKey });
       setTableDrafts((prev) => ({ ...prev, [String(payload.areaId)]: EMPTY_DRAFT }));
       setSelectedId(table.id);
       setTableFilter("active");
@@ -396,7 +490,7 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
       layoutShape?: LayoutShape;
       capacity?: number | null;
     }) =>
-      updateMenuTable(menuId!, payload.tableId, {
+      updateCatalogTable(layoutId as number, payload.tableId, {
         layoutX: payload.layoutX,
         layoutY: payload.layoutY,
         layoutRotation: payload.layoutRotation,
@@ -404,9 +498,9 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
         capacity: payload.capacity,
       }),
     onMutate: async (payload) => {
-      await queryClient.cancelQueries({ queryKey: ["menu-tables", menuId] });
-      const previous = queryClient.getQueryData<RestaurantTable[]>(["menu-tables", menuId]);
-      queryClient.setQueryData<RestaurantTable[]>(["menu-tables", menuId], (current) =>
+      await queryClient.cancelQueries({ queryKey: tablesQueryKey });
+      const previous = queryClient.getQueryData<RestaurantTable[]>(tablesQueryKey);
+      queryClient.setQueryData<RestaurantTable[]>(tablesQueryKey, (current) =>
         (current ?? []).map((table) =>
           table.id === payload.tableId ? { ...table, ...payload } : table,
         ),
@@ -415,12 +509,12 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
     },
     onError: (err, _payload, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(["menu-tables", menuId], context.previous);
+        queryClient.setQueryData(tablesQueryKey, context.previous);
       }
       notify("danger", err instanceof OrderingApiError ? err.message : "Konum kaydedilemedi.");
     },
     onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["menu-tables", menuId] });
+      await queryClient.invalidateQueries({ queryKey: tablesQueryKey });
     },
   });
 
@@ -434,7 +528,7 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
       layoutX?: number;
       layoutY?: number;
     }) =>
-      updateMenuTable(menuId!, payload.tableId, {
+      updateCatalogTable(layoutId as number, payload.tableId, {
         active: payload.active,
         name: payload.name,
         tableNumber: payload.tableNumber,
@@ -443,7 +537,7 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
         layoutY: payload.layoutY,
       }),
     onSuccess: async (_data, variables) => {
-      await queryClient.invalidateQueries({ queryKey: ["menu-tables", menuId] });
+      await queryClient.invalidateQueries({ queryKey: tablesQueryKey });
       setIsEditing(false);
       if (typeof variables.active === "boolean") {
         notify("info", variables.active ? "Masa aktifleştirildi." : "Masa pasifleştirildi.");
@@ -459,11 +553,11 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
   const deleteMutation = useMutation({
     mutationFn: async (tableIds: number[]) => {
       for (const tableId of tableIds) {
-        await deleteMenuTable(menuId!, tableId);
+        await deleteCatalogTable(layoutId as number, tableId);
       }
     },
     onSuccess: async (_data, tableIds) => {
-      await queryClient.invalidateQueries({ queryKey: ["menu-tables", menuId] });
+      await queryClient.invalidateQueries({ queryKey: tablesQueryKey });
       setSelectedIds((prev) => prev.filter((id) => !tableIds.includes(id)));
       setDeleteTargets([]);
       setDeleteConfirmOpen(false);
@@ -527,9 +621,9 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
   };
 
   const regenerateMutation = useMutation({
-    mutationFn: (tableId: number) => regenerateMenuTableQr(menuId!, tableId),
+    mutationFn: (tableId: number) => regenerateCatalogTableQr(layoutId as number, tableId),
     onSuccess: async (table: RestaurantTable) => {
-      await queryClient.invalidateQueries({ queryKey: ["menu-tables", menuId] });
+      await queryClient.invalidateQueries({ queryKey: tablesQueryKey });
       setSelectedId(table.id);
       notify("info", "QR yenilendi.");
     },
@@ -559,9 +653,9 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
         await Promise.all(
           list
             .filter((table) => table.active !== makeActive)
-            .map((table) => updateMenuTable(menuId!, table.id, { active: makeActive })),
+            .map((table) => updateCatalogTable(layoutId as number, table.id, { active: makeActive })),
         );
-        await queryClient.invalidateQueries({ queryKey: ["menu-tables", menuId] });
+        await queryClient.invalidateQueries({ queryKey: tablesQueryKey });
         notify("info", makeActive ? "Masalar aktifleştirildi." : "Masalar pasifleştirildi.");
       } catch (err) {
         notify("danger", err instanceof OrderingApiError ? err.message : "Güncelleme başarısız.");
@@ -599,7 +693,7 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
         ) : (
           <RefreshCw className="h-4 w-4" />
         ),
-      disabled: regenerateMutation.isPending,
+      disabled: regenerateMutation.isPending || table.menuId == null,
       onClick: () => {
         setSelectedId(table.id);
         setRegenerateConfirmOpen(true);
@@ -686,7 +780,7 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
       persistTableLayout(moves[0]!.table, { x: moves[0]!.x, y: moves[0]!.y });
       return;
     }
-    const previous = queryClient.getQueryData<RestaurantTable[]>(["menu-tables", menuId]);
+    const previous = queryClient.getQueryData<RestaurantTable[]>(tablesQueryKey);
     for (const move of moves) {
       rememberPlacement(move.table.id, {
         x: move.x,
@@ -695,7 +789,7 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
         shape: parseLayoutShape(move.table.layoutShape),
       });
     }
-    queryClient.setQueryData<RestaurantTable[]>(["menu-tables", menuId], (current) =>
+    queryClient.setQueryData<RestaurantTable[]>(tablesQueryKey, (current) =>
       (current ?? []).map((table) => {
         const move = moves.find((item) => item.table.id === table.id);
         return move ? { ...table, layoutX: move.x, layoutY: move.y } : table;
@@ -705,7 +799,7 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
       try {
         await Promise.all(
           moves.map((move) =>
-            updateMenuTable(menuId!, move.table.id, {
+            updateCatalogTable(layoutId as number, move.table.id, {
               layoutX: move.x,
               layoutY: move.y,
               layoutRotation: move.table.layoutRotation ?? 0,
@@ -714,10 +808,10 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
           ),
         );
       } catch (err) {
-        if (previous) queryClient.setQueryData(["menu-tables", menuId], previous);
+        if (previous) queryClient.setQueryData(tablesQueryKey, previous);
         notify("danger", err instanceof OrderingApiError ? err.message : "Konum kaydedilemedi.");
       } finally {
-        await queryClient.invalidateQueries({ queryKey: ["menu-tables", menuId] });
+        await queryClient.invalidateQueries({ queryKey: tablesQueryKey });
       }
     })();
   };
@@ -769,165 +863,321 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
     getRowActions,
   };
 
-  if (accessLoading || loading || (branchId != null && branchQuery.isLoading)) {
+  if (accessError) {
+    return <AccessLoadError onRetry={() => void retryAccess()} />;
+  }
+
+  if (accessLoading || (branchId != null && branchQuery.isLoading)) {
     return (
       <div className="space-y-6 animate-fade-in">
         <DashboardPageHeader
-          title="Restoran Düzeni"
-          hint="Alanları oluşturun, masaları kroki üzerine sürükleyerek restoranınızı çizin."
+          title="Restoran düzenleri"
+          hint="Masa planınız hazırlanıyor."
         />
-        <DashboardLoadingState label="Restoran düzeni yükleniyor…" />
+        <DashboardLoadingState label="Restoran düzenleri yükleniyor…" />
       </div>
     );
   }
 
+  const layouts: CatalogLayout[] = layoutsQuery.data ?? [];
+  const activeLayout = layoutId == null ? null : (layouts.find((item) => item.id === layoutId) ?? null);
+  const branches = (branchesQuery.data?.content ?? []).map((branch) => ({
+    id: branch.id,
+    name: branch.name,
+  }));
   const backHref =
     branchId != null ? DASHBOARD_ROUTES.branchSettings(branchId) : DASHBOARD_ROUTES.myBranches;
-  const hasBranchMenus = branchId == null || (allowedQrIds?.length ?? 0) > 0;
+  const listBack = (
+    <Link
+      href={backHref}
+      aria-label={branchId != null ? "Şube ayarlarına dön" : "Menüye dön"}
+      className={DASHBOARD_BACK}
+    >
+      <ArrowLeft className="h-4 w-4" />
+    </Link>
+  );
+
+  if (layoutId == null) {
+    return (
+      <div className="space-y-4 animate-fade-in">
+        <DashboardPageHeader
+          title="Restoran düzenleri"
+          hint="Bir düzen oluşturun, sonra istediğiniz şubeye bağlayın."
+          back={listBack}
+        />
+        <RestaurantLayoutLibrary
+          layouts={layouts}
+          branches={branches}
+          loading={layoutsQuery.isLoading}
+          creating={createLayoutMutation.isPending}
+          assigningId={
+            assignMutation.isPending ? (assignMutation.variables?.layoutId ?? null) : null
+          }
+          deletingId={deleteLayoutMutation.isPending ? (deleteLayoutMutation.variables ?? null) : null}
+          renamingId={
+            renameLayoutMutation.isPending ? (renameLayoutMutation.variables?.layoutId ?? null) : null
+          }
+          onCreate={(name) => createLayoutMutation.mutate(name)}
+          onOpen={openLayout}
+          onAssign={(id, nextBranchId) =>
+            assignMutation.mutate({ layoutId: id, branchId: nextBranchId })
+          }
+          onRename={(id, name) => renameLayoutMutation.mutate({ layoutId: id, name })}
+          onDelete={(id) => deleteLayoutMutation.mutate(id)}
+        />
+      </div>
+    );
+  }
+
+  const layoutLoading = tablesQuery.isLoading || areasQuery.isLoading;
+  const noAreas = areas.length === 0;
+  const showAreaForm = !layoutLoading && (noAreas || areaFormOpen);
+  const headerHint = noAreas
+    ? "Bir alan seçin, kaç masa olduğunu girin ve Masaları oluştur'a basın."
+    : "Masaları kroki üzerinde sürükleyip yerleştirin. Yeni masa için Masa ekle'ye basın.";
+  const assignHint =
+    activeLayout == null
+      ? "Bu düzeni bir şubeye bağlayın. Şubede menü varsa masa QR kodları oluşur."
+      : activeLayout.branchId == null
+        ? "Bu düzen henüz bir şubeye bağlı değil. Şubede menü varsa QR kodları bağlayınca oluşur."
+        : activeLayout.menuLinked
+          ? `${activeLayout.branchName ?? "Şube"} şubesine bağlı.`
+          : `${activeLayout.branchName ?? "Şube"} şubesine bağlı. Bu şubede menü olmadığı için QR kodu yok.`;
+  const countValue = Number(tableCount);
+  const stepTableCount = (delta: number) => {
+    const current = Number.isInteger(countValue) && countValue > 0 ? countValue : 0;
+    setTableCount(String(Math.min(MAX_TABLES_PER_RANGE, Math.max(1, current + delta))));
+  };
+
+  if (areasQuery.isError && !areasQuery.isLoading) {
+    return (
+      <div className="space-y-4 animate-fade-in">
+        <DashboardPageHeader
+          title="Restoran düzeni"
+          hint="Bu düzen bulunamadı."
+          back={
+            <button type="button" onClick={closeLayout} aria-label="Düzen listesine dön" className={DASHBOARD_BACK}>
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+          }
+        />
+        <Button type="button" onClick={closeLayout}>
+          Düzen listesine dön
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 animate-fade-in">
       <DashboardPageHeader
-        title="Restoran Düzeni"
-        hint="Alanları oluşturun, masaları kroki üzerine sürükleyerek restoranınızı çizin."
+        title={activeLayout?.name ?? "Restoran düzeni"}
+        hint={headerHint}
         back={
-          <Link
-            href={backHref}
-            aria-label={branchId != null ? "Şube ayarlarına dön" : "Menüye dön"}
-            className={DASHBOARD_BACK}
-          >
+          <button type="button" onClick={closeLayout} aria-label="Düzen listesine dön" className={DASHBOARD_BACK}>
             <ArrowLeft className="h-4 w-4" />
-          </Link>
+          </button>
         }
       />
 
-      {branchId != null && !hasBranchMenus ? (
-        <p className="text-sm text-muted-foreground">
-          Bu şubede henüz menü yok. Restoran düzeni için önce bir menü oluşturun.
-        </p>
-      ) : null}
+      <section className="space-y-3 rounded-lg border border-border bg-card p-4">
+        <p className="text-sm">{assignHint}</p>
+        {activeLayout ? (
+          <LayoutBranchAssign
+            layout={activeLayout}
+            branches={branches}
+            pending={assignMutation.isPending && assignMutation.variables?.layoutId === activeLayout.id}
+            onAssign={(id, nextBranchId) =>
+              assignMutation.mutate({ layoutId: id, branchId: nextBranchId })
+            }
+          />
+        ) : null}
+      </section>
 
-      {menuQrs.length > 1 ? (
-        <DigitalMenuPicker
-          menuQrs={menuQrs}
-          selectedQrId={selection?.qr.id ?? null}
-          onSelectQrId={(qrId) => {
-            void selectQrId(qrId);
-          }}
-        />
-      ) : null}
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
-
-      {!hasBranchMenus ? (
-        <Button asChild variant="outline" size="sm">
-          <Link href={DASHBOARD_ROUTES.digitalMenuCreateForBranch(branchId!)}>Menü oluştur</Link>
-        </Button>
-      ) : !menuId ? (
-        <p className="text-sm text-muted-foreground">Menü seçin.</p>
-      ) : (
-        <div className="space-y-4">
-          <section className="space-y-3 rounded-lg border border-border bg-card p-3 sm:p-4">
-            <div>
-              <h2 className="text-sm font-semibold">1. Alanlar</h2>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Alan adını ve masa numara aralığını girin. 1–8 yazarsanız masa-1 … masa-8 otomatik
-                oluşur; ardından kroki üzerinde konumlandırabilirsiniz.
-              </p>
-            </div>
-            {suggestedAreas.length > 0 ? (
-              <div className="flex flex-wrap gap-1.5">
-                {suggestedAreas.map((name) => (
-                  <Button
-                    key={name}
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8"
-                    disabled={createAreaMutation.isPending}
-                    onClick={() => submitArea(name)}
-                  >
-                    <Plus className="mr-1 h-3.5 w-3.5" />
-                    {name}
-                  </Button>
-                ))}
-              </div>
-            ) : null}
-            <form
-              className="flex flex-wrap items-center gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                submitArea(areaName);
-              }}
+      <div className="space-y-4">
+          {showAreaForm ? (
+            <section
+              className={cn(
+                "space-y-4 rounded-lg border bg-card p-4 sm:p-5",
+                noAreas ? "border-primary/30" : "border-border",
+              )}
             >
-              <input
-                value={areaName}
-                onChange={(e) => setAreaName(e.target.value)}
-                required
-                placeholder="Özel alan adı"
-                aria-label="Alan adı"
-                className="min-w-[160px] flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-sm"
-              />
-              <input
-                value={tableRangeFrom}
-                onChange={(e) => setTableRangeFrom(e.target.value)}
-                type="number"
-                min={1}
-                step={1}
-                required
-                placeholder="1"
-                aria-label="Masa numarası başlangıç"
-                className="w-16 rounded-md border border-border bg-background px-2.5 py-1.5 text-sm"
-                disabled={createAreaMutation.isPending}
-              />
-              <span className="text-sm text-muted-foreground">–</span>
-              <input
-                value={tableRangeTo}
-                onChange={(e) => setTableRangeTo(e.target.value)}
-                type="number"
-                min={1}
-                step={1}
-                required
-                placeholder="8"
-                aria-label="Masa numarası bitiş"
-                className="w-16 rounded-md border border-border bg-background px-2.5 py-1.5 text-sm"
-                disabled={createAreaMutation.isPending}
-              />
-              <Button type="submit" size="sm" className="h-8" disabled={createAreaMutation.isPending}>
-                {createAreaMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                    Masalar ekleniyor
-                  </>
-                ) : (
-                  "Alan ekle"
-                )}
-              </Button>
-            </form>
-            {tableRange.ok ? (
-              <p className="text-xs text-muted-foreground">
-                {tableRange.numbers.length === 1
-                  ? `${tableNameForNumber(tableRange.numbers[0]!)} oluşturulacak.`
-                  : `${tableRange.numbers.length} masa oluşturulacak (${tableNameForNumber(tableRange.numbers[0]!)} … ${tableNameForNumber(tableRange.numbers[tableRange.numbers.length - 1]!)}).`}
-              </p>
-            ) : tableRangeFrom.trim() && tableRangeTo.trim() ? (
-              <p className="text-xs text-destructive">{tableRange.error}</p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Önerilen alana basmadan önce aralığı doldurun. Örnek: 1–8.
-              </p>
-            )}
-          </section>
+              <div>
+                <h2 className="text-base font-semibold">
+                  {noAreas ? "İlk alanınızı oluşturun" : "Yeni alan ekle"}
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Masalar krokiye otomatik yerleşir. Sonra sürükleyerek konumlarını değiştirin.
+                </p>
+              </div>
+              <form
+                className="space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  submitArea(areaName);
+                }}
+              >
+                <div className="space-y-2">
+                  <span className="text-xs font-medium text-muted-foreground">Alan adı</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {suggestedAreas.map((name) => {
+                      const picked = !customArea && areaName.trim() === name;
+                      return (
+                        <button
+                          key={name}
+                          type="button"
+                          aria-pressed={picked}
+                          disabled={createAreaMutation.isPending}
+                          onClick={() => {
+                            setCustomArea(false);
+                            setAreaName(name);
+                          }}
+                          className={cn(
+                            "h-8 rounded-full border px-3 text-sm transition-colors",
+                            picked
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border text-foreground hover:bg-muted/60",
+                          )}
+                        >
+                          {name}
+                        </button>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      aria-pressed={customArea || suggestedAreas.length === 0}
+                      disabled={createAreaMutation.isPending}
+                      onClick={() => {
+                        setCustomArea(true);
+                        setAreaName("");
+                      }}
+                      className={cn(
+                        "h-8 rounded-full border px-3 text-sm transition-colors",
+                        customArea || suggestedAreas.length === 0
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border text-foreground hover:bg-muted/60",
+                      )}
+                    >
+                      Özel
+                    </button>
+                  </div>
+                  {customArea || suggestedAreas.length === 0 ? (
+                    <Input
+                      id="layout-area-name"
+                      value={areaName}
+                      onChange={(e) => setAreaName(e.target.value)}
+                      required
+                      autoFocus
+                      placeholder="Alan adını yazın"
+                      aria-label="Alan adı"
+                      className="sm:max-w-sm"
+                      disabled={createAreaMutation.isPending}
+                    />
+                  ) : null}
+                </div>
 
-          {tablesQuery.isLoading || areasQuery.isLoading ? (
+                <div className="flex flex-wrap items-end gap-4">
+                  <div className="space-y-2">
+                    <span className="block text-xs font-medium text-muted-foreground">Masa sayısı</span>
+                    <div className="inline-flex h-9 items-center rounded-md border border-border bg-background">
+                      <button
+                        type="button"
+                        aria-label="Masa sayısını azalt"
+                        className="flex h-full w-9 items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-40"
+                        disabled={createAreaMutation.isPending || countValue <= 1}
+                        onClick={() => stepTableCount(-1)}
+                      >
+                        <Minus className="h-4 w-4" />
+                      </button>
+                      <input
+                        value={tableCount}
+                        onChange={(e) => setTableCount(e.target.value)}
+                        type="number"
+                        min={1}
+                        max={MAX_TABLES_PER_RANGE}
+                        step={1}
+                        required
+                        aria-label="Masa sayısı"
+                        className="h-full w-12 border-x border-border bg-transparent text-center text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        disabled={createAreaMutation.isPending}
+                      />
+                      <button
+                        type="button"
+                        aria-label="Masa sayısını artır"
+                        className="flex h-full w-9 items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-40"
+                        disabled={createAreaMutation.isPending || countValue >= MAX_TABLES_PER_RANGE}
+                        onClick={() => stepTableCount(1)}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="layout-first-no" className="block text-xs font-medium text-muted-foreground">
+                      İlk masa no
+                    </label>
+                    <input
+                      id="layout-first-no"
+                      value={tableRangeFrom}
+                      onChange={(e) => setTableRangeFrom(e.target.value)}
+                      type="number"
+                      min={1}
+                      step={1}
+                      required
+                      className="h-9 w-20 rounded-md border border-border bg-background px-3 text-sm"
+                      disabled={createAreaMutation.isPending}
+                    />
+                  </div>
+                  <div className="ml-auto flex items-center gap-2">
+                    {!noAreas ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        disabled={createAreaMutation.isPending}
+                        onClick={() => {
+                          setAreaName("");
+                          setCustomArea(false);
+                          setAreaFormOpen(false);
+                        }}
+                      >
+                        Vazgeç
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="submit"
+                      disabled={createAreaMutation.isPending || !areaName.trim() || !tableRange.ok}
+                    >
+                      {createAreaMutation.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Masalar oluşturuluyor
+                        </>
+                      ) : (
+                        "Masaları oluştur"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                {tableRange.ok ? (
+                  <p className="text-xs text-muted-foreground">
+                    {areaName.trim() || "Alan"} için{" "}
+                    {tableRange.numbers.length === 1
+                      ? `${tableNameForNumber(tableRange.numbers[0]!)} oluşturulacak.`
+                      : `${tableRange.numbers.length} masa oluşturulacak (${tableNameForNumber(tableRange.numbers[0]!)} … ${tableNameForNumber(tableRange.numbers[tableRange.numbers.length - 1]!)}).`}
+                  </p>
+                ) : (
+                  <p className="text-xs text-destructive">{tableRange.error}</p>
+                )}
+              </form>
+            </section>
+          ) : null}
+
+          {layoutLoading ? (
             <div className="flex justify-center py-8 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin" />
             </div>
-          ) : areas.length === 0 && tables.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Henüz alan yok. Yukarıdan alan adı ve masa aralığı girin; örneğin Teras ve 1–8 ile
-              masa-1 … masa-8 oluşur.
-            </p>
-          ) : (
+          ) : noAreas && tables.length === 0 ? null : (
             <Tabs
               value={tableFilter}
               onValueChange={(value) => {
@@ -935,17 +1185,29 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
                 cancelEditing();
               }}
             >
-              <TabsList className="w-full sm:w-auto">
-                <TabsTrigger value="active">Aktif ({activeTables.length})</TabsTrigger>
-                <TabsTrigger value="passive">Pasif ({passiveTables.length})</TabsTrigger>
-              </TabsList>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <TabsList className="w-full sm:w-auto">
+                  <TabsTrigger value="active">Aktif ({activeTables.length})</TabsTrigger>
+                  <TabsTrigger value="passive">Pasif ({passiveTables.length})</TabsTrigger>
+                </TabsList>
+                {!showAreaForm ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setAreaName("");
+                      setCustomArea(false);
+                      setAreaFormOpen(true);
+                    }}
+                  >
+                    <Plus className="mr-1 h-4 w-4" />
+                    Yeni alan
+                  </Button>
+                ) : null}
+              </div>
 
               <TabsContent value={tableFilter} className="mt-3 space-y-3">
-                {areas.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Masa eklemek için önce bir alan oluşturun.
-                  </p>
-                ) : null}
 
                 {areas.map((area) => {
                   const areaTables = tablesInArea(visibleTables, area.id);
@@ -954,6 +1216,7 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
                   const draft = draftFor(area.id);
                   const nextNo = nextTableNumber(tablesInArea(tables, area.id));
                   const editingArea = editingAreaId === area.id;
+                  const showDetails = detailAreaKeys.includes(areaKey);
                   return (
                     <Collapsible
                       key={area.id}
@@ -1087,6 +1350,38 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
                                     submitTable(area.id);
                                   }}
                                 >
+                                  <Button
+                                    type="submit"
+                                    size="sm"
+                                    className="h-8"
+                                    disabled={createMutation.isPending}
+                                  >
+                                    {createMutation.isPending ? (
+                                      <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <Plus className="mr-1 h-4 w-4" />
+                                    )}
+                                    {showDetails ? "Masa ekle" : `${tableNameForNumber(nextNo)} ekle`}
+                                  </Button>
+                                  <button
+                                    type="button"
+                                    aria-expanded={showDetails}
+                                    className="text-sm font-medium text-primary hover:underline"
+                                    onClick={() =>
+                                      setDetailAreaKeys((prev) =>
+                                        prev.includes(areaKey)
+                                          ? prev.filter((key) => key !== areaKey)
+                                          : [...prev, areaKey],
+                                      )
+                                    }
+                                  >
+                                    {showDetails ? "Ayrıntıları gizle" : "Ad, şekil ve kişi sayısı seç"}
+                                  </button>
+                                  <span className="basis-full text-xs text-muted-foreground sm:ml-auto sm:basis-auto">
+                                    Kroki üzerinde boş bir yere tıklayarak da masa ekleyebilirsiniz.
+                                  </span>
+                                  {showDetails ? (
+                                  <div className="flex basis-full flex-wrap items-center gap-2">
                                   <input
                                     value={draft.name}
                                     onChange={(e) => setDraft(area.id, { name: e.target.value })}
@@ -1121,18 +1416,8 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
                                       setDraft(area.id, { capacity: String(capacity) })
                                     }
                                   />
-                                  <Button
-                                    type="submit"
-                                    size="sm"
-                                    className="h-8"
-                                    disabled={createMutation.isPending}
-                                  >
-                                    {createMutation.isPending ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                      "Masa ekle"
-                                    )}
-                                  </Button>
+                                  </div>
+                                  ) : null}
                                 </form>
                                 <LayoutFloorCanvas
                                   tables={areaTables}
@@ -1201,7 +1486,6 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
             </Tabs>
           )}
         </div>
-      )}
 
       <AlertDialog open={regenerateConfirmOpen} onOpenChange={setRegenerateConfirmOpen}>
         <AlertDialogContent>

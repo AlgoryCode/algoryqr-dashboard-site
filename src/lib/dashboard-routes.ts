@@ -1,5 +1,5 @@
 import type { ProductScope } from "@/lib/auth-user";
-import { COURIER_APP_ORIGIN, KITCHEN_APP_ORIGIN, WAITER_APP_ORIGIN } from "@/lib/config";
+import { STAFF_SITE_ORIGIN } from "@/lib/config";
 
 export const DASHBOARD_ROUTES = {
   root: "/dashboard",
@@ -44,6 +44,7 @@ export const DASHBOARD_ROUTES = {
   digitalMenuProductDetailForMenu: (productId: number | string, menuId: number | string) =>
     `/dashboard/dijital-menu/urunler/${productId}?menu=${menuId}`,
   digitalMenuCategories: "/dashboard/dijital-menu/kategoriler",
+  digitalMenuOptions: "/dashboard/dijital-menu/opsiyonlar",
   digitalMenuCreate: "/dashboard/dijital-menu/olustur",
   digitalMenuCreateForBranch: (branchId: number | string) =>
     `/dashboard/dijital-menu/olustur?branch=${branchId}`,
@@ -141,13 +142,13 @@ export const DASHBOARD_ROUTES = {
     `/dashboard/kampanyalar/${campaignId}?qr=${qrId}`,
   campaignsForQr: (qrId: number | string) =>
     `/dashboard/kampanyalar?qr=${qrId}`,
-  staffGate: "/personel",
-  waiterLogin: `${WAITER_APP_ORIGIN}/waiter/login`,
-  waiterPanel: `${WAITER_APP_ORIGIN}/waiter`,
-  kitchenLogin: `${KITCHEN_APP_ORIGIN}/mutfak/giris`,
-  kitchenPanel: `${KITCHEN_APP_ORIGIN}/mutfak`,
-  courierLogin: `${COURIER_APP_ORIGIN}/kurye/giris`,
-  courierPanel: `${COURIER_APP_ORIGIN}/kurye`,
+  staffGate: STAFF_SITE_ORIGIN,
+  waiterLogin: STAFF_SITE_ORIGIN,
+  waiterPanel: STAFF_SITE_ORIGIN,
+  kitchenLogin: STAFF_SITE_ORIGIN,
+  kitchenPanel: STAFF_SITE_ORIGIN,
+  courierLogin: STAFF_SITE_ORIGIN,
+  courierPanel: STAFF_SITE_ORIGIN,
   kitchenScreen: (branchId?: number | string | null) =>
     branchId != null && branchId !== "" ? `/mutfak?branch=${branchId}` : "/mutfak",
 
@@ -192,7 +193,6 @@ export type DashboardNavKey =
   | "myBranches"
   | "myMenus"
   | "products"
-  | "categories"
   | "uberEats"
   | "liveOrders"
   | "reservations"
@@ -208,6 +208,12 @@ export type DashboardNavKey =
   | "qrCodes"
   | "account";
 
+export type DashboardNavChild = {
+  key: string;
+  label: string;
+  href: string;
+};
+
 export type DashboardNavItem = {
   key: DashboardNavKey;
   label: string;
@@ -220,6 +226,7 @@ export type DashboardNavItem = {
   excludeFromMobileNav?: boolean;
   /** Hidden from desktop sidebar */
   excludeFromSidebar?: boolean;
+  children?: DashboardNavChild[];
 };
 
 export type DashboardNavGroup = {
@@ -235,9 +242,9 @@ export const DASHBOARD_NAV_GROUPS: DashboardNavGroup[] = [
     label: "Siparişler ve Rezervasyon",
     items: ["liveOrders", "reservations", "restaurantLayout"],
   },
-  { id: "menu", label: "Menü", items: ["myMenus", "products", "categories", "qrCodes"] },
+  { id: "menu", label: "Menü", items: ["myMenus", "products", "qrCodes"] },
   { id: "stock", label: "Stok", items: ["stock"] },
-  { id: "staff", label: "Personel", items: ["staff"] },
+  { id: "staff", label: "Personeller", items: ["staff"] },
   { id: "finance", label: "Finans ve Muhasebe", items: ["accounting"] },
   {
     id: "marketing",
@@ -313,13 +320,18 @@ export const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
     mobileLabel: "Ürünler",
     href: DASHBOARD_ROUTES.digitalMenuProducts,
     requiredScope: "QR_MENU_OWNER",
-  },
-  {
-    key: "categories",
-    label: "Kategoriler",
-    mobileLabel: "Kategoriler",
-    href: DASHBOARD_ROUTES.digitalMenuCategories,
-    requiredScope: "QR_MENU_OWNER",
+    children: [
+      {
+        key: "categories",
+        label: "Kategoriler",
+        href: DASHBOARD_ROUTES.digitalMenuCategories,
+      },
+      {
+        key: "options",
+        label: "Opsiyonlar",
+        href: DASHBOARD_ROUTES.digitalMenuOptions,
+      },
+    ],
   },
   {
     key: "uberEats",
@@ -358,8 +370,8 @@ export const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
   },
   {
     key: "staff",
-    label: "Personel",
-    mobileLabel: "Personel",
+    label: "Personeller",
+    mobileLabel: "Personeller",
     href: DASHBOARD_ROUTES.menuUsers,
     requiredScope: "WAITER_PANEL_OWNER",
   },
@@ -607,7 +619,13 @@ export function buildDashboardBreadcrumbs(
       return crumbs;
     }
     if (pathname === DASHBOARD_ROUTES.digitalMenuCategories) {
+      crumbs.push({ label: "Ürünler", href: DASHBOARD_ROUTES.digitalMenuProducts });
       crumbs.push({ label: "Kategoriler" });
+      return crumbs;
+    }
+    if (pathname === DASHBOARD_ROUTES.digitalMenuOptions) {
+      crumbs.push({ label: "Ürünler", href: DASHBOARD_ROUTES.digitalMenuProducts });
+      crumbs.push({ label: "Opsiyonlar" });
       return crumbs;
     }
     if (pathname === DASHBOARD_ROUTES.feedback) {
@@ -645,9 +663,9 @@ export function buildDashboardBreadcrumbs(
   }
 
   if (pathname.startsWith(DASHBOARD_ROUTES.menuUsers)) {
-    crumbs.push({ label: "Kullanıcılar", href: DASHBOARD_ROUTES.menuUsers });
+    crumbs.push({ label: "Personeller", href: DASHBOARD_ROUTES.menuUsers });
     if (pathname !== DASHBOARD_ROUTES.menuUsers) {
-      crumbs.push({ label: currentLabel ?? "Kullanıcı" });
+      crumbs.push({ label: currentLabel ?? "Personel" });
     }
     return crumbs;
   }
@@ -721,6 +739,7 @@ function isMenuSubsectionPath(pathname: string): boolean {
     pathname === DASHBOARD_ROUTES.digitalMenuProducts ||
     pathname.startsWith(`${DASHBOARD_ROUTES.digitalMenuProducts}/`) ||
     pathname === DASHBOARD_ROUTES.digitalMenuCategories ||
+    pathname === DASHBOARD_ROUTES.digitalMenuOptions ||
     pathname === DASHBOARD_ROUTES.feedback ||
     isRestaurantLayoutPath(pathname)
   );

@@ -11,6 +11,7 @@ import {
   useDigitalMenuAccess,
   useDigitalMenuSelection,
 } from "@/components/dashboard/menu/DigitalMenuPicker";
+import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { SmartFeaturePanel } from "@/components/dashboard/SmartFeaturePanel";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { Button } from "@/components/ui/button";
@@ -35,9 +36,11 @@ export default function AiMenuImportView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { notify } = useDashboardBanners();
-  const { accessLoading, canUseDigitalMenu } = useDigitalMenuAccess();
+  const { accessLoading, accessError, retryAccess, canUseDigitalMenu } = useDigitalMenuAccess();
   const {
     accessLoading: aiAccessLoading,
+    accessError: aiAccessError,
+    retryAccess: retryAiAccess,
     canUseAiMenuImport,
     aiMenuImportPackageNames,
   } = useAiMenuImportAccess();
@@ -92,6 +95,10 @@ export default function AiMenuImportView() {
 
   if (accessLoading || aiAccessLoading) {
     return <p className="text-sm text-muted-foreground">Yükleniyor...</p>;
+  }
+
+  if (accessError || aiAccessError) {
+    return <AccessLoadError onRetry={() => void (accessError ? retryAccess() : retryAiAccess())} />;
   }
 
   if (!canUseDigitalMenu) {

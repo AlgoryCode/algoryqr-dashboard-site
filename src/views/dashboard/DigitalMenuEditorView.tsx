@@ -14,6 +14,7 @@ import {
   Settings2,
 } from "lucide-react";
 
+import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { useDigitalMenuAccess } from "@/components/dashboard/menu/DigitalMenuPicker";
 import { DigitalMenuIcon } from "@/components/icons/DigitalMenuIcon";
 import { useMenuByQr } from "@/hooks/use-menu-by-qr";
@@ -67,7 +68,7 @@ const MENU_ACTIONS: Array<{
 
 export default function DigitalMenuEditorView({ qrId }: DigitalMenuEditorViewProps) {
   const router = useRouter();
-  const { accessLoading, canUseDigitalMenu } = useDigitalMenuAccess();
+  const { accessLoading, accessError, retryAccess, canUseDigitalMenu } = useDigitalMenuAccess();
   const menuQuery = useMenuByQr(qrId, canUseDigitalMenu);
   const profile = menuQuery.data;
   const menuName = profile?.businessName?.trim() || "Menü";
@@ -81,6 +82,10 @@ export default function DigitalMenuEditorView({ qrId }: DigitalMenuEditorViewPro
       : DASHBOARD_ROUTES.digitalMenu;
   const logoUrl = profile?.logoUrl?.trim() || null;
   const isActive = profile?.active ?? false;
+
+  if (accessError) {
+    return <AccessLoadError onRetry={() => void retryAccess()} />;
+  }
 
   if (accessLoading) {
     return (

@@ -11,6 +11,7 @@ import {
   useDigitalMenuAccess,
   useDigitalMenuSelection,
 } from "@/components/dashboard/menu/DigitalMenuPicker";
+import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { DashboardFilterBar } from "@/components/dashboard/DashboardFilterBar";
 import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
@@ -73,7 +74,7 @@ export default function FeedbackView() {
   const qrFromQuery = Number(searchParams.get("qr"));
   const initialQrId = Number.isFinite(qrFromQuery) && qrFromQuery > 0 ? qrFromQuery : null;
 
-  const { accessLoading, canUseDigitalMenu } = useDigitalMenuAccess();
+  const { accessLoading, accessError, retryAccess, canUseDigitalMenu } = useDigitalMenuAccess();
   const { menuQrs, selection, loading, error, selectQrId } = useDigitalMenuSelection(
     initialQrId,
     canUseDigitalMenu && !accessLoading,
@@ -142,6 +143,10 @@ export default function FeedbackView() {
         <DashboardLoadingState label="Geri bildirimler hazırlanıyor..." />
       </div>
     );
+  }
+
+  if (accessError) {
+    return <AccessLoadError onRetry={() => void retryAccess()} />;
   }
 
   if (!canUseDigitalMenu) {

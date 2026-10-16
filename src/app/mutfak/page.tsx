@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { parseBranchScope } from "@/lib/branch-scope";
+import { STAFF_SITE_ORIGIN } from "@/lib/config";
 import { readAccessTokenFromCookies, readRefreshTokenFromCookies } from "@/lib/server/auth-cookies";
 import OwnerKitchenView from "@/views/panel/OwnerKitchenView";
 
@@ -18,7 +19,7 @@ export default async function KitchenPage({
 }) {
   const cookieStore = await cookies();
   if (!readAccessTokenFromCookies(cookieStore) && !readRefreshTokenFromCookies(cookieStore)) {
-    redirect("/personel");
+    redirect(STAFF_SITE_ORIGIN);
   }
   const branch = parseBranchScope((await searchParams).branch);
   return <OwnerKitchenView initialBranchId={branch === "all" ? null : branch} />;

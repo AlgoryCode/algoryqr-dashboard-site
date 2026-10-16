@@ -154,7 +154,7 @@ async function seedDemoTablesAndStaff(ax: ReturnType<typeof getSiteSameOriginAxi
   // Staff
   const existingStaff = await ax
     .get<{ waiters?: Array<{ username: string }> } | Array<{ username: string }>>(
-      `/waiter-panel/branch/${branchId}/waiters`,
+      `/waiter-panel/branch/${branchId}/staff`,
     )
     .then((r) => {
       const d = r.data;
@@ -167,7 +167,7 @@ async function seedDemoTablesAndStaff(ax: ReturnType<typeof getSiteSameOriginAxi
   for (const staff of DEMO_STAFF) {
     if (existingUsernames.has(staff.username)) continue;
     try {
-      await ax.post(`/waiter-panel/branch/${branchId}/waiters`, staff);
+      await ax.post(`/waiter-panel/branch/${branchId}/staff`, staff);
     } catch {
       /* skip */
     }

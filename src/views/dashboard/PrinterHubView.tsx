@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
+import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { useDigitalMenuAccess } from "@/components/dashboard/menu/DigitalMenuPicker";
 import { Button } from "@/components/ui/button";
@@ -35,7 +36,7 @@ const CONNECTION_OPTIONS: Array<{ value: PrinterConnectionType; label: string; h
 export default function PrinterHubView() {
   const { notify } = useDashboardBanners();
   const queryClient = useQueryClient();
-  const { accessLoading, canUseDigitalMenu } = useDigitalMenuAccess();
+  const { accessLoading, accessError, retryAccess, canUseDigitalMenu } = useDigitalMenuAccess();
   const [lanHost, setLanHost] = useState<string | null>(null);
   const [lanPort, setLanPort] = useState<string | null>(null);
 
@@ -111,6 +112,10 @@ export default function PrinterHubView() {
         Yazıcı ayarları yükleniyor...
       </div>
     );
+  }
+
+  if (accessError) {
+    return <AccessLoadError onRetry={() => void retryAccess()} />;
   }
 
   if (!canUseDigitalMenu) {

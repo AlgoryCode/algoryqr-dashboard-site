@@ -4,7 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { ImagePlus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { deleteCategoryCover, uploadCategoryCover } from "@/lib/uploadCategoryCover";
+import {
+  deleteCatalogCategoryCover,
+  deleteCategoryCover,
+  uploadCatalogCategoryCover,
+  uploadCategoryCover,
+} from "@/lib/uploadCategoryCover";
 import { cn } from "@/lib/utils";
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -17,6 +22,7 @@ type CategoryCoverFieldProps = {
   onChange: (imageUrl: string | null) => void;
   disabled?: boolean;
   compact?: boolean;
+  catalog?: boolean;
 };
 
 export function CategoryCoverField({
@@ -26,6 +32,7 @@ export function CategoryCoverField({
   onChange,
   disabled = false,
   compact = false,
+  catalog = false,
 }: CategoryCoverFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(value || null);
@@ -54,7 +61,7 @@ export function CategoryCoverField({
       return;
     }
 
-    if (menuId <= 0 || categoryId <= 0) {
+    if ((!catalog && menuId <= 0) || categoryId <= 0) {
       setError("Kategori seçili değil");
       if (inputRef.current) inputRef.current.value = "";
       return;
@@ -65,7 +72,9 @@ export function CategoryCoverField({
     setPreviewUrl(localPreview);
 
     try {
-      const category = await uploadCategoryCover(menuId, categoryId, file);
+      const category = catalog
+        ? await uploadCatalogCategoryCover(categoryId, file)
+        : await uploadCategoryCover(menuId, categoryId, file);
       onChange(category.imageUrl ?? null);
       setPreviewUrl(category.imageUrl ?? null);
     } catch (uploadError) {
@@ -89,7 +98,8 @@ export function CategoryCoverField({
     setUploading(true);
     setError(null);
     try {
-      await deleteCategoryCover(menuId, categoryId);
+      if (catalog) await deleteCatalogCategoryCover(categoryId);
+      else await deleteCategoryCover(menuId, categoryId);
       onChange(null);
       setPreviewUrl(null);
     } catch (removeError) {

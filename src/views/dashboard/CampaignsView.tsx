@@ -11,6 +11,7 @@ import {
   useDigitalMenuAccess,
   useDigitalMenuSelection,
 } from "@/components/dashboard/menu/DigitalMenuPicker";
+import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { DashboardFilterBar } from "@/components/dashboard/DashboardFilterBar";
 import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
@@ -66,7 +67,7 @@ export default function CampaignsView() {
   const qrFromQuery = Number(searchParams.get("qr"));
   const initialQrId = Number.isFinite(qrFromQuery) && qrFromQuery > 0 ? qrFromQuery : null;
 
-  const { accessLoading, canUseDigitalMenu } = useDigitalMenuAccess();
+  const { accessLoading, accessError, retryAccess, canUseDigitalMenu } = useDigitalMenuAccess();
   const { menuQrs, selection, loading, error, selectQrId } = useDigitalMenuSelection(
     initialQrId,
     canUseDigitalMenu && !accessLoading,
@@ -143,6 +144,10 @@ export default function CampaignsView() {
         <DashboardLoadingState label="Kampanyalar hazırlanıyor..." />
       </div>
     );
+  }
+
+  if (accessError) {
+    return <AccessLoadError onRetry={() => void retryAccess()} />;
   }
 
   if (!canUseDigitalMenu) {

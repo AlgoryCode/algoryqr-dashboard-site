@@ -7,6 +7,7 @@ import { ArrowLeft, ChevronRight, ClipboardList, Loader2, ShoppingBag } from "lu
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { IntegrationsSectionHeader } from "@/components/dashboard/IntegrationsSectionHeader";
 import {
   useDigitalMenuAccess,
@@ -31,7 +32,7 @@ import { cn } from "@/lib/utils";
 export default function UberEatsMenuSyncView() {
   const { notify } = useDashboardBanners();
   const queryClient = useQueryClient();
-  const { accessLoading, canUseDigitalMenu } = useDigitalMenuAccess();
+  const { accessLoading, accessError, retryAccess, canUseDigitalMenu } = useDigitalMenuAccess();
   const menusQuery = useDigitalMenuOptions(canUseDigitalMenu && !accessLoading);
   const menus = menusQuery.menuQrs;
   const [menuId, setMenuId] = useState<number | null>(null);
@@ -95,6 +96,10 @@ export default function UberEatsMenuSyncView() {
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
+  }
+
+  if (accessError) {
+    return <AccessLoadError onRetry={() => void retryAccess()} />;
   }
 
   if (!canUseDigitalMenu) {

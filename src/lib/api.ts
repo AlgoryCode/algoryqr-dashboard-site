@@ -543,6 +543,7 @@ export interface MenuProfileApiItem {
   phone?: string;
   email?: string;
   address?: string;
+  googleReviewsUrl?: string | null;
   publicUrl: string;
   active: boolean;
   ratingAvg?: number | string | null;
@@ -626,6 +627,22 @@ export interface MenuProductOptionGroupApiItem {
   maxSelect: number;
   sortOrder: number;
   options: MenuProductOptionApiItem[];
+  productIds?: number[];
+}
+
+export interface CatalogOptionGroupWriteBody {
+  name: string;
+  kind?: string;
+  unit?: string;
+  minSelect?: number;
+  maxSelect?: number;
+  sortOrder?: number;
+  options: Array<{
+    name: string;
+    priceDelta?: number;
+    available?: boolean;
+    sortOrder?: number;
+  }>;
 }
 
 export interface MenuTagApiItem {
@@ -1080,6 +1097,94 @@ export async function listCatalogProductsRequest(): Promise<MenuProductApiItem[]
   return Array.isArray(response.data) ? response.data : [];
 }
 
+export async function listCatalogOptionGroupsRequest(): Promise<MenuProductOptionGroupApiItem[]> {
+  const response = await api.get<MenuProductOptionGroupApiItem[]>("/menu/catalog/option-groups");
+  return Array.isArray(response.data) ? response.data : [];
+}
+
+export async function createCatalogOptionGroupRequest(
+  payload: CatalogOptionGroupWriteBody,
+): Promise<MenuProductOptionGroupApiItem> {
+  const response = await api.post<MenuProductOptionGroupApiItem>("/menu/catalog/option-groups", payload);
+  return response.data;
+}
+
+export async function updateCatalogOptionGroupRequest(
+  groupId: number,
+  payload: CatalogOptionGroupWriteBody,
+): Promise<MenuProductOptionGroupApiItem> {
+  const response = await api.put<MenuProductOptionGroupApiItem>(
+    `/menu/catalog/option-groups/${groupId}`,
+    payload,
+  );
+  return response.data;
+}
+
+export async function deleteCatalogOptionGroupRequest(groupId: number): Promise<void> {
+  await api.delete(`/menu/catalog/option-groups/${groupId}`);
+}
+
+export async function assignCatalogOptionGroupRequest(
+  groupId: number,
+  productIds: number[],
+): Promise<MenuProductOptionGroupApiItem> {
+  const response = await api.post<MenuProductOptionGroupApiItem>(
+    `/menu/catalog/option-groups/${groupId}/assign`,
+    { productIds },
+  );
+  return response.data;
+}
+
+export async function listCatalogCategoriesRequest(): Promise<MainCategoryApiItem[]> {
+  const response = await api.get<MainCategoryApiItem[]>("/menu/catalog/categories");
+  return Array.isArray(response.data) ? response.data : [];
+}
+
+export async function createCatalogCategoryRequest(
+  payload: MenuCategoryCreateBody,
+): Promise<MainCategoryApiItem> {
+  const response = await api.post<MainCategoryApiItem>("/menu/catalog/categories", payload);
+  return response.data;
+}
+
+export async function updateCatalogCategoryRequest(
+  categoryId: number | string,
+  payload: MenuCategoryUpdateBody,
+): Promise<MainCategoryApiItem> {
+  const response = await api.put<MainCategoryApiItem>(
+    `/menu/catalog/categories/${categoryId}`,
+    payload,
+  );
+  return response.data;
+}
+
+export async function deleteCatalogCategoryRequest(categoryId: number | string): Promise<void> {
+  await api.delete(`/menu/catalog/categories/${categoryId}`);
+}
+
+export async function createCatalogSubCategoryRequest(
+  categoryId: number | string,
+  payload: MenuSubCategoryCreateBody,
+): Promise<SubCategoryApiItem> {
+  const response = await api.post<SubCategoryApiItem>(
+    `/menu/catalog/categories/${categoryId}/subs`,
+    payload,
+  );
+  return response.data;
+}
+
+export async function updateCatalogSubCategoryRequest(
+  subId: number | string,
+  payload: MenuSubCategoryUpdateBody,
+): Promise<SubCategoryApiItem> {
+  const response = await api.put<SubCategoryApiItem>(`/menu/catalog/subs/${subId}`, payload);
+  return response.data;
+}
+
+export async function deleteCatalogSubCategoryRequest(subId: number | string): Promise<void> {
+  await api.delete(`/menu/catalog/subs/${subId}`);
+}
+
 export async function createCatalogProductRequest(
   payload: MenuProductRequestBody,
 ): Promise<MenuProductApiItem> {
@@ -1220,6 +1325,7 @@ export interface MenuUpdateRequestBody {
   phone?: string;
   email?: string;
   address?: string;
+  googleReviewsUrl?: string | null;
   active?: boolean;
 }
 

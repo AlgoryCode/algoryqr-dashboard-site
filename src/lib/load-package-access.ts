@@ -3,6 +3,7 @@
 import { getStoredUser } from "@/lib/api/storage";
 import { recordFlow } from "@/lib/flow-log";
 import { readPackageSnapshot } from "@/lib/package-access";
+import { isServerStatus } from "@/lib/server-failure";
 import { usePackageStore, type PackageAccessStatus } from "@/stores/package-access-store";
 import type { AccessProfile } from "@/lib/auth-user";
 
@@ -32,7 +33,7 @@ export function loadPackageAccess(force = false, userId?: number | null): Promis
     })
     .catch(() => {
       if (ticket !== generation) return usePackageStore.getState().profile;
-      usePackageStore.setState({ profile: null, periodEnd: null, entitlements: [], status: "guest" });
+      usePackageStore.setState({ profile: null, periodEnd: null, entitlements: [], status: "error" });
       return null;
     });
 
@@ -49,7 +50,7 @@ export function clearPackageAccess() {
 }
 
 type FetchResult = {
-  status: Extract<PackageAccessStatus, "ready" | "guest">;
+  status: Extract<PackageAccessStatus, "ready" | "guest" | "error">;
   snapshot: ReturnType<typeof readPackageSnapshot>;
 };
 
@@ -65,7 +66,7 @@ async function fetchPackageAccess(userId?: number | null): Promise<FetchResult> 
       status: response.status,
       summary: "Paket profili alınamadı",
     });
-    return { status: "guest", snapshot: null };
+    return { status: isServerStatus(response.status) ? "error" : "guest", snapshot: null };
   }
   const snapshot = readPackageSnapshot(await response.json());
   if (!snapshot) {
@@ -77,7 +78,7 @@ async function fetchPackageAccess(userId?: number | null): Promise<FetchResult> 
       anomaly: "PAKET_OKUNAMADI",
       summary: "Paket cevabı profili üretmedi",
     });
-    return { status: "guest", snapshot: null };
+    return { status: "error", snapshot: null };
   }
   const products = snapshot.profile.products.join(", ");
   recordFlow({

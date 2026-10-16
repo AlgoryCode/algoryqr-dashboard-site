@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 
+import { cn } from "@/lib/utils";
+
 import {
   clearFlowLog,
   clientFlowLogEnabled,
@@ -52,7 +54,13 @@ export function FlowLogDock() {
   const warnings = entries.filter((entry) => entry.level === "warn").length;
 
   return (
-    <section className="fixed bottom-4 right-4 z-[80] w-[min(640px,calc(100vw-2rem))] text-zinc-100">
+    <section
+      className={cn(
+        "fixed z-[80] text-zinc-100",
+        "bottom-[calc(4.25rem+env(safe-area-inset-bottom))] left-4 lg:bottom-4 lg:left-auto lg:right-4",
+        open ? "w-[min(640px,calc(100vw-2rem))]" : "w-max max-w-[calc(100vw-2rem)]",
+      )}
+    >
       {open ? (
         <div className="overflow-hidden rounded-xl border border-zinc-700 bg-zinc-950 shadow-2xl">
           <header className="flex items-center justify-between gap-2 border-b border-zinc-800 px-3 py-2">

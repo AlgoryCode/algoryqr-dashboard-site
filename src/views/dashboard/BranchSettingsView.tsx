@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ChevronDown, ChevronRight, CookingPot, ImagePlus, Loader2, Printer, Trash2 } from "lucide-react";
 
+import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { useDigitalMenuAccess } from "@/components/dashboard/menu/DigitalMenuPicker";
 import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
@@ -61,7 +62,7 @@ import {
 import { DASHBOARD_BACK, DASHBOARD_SURFACE } from "@/lib/dashboard-surface";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { cn } from "@/lib/utils";
-import { createMenuWaiter, WaiterApiError } from "@/lib/waiter-api";
+import { createMenuWaiter, WaiterApiError } from "@/lib/personnel-management-api";
 
 const ACCEPTED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -129,7 +130,7 @@ export default function BranchSettingsView({ branchId }: BranchSettingsViewProps
   const router = useRouter();
   const queryClient = useQueryClient();
   const { notify } = useDashboardBanners();
-  const { accessLoading, canUseDigitalMenu } = useDigitalMenuAccess();
+  const { accessLoading, accessError, retryAccess, canUseDigitalMenu } = useDigitalMenuAccess();
   const branchesQuery = useBranches(canUseDigitalMenu);
   const inputRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState("");
@@ -374,7 +375,8 @@ export default function BranchSettingsView({ branchId }: BranchSettingsViewProps
         staffRole: "KITCHEN",
       });
       await invalidateBranches(queryClient);
-      await queryClient.invalidateQueries({ queryKey: ["menu-users", branchId] });
+      await queryClient.invalidateQueries({ queryKey: ["menu-users"] });
+      await queryClient.invalidateQueries({ queryKey: ["merchant-staff"] });
       setKitchenDialogOpen(false);
       resetKitchenForm();
       notify("info", kitchenEnabled ? "Mutfak hesabı eklendi." : "Mutfak eklendi.");
@@ -415,6 +417,10 @@ export default function BranchSettingsView({ branchId }: BranchSettingsViewProps
         <DashboardLoadingState label="Şube ayarları yükleniyor…" />
       </div>
     );
+  }
+
+  if (accessError) {
+    return <AccessLoadError onRetry={() => void retryAccess()} />;
   }
 
   if (!canUseDigitalMenu) {
@@ -592,7 +598,7 @@ export default function BranchSettingsView({ branchId }: BranchSettingsViewProps
           title="Mutfak"
           description={
             kitchenEnabled
-              ? "Mutfak bu şubede açık · hesapları Kullanıcılar sayfasından da ekleyebilirsiniz"
+              ? "Mutfak bu şubede açık · hesapları Personeller sayfasından da ekleyebilirsiniz"
               : "Mutfak yok · sonra buradan mutfak hesabı ekleyebilirsiniz"
           }
           open={kitchenOpen}
@@ -600,7 +606,7 @@ export default function BranchSettingsView({ branchId }: BranchSettingsViewProps
         >
           {kitchenEnabled ? (
             <p className="text-sm text-muted-foreground">
-              Mutfak uygulaması bu şubede açık. Yeni mutfak hesabı ekleyebilir veya Kullanıcılar
+              Mutfak uygulaması bu şubede açık. Yeni mutfak hesabı ekleyebilir veya Personeller
               sayfasından yönetebilirsiniz.
             </p>
           ) : (
@@ -616,7 +622,7 @@ export default function BranchSettingsView({ branchId }: BranchSettingsViewProps
             {kitchenEnabled ? (
               <Button asChild variant="outline" size="sm">
                 <Link href={DASHBOARD_ROUTES.menuUsersForBranch(branchId)}>
-                  Kullanıcıları yönet
+                  Personelleri yönet
                   <ChevronRight className="h-4 w-4" />
                 </Link>
               </Button>

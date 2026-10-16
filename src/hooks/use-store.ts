@@ -14,7 +14,7 @@ export const STORE_QUERY_KEYS = {
 const ORDER_POLL_INTERVAL_MS = 10_000;
 
 export function useMyStore() {
-  const { accessLoading, canUseOnlineOrder } = useOnlineOrderAccess();
+  const { accessLoading, accessError, retryAccess, canUseOnlineOrder } = useOnlineOrderAccess();
   const query = useQuery({
     queryKey: STORE_QUERY_KEYS.merchant,
     queryFn: getMyStore,
@@ -23,6 +23,8 @@ export function useMyStore() {
   return {
     ...query,
     accessLoading,
+    accessError,
+    retryAccess,
     canUseOnlineOrder,
     merchant: query.data ?? null,
     isSetUp: Boolean(query.data),

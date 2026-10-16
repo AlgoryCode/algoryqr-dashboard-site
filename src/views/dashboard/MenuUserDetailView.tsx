@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
-import { BranchPicker, useBranchSelection } from "@/components/dashboard/BranchPicker";
+import { StaffBranchAssignForm } from "@/components/dashboard/staff/StaffRosterControls";
+import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { useWaiterPanelAccess } from "@/components/dashboard/waiter/WaiterPanelAccess";
@@ -24,15 +24,19 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
-import { formatBranchCode } from "@/lib/branch";
+import { formatBranchListLabel, type BranchItem } from "@/lib/branch";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { DASHBOARD_BACK, DASHBOARD_SURFACE } from "@/lib/dashboard-surface";
+import { useBranches } from "@/hooks/use-branches";
 import {
-  listMenuUsers,
+  assignMerchantStaffBranch,
+  listMerchantStaff,
+  MERCHANT_STAFF_QUERY_KEY,
+  parseStaffRole,
   STAFF_ROLE_LABEL,
   WaiterApiError,
-  updateMenuWaiter,
-} from "@/lib/waiter-api";
+  updateMerchantStaff,
+} from "@/lib/personnel-management-api";
 
 type MenuUserDetailViewProps = {
   waiterId: number;
@@ -51,11 +55,13 @@ function formatJoinedAt(value?: string | null): string {
   });
 }
 
+function staffBranchLabel(branches: BranchItem[], branchId?: number | null): string {
+  if (branchId == null) return "Şubesiz";
+  const branch = branches.find((item) => item.id === branchId);
+  return branch ? formatBranchListLabel(branch) : `#${branchId}`;
+}
+
 export default function MenuUserDetailView({ waiterId }: MenuUserDetailViewProps) {
-  const searchParams = useSearchParams();
-  const branchFromQuery = Number(searchParams.get("branch"));
-  const initialBranchId =
-    Number.isFinite(branchFromQuery) && branchFromQuery > 0 ? branchFromQuery : null;
   const { notify } = useDashboardBanners();
   const queryClient = useQueryClient();
   const [password, setPassword] = useState("");
@@ -65,21 +71,19 @@ export default function MenuUserDetailView({ waiterId }: MenuUserDetailViewProps
   const [commissionValue, setCommissionValue] = useState("");
   const [accountAction, setAccountAction] = useState<"deactivate" | "activate" | null>(null);
 
-  const { accessLoading, canUseWaiterPanel } = useWaiterPanelAccess();
-  const { branches, branchId, loading, error, select } = useBranchSelection(
-    initialBranchId,
-    canUseWaiterPanel && !accessLoading,
-  );
+  const { accessLoading, accessError, retryAccess, canUseWaiterPanel } = useWaiterPanelAccess();
+  const branchesQuery = useBranches(canUseWaiterPanel && !accessLoading);
+  const branches = branchesQuery.data?.content ?? [];
 
   const usersQuery = useQuery({
-    queryKey: ["menu-users", branchId],
-    enabled: branchId != null,
-    queryFn: () => listMenuUsers(branchId!),
+    queryKey: MERCHANT_STAFF_QUERY_KEY,
+    enabled: canUseWaiterPanel && !accessLoading,
+    queryFn: listMerchantStaff,
   });
 
   const member = useMemo(
-    () => (usersQuery.data?.waiters ?? []).find((w) => w.id === waiterId) ?? null,
-    [usersQuery.data?.waiters, waiterId],
+    () => (usersQuery.data ?? []).find((w) => w.id === waiterId) ?? null,
+    [usersQuery.data, waiterId],
   );
 
   useEffect(() => {
@@ -95,10 +99,7 @@ export default function MenuUserDetailView({ waiterId }: MenuUserDetailViewProps
     setCommissionValue(String(raw));
   }, [member]);
 
-  const backHref =
-    branchId != null
-      ? DASHBOARD_ROUTES.menuUsersForBranch(branchId)
-      : DASHBOARD_ROUTES.menuUsers;
+  const backHref = DASHBOARD_ROUTES.menuUsers;
 
   const updateMutation = useMutation({
     mutationFn: (payload: {
@@ -108,10 +109,11 @@ export default function MenuUserDetailView({ waiterId }: MenuUserDetailViewProps
       commissionType?: "PERCENT" | "FIXED";
       commissionScope?: "PER_ITEM" | "BILL_TOTAL";
       commissionValue?: number;
-    }) => updateMenuWaiter(branchId!, waiterId, payload),
+    }) => updateMerchantStaff(waiterId, payload),
     onSuccess: async (_data, vars) => {
       if (vars.password) setPassword("");
-      await queryClient.invalidateQueries({ queryKey: ["menu-users", branchId] });
+      await queryClient.invalidateQueries({ queryKey: MERCHANT_STAFF_QUERY_KEY });
+      await queryClient.invalidateQueries({ queryKey: ["menu-users"] });
       if (vars.active === true) {
         notify("info", "Kullanıcı aktifleştirildi.");
       } else if (vars.active === false) {
@@ -125,11 +127,37 @@ export default function MenuUserDetailView({ waiterId }: MenuUserDetailViewProps
     },
   });
 
-  if (accessLoading || loading) {
+  const assignMutation = useMutation({
+    mutationFn: (branchId: number | null) => assignMerchantStaffBranch(waiterId, branchId),
+    onSuccess: async (_data, branchId) => {
+      await queryClient.invalidateQueries({ queryKey: MERCHANT_STAFF_QUERY_KEY });
+      await queryClient.invalidateQueries({ queryKey: ["menu-users"] });
+      await queryClient.invalidateQueries({ queryKey: ["branchDetailUsers"] });
+      notify("info", branchId == null ? "Personel şubeden çıkarıldı." : "Personel şubeye atandı.");
+    },
+    onError: (err) => {
+      notify("danger", err instanceof WaiterApiError ? err.message : "Şube ataması yapılamadı.");
+    },
+  });
+
+  if (accessLoading) {
     return (
       <div className="space-y-6 animate-fade-in pb-8">
-        <DashboardPageHeader title="Kullanıcı detayı" hint="Personel hesabı" />
+        <DashboardPageHeader title="Personel detayı" hint="Personel hesabı" />
         <DashboardLoadingState label="Kullanıcı bilgileri yükleniyor…" />
+      </div>
+    );
+  }
+
+  if (accessError) {
+    return <AccessLoadError onRetry={() => void retryAccess()} />;
+  }
+
+  if (!canUseWaiterPanel) {
+    return (
+      <div className="space-y-6 animate-fade-in pb-8">
+        <DashboardPageHeader title="Personel detayı" hint="Personel hesabı" />
+        <p className="text-sm text-muted-foreground">Personel paneli bu hesapta açık değil.</p>
       </div>
     );
   }
@@ -139,29 +167,16 @@ export default function MenuUserDetailView({ waiterId }: MenuUserDetailViewProps
   return (
     <div className="space-y-6 animate-fade-in pb-8">
       <DashboardPageHeader
-        title={member?.displayName || "Kullanıcı detayı"}
-        hint={`${STAFF_ROLE_LABEL[member?.staffRole ?? "WAITER"]} hesabı`}
+        title={member?.displayName || "Personel detayı"}
+        hint={`${STAFF_ROLE_LABEL[parseStaffRole(member?.staffRole)]} hesabı`}
         back={
-          <Link href={backHref} aria-label="Kullanıcı listesine dön" className={DASHBOARD_BACK}>
+          <Link href={backHref} aria-label="Personeller listesine dön" className={DASHBOARD_BACK}>
             <ArrowLeft className="h-4 w-4" />
           </Link>
         }
       />
 
-      <BranchPicker
-        branches={branches}
-        selectedBranchId={branchId}
-        onSelect={select}
-      />
-      {error ? (
-        <p className="text-sm text-destructive">
-          {error instanceof Error ? error.message : "Şubeler alınamadı."}
-        </p>
-      ) : null}
-
-      {!branchId ? (
-        <p className="text-sm text-muted-foreground">Şube seçin.</p>
-      ) : usersQuery.isLoading ? (
+      {usersQuery.isLoading ? (
         <DashboardLoadingState label="Kullanıcı bilgileri yükleniyor…" />
       ) : !member ? (
         <div className="space-y-3 rounded-lg border border-dashed border-border px-4 py-10 text-center">
@@ -187,17 +202,33 @@ export default function MenuUserDetailView({ waiterId }: MenuUserDetailViewProps
             </div>
             <p className="text-sm text-muted-foreground">@{member.username}</p>
             <p className="text-sm text-muted-foreground">
-              Şube kodu: <span className="font-medium text-foreground">{formatBranchCode(member.branchId)}</span>
+              Şube:{" "}
+              <span className="font-medium text-foreground">
+                {staffBranchLabel(branches, member.branchId)}
+              </span>
             </p>
             <p className="text-sm text-muted-foreground">
-              Rol: {STAFF_ROLE_LABEL[member.staffRole ?? "WAITER"]}
+              Rol: {STAFF_ROLE_LABEL[parseStaffRole(member.staffRole)]}
             </p>
             <p className="text-sm text-muted-foreground">
-              Bu hesap yalnızca kendi şubesinin işlemlerini görür.
+              {member.branchId == null
+                ? "Şube atanana kadar bu hesap giriş yapınca işlem göremez."
+                : "Bu hesap yalnızca kendi şubesinin işlemlerini görür."}
             </p>
             <p className="text-sm text-muted-foreground">
               Eklenme: {formatJoinedAt(member.createdAt)}
             </p>
+          </section>
+
+          <section className={`${DASHBOARD_SURFACE} space-y-3 p-4`}>
+            <h2 className="text-base font-semibold">Şube</h2>
+            <StaffBranchAssignForm
+              staffRole={parseStaffRole(member.staffRole)}
+              branchId={member.branchId ?? null}
+              branches={branches}
+              pending={assignMutation.isPending}
+              onAssign={(branchId) => assignMutation.mutate(branchId)}
+            />
           </section>
 
           <section className={`${DASHBOARD_SURFACE} space-y-3 p-4`}>

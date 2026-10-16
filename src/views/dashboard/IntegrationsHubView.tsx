@@ -6,6 +6,7 @@ import { ArrowLeft, ShoppingBag } from "lucide-react";
 
 import { UberEatsWordmarkSvg } from "@/components/icons/UberEatsWordmarkSvg";
 
+import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { useDigitalMenuAccess } from "@/components/dashboard/menu/DigitalMenuPicker";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
@@ -16,7 +17,7 @@ type IntegrationsHubViewProps = {
 };
 
 export default function IntegrationsHubView({ backHref }: IntegrationsHubViewProps) {
-  const { accessLoading, canUseDigitalMenu } = useDigitalMenuAccess();
+  const { accessLoading, accessError, retryAccess, canUseDigitalMenu } = useDigitalMenuAccess();
 
   if (accessLoading) {
     return backHref ? (
@@ -32,6 +33,10 @@ export default function IntegrationsHubView({ backHref }: IntegrationsHubViewPro
         />
       </div>
     ) : null;
+  }
+
+  if (accessError) {
+    return <AccessLoadError onRetry={() => void retryAccess()} />;
   }
 
   if (!canUseDigitalMenu) {

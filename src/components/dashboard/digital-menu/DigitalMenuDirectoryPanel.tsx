@@ -13,11 +13,14 @@ import {
 
 import { DigitalMenuHubShell } from "@/components/dashboard/digital-menu/DigitalMenuHubShell";
 import { EmptyState } from "@/components/dashboard/EmptyState";
+import { QueryErrorState } from "@/components/dashboard/QueryErrorState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useListQueryState } from "@/hooks/use-list-query-state";
 import { useBranches } from "@/hooks/use-branches";
+import { ApiError } from "@/lib/api/errors";
 import type { BranchItem, BranchMenuSummary } from "@/lib/branch";
+import { isServerFailure } from "@/lib/server-failure";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { ACCOUNT_CARD } from "@/lib/dashboard-surface";
 import { cn } from "@/lib/utils";
@@ -108,7 +111,14 @@ export function DigitalMenuDirectoryPanel({ title = "Şubeler" }: { title?: stri
   const { searchParams, setQuery: setListQuery } = useListQueryState();
   const branchesQuery = useBranches(true);
   const branches = branchesQuery.data?.content ?? [];
-  const canCreateBranch = Boolean(branchesQuery.data?.quota.canCreate);
+  const canCreateBranch =
+    branchesQuery.isSuccess && Boolean(branchesQuery.data.quota.canCreate);
+  const serverFailure = branchesQuery.isError && isServerFailure(branchesQuery.error);
+  const otherFailure = branchesQuery.isError && !serverFailure;
+  const otherFailureMessage =
+    branchesQuery.error instanceof ApiError && branchesQuery.error.message
+      ? branchesQuery.error.message
+      : "İstek tamamlanamadı.";
   const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
   const [status, setStatus] = useState<StatusFilter>(
     () => (searchParams.get("status") as StatusFilter) || "all",
@@ -164,23 +174,39 @@ export function DigitalMenuDirectoryPanel({ title = "Şubeler" }: { title?: stri
               </button>
             ))}
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9 shrink-0 gap-1.5 border-border bg-white px-3 text-xs font-medium shadow-none dark:bg-card"
-            onClick={() => router.push(createBranchHref)}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            {canCreateBranch ? "Yeni şube" : "Şube hakkı al"}
-          </Button>
+          {branchesQuery.isSuccess ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 shrink-0 gap-1.5 border-border bg-white px-3 text-xs font-medium shadow-none dark:bg-card"
+              onClick={() => router.push(createBranchHref)}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {canCreateBranch ? "Yeni şube" : "Şube hakkı al"}
+            </Button>
+          ) : null}
         </div>
 
-        {branchesQuery.isLoading ? (
+        {serverFailure ? (
+          <QueryErrorState
+            title="Şubeler yüklenemedi"
+            description="Şube ve paket haklarınız doğrulanamadı. Bu nedenle satın alma işlemi gösterilmiyor."
+            onRetry={() => void branchesQuery.refetch()}
+            retrying={branchesQuery.isFetching}
+          />
+        ) : otherFailure ? (
+          <QueryErrorState
+            title="Şubeler alınamadı"
+            description={otherFailureMessage}
+            onRetry={() => void branchesQuery.refetch()}
+            retrying={branchesQuery.isFetching}
+          />
+        ) : branchesQuery.isLoading ? (
           <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
             Yükleniyor…
           </div>
-        ) : branches.length === 0 ? (
+        ) : branchesQuery.isSuccess && branches.length === 0 ? (
           <EmptyState
             title="Henüz şube yok"
             description="Menü eklemek için önce bir şube (lokasyon) oluşturun."

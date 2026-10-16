@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, ArrowUpDown, Search } from "lucide-react";
 
 import { SearchableSelect } from "@/components/dashboard/menu/SearchableSelect";
+import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { DashboardFilterBar } from "@/components/dashboard/DashboardFilterBar";
 import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
@@ -24,7 +25,10 @@ import {
 } from "@/components/ui/table";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { DASHBOARD_SURFACE } from "@/lib/dashboard-surface";
-import { listBusinessCustomers, type MenuCustomerItem } from "@/lib/waiter-api";
+import {
+  listBusinessCustomers,
+  type MenuCustomerItem,
+} from "@/lib/personnel-management-api";
 import { cn } from "@/lib/utils";
 
 const ALL_MENUS = "all";
@@ -111,7 +115,7 @@ function SortHead({
 }
 
 export default function MenuCustomersView() {
-  const { accessLoading, canUseWaiterPanel } = useWaiterPanelAccess();
+  const { accessLoading, accessError, retryAccess, canUseWaiterPanel } = useWaiterPanelAccess();
 
   const [search, setSearch] = useState("");
   const [menuFilter, setMenuFilter] = useState(ALL_MENUS);
@@ -159,6 +163,10 @@ export default function MenuCustomersView() {
     }
     setSortKey(column);
     setSortDir(column === "date" ? "desc" : "asc");
+  }
+
+  if (accessError) {
+    return <AccessLoadError onRetry={() => void retryAccess()} />;
   }
 
   if (accessLoading) {

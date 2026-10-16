@@ -3,6 +3,7 @@
 import { Loader2 } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { useAccessProfile } from "@/hooks/use-access-profile";
 import { hasScope, type AccessProfile, type ProductScope } from "@/lib/auth-user";
 
@@ -19,10 +20,12 @@ function resolveAllowed(
 }
 
 export function useRequireScope(scope?: ProductScope, anyOf?: ProductScope[]) {
-  const { data: profile, isLoading } = useAccessProfile();
+  const { data: profile, isLoading, isError, refetch } = useAccessProfile();
   return {
     allowed: resolveAllowed(profile, scope, anyOf),
     isLoading,
+    isError,
+    retry: refetch,
     profile,
   };
 }
@@ -46,7 +49,16 @@ export function RequireScope({
   fallback?: ReactNode;
   loading?: ReactNode;
 }) {
-  const { allowed, isLoading } = useRequireScope(scope, anyOf);
+  const { allowed, isLoading, isError, retry } = useRequireScope(scope, anyOf);
   if (isLoading) return loading;
+  if (isError) {
+    return (
+      <AccessLoadError
+        title="Erişim bilgileri alınamadı"
+        description="Paket ve yetki bilgileriniz doğrulanamadı. Lütfen tekrar deneyin."
+        onRetry={() => void retry()}
+      />
+    );
+  }
   return allowed ? children : fallback;
 }

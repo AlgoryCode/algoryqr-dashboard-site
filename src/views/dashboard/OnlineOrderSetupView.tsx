@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Check, Loader2 } from "lucide-react";
 
+import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { StoreWorkingHoursEditor } from "@/components/dashboard/store/StoreWorkingHoursEditor";
 import { Button } from "@/components/ui/button";
@@ -70,7 +71,7 @@ export default function OnlineOrderSetupView() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { notify } = useDashboardBanners();
-  const { accessLoading, canUseOnlineOrder } = useOnlineOrderAccess();
+  const { accessLoading, accessError, retryAccess, canUseOnlineOrder } = useOnlineOrderAccess();
   const branchesQuery = useBranches();
   const courierEnabled = branchesQuery.isSuccess && anyBranchHasCourier(branchesQuery.data);
 
@@ -139,6 +140,10 @@ export default function OnlineOrderSetupView() {
         {message || "Kurulum bilgileri yüklenemedi. Sayfayı yenileyip tekrar deneyin."}
       </p>
     );
+  }
+
+  if (accessError) {
+    return <AccessLoadError onRetry={() => void retryAccess()} />;
   }
 
   if (!canUseOnlineOrder) {

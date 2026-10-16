@@ -11,6 +11,7 @@ import {
   useDigitalMenuAccess,
   useDigitalMenuSelection,
 } from "@/components/dashboard/menu/DigitalMenuPicker";
+import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { CampaignImageField } from "@/components/dashboard/menu/CampaignImageField";
 import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
@@ -280,7 +281,7 @@ export default function CampaignDetailView({ campaignId }: CampaignDetailViewPro
   const [termsLoadedFor, setTermsLoadedFor] = useState<number | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
-  const { accessLoading, canUseDigitalMenu } = useDigitalMenuAccess();
+  const { accessLoading, accessError, retryAccess, canUseDigitalMenu } = useDigitalMenuAccess();
   const { menuQrs, selection, loading, selectQrId } = useDigitalMenuSelection(
     initialQrId,
     canUseDigitalMenu && !accessLoading,
@@ -420,6 +421,10 @@ export default function CampaignDetailView({ campaignId }: CampaignDetailViewPro
         <DashboardLoadingState label="Kampanya yükleniyor…" />
       </div>
     );
+  }
+
+  if (accessError) {
+    return <AccessLoadError onRetry={() => void retryAccess()} />;
   }
 
   if (!canUseDigitalMenu) {

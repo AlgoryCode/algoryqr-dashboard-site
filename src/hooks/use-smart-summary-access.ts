@@ -9,7 +9,12 @@ import { packageIncludesProduct } from "@/lib/product-access";
 const SMART_SUMMARY_PRODUCT = "SMART_SUMMARY";
 
 export function useSmartSummaryAccess() {
-  const { data: accessProfile, isLoading: accessLoading } = useAccessProfile();
+  const {
+    data: accessProfile,
+    isLoading: accessLoading,
+    isError: accessError,
+    refetch: retryAccess,
+  } = useAccessProfile();
   const packages = useActivePackages();
   const catalogPackages = packages.data ?? [];
   const canUseSmartSummary = hasProduct(accessProfile, SMART_SUMMARY_PRODUCT);
@@ -21,6 +26,8 @@ export function useSmartSummaryAccess() {
 
   return {
     accessLoading: accessLoading || packages.isLoading,
+    accessError,
+    retryAccess,
     canUseSmartSummary,
     smartSummaryPackageNames,
   };

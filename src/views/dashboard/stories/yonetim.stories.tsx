@@ -9,7 +9,7 @@ const meta = {
 
 export default meta;
 
-export const Kullanicilar = dashboardPage("Kullanıcılar", DASHBOARD_ROUTES.menuUsers, { branch: "1" });
+export const Kullanicilar = dashboardPage("Personeller", DASHBOARD_ROUTES.menuUsers, { branch: "1" });
 export const KullaniciDetay = dashboardPage("Kullanıcı detay", "/dashboard/kullanicilar/7", { branch: "1" });
 export const Musteriler = dashboardPage("Müşteriler", DASHBOARD_ROUTES.menuCustomers, { qr: "34" });
 export const Kampanyalar = dashboardPage("Kampanyalar", DASHBOARD_ROUTES.campaigns, { qr: "34" });

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Pencil } from "lucide-react";
 
+import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { IntegrationsSectionHeader } from "@/components/dashboard/IntegrationsSectionHeader";
 import {
   useDigitalMenuAccess,
@@ -56,7 +57,7 @@ function publishTargetLabel(targets: PublishTarget[]): string {
 export default function UberEatsPendingView() {
   const { notify } = useDashboardBanners();
   const queryClient = useQueryClient();
-  const { accessLoading, canUseDigitalMenu } = useDigitalMenuAccess();
+  const { accessLoading, accessError, retryAccess, canUseDigitalMenu } = useDigitalMenuAccess();
   const menusQuery = useDigitalMenuOptions(canUseDigitalMenu && !accessLoading);
   const menus = menusQuery.menuQrs;
   const [menuId, setMenuId] = useState<number | null>(null);
@@ -183,6 +184,10 @@ export default function UberEatsPendingView() {
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
+  }
+
+  if (accessError) {
+    return <AccessLoadError onRetry={() => void retryAccess()} />;
   }
 
   if (!canUseDigitalMenu) {

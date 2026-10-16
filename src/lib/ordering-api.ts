@@ -131,7 +131,7 @@ export type UpdateCartRequest = {
 
 export type RestaurantArea = {
   id: number;
-  menuId: number;
+  menuId: number | null;
   name: string;
   sortOrder?: number;
   createdAt?: string | null;
@@ -140,7 +140,7 @@ export type RestaurantArea = {
 
 export type RestaurantTable = {
   id: number;
-  menuId: number;
+  menuId: number | null;
   areaId?: number | null;
   areaName?: string | null;
   name: string;
@@ -460,6 +460,243 @@ export async function regenerateMenuTableQr(
     throw new OrderingApiError(response.status, data.message || "QR yenilenemedi");
   }
   return data;
+}
+
+export type CatalogLayout = {
+  id: number;
+  name: string;
+  branchId: number | null;
+  branchName: string | null;
+  areaCount: number;
+  tableCount: number;
+  menuLinked: boolean;
+};
+
+export async function listCatalogLayouts(): Promise<CatalogLayout[]> {
+  const response = await fetch("/api/waiter-panel/catalog/layouts", {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    credentials: "same-origin",
+  });
+  const data = await parseJson<CatalogLayout[] | { message?: string }>(response);
+  if (!response.ok) {
+    const message =
+      data && typeof data === "object" && !Array.isArray(data) && "message" in data
+        ? String(data.message)
+        : "Düzenler alınamadı";
+    throw new OrderingApiError(response.status, message);
+  }
+  return Array.isArray(data) ? data : [];
+}
+
+export async function createCatalogLayout(name: string): Promise<CatalogLayout> {
+  const response = await fetch("/api/waiter-panel/catalog/layouts", {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ name }),
+  });
+  const data = await parseJson<CatalogLayout & { message?: string }>(response);
+  if (!response.ok) {
+    throw new OrderingApiError(response.status, data.message || "Düzen oluşturulamadı");
+  }
+  return data;
+}
+
+export async function updateCatalogLayout(
+  layoutId: number,
+  payload: { name: string },
+): Promise<CatalogLayout> {
+  const response = await fetch(`/api/waiter-panel/catalog/layouts/${layoutId}`, {
+    method: "PATCH",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(payload),
+  });
+  const data = await parseJson<CatalogLayout & { message?: string }>(response);
+  if (!response.ok) {
+    throw new OrderingApiError(response.status, data.message || "Düzen güncellenemedi");
+  }
+  return data;
+}
+
+export async function deleteCatalogLayout(layoutId: number): Promise<void> {
+  const response = await fetch(`/api/waiter-panel/catalog/layouts/${layoutId}`, {
+    method: "DELETE",
+    credentials: "same-origin",
+  });
+  if (!response.ok && response.status !== 204) {
+    const data = await parseJson<{ message?: string }>(response);
+    throw new OrderingApiError(response.status, data.message || "Düzen silinemedi");
+  }
+}
+
+export async function assignCatalogLayout(
+  layoutId: number,
+  branchId: number | null,
+): Promise<CatalogLayout> {
+  const response = await fetch(`/api/waiter-panel/catalog/layouts/${layoutId}/assign`, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ branchId }),
+  });
+  const data = await parseJson<CatalogLayout & { message?: string }>(response);
+  if (!response.ok) {
+    throw new OrderingApiError(response.status, data.message || "Düzen bağlanamadı");
+  }
+  return data;
+}
+
+export async function listCatalogAreas(layoutId: number): Promise<RestaurantArea[]> {
+  const response = await fetch(`/api/waiter-panel/catalog/layouts/${layoutId}/areas`, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    credentials: "same-origin",
+  });
+  const data = await parseJson<RestaurantArea[] | { message?: string }>(response);
+  if (!response.ok) {
+    const message =
+      data && typeof data === "object" && !Array.isArray(data) && "message" in data
+        ? String(data.message)
+        : "Alanlar alınamadı";
+    throw new OrderingApiError(response.status, message);
+  }
+  return Array.isArray(data) ? data : [];
+}
+
+export async function createCatalogArea(layoutId: number, name: string): Promise<RestaurantArea> {
+  const response = await fetch(`/api/waiter-panel/catalog/layouts/${layoutId}/areas`, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ name }),
+  });
+  const data = await parseJson<RestaurantArea & { message?: string }>(response);
+  if (!response.ok) {
+    throw new OrderingApiError(response.status, data.message || "Alan eklenemedi");
+  }
+  return data;
+}
+
+export async function updateCatalogArea(
+  layoutId: number,
+  areaId: number,
+  payload: { name: string },
+): Promise<RestaurantArea> {
+  const response = await fetch(`/api/waiter-panel/catalog/layouts/${layoutId}/areas/${areaId}`, {
+    method: "PATCH",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(payload),
+  });
+  const data = await parseJson<RestaurantArea & { message?: string }>(response);
+  if (!response.ok) {
+    throw new OrderingApiError(response.status, data.message || "Alan güncellenemedi");
+  }
+  return data;
+}
+
+export async function deleteCatalogArea(layoutId: number, areaId: number): Promise<void> {
+  const response = await fetch(`/api/waiter-panel/catalog/layouts/${layoutId}/areas/${areaId}`, {
+    method: "DELETE",
+    credentials: "same-origin",
+  });
+  if (!response.ok && response.status !== 204) {
+    const data = await parseJson<{ message?: string }>(response);
+    throw new OrderingApiError(response.status, data.message || "Alan silinemedi");
+  }
+}
+
+export async function listCatalogTables(layoutId: number): Promise<RestaurantTable[]> {
+  const response = await fetch(`/api/waiter-panel/catalog/layouts/${layoutId}/tables`, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    credentials: "same-origin",
+  });
+  const data = await parseJson<RestaurantTable[] | { message?: string }>(response);
+  if (!response.ok) {
+    const message =
+      data && typeof data === "object" && !Array.isArray(data) && "message" in data
+        ? String(data.message)
+        : "Masalar alınamadı";
+    throw new OrderingApiError(response.status, message);
+  }
+  return Array.isArray(data) ? data : [];
+}
+
+export async function createCatalogTable(
+  layoutId: number,
+  payload: {
+    name: string;
+    tableNumber?: number | null;
+    areaId?: number | null;
+    capacity?: number | null;
+    layoutX?: number | null;
+    layoutY?: number | null;
+    layoutRotation?: number | null;
+    layoutShape?: string | null;
+  },
+): Promise<RestaurantTable> {
+  const response = await fetch(`/api/waiter-panel/catalog/layouts/${layoutId}/tables`, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(payload),
+  });
+  const data = await parseJson<RestaurantTable & { message?: string }>(response);
+  if (!response.ok) {
+    throw new OrderingApiError(response.status, data.message || "Masa eklenemedi");
+  }
+  return data;
+}
+
+export async function updateCatalogTable(
+  layoutId: number,
+  tableId: number,
+  payload: MenuTablePayload,
+): Promise<RestaurantTable> {
+  const response = await fetch(`/api/waiter-panel/catalog/layouts/${layoutId}/tables/${tableId}`, {
+    method: "PATCH",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(payload),
+  });
+  const data = await parseJson<RestaurantTable & { message?: string }>(response);
+  if (!response.ok) {
+    throw new OrderingApiError(response.status, data.message || "Masa güncellenemedi");
+  }
+  return data;
+}
+
+export async function regenerateCatalogTableQr(
+  layoutId: number,
+  tableId: number,
+): Promise<RestaurantTable> {
+  const response = await fetch(
+    `/api/waiter-panel/catalog/layouts/${layoutId}/tables/${tableId}/regenerate-qr`,
+    {
+      method: "POST",
+      headers: { Accept: "application/json" },
+      credentials: "same-origin",
+    },
+  );
+  const data = await parseJson<RestaurantTable & { message?: string }>(response);
+  if (!response.ok) {
+    throw new OrderingApiError(response.status, data.message || "QR yenilenemedi");
+  }
+  return data;
+}
+
+export async function deleteCatalogTable(layoutId: number, tableId: number): Promise<void> {
+  const response = await fetch(`/api/waiter-panel/catalog/layouts/${layoutId}/tables/${tableId}`, {
+    method: "DELETE",
+    credentials: "same-origin",
+  });
+  if (!response.ok && response.status !== 204) {
+    const data = await parseJson<{ message?: string }>(response);
+    throw new OrderingApiError(response.status, data.message || "Masa silinemedi");
+  }
 }
 
 export async function deleteMenuTable(menuId: number, tableId: number): Promise<void> {

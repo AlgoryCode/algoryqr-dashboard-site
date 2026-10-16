@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
@@ -19,10 +19,16 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ChevronDown, ChevronRight, GripVertical, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronDown, CirclePlus, GripVertical, Pencil, Plus, Search, Trash2 } from "lucide-react";
 
 import { CategoryCoverField } from "@/components/dashboard/menu/CategoryCoverField";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -44,17 +50,23 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  createCatalogCategoryRequest,
+  createCatalogSubCategoryRequest,
   createMenuCategoryRequest,
   createMenuSubCategoryRequest,
+  deleteCatalogCategoryRequest,
+  deleteCatalogSubCategoryRequest,
   deleteMenuCategoryRequest,
   deleteMenuSubCategoryRequest,
+  updateCatalogCategoryRequest,
+  updateCatalogSubCategoryRequest,
   updateMenuCategoryRequest,
   updateMenuSubCategoryRequest,
   type MainCategoryApiItem,
   type SubCategoryApiItem,
 } from "@/lib/api";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
-import { invalidateMenuCategories, useMenuCategories } from "@/hooks/use-menu-categories";
+import { invalidateMenuCategories, useCatalogCategories, useMenuCategories } from "@/hooks/use-menu-categories";
 import { publicMenuKeys } from "@/hooks/public-menu/keys";
 import { useMenuByQr } from "@/hooks/use-menu-by-qr";
 import { cn } from "@/lib/utils";
@@ -64,6 +76,7 @@ const SEARCH_DEBOUNCE_MS = 300;
 type MenuCategoriesPanelProps = {
   menuId: number;
   qrId: number;
+  catalog?: boolean;
   onAddProduct?: (subCategoryId: number) => void;
 };
 
@@ -131,8 +144,37 @@ function DragHandle({
   );
 }
 
+const HEAD_CELL =
+  "border border-border bg-muted/50 px-3 py-2 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground";
+const BODY_CELL =
+  "border-0 p-0 align-middle md:table-cell md:border md:border-border md:px-3 md:py-2.5";
+const DATA_ROW =
+  "grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-2 border-b border-border px-3 py-3 last:border-b-0 hover:bg-muted/30 md:table-row md:border-0 md:p-0";
+const DESKTOP_CELL = "hidden md:table-cell";
+
+function RowActions({
+  busy,
+  children,
+}: {
+  busy: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="h-8 gap-1" disabled={busy}>
+          İşlemler
+          <ChevronDown className="h-3.5 w-3.5" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">{children}</DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function SortableSubRow({
   sub,
+  parentName,
   busy,
   dragDisabled,
   onRename,
@@ -140,6 +182,7 @@ function SortableSubRow({
   onAddProduct,
 }: {
   sub: SubCategoryApiItem;
+  parentName: string;
   busy: boolean;
   dragDisabled: boolean;
   onRename: () => void;
@@ -153,66 +196,49 @@ function SortableSubRow({
   });
 
   return (
-    <div
+    <tr
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn(
-        "ml-1 flex items-center justify-between gap-2 rounded-lg border border-border/60 px-2 py-2 sm:ml-4",
-        isDragging && "z-10 bg-background shadow-md",
-      )}
+      className={cn(DATA_ROW, "bg-muted/20 pl-6 md:bg-transparent md:pl-0", isDragging && "relative z-10 bg-background")}
     >
-      <div className="flex min-w-0 items-center gap-1">
+      <td className={`${BODY_CELL} w-10 md:px-1`}>
         <DragHandle attributes={attributes} listeners={listeners} disabled={dragDisabled || busy} />
-        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-        <span className="truncate text-sm">{sub.name}</span>
-        <span className="truncate text-xs text-muted-foreground">{sub.slug}</span>
-      </div>
-      <div className="flex shrink-0 items-center gap-1">
-        {onAddProduct ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 px-2 text-xs"
-            disabled={busy}
-            onClick={() => onAddProduct(sub.id)}
-          >
-            Ürün ekle
-          </Button>
-        ) : null}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          disabled={busy}
-          onClick={onRename}
-          aria-label="Alt kategoriyi yeniden adlandır"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-destructive hover:text-destructive"
-          disabled={busy}
-          onClick={onDelete}
-          aria-label="Alt kategoriyi sil"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
-      </div>
-    </div>
+      </td>
+      <td className={BODY_CELL}>
+        <span className="block truncate font-medium">{sub.name}</span>
+        <p className="truncate text-xs text-muted-foreground md:hidden">{parentName}</p>
+      </td>
+      <td className={`${BODY_CELL} ${DESKTOP_CELL} text-muted-foreground`}>{parentName}</td>
+      <td className={`${BODY_CELL} ${DESKTOP_CELL} text-muted-foreground`}>{sub.slug}</td>
+      <td className={`${BODY_CELL} ${DESKTOP_CELL} text-muted-foreground`}>Alt</td>
+      <td className={`${BODY_CELL} col-span-2 text-right md:col-auto`}>
+        <RowActions busy={busy}>
+          {onAddProduct ? (
+            <DropdownMenuItem onSelect={() => onAddProduct(sub.id)}>
+              <Plus className="mr-2 h-3.5 w-3.5" />
+              Ürün ekle
+            </DropdownMenuItem>
+          ) : null}
+          <DropdownMenuItem onSelect={onRename}>
+            <Pencil className="mr-2 h-3.5 w-3.5" />
+            Yeniden adlandır
+          </DropdownMenuItem>
+          <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={onDelete}>
+            <Trash2 className="mr-2 h-3.5 w-3.5" />
+            Sil
+          </DropdownMenuItem>
+        </RowActions>
+      </td>
+    </tr>
   );
 }
 
-function SortableMainBlock({
+function SortableCategoryRows({
   main,
   menuId,
-  expanded,
+  catalog,
   busy,
   dragDisabled,
-  onToggle,
   onRename,
   onDelete,
   onAddSub,
@@ -223,10 +249,9 @@ function SortableMainBlock({
 }: {
   main: MainCategoryApiItem;
   menuId: number;
-  expanded: boolean;
+  catalog?: boolean;
   busy: boolean;
   dragDisabled: boolean;
-  onToggle: () => void;
   onRename: () => void;
   onDelete: () => void;
   onAddSub: () => void;
@@ -240,103 +265,78 @@ function SortableMainBlock({
     disabled: dragDisabled || busy,
     data: { type: "main", mainId: main.id },
   });
-  const subCount = main.subs?.length ?? 0;
-  const subIds = (main.subs ?? []).map((sub) => `sub-${sub.id}`);
+  const subs = main.subs ?? [];
+  const subIds = subs.map((sub) => `sub-${sub.id}`);
 
   return (
-    <div
-      ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn("rounded-xl border border-border/80", isDragging && "z-10 bg-background shadow-md")}
-    >
-      <div className="flex items-center gap-1 px-2 py-2 sm:px-3">
-        <DragHandle attributes={attributes} listeners={listeners} disabled={dragDisabled || busy} />
-        <CategoryCoverField
-          menuId={menuId}
-          categoryId={main.id}
-          value={main.imageUrl}
-          disabled={busy || menuId <= 0}
-          compact
-          onChange={(imageUrl) => onCoverChange(main.id, imageUrl)}
-        />
-        <button
-          type="button"
-          className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-lg px-1 py-1 text-left transition-colors hover:bg-muted/40"
-          onClick={onToggle}
-          aria-expanded={expanded}
-        >
-          <div className="min-w-0">
-            <h3 className="truncate text-sm font-semibold">{main.name}</h3>
-            <p className="truncate text-xs text-muted-foreground">
-              {main.slug}
-              {subCount > 0 ? ` · ${subCount} alt kategori` : ""}
-            </p>
+    <>
+      <tr
+        ref={setNodeRef}
+        style={{ transform: CSS.Transform.toString(transform), transition }}
+        className={cn(DATA_ROW, isDragging && "relative z-10 bg-background")}
+      >
+        <td className={`${BODY_CELL} w-10 md:px-1`}>
+          <DragHandle attributes={attributes} listeners={listeners} disabled={dragDisabled || busy} />
+        </td>
+        <td className={BODY_CELL}>
+          <div className="flex min-w-0 items-center gap-2">
+            <CategoryCoverField
+              menuId={menuId}
+              categoryId={main.id}
+              value={main.imageUrl}
+              disabled={busy || (!catalog && menuId <= 0)}
+              catalog={catalog}
+              compact
+              onChange={(imageUrl) => onCoverChange(main.id, imageUrl)}
+            />
+            <div className="min-w-0">
+              <span className="block truncate font-medium">{main.name}</span>
+              <p className="truncate text-xs text-muted-foreground md:hidden">Ana kategori</p>
+            </div>
           </div>
-          <ChevronDown
-            className={cn(
-              "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
-              expanded ? "rotate-180" : "rotate-0",
-            )}
-          />
-        </button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0"
-          disabled={busy}
-          onClick={onRename}
-          aria-label="Kategoriyi yeniden adlandır"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
-          disabled={busy}
-          onClick={onDelete}
-          aria-label="Kategoriyi sil"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
-      </div>
-      {expanded ? (
-        <div className="space-y-2 border-t border-border/60 px-3 py-3">
-          {subCount === 0 ? (
-            <p className="text-xs text-muted-foreground">Alt kategori yok.</p>
-          ) : (
-            <SortableContext items={subIds} strategy={verticalListSortingStrategy}>
-              <div className="space-y-2">
-                {(main.subs ?? []).map((sub) => (
-                  <SortableSubRow
-                    key={sub.id}
-                    sub={sub}
-                    busy={busy}
-                    dragDisabled={dragDisabled}
-                    onRename={() => onRenameSub(sub)}
-                    onDelete={() => onDeleteSub(sub)}
-                    onAddProduct={onAddProduct}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          )}
-          <Button
+        </td>
+        <td className={`${BODY_CELL} ${DESKTOP_CELL} text-muted-foreground`}>—</td>
+        <td className={`${BODY_CELL} ${DESKTOP_CELL} text-muted-foreground`}>{main.slug}</td>
+        <td className={`${BODY_CELL} ${DESKTOP_CELL} text-muted-foreground`}>Ana</td>
+        <td className={`${BODY_CELL} col-span-2 text-right md:col-auto`}>
+          <div className="flex items-center justify-between gap-3 md:justify-end">
+          <button
             type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1"
+            className="inline-flex items-center gap-1.5 whitespace-nowrap text-sm font-medium text-primary hover:underline disabled:pointer-events-none disabled:opacity-50"
             disabled={busy}
             onClick={onAddSub}
           >
-            <Plus className="h-3.5 w-3.5" />
+            <CirclePlus className="h-4 w-4" />
             Alt kategori ekle
-          </Button>
-        </div>
-      ) : null}
-    </div>
+          </button>
+          <RowActions busy={busy}>
+            <DropdownMenuItem onSelect={onRename}>
+              <Pencil className="mr-2 h-3.5 w-3.5" />
+              Yeniden adlandır
+            </DropdownMenuItem>
+            <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={onDelete}>
+              <Trash2 className="mr-2 h-3.5 w-3.5" />
+              Sil
+            </DropdownMenuItem>
+          </RowActions>
+          </div>
+        </td>
+      </tr>
+      <SortableContext items={subIds} strategy={verticalListSortingStrategy}>
+        {subs.map((sub) => (
+          <SortableSubRow
+            key={sub.id}
+            sub={sub}
+            parentName={main.name}
+            busy={busy}
+            dragDisabled={dragDisabled}
+            onRename={() => onRenameSub(sub)}
+            onDelete={() => onDeleteSub(sub)}
+            onAddProduct={onAddProduct}
+          />
+        ))}
+      </SortableContext>
+    </>
   );
 }
 
@@ -364,11 +364,12 @@ function dialogInitialName(state: NameDialogState): string {
 export default function MenuCategoriesPanel({
   menuId,
   qrId,
+  catalog = false,
   onAddProduct,
 }: MenuCategoriesPanelProps) {
   const queryClient = useQueryClient();
   const { notify } = useDashboardBanners();
-  const menuByQr = useMenuByQr(qrId, menuId <= 0);
+  const menuByQr = useMenuByQr(qrId, !catalog && menuId <= 0);
   const resolvedMenuId =
     menuId > 0
       ? menuId
@@ -376,12 +377,13 @@ export default function MenuCategoriesPanel({
         ? menuByQr.data.menuId
         : 0;
 
-  const categoriesQuery = useMenuCategories(resolvedMenuId > 0 ? resolvedMenuId : null);
+  const menuCategoriesQuery = useMenuCategories(!catalog && resolvedMenuId > 0 ? resolvedMenuId : null);
+  const catalogCategoriesQuery = useCatalogCategories(catalog);
+  const categoriesQuery = catalog ? catalogCategoriesQuery : menuCategoriesQuery;
   const [orderedCategories, setOrderedCategories] = useState<MainCategoryApiItem[]>([]);
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
   const [nameDialog, setNameDialog] = useState<NameDialogState>(null);
   const [nameValue, setNameValue] = useState("");
   const [saving, setSaving] = useState(false);
@@ -417,8 +419,7 @@ export default function MenuCategoriesPanel({
     () => orderedCategories.filter((main) => matchesSearch(main, debouncedSearch)),
     [orderedCategories, debouncedSearch],
   );
-  const expandAllFromSearch = Boolean(debouncedSearch);
-  const dragDisabled = expandAllFromSearch || reordering;
+  const dragDisabled = Boolean(debouncedSearch) || reordering;
   const mainIds = filtered.map((main) => `main-${main.id}`);
 
   const sensors = useSensors(
@@ -426,10 +427,11 @@ export default function MenuCategoriesPanel({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  const refresh = () => invalidateMenuCategories(queryClient, resolvedMenuId, qrId);
+  const refresh = () => invalidateMenuCategories(queryClient, catalog ? null : resolvedMenuId, catalog ? null : qrId);
+  const canEdit = catalog || resolvedMenuId > 0;
 
   const persistMainOrder = async (next: MainCategoryApiItem[]) => {
-    if (resolvedMenuId <= 0) return;
+    if (!canEdit) return;
     setReordering(true);
     const previous = orderedCategories;
     const previousIndexById = new Map(previous.map((main, index) => [main.id, index]));
@@ -439,7 +441,9 @@ export default function MenuCategoriesPanel({
         next.map((main, index) =>
           previousIndexById.get(main.id) === index
             ? Promise.resolve()
-            : updateMenuCategoryRequest(resolvedMenuId, main.id, { sortOrder: index }),
+            : catalog
+              ? updateCatalogCategoryRequest(main.id, { sortOrder: index })
+              : updateMenuCategoryRequest(resolvedMenuId, main.id, { sortOrder: index }),
         ),
       );
       await refresh();
@@ -452,7 +456,7 @@ export default function MenuCategoriesPanel({
   };
 
   const persistSubOrder = async (mainId: number, nextSubs: SubCategoryApiItem[]) => {
-    if (resolvedMenuId <= 0) return;
+    if (!canEdit) return;
     setReordering(true);
     const previous = orderedCategories;
     const previousSubs = previous.find((main) => main.id === mainId)?.subs ?? [];
@@ -465,7 +469,9 @@ export default function MenuCategoriesPanel({
         nextSubs.map((sub, index) =>
           previousIndexById.get(sub.id) === index
             ? Promise.resolve()
-            : updateMenuSubCategoryRequest(resolvedMenuId, sub.id, { sortOrder: index }),
+            : catalog
+              ? updateCatalogSubCategoryRequest(sub.id, { sortOrder: index })
+              : updateMenuSubCategoryRequest(resolvedMenuId, sub.id, { sortOrder: index }),
         ),
       );
       await refresh();
@@ -521,23 +527,13 @@ export default function MenuCategoriesPanel({
     void persistSubOrder(main.id, nextSubs);
   };
 
-  const toggleMain = (id: number) => {
-    if (expandAllFromSearch) return;
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
   const openNameDialog = (state: Exclude<NameDialogState, null>) => {
     setNameDialog(state);
     setNameValue(dialogInitialName(state));
   };
 
   const handleSaveName = async () => {
-    if (!nameDialog || resolvedMenuId <= 0) return;
+    if (!nameDialog || !canEdit) return;
     const trimmed = nameValue.trim();
     if (!trimmed) {
       notify("warning", "Kategori adı zorunlu.");
@@ -547,28 +543,49 @@ export default function MenuCategoriesPanel({
     try {
       switch (nameDialog.kind) {
         case "create-main":
-          await createMenuCategoryRequest(resolvedMenuId, {
-            name: trimmed,
-            sortOrder: orderedCategories.length,
-          });
+          if (catalog) {
+            await createCatalogCategoryRequest({
+              name: trimmed,
+              sortOrder: orderedCategories.length,
+            });
+          } else {
+            await createMenuCategoryRequest(resolvedMenuId, {
+              name: trimmed,
+              sortOrder: orderedCategories.length,
+            });
+          }
           notify("info", "Kategori eklendi.");
           break;
         case "rename-main":
-          await updateMenuCategoryRequest(resolvedMenuId, nameDialog.main.id, { name: trimmed });
+          if (catalog) {
+            await updateCatalogCategoryRequest(nameDialog.main.id, { name: trimmed });
+          } else {
+            await updateMenuCategoryRequest(resolvedMenuId, nameDialog.main.id, { name: trimmed });
+          }
           notify("info", "Kategori güncellendi.");
           break;
         case "create-sub":
-          await createMenuSubCategoryRequest(resolvedMenuId, nameDialog.main.id, {
-            name: trimmed,
-            sortOrder: nameDialog.main.subs?.length ?? 0,
-          });
-          setExpandedIds((prev) => new Set(prev).add(nameDialog.main.id));
+          if (catalog) {
+            await createCatalogSubCategoryRequest(nameDialog.main.id, {
+              name: trimmed,
+              sortOrder: nameDialog.main.subs?.length ?? 0,
+            });
+          } else {
+            await createMenuSubCategoryRequest(resolvedMenuId, nameDialog.main.id, {
+              name: trimmed,
+              sortOrder: nameDialog.main.subs?.length ?? 0,
+            });
+          }
           notify("info", "Alt kategori eklendi.");
           break;
         case "rename-sub":
-          await updateMenuSubCategoryRequest(resolvedMenuId, nameDialog.sub.id, {
-            name: trimmed,
-          });
+          if (catalog) {
+            await updateCatalogSubCategoryRequest(nameDialog.sub.id, { name: trimmed });
+          } else {
+            await updateMenuSubCategoryRequest(resolvedMenuId, nameDialog.sub.id, {
+              name: trimmed,
+            });
+          }
           notify("info", "Alt kategori güncellendi.");
           break;
       }
@@ -582,14 +599,16 @@ export default function MenuCategoriesPanel({
   };
 
   const handleDelete = async () => {
-    if (!deleteTarget || resolvedMenuId <= 0) return;
+    if (!deleteTarget || !canEdit) return;
     setDeleting(true);
     try {
       if (deleteTarget.kind === "main") {
-        await deleteMenuCategoryRequest(resolvedMenuId, deleteTarget.id);
+        if (catalog) await deleteCatalogCategoryRequest(deleteTarget.id);
+        else await deleteMenuCategoryRequest(resolvedMenuId, deleteTarget.id);
         notify("info", "Kategori silindi.");
       } else {
-        await deleteMenuSubCategoryRequest(resolvedMenuId, deleteTarget.id);
+        if (catalog) await deleteCatalogSubCategoryRequest(deleteTarget.id);
+        else await deleteMenuSubCategoryRequest(resolvedMenuId, deleteTarget.id);
         notify("info", "Alt kategori silindi.");
       }
       setDeleteTarget(null);
@@ -627,7 +646,7 @@ export default function MenuCategoriesPanel({
           type="button"
           size="sm"
           className="gap-1"
-          disabled={busy || resolvedMenuId <= 0}
+          disabled={busy || !canEdit}
           onClick={() => openNameDialog({ kind: "create-main" })}
         >
           <Plus className="h-3.5 w-3.5" />
@@ -635,7 +654,7 @@ export default function MenuCategoriesPanel({
         </Button>
       </div>
 
-      {expandAllFromSearch ? (
+      {debouncedSearch ? (
         <p className="text-xs text-muted-foreground">Arama açıkken sürükle-bırak kapalıdır.</p>
       ) : orderedCategories.length > 1 || orderedCategories.some((main) => (main.subs?.length ?? 0) > 1) ? (
         <p className="text-xs text-muted-foreground">
@@ -643,7 +662,7 @@ export default function MenuCategoriesPanel({
         </p>
       ) : null}
 
-      {categoriesQuery.isLoading || (menuId <= 0 && menuByQr.isLoading) ? (
+      {categoriesQuery.isLoading || (!catalog && menuId <= 0 && menuByQr.isLoading) ? (
         <p className="text-sm text-muted-foreground">Kategoriler yükleniyor…</p>
       ) : categoriesQuery.isError ? (
         <p className="text-sm text-destructive">Kategori listesi alınamadı.</p>
@@ -651,32 +670,44 @@ export default function MenuCategoriesPanel({
         <p className="text-sm text-muted-foreground">
           {debouncedSearch
             ? "Aramayla eşleşen kategori bulunamadı."
-            : "Henüz kategori yok. Yeni ana kategori ekleyin."}
+            : "Henüz kategori yok. Yeni kategori ekleyin."}
         </p>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={mainIds} strategy={verticalListSortingStrategy}>
-            <div className="space-y-3">
-              {filtered.map((main) => (
-                <SortableMainBlock
-                  key={main.id}
-                  main={main}
-                  menuId={resolvedMenuId}
-                  expanded={expandAllFromSearch || expandedIds.has(main.id)}
-                  busy={busy}
-                  dragDisabled={dragDisabled}
-                  onToggle={() => toggleMain(main.id)}
-                  onRename={() => openNameDialog({ kind: "rename-main", main })}
-                  onDelete={() => setDeleteTarget({ kind: "main", id: main.id, name: main.name })}
-                  onAddSub={() => openNameDialog({ kind: "create-sub", main })}
-                  onRenameSub={(sub) => openNameDialog({ kind: "rename-sub", sub })}
-                  onDeleteSub={(sub) => setDeleteTarget({ kind: "sub", id: sub.id, name: sub.name })}
-                  onAddProduct={onAddProduct}
-                  onCoverChange={handleCoverChange}
-                />
-              ))}
-            </div>
-          </SortableContext>
+          <div className="overflow-hidden rounded-xl border border-border bg-card md:overflow-x-auto">
+            <table className="block w-full text-sm md:table md:min-w-[760px] md:border-collapse">
+              <thead className="hidden md:table-header-group">
+                <tr>
+                  {["", "Kategori", "Üst kategori", "Kod", "Tür", "İşlem"].map((label) => (
+                    <th key={label || "sıra"} className={HEAD_CELL}>
+                      {label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="block md:table-row-group">
+                <SortableContext items={mainIds} strategy={verticalListSortingStrategy}>
+                  {filtered.map((main) => (
+                    <SortableCategoryRows
+                      key={main.id}
+                      main={main}
+                      menuId={resolvedMenuId}
+                      catalog={catalog}
+                      busy={busy}
+                      dragDisabled={dragDisabled}
+                      onRename={() => openNameDialog({ kind: "rename-main", main })}
+                      onDelete={() => setDeleteTarget({ kind: "main", id: main.id, name: main.name })}
+                      onAddSub={() => openNameDialog({ kind: "create-sub", main })}
+                      onRenameSub={(sub) => openNameDialog({ kind: "rename-sub", sub })}
+                      onDeleteSub={(sub) => setDeleteTarget({ kind: "sub", id: sub.id, name: sub.name })}
+                      onAddProduct={onAddProduct}
+                      onCoverChange={handleCoverChange}
+                    />
+                  ))}
+                </SortableContext>
+              </tbody>
+            </table>
+          </div>
         </DndContext>
       )}
 

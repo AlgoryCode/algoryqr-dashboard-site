@@ -5,7 +5,7 @@ export async function GET(
   context: { params: Promise<{ branchId: string }> },
 ) {
   const { branchId } = await context.params;
-  return proxyAuthenticatedRequest(request, `/waiter-panel/branch/${branchId}/waiters`, "GET");
+  return proxyAuthenticatedRequest(request, `/waiter-panel/branch/${branchId}/staff`, "GET");
 }
 
 export async function POST(
@@ -13,5 +13,5 @@ export async function POST(
   context: { params: Promise<{ branchId: string }> },
 ) {
   const { branchId } = await context.params;
-  return proxyAuthenticatedRequest(request, `/waiter-panel/branch/${branchId}/waiters`, "POST");
+  return proxyAuthenticatedRequest(request, `/waiter-panel/branch/${branchId}/staff`, "POST");
 }

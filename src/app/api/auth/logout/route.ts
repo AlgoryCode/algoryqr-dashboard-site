@@ -10,7 +10,7 @@ export async function POST() {
     const cookieStore = await cookies();
     const refreshToken = readRefreshTokenFromCookies(cookieStore);
     const accessToken = readAccessTokenFromCookies(cookieStore);
-    if (refreshToken || accessToken) {
+    if (refreshToken) {
       await axios
         .post(authUrl("logout"), { refreshToken }, {
           headers: {

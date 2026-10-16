@@ -17,7 +17,11 @@ import { getMenuFeedbackRequest, getMyActiveMenusRequest, type ActiveMenuSummary
 import { formatScore } from "@/lib/branch-detail";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { resolvePublicMenuHref } from "@/lib/public-menu-href";
-import { listMenuUsers, parseStaffRole, STAFF_ROLE_LABEL } from "@/lib/waiter-api";
+import {
+  listMenuUsers,
+  parseStaffRole,
+  STAFF_ROLE_LABEL,
+} from "@/lib/personnel-management-api";
 
 type BranchDetailViewProps = { branchId: number };
 

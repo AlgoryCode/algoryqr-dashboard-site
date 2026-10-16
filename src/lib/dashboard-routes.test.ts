@@ -115,12 +115,13 @@ describe("online order routes", () => {
 });
 
 describe("kitchen monitor routes", () => {
-  it("keeps external kitchen and courier app URLs", () => {
+  it("sends staff screens to the staff site", () => {
     expect(DASHBOARD_ROUTES.kitchenMonitor).toBe("/dashboard/garson/mutfak");
-    expect(DASHBOARD_ROUTES.kitchenPanel).toBe("http://localhost:3004/mutfak");
-    expect(DASHBOARD_ROUTES.kitchenLogin).toBe("http://localhost:3004/mutfak/giris");
-    expect(DASHBOARD_ROUTES.courierPanel).toBe("http://localhost:3005/kurye");
-    expect(DASHBOARD_ROUTES.courierLogin).toBe("http://localhost:3005/kurye/giris");
+    expect(DASHBOARD_ROUTES.staffGate).toBe("http://localhost:3001");
+    expect(DASHBOARD_ROUTES.kitchenPanel).toBe("http://localhost:3001");
+    expect(DASHBOARD_ROUTES.kitchenLogin).toBe("http://localhost:3001");
+    expect(DASHBOARD_ROUTES.courierPanel).toBe("http://localhost:3001");
+    expect(DASHBOARD_ROUTES.courierLogin).toBe("http://localhost:3001");
   });
 
   it("opens the owner kitchen screen on the dashboard origin", () => {
@@ -157,13 +158,19 @@ describe("splitMobileDashboardNav", () => {
 
 describe("module sidebar active state", () => {
   const activeKeys = (pathname: string) =>
-    DASHBOARD_NAV_ITEMS.filter(
-      (item) => !item.excludeFromSidebar && isDashboardNavActive(pathname, item.href, item.key),
-    ).map((item) => item.key);
+    DASHBOARD_NAV_ITEMS.filter((item) => !item.excludeFromSidebar).flatMap((item) => {
+      const keys: string[] = [];
+      if (isDashboardNavActive(pathname, item.href, item.key)) keys.push(item.key);
+      for (const child of item.children ?? []) {
+        if (isDashboardNavActive(pathname, child.href)) keys.push(child.key);
+      }
+      return keys;
+    });
 
   it("highlights exactly one module entry per page", () => {
     expect(activeKeys(DASHBOARD_ROUTES.digitalMenuProducts)).toEqual(["products"]);
     expect(activeKeys(DASHBOARD_ROUTES.digitalMenuCategories)).toEqual(["categories"]);
+    expect(activeKeys(DASHBOARD_ROUTES.digitalMenuOptions)).toEqual(["options"]);
     expect(activeKeys(DASHBOARD_ROUTES.feedback)).toEqual(["feedback"]);
     expect(activeKeys(DASHBOARD_ROUTES.digitalMenuMenus)).toEqual(["myMenus"]);
     expect(activeKeys(DASHBOARD_ROUTES.digitalMenu)).toEqual(["myBranches"]);

@@ -12,6 +12,7 @@ import {
   UtensilsCrossed,
 } from "lucide-react";
 
+import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { DashboardFilterBar } from "@/components/dashboard/DashboardFilterBar";
 import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
@@ -36,7 +37,7 @@ import { formatStoreAmount, merchantOpenHint, STORE_ORDER_STATUS_LABEL } from "@
 import { cn } from "@/lib/utils";
 
 export default function OnlineOrderHubView() {
-  const { merchant, isLoading, accessLoading, canUseOnlineOrder } = useMyStore();
+  const { merchant, isLoading, accessLoading, accessError, retryAccess, canUseOnlineOrder } = useMyStore();
   const [range, setRange] = useState(() => openQueueDateRange());
   const [customerQuery, setCustomerQuery] = useState("");
   const debouncedCustomer = useDebouncedValue(customerQuery);
@@ -74,6 +75,10 @@ export default function OnlineOrderHubView() {
         Yükleniyor…
       </div>
     );
+  }
+
+  if (accessError) {
+    return <AccessLoadError onRetry={() => void retryAccess()} />;
   }
 
   if (!canUseOnlineOrder) {
@@ -239,7 +244,7 @@ export default function OnlineOrderHubView() {
           href={DASHBOARD_ROUTES.courierPanel}
           icon={<Bike className="h-8 w-8" />}
           title="Kurye uygulaması"
-          description="Teslimat panosunu yeni sekmede açın. Personel hesabı Kullanıcılar’dan eklenir."
+          description="Teslimat panosunu yeni sekmede açın. Personel hesabı Personeller sayfasından eklenir."
           external
         />
         <NavTile

@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Trash2 } from "lucide-react";
 
 import { useDigitalMenuAccess } from "@/components/dashboard/menu/DigitalMenuPicker";
+import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import {
@@ -52,7 +53,7 @@ export default function DigitalMenuSettingsView({ qrId }: DigitalMenuSettingsVie
   const router = useRouter();
   const queryClient = useQueryClient();
   const { notify } = useDashboardBanners();
-  const { accessLoading, canUseDigitalMenu } = useDigitalMenuAccess();
+  const { accessLoading, accessError, retryAccess, canUseDigitalMenu } = useDigitalMenuAccess();
   const menuQuery = useMenuByQr(qrId);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -81,6 +82,7 @@ export default function DigitalMenuSettingsView({ qrId }: DigitalMenuSettingsVie
       phone: profile.phone ?? "",
       email: profile.email ?? "",
       address: profile.address ?? "",
+      googleReviewsUrl: profile.googleReviewsUrl ?? "",
       themeId,
       chefName: profile.chefName ?? "",
       chefAvatarKey: profile.chefAvatarKey ?? "default",
@@ -144,6 +146,7 @@ export default function DigitalMenuSettingsView({ qrId }: DigitalMenuSettingsVie
         phone: menu.phone.trim(),
         email: menu.email.trim(),
         address: menu.address.trim(),
+        googleReviewsUrl: menu.googleReviewsUrl.trim() || null,
         themeId: menu.themeId,
         chefName: menu.chefName.trim(),
         chefAvatarKey: menu.chefAvatarKey.trim() || "default",
@@ -191,6 +194,10 @@ export default function DigitalMenuSettingsView({ qrId }: DigitalMenuSettingsVie
         <DashboardLoadingState label="Menü ayarları yükleniyor…" />
       </div>
     );
+  }
+
+  if (accessError) {
+    return <AccessLoadError onRetry={() => void retryAccess()} />;
   }
 
   if (!canUseDigitalMenu) {

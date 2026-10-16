@@ -94,23 +94,19 @@ export function authUrl(route: AuthRoute): string {
 
 export const APP_URL = resolveAppUrl();
 
-export const WAITER_APP_ORIGIN = trimTrailingSlash(
-  process.env.NEXT_PUBLIC_WAITER_APP_ORIGIN?.trim() ||
+export const STAFF_SITE_ORIGIN = trimTrailingSlash(
+  process.env.NEXT_PUBLIC_STAFF_SITE_ORIGIN?.trim() ||
+    process.env.STAFF_SITE_ORIGIN?.trim() ||
+    process.env.NEXT_PUBLIC_WAITER_APP_ORIGIN?.trim() ||
     process.env.WAITER_APP_ORIGIN?.trim() ||
-    "http://localhost:3003",
+    "http://localhost:3001",
 );
 
-export const KITCHEN_APP_ORIGIN = trimTrailingSlash(
-  process.env.NEXT_PUBLIC_KITCHEN_APP_ORIGIN?.trim() ||
-    process.env.KITCHEN_APP_ORIGIN?.trim() ||
-    "http://localhost:3004",
-);
+export const WAITER_APP_ORIGIN = STAFF_SITE_ORIGIN;
 
-export const COURIER_APP_ORIGIN = trimTrailingSlash(
-  process.env.NEXT_PUBLIC_COURIER_APP_ORIGIN?.trim() ||
-    process.env.COURIER_APP_ORIGIN?.trim() ||
-    "http://localhost:3005",
-);
+export const KITCHEN_APP_ORIGIN = STAFF_SITE_ORIGIN;
+
+export const COURIER_APP_ORIGIN = STAFF_SITE_ORIGIN;
 
 export const STORE_APP_ORIGIN = trimTrailingSlash(
   process.env.NEXT_PUBLIC_STORE_APP_ORIGIN?.trim() ||

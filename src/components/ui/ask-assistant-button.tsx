@@ -1,54 +1,9 @@
 "use client";
 
 import type { ButtonHTMLAttributes } from "react";
-import { MessageCircleQuestion, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-
-function MiniSparkle({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 10 10" fill="currentColor" aria-hidden>
-      <path d="M5 0.5 5.8 3.2 8.5 4l-2.7 0.8L5 7.5 4.2 4.8 1.5 4l2.7-0.8L5 0.5z" />
-    </svg>
-  );
-}
-
-function QuestionWithSparkles({ compact }: { compact: boolean }) {
-  const iconClass = compact ? "size-5" : "size-[1.25rem] max-[420px]:size-5";
-  const frameClass = compact
-    ? "h-6 w-[1.65rem]"
-    : "h-6 w-6 max-[420px]:h-6 max-[420px]:w-[1.65rem]";
-
-  return (
-    <span className={cn("relative inline-flex shrink-0 items-center justify-center", frameClass)}>
-      <MessageCircleQuestion className={cn("relative z-[1]", iconClass)} strokeWidth={2.25} aria-hidden />
-      <MiniSparkle
-        className={cn(
-          "pointer-events-none absolute -right-1 -top-0.5 z-0 text-white motion-reduce:animate-none animate-pulse",
-          compact ? "size-2" : "size-2 max-[420px]:size-2",
-        )}
-      />
-      <MiniSparkle
-        className={cn(
-          "pointer-events-none absolute -left-1 top-0 z-0 text-white/90 motion-reduce:animate-none animate-pulse [animation-delay:350ms]",
-          compact ? "size-1.5" : "size-1.5 max-[420px]:size-1.5",
-        )}
-      />
-      <MiniSparkle
-        className={cn(
-          "pointer-events-none absolute -bottom-0.5 -right-0.5 z-0 text-white/85 motion-reduce:animate-none animate-pulse [animation-delay:700ms]",
-          compact ? "size-1.5" : "size-1.5 max-[420px]:size-1.5",
-        )}
-      />
-      <MiniSparkle
-        className={cn(
-          "pointer-events-none absolute -bottom-0.5 -left-0.5 z-0 text-white/80 motion-reduce:animate-none animate-pulse [animation-delay:150ms]",
-          compact ? "size-1" : "size-1 max-[420px]:size-1",
-        )}
-      />
-    </span>
-  );
-}
 
 export type AskAssistantButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   iconOnly?: boolean;
@@ -71,7 +26,7 @@ export function AskAssistantButton({
         className={cn(
           "flex w-[4.5rem] shrink-0 flex-col items-center justify-center gap-1 self-stretch px-1 py-1.5 text-primary",
           "transition-colors hover:bg-primary/10 active:bg-primary/15",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
           className,
         )}
         {...props}
@@ -88,10 +43,11 @@ export function AskAssistantButton({
     <button
       type="button"
       className={cn(
-        "inline-flex h-12 shrink-0 items-center justify-center gap-2 overflow-visible whitespace-nowrap rounded-2xl px-5",
-        "bg-gradient-to-r from-violet-400 via-pink-400 to-orange-400 bg-[length:300%_300%]",
-        "animate-gradient motion-reduce:animate-none",
-        "text-sm font-semibold text-white shadow-lg shadow-violet-300/40 ring-1 ring-white/15",
+        "group relative inline-flex h-12 shrink-0 items-center justify-center gap-2.5 overflow-hidden whitespace-nowrap rounded-xl px-4",
+        "border border-border bg-card text-sm font-medium text-foreground",
+        "transition-[border-color,background-color,box-shadow] duration-200",
+        "hover:border-primary/40 hover:bg-primary/5 hover:shadow-[0_6px_18px_-12px_hsl(var(--primary)/0.6)]",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         iconOnly
           ? "h-9 min-w-[3rem] gap-0 px-2.5"
           : "max-[420px]:h-9 max-[420px]:min-w-[3rem] max-[420px]:gap-0 max-[420px]:px-2.5 max-[420px]:w-auto",
@@ -99,9 +55,19 @@ export function AskAssistantButton({
       )}
       {...props}
     >
-      <QuestionWithSparkles compact={iconOnly} />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-primary/10 to-transparent opacity-0 transition-[left,opacity] duration-700 group-hover:left-full group-hover:opacity-100 motion-reduce:hidden"
+      />
+      <span className="relative flex size-6 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+        <Sparkles
+          className="size-3.5 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110 motion-reduce:transition-none"
+          strokeWidth={2.25}
+          aria-hidden
+        />
+      </span>
       {!iconOnly ? (
-        <span className={children != null ? undefined : "hidden min-[421px]:inline"}>{label}</span>
+        <span className={cn("relative", children != null ? undefined : "hidden min-[421px]:inline")}>{label}</span>
       ) : null}
     </button>
   );

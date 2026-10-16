@@ -7,7 +7,7 @@ export async function PATCH(
   const { branchId, waiterId } = await context.params;
   return proxyAuthenticatedRequest(
     request,
-    `/waiter-panel/branch/${branchId}/waiters/${waiterId}`,
+    `/waiter-panel/branch/${branchId}/staff/${waiterId}`,
     "PATCH",
   );
 }
@@ -19,7 +19,7 @@ export async function DELETE(
   const { branchId, waiterId } = await context.params;
   return proxyAuthenticatedRequest(
     request,
-    `/waiter-panel/branch/${branchId}/waiters/${waiterId}`,
+    `/waiter-panel/branch/${branchId}/staff/${waiterId}`,
     "DELETE",
   );
 }

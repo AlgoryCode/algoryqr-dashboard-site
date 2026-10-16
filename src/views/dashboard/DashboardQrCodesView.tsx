@@ -97,7 +97,7 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
   const queryClient = useQueryClient();
   const { notify } = useDashboardBanners();
   const { data: packageUsage, isLoading: isPackageUsageLoading } = usePackageUsage(mode === "create");
-  const { canCreateQr, qrQuotaLabel, accessLoading: isQrAccessLoading } = useQrCreateAccess();
+  const { canCreateQr, qrQuotaLabel, accessLoading: isQrAccessLoading, accessError, retryAccess } = useQrCreateAccess();
   const { searchParams, setQuery } = useListQueryState();
   const [isLoading, setIsLoading] = useState(false);
   // scope filter removed; always list ALL
@@ -441,9 +441,11 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
     if (!canCreateQr) {
       notify(
         "warning",
-        qrQuotaLabel === "QR oluşturma hakkınız bitti"
-          ? qrQuotaLabel
-          : "QR oluşturmak için uygun bir paket gerekli.",
+        accessError
+          ? "Paket bilgileri alınamadı. Lütfen tekrar deneyin."
+          : qrQuotaLabel === "QR oluşturma hakkınız bitti"
+            ? qrQuotaLabel
+            : "QR oluşturmak için uygun bir paket gerekli.",
       );
       return;
     }
@@ -479,7 +481,7 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
       const message = error instanceof Error ? error.message : "QR kod oluşturulamadı.";
       notify("danger", message);
     }
-  }, [canCreateQr, fetchUserQrs, notify, qrName, qrQuotaLabel, qrTypeData, queryClient, router, selectedQrType]);
+  }, [accessError, canCreateQr, fetchUserQrs, notify, qrName, qrQuotaLabel, qrTypeData, queryClient, router, selectedQrType]);
 
   return (
     <>
@@ -958,9 +960,11 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
               <DashboardPageHeader
                 title="Yeni QR Kod Oluştur"
                 hint={
-                  canCreateQr
-                    ? "İçerik türünü seçin ve detayları doldurun."
-                    : (qrQuotaLabel ?? "QR oluşturmak için uygun bir paket gerekli.")
+                  accessError
+                    ? "Paket bilgileri alınamadı. Lütfen tekrar deneyin."
+                    : canCreateQr
+                      ? "İçerik türünü seçin ve detayları doldurun."
+                      : (qrQuotaLabel ?? "QR oluşturmak için uygun bir paket gerekli.")
                 }
                 back={
                   <button
@@ -973,6 +977,12 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
                   </button>
                 }
               />
+
+              {accessError ? (
+                <Button variant="outline" onClick={() => void retryAccess()}>
+                  Tekrar dene
+                </Button>
+              ) : null}
 
               <PackageUsageCard usage={packageUsage} isLoading={isPackageUsageLoading} />
 

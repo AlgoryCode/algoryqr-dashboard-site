@@ -9,7 +9,12 @@ import { packageIncludesProduct } from "@/lib/product-access";
 const AI_MENU_IMPORT_PRODUCT = "AI_MENU_IMPORT";
 
 export function useAiMenuImportAccess() {
-  const { data: accessProfile, isLoading: accessLoading } = useAccessProfile();
+  const {
+    data: accessProfile,
+    isLoading: accessLoading,
+    isError: accessError,
+    refetch: retryAccess,
+  } = useAccessProfile();
   const packages = useActivePackages();
   const catalogPackages = packages.data ?? [];
   const canUseAiMenuImport = hasProduct(accessProfile, AI_MENU_IMPORT_PRODUCT);
@@ -21,6 +26,8 @@ export function useAiMenuImportAccess() {
 
   return {
     accessLoading: accessLoading || packages.isLoading,
+    accessError,
+    retryAccess,
     canUseAiMenuImport,
     aiMenuImportPackageNames,
   };

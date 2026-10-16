@@ -41,6 +41,7 @@ import DigitalMenuProductCreateView from "@/views/dashboard/DigitalMenuProductCr
 import DigitalMenuProductDetailView from "@/views/dashboard/DigitalMenuProductDetailView";
 import AiMenuImportView from "@/views/dashboard/AiMenuImportView";
 import DigitalMenuCategoriesView from "@/views/dashboard/DigitalMenuCategoriesView";
+import DigitalMenuOptionsView from "@/views/dashboard/DigitalMenuOptionsView";
 import PackageComparisonView from "@/views/dashboard/PackageComparisonView";
 import ModulesCatalogView from "@/views/dashboard/ModulesCatalogView";
 import PaymentHistoryDetailView from "@/views/dashboard/PaymentHistoryDetailView";
@@ -531,6 +532,10 @@ export default function DashboardPageClient({ initialUser = null }: DashboardPag
         <DigitalMenuCategoriesView />
       </Suspense>
     );
+  }
+
+  if (pathname === DASHBOARD_ROUTES.digitalMenuOptions) {
+    return <DigitalMenuOptionsView />;
   }
 
   if (digitalMenuSettingsQrId != null) {

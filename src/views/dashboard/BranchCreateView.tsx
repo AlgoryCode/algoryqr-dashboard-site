@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
+import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { useDigitalMenuAccess } from "@/components/dashboard/menu/DigitalMenuPicker";
 import { useWaiterPanelAccess } from "@/components/dashboard/waiter/WaiterPanelAccess";
 import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
@@ -19,13 +20,18 @@ import { createBranchRequest } from "@/lib/branch";
 import Link from "next/link";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { DASHBOARD_BACK, DASHBOARD_PANEL } from "@/lib/dashboard-surface";
-import { createMenuWaiter, WaiterApiError } from "@/lib/waiter-api";
+import { createMenuWaiter, WaiterApiError } from "@/lib/personnel-management-api";
 
 export default function BranchCreateView() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { notify } = useDashboardBanners();
-  const { accessLoading: menuAccessLoading, canUseDigitalMenu } = useDigitalMenuAccess();
+  const {
+    accessLoading: menuAccessLoading,
+    accessError: menuAccessError,
+    retryAccess: retryMenuAccess,
+    canUseDigitalMenu,
+  } = useDigitalMenuAccess();
   const { accessLoading: waiterAccessLoading, canUseWaiterPanel } = useWaiterPanelAccess();
   const accessLoading = menuAccessLoading || waiterAccessLoading;
   const [name, setName] = useState("");
@@ -72,7 +78,7 @@ export default function BranchCreateView() {
             "warning",
             waiterError instanceof WaiterApiError
               ? `Şube oluşturuldu ancak garson hesabı eklenemedi: ${waiterError.message}`
-              : "Şube oluşturuldu ancak garson hesabı eklenemedi. Kullanıcılar sayfasından ekleyebilirsiniz.",
+              : "Şube oluşturuldu ancak garson hesabı eklenemedi. Personeller sayfasından ekleyebilirsiniz.",
           );
           router.push(DASHBOARD_ROUTES.digitalMenuCreateForBranch(created.id));
           return;
@@ -98,6 +104,10 @@ export default function BranchCreateView() {
         <DashboardLoadingState label="Şube formu hazırlanıyor…" />
       </div>
     );
+  }
+
+  if (menuAccessError) {
+    return <AccessLoadError onRetry={() => void retryMenuAccess()} />;
   }
 
   if (!canUseDigitalMenu) {

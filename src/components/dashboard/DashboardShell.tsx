@@ -31,7 +31,6 @@ import {
   Building2,
   Warehouse,
   Package,
-  Tags,
   ChefHat,
   LayoutGrid,
   IdCard,
@@ -50,10 +49,15 @@ import {
   useCommandPaletteHotkey,
 } from "@/components/dashboard/DashboardCommandPalette";
 import { DashboardMobileNav } from "@/components/dashboard/DashboardMobileNav";
-import { NavBadge } from "@/components/dashboard/NavBadge";
 import { DashboardPageLabelProvider, useDashboardPageLabelValue } from "@/contexts/dashboard-page-label";
 import { DashboardAssistantLauncher } from "@/components/dashboard/DashboardAssistantChat";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DashboardBannersProvider,
@@ -72,6 +76,7 @@ import {
   getVisibleDashboardNavGroups,
   isDashboardNavActive,
   splitMobileDashboardNav,
+  type DashboardNavItem,
   type DashboardNavKey,
 } from "@/lib/dashboard-routes";
 import { DASHBOARD_CONTENT } from "@/lib/dashboard-surface";
@@ -86,7 +91,6 @@ const NAV_ICONS: Record<DashboardNavKey, ComponentType<{ className?: string }>> 
   myBranches: Building2,
   myMenus: DigitalMenuIcon,
   products: Package,
-  categories: Tags,
   uberEats: UtensilsCrossed,
   liveOrders: ChefHat,
   reservations: CalendarDays,
@@ -120,8 +124,112 @@ function sidebarItemClass(active: boolean) {
   return cn(
     SIDEBAR_ITEM,
     active
-      ? "bg-primary text-primary-foreground"
-      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      ? "bg-primary/10 text-primary"
+      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+  );
+}
+
+function navSectionActive(pathname: string, item: DashboardNavItem) {
+  return (
+    isDashboardNavActive(pathname, item.href, item.key) ||
+    (item.children ?? []).some((child) => isDashboardNavActive(pathname, child.href))
+  );
+}
+
+function SidebarNavItem({
+  item,
+  collapsed,
+  pathname,
+  expanded,
+  onToggle,
+}: {
+  item: DashboardNavItem;
+  collapsed: boolean;
+  pathname: string;
+  expanded: boolean | undefined;
+  onToggle: () => void;
+}) {
+  const Icon = NAV_ICONS[item.key];
+  const children = item.children ?? [];
+  const parentActive = isDashboardNavActive(pathname, item.href, item.key);
+  const childActive = children.some((child) => isDashboardNavActive(pathname, child.href));
+  const open = expanded ?? true;
+
+  if (children.length === 0) {
+    return (
+      <Tooltip open={collapsed ? undefined : false}>
+        <TooltipTrigger asChild>
+          <Link href={item.href} className={sidebarItemClass(parentActive)}>
+            <Icon className="size-4 shrink-0" />
+            <span className={sidebarLabelClass(collapsed)}>{item.label}</span>
+          </Link>
+        </TooltipTrigger>
+        <TooltipContent side="right" sideOffset={12}>
+          {item.label}
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  if (collapsed) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className={sidebarItemClass(parentActive || childActive)}
+            aria-label={item.label}
+          >
+            <Icon className="size-4 shrink-0" />
+            <span className={sidebarLabelClass(true)}>{item.label}</span>
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="right" align="start" sideOffset={12} className="min-w-44">
+          <DropdownMenuItem asChild>
+            <Link href={item.href}>{item.label}</Link>
+          </DropdownMenuItem>
+          {children.map((child) => (
+            <DropdownMenuItem key={child.key} asChild>
+              <Link href={child.href}>{child.label}</Link>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
+
+  return (
+    <div className="space-y-0.5">
+      <button
+        type="button"
+        className={cn(sidebarItemClass(parentActive), "gap-1 pr-1")}
+        aria-expanded={open}
+        onClick={onToggle}
+      >
+        <Icon className="size-4 shrink-0" />
+        <span className={cn(sidebarLabelClass(false), "flex-1 text-left")}>{item.label}</span>
+        <ChevronDown className={cn("size-3.5 shrink-0 transition-transform", open && "rotate-180")} />
+      </button>
+      {open
+        ? children.map((child) => {
+            const active = isDashboardNavActive(pathname, child.href);
+            return (
+              <Link
+                key={child.key}
+                href={child.href}
+                className={cn(
+                  "flex h-9 w-full items-center rounded-lg pl-10 pr-2.5 text-sm font-medium transition-colors",
+                  active
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                )}
+              >
+                {child.label}
+              </Link>
+            );
+          })
+        : null}
+    </div>
   );
 }
 
@@ -190,17 +298,34 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
     [menuNavItems],
   );
   const [openGroupIds, setOpenGroupIds] = useState<Record<string, boolean>>({});
+  const [openNavKeys, setOpenNavKeys] = useState<Record<string, boolean>>({});
   const isGroupOpen = (groupId: string) => openGroupIds[groupId] ?? true;
   const toggleGroup = (groupId: string) => {
     setOpenGroupIds((prev) => ({ ...prev, [groupId]: !(prev[groupId] ?? true) }));
   };
+  useEffect(() => {
+    setOpenNavKeys((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const item of visibleNavItems) {
+        if (!item.children?.length || !navSectionActive(pathname, item)) continue;
+        if (next[item.key] === true) continue;
+        next[item.key] = true;
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [pathname, visibleNavItems]);
   const [commandOpen, setCommandOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const mobileOverflow = useMemo(
     () => splitMobileDashboardNav(mobileNavItems).overflow,
     [mobileNavItems],
   );
-  const moreActive = mobileOverflow.some((item) => isDashboardNavActive(pathname, item.href, item.key));
+  const moreActive =
+    mobileOverflow.some((item) => isDashboardNavActive(pathname, item.href, item.key)) ||
+    mobileNavItems.some((item) => navSectionActive(pathname, item) && (item.children?.length ?? 0) > 0 &&
+      (item.children ?? []).some((child) => isDashboardNavActive(pathname, child.href)));
   const toggleCommand = useCallback(() => setCommandOpen((open) => !open), []);
   useCommandPaletteHotkey(toggleCommand);
 
@@ -285,7 +410,7 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
       <div className="flex h-svh overflow-hidden bg-background">
         <aside
           className={cn(
-            "my-3 ml-3 hidden shrink-0 flex-col overflow-hidden rounded-3xl border border-border bg-card p-3 transition-[width] duration-300 ease-in-out dark:bg-card lg:flex",
+            "hidden h-full shrink-0 flex-col overflow-hidden border-r border-border bg-card p-3 transition-[width] duration-300 ease-in-out dark:bg-card lg:flex",
             collapsed ? "w-[4.5rem]" : "w-64",
           )}
         >
@@ -330,26 +455,21 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
                     </button>
                   ) : null}
                   {showChildren
-                    ? items.map((item) => {
-                        const Icon = NAV_ICONS[item.key];
-                        const active = isDashboardNavActive(pathname, item.href, item.key);
-                        const badgeCount = 0;
-                        return (
-                          <Tooltip key={item.key} open={collapsed ? undefined : false}>
-                            <TooltipTrigger asChild>
-                              <Link href={item.href} className={sidebarItemClass(active)}>
-                                <Icon className="size-4 shrink-0" />
-                                <span className={sidebarLabelClass(collapsed)}>{item.label}</span>
-                                {!collapsed ? <NavBadge count={badgeCount} /> : null}
-                              </Link>
-                            </TooltipTrigger>
-                            <TooltipContent side="right" sideOffset={12}>
-                              {item.label}
-                              {badgeCount > 0 ? ` (${badgeCount})` : ""}
-                            </TooltipContent>
-                          </Tooltip>
-                        );
-                      })
+                    ? items.map((item) => (
+                        <SidebarNavItem
+                          key={item.key}
+                          item={item}
+                          collapsed={collapsed}
+                          pathname={pathname}
+                          expanded={openNavKeys[item.key]}
+                          onToggle={() => {
+                            setOpenNavKeys((prev) => {
+                              const current = prev[item.key] ?? true;
+                              return { ...prev, [item.key]: !current };
+                            });
+                          }}
+                        />
+                      ))
                     : null}
                 </div>
               );
@@ -423,14 +543,14 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
               <button
                 type="button"
                 className={cn(
-                  "inline-flex size-11 items-center justify-center rounded-lg",
+                  "inline-flex size-9 items-center justify-center rounded-md",
                   moreActive ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted",
                 )}
                 aria-expanded={moreOpen}
                 aria-label="Menü"
                 onClick={() => setMoreOpen(true)}
               >
-                <Menu className="size-7" />
+                <Menu className="size-5" />
               </button>
             </div>
           </header>

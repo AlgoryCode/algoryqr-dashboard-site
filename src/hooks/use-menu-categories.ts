@@ -5,6 +5,7 @@ import { useQuery, type QueryClient } from "@tanstack/react-query";
 import {
   getMenuCategoriesByQrRequest,
   getMenuCategoriesRequest,
+  listCatalogCategoriesRequest,
   getMenuAllergensRequest,
   getMenuTagsRequest,
   type MainCategoryApiItem,
@@ -15,6 +16,7 @@ import {
 
 export const menuCategoriesQueryKey = (menuId: number | string) =>
   ["menuCategories", menuId] as const;
+export const catalogCategoriesQueryKey = ["catalogCategories"] as const;
 export const menuCategoriesByQrQueryKey = (qrId: number | string) =>
   ["menuCategoriesByQr", qrId] as const;
 export const menuTagsQueryKey = ["menuTags"] as const;
@@ -25,6 +27,17 @@ export function useMenuCategories(menuId: number | null | undefined, enabled = t
     queryKey: menuCategoriesQueryKey(menuId ?? 0),
     queryFn: (): Promise<MainCategoryApiItem[]> => getMenuCategoriesRequest(menuId as number),
     enabled: enabled && menuId != null && menuId > 0,
+    staleTime: 30_000,
+    gcTime: 30 * 60 * 1000,
+    retry: 1,
+  });
+}
+
+export function useCatalogCategories(enabled = true) {
+  return useQuery({
+    queryKey: catalogCategoriesQueryKey,
+    queryFn: (): Promise<MainCategoryApiItem[]> => listCatalogCategoriesRequest(),
+    enabled,
     staleTime: 30_000,
     gcTime: 30 * 60 * 1000,
     retry: 1,
@@ -77,6 +90,7 @@ export function invalidateMenuCategories(
   if (qrId != null) {
     tasks.push(queryClient.invalidateQueries({ queryKey: menuCategoriesByQrQueryKey(qrId) }));
   }
+  tasks.push(queryClient.invalidateQueries({ queryKey: catalogCategoriesQueryKey }));
   if (menuId == null && qrId == null) {
     tasks.push(queryClient.invalidateQueries({ queryKey: ["menuCategories"], exact: false }));
     tasks.push(queryClient.invalidateQueries({ queryKey: ["menuCategoriesByQr"], exact: false }));
