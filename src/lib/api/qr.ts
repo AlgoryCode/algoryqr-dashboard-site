@@ -64,7 +64,8 @@ export interface UpdateQrNameRequestBody {
 
 export interface UserQrApiItem {
   qrId: number;
-  userId: number;
+  merchantId?: number;
+  userId?: number;
   qrName: string;
   imgSrc: string;
   details: Record<string, unknown>;

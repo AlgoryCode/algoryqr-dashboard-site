@@ -2,7 +2,7 @@ import axios from "axios";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { getUserIdFromAccessToken } from "@/lib/auth-user";
+import { getMerchantIdFromAccessToken } from "@/lib/auth-user";
 import { API_BASE_URL } from "@/lib/config";
 import { readAccessTokenFromCookies } from "@/lib/server/auth-cookies";
 
@@ -13,7 +13,7 @@ async function forwardToUpstream(req: Request, method: "GET" | "PATCH") {
     return NextResponse.json({ message: "Oturum gerekli" }, { status: 401 });
   }
 
-  const userId = getUserIdFromAccessToken(accessToken);
+  const userId = getMerchantIdFromAccessToken(accessToken);
   if (userId == null) {
     return NextResponse.json({ message: "Token'da kullanıcı bilgisi yok" }, { status: 401 });
   }
@@ -21,7 +21,7 @@ async function forwardToUpstream(req: Request, method: "GET" | "PATCH") {
   const url = `${API_BASE_URL}/account/myprofile`;
   const headers: Record<string, string> = {
     Authorization: `Bearer ${accessToken}`,
-    "X-User-Id": String(userId),
+    "X-Merchant-Id": String(userId),
     Accept: "application/json",
   };
 

@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { getUserIdFromAccessToken } from "@/lib/auth-user";
+import { getMerchantIdFromAccessToken } from "@/lib/auth-user";
 import { readAccessTokenFromCookies, readRefreshTokenFromCookies } from "@/lib/server/auth-cookies";
 import {
   ackPrinterJob,
@@ -30,7 +30,7 @@ async function ownerContext() {
   const cookieStore = await cookies();
   const accessToken = readAccessTokenFromCookies(cookieStore);
   if (!accessToken) return null;
-  const userId = getUserIdFromAccessToken(accessToken);
+  const userId = getMerchantIdFromAccessToken(accessToken);
   if (userId == null) return null;
   return {
     userId,

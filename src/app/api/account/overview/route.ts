@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { getUserIdFromAccessToken } from "@/lib/auth-user";
+import { getMerchantIdFromAccessToken } from "@/lib/auth-user";
 import { readAccessTokenFromCookies } from "@/lib/server/auth-cookies";
 import { clientContextHeaders } from "@/lib/server/client-headers";
 import { fetchAccountOverview } from "@/lib/server/fetch-account-overview";
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: "Oturum gerekli" }, { status: 401 });
     }
 
-    const userId = getUserIdFromAccessToken(accessToken);
+    const userId = getMerchantIdFromAccessToken(accessToken);
     const overview = await fetchAccountOverview(accessToken, userId, clientContextHeaders(request));
 
     if (!overview.profile.ok) {

@@ -83,7 +83,8 @@ export default function BranchDetailView({ branchId }: BranchDetailViewProps) {
 }
 
 function branchOverview(branch: {
-  userId: number;
+  merchantId?: number;
+  userId?: number;
   photoUrl?: string | null;
   active: boolean;
   address?: string | null;
@@ -93,7 +94,7 @@ function branchOverview(branch: {
   courierEnabled?: boolean | null;
 }): BranchOverview {
   return {
-    merchantId: branch.userId,
+    merchantId: branch.merchantId ?? branch.userId ?? 0,
     photoUrl: branch.photoUrl ?? null,
     active: branch.active,
     address: branch.address ?? null,

@@ -21,7 +21,7 @@ interface AuthResponse {
   refreshTokenExpiresAt?: number;
   type?: string;
   sessionId?: string;
-  userId?: number;
+  merchantId?: number;
   email?: string;
   firstName?: string;
   lastName?: string;
@@ -99,13 +99,16 @@ export const authService = {
         return data;
       }
       if (data.user) setStoredUser(data.user);
-      else if (data.userId != null) {
-        setStoredUser({
-          id: String(data.userId),
-          email: data.email ?? params.email,
-          first_name: data.firstName,
-          last_name: data.lastName,
-        });
+      else {
+        const accountId = data.merchantId;
+        if (accountId != null) {
+          setStoredUser({
+            id: String(accountId),
+            email: data.email ?? params.email,
+            first_name: data.firstName,
+            last_name: data.lastName,
+          });
+        }
       }
       return data;
     } catch (e) {
@@ -133,13 +136,16 @@ export const authService = {
     try {
       const { data } = await client().post<AuthResponse>("/auth/2fa/login/verify", { code });
       if (data.user) setStoredUser(data.user);
-      else if (data.userId != null) {
-        setStoredUser({
-          id: String(data.userId),
-          email: data.email ?? "",
-          first_name: data.firstName,
-          last_name: data.lastName,
-        });
+      else {
+        const accountId = data.merchantId;
+        if (accountId != null) {
+          setStoredUser({
+            id: String(accountId),
+            email: data.email ?? "",
+            first_name: data.firstName,
+            last_name: data.lastName,
+          });
+        }
       }
       return data;
     } catch (e) {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { activePackagePath } from "@/lib/active-package-path";
-import { getUserIdFromAccessToken } from "@/lib/auth-user";
+import { getMerchantIdFromAccessToken } from "@/lib/auth-user";
 import { API_BASE_URL } from "@/lib/config";
 import {
   setActivePackageCookie,
@@ -10,21 +10,31 @@ import {
 
 const ACTIVE_PACKAGE_TIMEOUT_MS = 10_000;
 
-export function resolveLoginUserId(userId: unknown, accessToken?: string | null): number | undefined {
-  if (typeof userId === "number" && Number.isInteger(userId) && userId > 0) return userId;
-  const fromToken = getUserIdFromAccessToken(accessToken);
+export function resolveLoginMerchantId(
+  loginBody: unknown,
+  accessToken?: string | null,
+): number | undefined {
+  const body =
+    loginBody != null && typeof loginBody === "object"
+      ? (loginBody as Record<string, unknown>)
+      : null;
+  const merchantId = body?.merchantId;
+  if (typeof merchantId === "number" && Number.isInteger(merchantId) && merchantId > 0) {
+    return merchantId;
+  }
+  const fromToken = getMerchantIdFromAccessToken(accessToken);
   return fromToken != null && fromToken > 0 ? fromToken : undefined;
 }
 
 export async function fetchActivePackage(
-  userId: number,
+  merchantId: number,
   accessToken: string,
 ): Promise<ActivePackageSnapshot | null> {
-  if (!API_BASE_URL || !accessToken || !Number.isInteger(userId) || userId <= 0) return null;
+  if (!API_BASE_URL || !accessToken || !Number.isInteger(merchantId) || merchantId <= 0) return null;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ACTIVE_PACKAGE_TIMEOUT_MS);
   try {
-    const response = await fetch(`${API_BASE_URL}${activePackagePath(userId)}`, {
+    const response = await fetch(`${API_BASE_URL}${activePackagePath(merchantId)}`, {
       method: "GET",
       headers: {
         Accept: "application/json",
@@ -44,14 +54,14 @@ export async function fetchActivePackage(
 
 export async function applyActivePackageCookie(
   response: NextResponse,
-  userId: number | null | undefined,
+  merchantId: number | null | undefined,
   accessToken: string | undefined,
 ) {
-  if (userId == null || !accessToken) {
+  if (merchantId == null || !accessToken) {
     setActivePackageCookie(response, null);
     return;
   }
-  const snapshot = await fetchActivePackage(userId, accessToken);
+  const snapshot = await fetchActivePackage(merchantId, accessToken);
   setActivePackageCookie(response, snapshot);
 }
 

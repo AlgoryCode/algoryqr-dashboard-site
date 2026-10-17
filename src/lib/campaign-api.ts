@@ -114,16 +114,16 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export async function listCampaignTemplates(): Promise<CampaignTemplate[]> {
-  return request<CampaignTemplate[]>("/api/waiter-panel/campaigns/templates");
+  return request<CampaignTemplate[]>("/api/staff/panel/campaigns/templates");
 }
 
 export async function listCampaigns(menuId: number): Promise<CampaignItem[]> {
-  return request<CampaignItem[]>(`/api/waiter-panel/menu/${menuId}/campaigns`);
+  return request<CampaignItem[]>(`/api/staff/panel/menu/${menuId}/campaigns`);
 }
 
 export async function getCampaign(menuId: number, campaignId: number): Promise<CampaignItem> {
   return request<CampaignItem>(
-    `/api/waiter-panel/menu/${menuId}/campaigns/${campaignId}`,
+    `/api/staff/panel/menu/${menuId}/campaigns/${campaignId}`,
   );
 }
 
@@ -138,7 +138,7 @@ export async function listCampaignWinners(
   if (params?.size != null) search.set("size", String(params.size));
   const query = search.toString();
   return request<CampaignWinnerPage>(
-    `/api/waiter-panel/menu/${menuId}/campaigns/${campaignId}/winners${query ? `?${query}` : ""}`,
+    `/api/staff/panel/menu/${menuId}/campaigns/${campaignId}/winners${query ? `?${query}` : ""}`,
   );
 }
 
@@ -146,7 +146,7 @@ export async function createCampaign(
   menuId: number,
   payload: CreateCampaignPayload,
 ): Promise<CampaignItem> {
-  return request<CampaignItem>(`/api/waiter-panel/menu/${menuId}/campaigns`, {
+  return request<CampaignItem>(`/api/staff/panel/menu/${menuId}/campaigns`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -157,7 +157,7 @@ export async function updateCampaign(
   campaignId: number,
   payload: UpdateCampaignPayload,
 ): Promise<CampaignItem> {
-  return request<CampaignItem>(`/api/waiter-panel/menu/${menuId}/campaigns/${campaignId}`, {
+  return request<CampaignItem>(`/api/staff/panel/menu/${menuId}/campaigns/${campaignId}`, {
     method: "PUT",
     body: JSON.stringify(payload),
   });
@@ -174,20 +174,20 @@ export async function generateCampaignImage(
 
 export async function activateCampaign(menuId: number, campaignId: number): Promise<CampaignItem> {
   return request<CampaignItem>(
-    `/api/waiter-panel/menu/${menuId}/campaigns/${campaignId}/activate`,
+    `/api/staff/panel/menu/${menuId}/campaigns/${campaignId}/activate`,
     { method: "POST" },
   );
 }
 
 export async function pauseCampaign(menuId: number, campaignId: number): Promise<CampaignItem> {
   return request<CampaignItem>(
-    `/api/waiter-panel/menu/${menuId}/campaigns/${campaignId}/pause`,
+    `/api/staff/panel/menu/${menuId}/campaigns/${campaignId}/pause`,
     { method: "POST" },
   );
 }
 
 export async function deleteCampaign(menuId: number, campaignId: number): Promise<void> {
-  const response = await fetch(`/api/waiter-panel/menu/${menuId}/campaigns/${campaignId}`, {
+  const response = await fetch(`/api/staff/panel/menu/${menuId}/campaigns/${campaignId}`, {
     method: "DELETE",
     credentials: "include",
   });

@@ -2,7 +2,7 @@ import axios from "axios";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { getUserIdFromAccessToken } from "@/lib/auth-user";
+import { getMerchantIdFromAccessToken } from "@/lib/auth-user";
 import { API_BASE_URL } from "@/lib/config";
 import {
   getJsonErrorText,
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     const oauthBlock = forbidGoogleOAuthTwoFactor(accessToken);
     if (oauthBlock) return oauthBlock;
 
-    const userId = getUserIdFromAccessToken(accessToken);
+    const userId = getMerchantIdFromAccessToken(accessToken);
     if (userId == null) {
       return NextResponse.json({ message: "Token'da kullanıcı bilgisi yok" }, { status: 401 });
     }
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          "X-User-Id": String(userId),
+          "X-Merchant-Id": String(userId),
           "Content-Type": "application/json",
           Accept: "application/json",
         },

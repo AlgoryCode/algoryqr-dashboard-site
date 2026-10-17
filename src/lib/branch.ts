@@ -10,7 +10,7 @@ export type BranchMenuSummary = {
 
 export type BranchItem = {
   id: number;
-  userId: number;
+  merchantId: number;
   name: string;
   address?: string | null;
   phone?: string | null;
@@ -57,29 +57,42 @@ export type BranchWritePayload = {
   printKitchenEnabled?: boolean;
 };
 
+function normalizeBranchItem(raw: BranchItem): BranchItem {
+  const merchantId = raw.merchantId ?? raw.userId;
+  if (merchantId == null) return raw;
+  return { ...raw, merchantId, userId: merchantId };
+}
+
+function normalizeBranchList(data: BranchListResponse): BranchListResponse {
+  return {
+    ...data,
+    content: data.content.map(normalizeBranchItem),
+  };
+}
+
 export async function listBranchesRequest() {
   const { data } = await api.get<BranchListResponse>("/branches");
-  return data;
+  return normalizeBranchList(data);
 }
 
 export async function createBranchRequest(payload: BranchWritePayload) {
   const { data } = await api.post<BranchItem>("/features/QR_BRANCH/branches", payload);
-  return data;
+  return normalizeBranchItem(data);
 }
 
 export async function getBranchRequest(branchId: number) {
   const { data } = await api.get<BranchItem>(`/branches/${branchId}`);
-  return data;
+  return normalizeBranchItem(data);
 }
 
 export async function updateBranchRequest(branchId: number, payload: BranchWritePayload) {
   const { data } = await api.put<BranchItem>(`/branches/${branchId}`, payload);
-  return data;
+  return normalizeBranchItem(data);
 }
 
 export async function enableBranchKitchenRequest(branchId: number) {
   const { data } = await api.post<BranchItem>(`/branches/${branchId}/kitchen`);
-  return data;
+  return normalizeBranchItem(data);
 }
 
 export async function deleteBranchRequest(branchId: number) {

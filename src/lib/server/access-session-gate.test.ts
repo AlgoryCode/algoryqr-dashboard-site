@@ -13,8 +13,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function accessToken(userId = 7): string {
-  const payload = Buffer.from(JSON.stringify({ userId }), "utf8").toString("base64url");
+function accessToken(merchantId = 7): string {
+  const payload = Buffer.from(JSON.stringify({ merchantId }), "utf8").toString("base64url");
   return `hdr.${payload}.sig`;
 }
 

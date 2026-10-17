@@ -107,7 +107,7 @@ async function seedDemoTablesAndStaff(ax: ReturnType<typeof getSiteSameOriginAxi
 
   // Areas
   const existingAreas = await ax
-    .get<Array<{ id: number; name: string }>>(`/waiter-panel/menu/${menuId}/areas`)
+    .get<Array<{ id: number; name: string }>>(`/staff/panel/menu/${menuId}/areas`)
     .then((r) => r.data)
     .catch(() => [] as Array<{ id: number; name: string }>);
 
@@ -120,7 +120,7 @@ async function seedDemoTablesAndStaff(ax: ReturnType<typeof getSiteSameOriginAxi
     if (areaMap.has(area.name)) continue;
     try {
       const created = await ax.post<{ id: number; name: string }>(
-        `/waiter-panel/menu/${menuId}/areas`,
+        `/staff/panel/menu/${menuId}/areas`,
         { name: area.name },
       );
       areaMap.set(area.name, created.data.id);
@@ -131,7 +131,7 @@ async function seedDemoTablesAndStaff(ax: ReturnType<typeof getSiteSameOriginAxi
 
   // Tables
   const existingTables = await ax
-    .get<Array<{ id: number; name: string }>>(`/waiter-panel/menu/${menuId}/tables`)
+    .get<Array<{ id: number; name: string }>>(`/staff/panel/menu/${menuId}/tables`)
     .then((r) => r.data)
     .catch(() => [] as Array<{ id: number; name: string }>);
 
@@ -140,7 +140,7 @@ async function seedDemoTablesAndStaff(ax: ReturnType<typeof getSiteSameOriginAxi
   for (const table of DEMO_TABLES) {
     if (existingTableNames.has(table.name)) continue;
     try {
-      await ax.post(`/waiter-panel/menu/${menuId}/tables`, {
+      await ax.post(`/staff/panel/menu/${menuId}/tables`, {
         name: table.name,
         tableNumber: table.tableNumber,
         capacity: table.capacity,
@@ -154,7 +154,7 @@ async function seedDemoTablesAndStaff(ax: ReturnType<typeof getSiteSameOriginAxi
   // Staff
   const existingStaff = await ax
     .get<{ waiters?: Array<{ username: string }> } | Array<{ username: string }>>(
-      `/waiter-panel/branch/${branchId}/staff`,
+      `/staff/panel/branch/${branchId}/staff`,
     )
     .then((r) => {
       const d = r.data;
@@ -167,7 +167,7 @@ async function seedDemoTablesAndStaff(ax: ReturnType<typeof getSiteSameOriginAxi
   for (const staff of DEMO_STAFF) {
     if (existingUsernames.has(staff.username)) continue;
     try {
-      await ax.post(`/waiter-panel/branch/${branchId}/staff`, staff);
+      await ax.post(`/staff/panel/branch/${branchId}/staff`, staff);
     } catch {
       /* skip */
     }

@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 
 import { getExpFromAccessToken } from "@/lib/auth-user";
 import { authUrl } from "@/lib/config";
-import { applyActivePackageCookie, resolveLoginUserId } from "@/lib/server/active-package";
+import { applyActivePackageCookie, resolveLoginMerchantId } from "@/lib/server/active-package";
 import {
   clearAuthCookies,
   readRefreshTokenFromCookies,
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
       refreshToken?: string;
       access_token?: string;
       refresh_token?: string;
-      userId?: number;
+      merchantId?: number;
       refreshExpiresAt?: string;
     };
 
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     const newRefresh = data?.refreshToken ?? data?.refresh_token;
     const accessTokenValue = typeof accessToken === "string" ? accessToken : undefined;
     const refreshTokenValue = typeof newRefresh === "string" ? newRefresh : undefined;
-    const userId = resolveLoginUserId(data.userId, accessTokenValue);
+    const merchantId = resolveLoginMerchantId(data, accessTokenValue);
     const accessTokenExpiresAt = getExpFromAccessToken(accessTokenValue);
     const refreshTokenExpiresAt = await resolveRefreshCookieExpiry(
       refreshTokenValue,
@@ -70,7 +70,7 @@ export async function POST(req: Request) {
     );
 
     const response = NextResponse.json(
-      { ...data, userId, accessTokenExpiresAt, refreshTokenExpiresAt },
+      { ...data, merchantId, accessTokenExpiresAt, refreshTokenExpiresAt },
       { status: 200 },
     );
 
@@ -78,9 +78,9 @@ export async function POST(req: Request) {
       response,
       accessTokenValue,
       refreshTokenValue,
-      userId,
+      merchantId,
     );
-    await applyActivePackageCookie(response, userId, typeof accessToken === "string" ? accessToken : undefined);
+    await applyActivePackageCookie(response, merchantId, typeof accessToken === "string" ? accessToken : undefined);
     setTokenExpiryCookies(
       response,
       accessTokenExpiresAt ?? undefined,

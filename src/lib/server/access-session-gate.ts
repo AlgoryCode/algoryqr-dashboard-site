@@ -1,5 +1,5 @@
 import { activePackagePath } from "@/lib/active-package-path";
-import { getUserIdFromAccessToken } from "@/lib/auth-user";
+import { getMerchantIdFromAccessToken } from "@/lib/auth-user";
 import { API_BASE_URL } from "@/lib/config";
 import {
   destinationForDecision,
@@ -13,7 +13,7 @@ const ACCESS_CONTEXT_TIMEOUT_MS = 10_000;
 export async function fetchAccessSessionWithToken(
   accessToken: string,
 ): Promise<AccessSession | null> {
-  const userId = getUserIdFromAccessToken(accessToken);
+  const userId = getMerchantIdFromAccessToken(accessToken);
   if (!API_BASE_URL || !accessToken || userId == null) return null;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ACCESS_CONTEXT_TIMEOUT_MS);

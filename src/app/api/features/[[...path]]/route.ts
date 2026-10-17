@@ -2,7 +2,7 @@ import axios, { AxiosError } from "axios";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { buildUpstreamAuthHeaders, resolveSessionUserId } from "@/lib/auth-user";
+import { buildUpstreamAuthHeaders, resolveSessionMerchantId } from "@/lib/auth-user";
 import { API_BASE_URL, MENU_APP_ORIGIN } from "@/lib/config";
 import { readAccessTokenFromCookies } from "@/lib/server/auth-cookies";
 
@@ -42,7 +42,7 @@ async function proxy(req: Request, method: string, path: string[]) {
     }
   }
   if (suffix === "/QR_MENU/qrs" && data && typeof data === "object") {
-    const userId = resolveSessionUserId(accessToken, cookieStore);
+    const userId = resolveSessionMerchantId(accessToken, cookieStore);
     const body = data as Record<string, unknown>;
     const details = body.details;
     data = {

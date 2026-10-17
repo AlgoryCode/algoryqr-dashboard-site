@@ -2,7 +2,7 @@ import axios, { AxiosError } from "axios";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { getUserIdFromAccessToken } from "@/lib/auth-user";
+import { getMerchantIdFromAccessToken } from "@/lib/auth-user";
 import { API_BASE_URL } from "@/lib/config";
 import { readAccessTokenFromCookies } from "@/lib/server/auth-cookies";
 import { clientContextHeaders } from "@/lib/server/client-headers";
@@ -24,12 +24,12 @@ export async function GET(request: Request) {
     }
 
     if (!branchId) {
-      const userId = getUserIdFromAccessToken(accessToken);
+      const userId = getMerchantIdFromAccessToken(accessToken);
       const branches = await axios.get<BranchListResponse>(`${API_BASE_URL}/branches`, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           Accept: "application/json",
-          ...(userId != null ? { "X-User-Id": String(userId) } : {}),
+          ...(userId != null ? { "X-Merchant-Id": String(userId) } : {}),
           ...clientContextHeaders(request),
         },
         validateStatus: () => true,

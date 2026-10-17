@@ -2,7 +2,7 @@ import axios from "axios";
 
 import type { AccountOverview } from "@/lib/account-overview";
 import { API_BASE_URL } from "@/lib/config";
-import { getUserIdFromAccessToken } from "@/lib/auth-user";
+import { getMerchantIdFromAccessToken } from "@/lib/auth-user";
 
 function authHeaders(
   accessToken: string,
@@ -12,7 +12,7 @@ function authHeaders(
   return {
     Authorization: `Bearer ${accessToken}`,
     Accept: "application/json",
-    ...(userId != null ? { "X-User-Id": String(userId) } : {}),
+    ...(userId != null ? { "X-Merchant-Id": String(userId) } : {}),
     ...extra,
   };
 }
@@ -23,7 +23,7 @@ export async function fetchAccountOverview(
   userId: number | null,
   clientHeaders?: Record<string, string>,
 ): Promise<AccountOverview> {
-  const resolvedUserId = userId ?? getUserIdFromAccessToken(accessToken);
+  const resolvedUserId = userId ?? getMerchantIdFromAccessToken(accessToken);
   const upstream = await axios.get<AccountOverview>(`${API_BASE_URL}/account/overview`, {
     headers: authHeaders(accessToken, resolvedUserId, clientHeaders),
     validateStatus: () => true,
