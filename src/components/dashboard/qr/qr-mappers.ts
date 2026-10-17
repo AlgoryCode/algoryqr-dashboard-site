@@ -77,6 +77,7 @@ export const mapDetailsToQrTypeData = (details: Record<string, unknown>): QrType
         phone: String(details.phone ?? ""),
         email: String(details.email ?? ""),
         address: String(details.address ?? ""),
+        googleReviewsUrl: String(details.googleReviewsUrl ?? ""),
         themeId,
         chefName: String(details.chefName ?? ""),
         chefAvatarKey: String(details.chefAvatarKey ?? "default"),

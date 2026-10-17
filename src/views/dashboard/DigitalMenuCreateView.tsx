@@ -97,6 +97,7 @@ export default function DigitalMenuCreateView() {
           phone: profile.phone?.trim() ?? "",
           email: profile.email?.trim() ?? "",
           address: profile.address?.trim() ?? "",
+          googleReviewsUrl: profile.googleReviewsUrl?.trim() ?? "",
           themeId: (profile.themeId as MenuThemeId) || createInitialMenuData().themeId,
           chefName: "",
           chefAvatarKey: "default",
