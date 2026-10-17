@@ -57,10 +57,11 @@ export type BranchWritePayload = {
   printKitchenEnabled?: boolean;
 };
 
-function normalizeBranchItem(raw: BranchItem): BranchItem {
-  const merchantId = raw.merchantId ?? raw.userId;
-  if (merchantId == null) return raw;
-  return { ...raw, merchantId, userId: merchantId };
+function normalizeBranchItem(raw: BranchItem & { userId?: number }): BranchItem {
+  const { userId, ...rest } = raw;
+  const merchantId = rest.merchantId ?? userId;
+  if (merchantId == null) return rest;
+  return { ...rest, merchantId };
 }
 
 function normalizeBranchList(data: BranchListResponse): BranchListResponse {
