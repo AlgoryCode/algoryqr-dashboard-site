@@ -1,6 +1,5 @@
 "use client";
 
-import { getStoredUser } from "@/lib/api/storage";
 import { recordFlow } from "@/lib/flow-log";
 import { readPackageSnapshot } from "@/lib/package-access";
 import { isServerStatus } from "@/lib/server-failure";
@@ -10,7 +9,7 @@ import type { AccessProfile } from "@/lib/auth-user";
 let generation = 0;
 let inflight: Promise<AccessProfile | null> | null = null;
 
-export function loadPackageAccess(force = false, userId?: number | null): Promise<AccessProfile | null> {
+export function loadPackageAccess(force = false): Promise<AccessProfile | null> {
   const current = usePackageStore.getState();
   if (!force && (current.status === "ready" || current.status === "guest")) {
     return Promise.resolve(current.profile);
@@ -21,7 +20,7 @@ export function loadPackageAccess(force = false, userId?: number | null): Promis
   if (current.status !== "ready") {
     usePackageStore.getState().setStatus("loading");
   }
-  const run = fetchPackageAccess(userId)
+  const run = fetchPackageAccess()
     .then((result) => {
       if (ticket !== generation) return usePackageStore.getState().profile;
       if (result.status === "ready" && result.snapshot) {
@@ -54,9 +53,8 @@ type FetchResult = {
   snapshot: ReturnType<typeof readPackageSnapshot>;
 };
 
-async function fetchPackageAccess(userId?: number | null): Promise<FetchResult> {
-  const resolved = userId != null && userId > 0 ? userId : storedUserId();
-  const path = resolved != null ? `/api/users/${resolved}/package` : "/api/access/context";
+async function fetchPackageAccess(): Promise<FetchResult> {
+  const path = "/api/access/context";
   const response = await fetch(path, { credentials: "include" });
   if (!response.ok) {
     recordFlow({
@@ -92,11 +90,4 @@ async function fetchPackageAccess(userId?: number | null): Promise<FetchResult> 
       : "Aktif paket yok",
   });
   return { status: "ready", snapshot };
-}
-
-function storedUserId(): number | null {
-  const raw = getStoredUser()?.id;
-  if (!raw) return null;
-  const parsed = Number(raw);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }

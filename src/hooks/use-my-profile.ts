@@ -7,7 +7,7 @@ import { getSiteSameOriginAxios } from "@/lib/site-same-origin-axios";
 export const MY_PROFILE_QUERY_KEY = ["myProfile"] as const;
 
 export interface MyProfile {
-  userId: number;
+  merchantId: number;
   firstName: string | null;
   lastName: string | null;
   email: string | null;
@@ -41,8 +41,11 @@ export function useMyProfile(enabled = true) {
   return useQuery({
     queryKey: MY_PROFILE_QUERY_KEY,
     queryFn: async () => {
-      const { data } = await getSiteSameOriginAxios().get<MyProfile>("/account/myprofile");
-      return data;
+      const { data } = await getSiteSameOriginAxios().get<MyProfile & { userId?: number }>("/account/myprofile");
+      return {
+        ...data,
+        merchantId: data.merchantId ?? data.userId ?? 0,
+      };
     },
     enabled,
     staleTime: 5 * 60 * 1000,

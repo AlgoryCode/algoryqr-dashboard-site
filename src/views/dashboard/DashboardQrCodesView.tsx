@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   createQrRequest, deleteQrRequest, getMyActiveMenusRequest, getStoredUser,
-  getUserQrsRequest, QrResponse, StoredUser, updateQrActiveRequest, updateQrNameRequest, updateQrRequest,
+  getMerchantQrsRequest, QrResponse, StoredUser, updateQrActiveRequest, updateQrNameRequest, updateQrRequest,
 } from "@/lib/api";
 import { refreshAccessAfterEntitlementChange } from "@/lib/refresh-access";
 import { Button } from "@/components/ui/button";
@@ -152,7 +152,7 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
     try {
       const pageSize = mode === "detail" || hasListFilter ? 50 : QR_PAGE_SIZE;
       const pageIndex = mode === "detail" || hasListFilter ? 0 : page;
-      const response = await getUserQrsRequest(user?.id ?? "me", {
+      const response = await getMerchantQrsRequest(user?.id ?? "me", {
         includeImage: true,
         page: pageIndex,
         size: pageSize,
@@ -356,7 +356,7 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
 
     try {
       const updateResponse = await updateQrRequest(selectedQR.id, {
-        userId: selectedQR.userId,
+        merchantId: selectedQR.merchantId,
         qrName: trimmedName,
         type: editQrType,
         details,

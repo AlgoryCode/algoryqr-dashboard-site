@@ -2,17 +2,14 @@ import axios from "axios";
 
 import type { AccountOverview } from "@/lib/account-overview";
 import { API_BASE_URL } from "@/lib/config";
-import { getUserIdFromAccessToken } from "@/lib/auth-user";
 
 function authHeaders(
   accessToken: string,
-  userId: number | null,
   extra?: Record<string, string>,
 ): Record<string, string> {
   return {
     Authorization: `Bearer ${accessToken}`,
     Accept: "application/json",
-    ...(userId != null ? { "X-User-Id": String(userId) } : {}),
     ...extra,
   };
 }
@@ -20,12 +17,10 @@ function authHeaders(
 /** Aggregated account snapshot from qr-service `GET /account/overview`. */
 export async function fetchAccountOverview(
   accessToken: string,
-  userId: number | null,
   clientHeaders?: Record<string, string>,
 ): Promise<AccountOverview> {
-  const resolvedUserId = userId ?? getUserIdFromAccessToken(accessToken);
   const upstream = await axios.get<AccountOverview>(`${API_BASE_URL}/account/overview`, {
-    headers: authHeaders(accessToken, resolvedUserId, clientHeaders),
+    headers: authHeaders(accessToken, clientHeaders),
     validateStatus: () => true,
     timeout: 25_000,
   });

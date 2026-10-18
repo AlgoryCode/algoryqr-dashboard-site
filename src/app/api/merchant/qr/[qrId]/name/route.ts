@@ -1,22 +1,21 @@
-import { cookies } from "next/headers";
 import axios, { AxiosError } from "axios";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+
 import { buildUpstreamAuthHeaders } from "@/lib/auth-user";
-import { QR_API_BASE } from "@/lib/config";
+import { API_BASE_URL } from "@/lib/config";
 import { readAccessTokenFromCookies } from "@/lib/server/auth-cookies";
 
-export async function PUT(req: Request, context: { params: Promise<{ qrId: string }> }) {
+export async function PATCH(req: Request, context: { params: Promise<{ qrId: string }> }) {
   try {
     const { qrId } = await context.params;
     const cookieStore = await cookies();
     const accessToken = readAccessTokenFromCookies(cookieStore);
-
     if (!accessToken) {
       return NextResponse.json({ message: "Access token yok" }, { status: 401 });
     }
-
-    const body = await req.text();
-    const upstream = await axios.put(`${QR_API_BASE}/update/${qrId}`, body || undefined, {
+    const body = await req.json();
+    const upstream = await axios.patch(`${API_BASE_URL}/merchant/qr/${qrId}/name`, body, {
       headers: {
         "Content-Type": "application/json",
         ...buildUpstreamAuthHeaders(accessToken),
@@ -24,7 +23,6 @@ export async function PUT(req: Request, context: { params: Promise<{ qrId: strin
       validateStatus: () => true,
       timeout: 20_000,
     });
-
     return NextResponse.json(upstream.data ?? {}, { status: upstream.status });
   } catch (error) {
     if (error instanceof AxiosError) {

@@ -22,7 +22,7 @@ import {
 function branch(overrides: Partial<BranchItem> = {}): BranchItem {
   return {
     id: 1,
-    userId: 7,
+    merchantId: 7,
     name: "Kadıköy",
     grandfathered: false,
     active: true,

@@ -10,7 +10,7 @@ export type BranchMenuSummary = {
 
 export type BranchItem = {
   id: number;
-  userId: number;
+  merchantId: number;
   name: string;
   address?: string | null;
   phone?: string | null;

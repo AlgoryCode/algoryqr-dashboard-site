@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 import { getExpFromAccessToken, isoToEpochSeconds, resolveRefreshExpiresAt } from "@/lib/auth-user";
 import { authUrl } from "@/lib/config";
-import { applyActivePackageCookie, resolveLoginUserId } from "@/lib/server/active-package";
+import { applyActivePackageCookie, resolveLoginMerchantId } from "@/lib/server/active-package";
 import { setAuthCookies, setTokenExpiryCookies } from "@/lib/server/auth-cookies";
 import { applyPersonalDemoTrialCookie } from "@/lib/server/apply-demo-onboarding-cookies";
 import { clientContextHeaders } from "@/lib/server/client-headers";
@@ -63,7 +63,10 @@ export async function POST(req: Request) {
 
     const accessToken = data?.accessToken ?? data?.access_token;
     const refreshToken = data?.refreshToken ?? data?.refresh_token;
-    const userId = resolveLoginUserId(data.userId, typeof accessToken === "string" ? accessToken : undefined);
+    const merchantId = resolveLoginMerchantId(
+      typeof data.merchantId === "number" ? data.merchantId : data.userId,
+      typeof accessToken === "string" ? accessToken : undefined,
+    );
     const accessTokenExpiresAt =
       getExpFromAccessToken(typeof accessToken === "string" ? accessToken : undefined) ??
       isoToEpochSeconds(data.accessExpiresAt) ??
@@ -74,17 +77,17 @@ export async function POST(req: Request) {
     );
 
     const response = NextResponse.json(
-      { ...data, userId, accessTokenExpiresAt, refreshTokenExpiresAt },
+      { ...data, merchantId, userId: undefined, accessTokenExpiresAt, refreshTokenExpiresAt },
       { status: 200 },
     );
     setAuthCookies(
       response,
       typeof accessToken === "string" ? accessToken : undefined,
       typeof refreshToken === "string" ? refreshToken : undefined,
-      userId,
+      merchantId,
     );
     setTokenExpiryCookies(response, accessTokenExpiresAt, refreshTokenExpiresAt);
-    await applyActivePackageCookie(response, userId, typeof accessToken === "string" ? accessToken : undefined);
+    await applyActivePackageCookie(response, merchantId, typeof accessToken === "string" ? accessToken : undefined);
     await applyPersonalDemoTrialCookie(response, typeof accessToken === "string" ? accessToken : undefined);
     return response;
   } catch {

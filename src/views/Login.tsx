@@ -72,9 +72,9 @@ const Login = () => {
   const googleAuthHref = buildGoogleAuthStartUrl("login", returnPath);
   const googleRegisterHref = buildGoogleAuthStartUrl("register", DASHBOARD_ROUTES.demoRegister);
 
-  const redirectAfterAuth = async (userId?: number) => {
-    await loadPackageAccess(true, userId);
-    const session = await fetchSessionContextClient(userId);
+  const redirectAfterAuth = async () => {
+    await loadPackageAccess(true);
+    const session = await fetchSessionContextClient();
     if (session) {
       queryClient.setQueryData(SESSION_CONTEXT_QUERY_KEY, session);
     }
@@ -140,7 +140,7 @@ const Login = () => {
     queryClient.removeQueries({ queryKey: MY_PROFILE_QUERY_KEY });
     queryClient.removeQueries({ queryKey: ["demoAccount"] });
     toast({ title: "Başarılı", description: "Giriş yapıldı!", variant: "success" });
-    await redirectAfterAuth(data.userId);
+    await redirectAfterAuth();
   };
 
   const handleDemoAccountLogin = async (e: React.FormEvent) => {
@@ -151,14 +151,14 @@ const Login = () => {
     }
     setLoading(true);
     try {
-      const { data } = await getSiteSameOriginAxios().post<{ userId?: number }>("/auth/demo/login", {
+      await getSiteSameOriginAxios().post("/auth/demo/login", {
         username: demoUsername.trim(),
         password: demoPassword,
       });
       queryClient.removeQueries({ queryKey: MY_PROFILE_QUERY_KEY });
       queryClient.removeQueries({ queryKey: ["demoAccount"] });
-      await loadPackageAccess(true, data.userId);
-      const session = await fetchSessionContextClient(data.userId);
+      await loadPackageAccess(true);
+      const session = await fetchSessionContextClient();
       if (session) {
         queryClient.setQueryData(SESSION_CONTEXT_QUERY_KEY, session);
       }
@@ -358,14 +358,14 @@ const Login = () => {
     }
     setLoading(true);
     try {
-      const data = await authService.completeTwoFactorLogin(code);
+      await authService.completeTwoFactorLogin(code);
       setAwaiting2FA(false);
       setTotpCode("");
       setTwoFactorHintEmail(null);
       queryClient.removeQueries({ queryKey: MY_PROFILE_QUERY_KEY });
       queryClient.removeQueries({ queryKey: ["demoAccount"] });
       toast({ title: "Başarılı", description: "Giriş yapıldı!", variant: "success" });
-      await redirectAfterAuth(data.userId);
+      await redirectAfterAuth();
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "2FA doğrulanamadı";
       toast({ title: "Hata", description: message, variant: "destructive" });

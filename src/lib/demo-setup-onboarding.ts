@@ -19,8 +19,8 @@ export const BRANCH_COUNT_OPTIONS: ReadonlyArray<{ id: BranchCountBand; label: s
   { id: "11_plus", label: "11+ şube", hint: "Geniş şube ağı" },
 ];
 
-export function demoSetupDoneKey(userId: string | number): string {
-  return `${DEMO_SETUP_DONE_PREFIX}${userId}`;
+export function demoSetupDoneKey(merchantId: string | number): string {
+  return `${DEMO_SETUP_DONE_PREFIX}${merchantId}`;
 }
 
 export function demoSetupStaffKey(userId: string | number): string {

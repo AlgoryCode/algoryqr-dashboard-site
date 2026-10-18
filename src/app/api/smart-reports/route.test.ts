@@ -15,7 +15,7 @@ vi.mock("@/lib/server/auth-cookies", () => ({
 }));
 
 vi.mock("@/lib/auth-user", () => ({
-  getUserIdFromAccessToken: getUserIdMock,
+  getMerchantIdFromAccessToken: getUserIdMock,
 }));
 
 vi.mock("@/lib/config", () => ({

@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 
 import { getExpFromAccessToken } from "@/lib/auth-user";
 import { API_BASE_URL } from "@/lib/config";
-import { applyActivePackageCookie, resolveLoginUserId } from "@/lib/server/active-package";
+import { applyActivePackageCookie, resolveLoginMerchantId } from "@/lib/server/active-package";
 import { setAuthCookies, setTokenExpiryCookies } from "@/lib/server/auth-cookies";
 import { applyPersonalDemoTrialCookie } from "@/lib/server/apply-demo-onboarding-cookies";
 import { clientContextHeaders } from "@/lib/server/client-headers";
@@ -58,7 +58,10 @@ export async function POST(req: Request) {
     const refreshToken = (data.refreshToken as string) || (data.refresh_token as string);
     const accessTokenValue = typeof accessToken === "string" ? accessToken : undefined;
     const refreshTokenValue = typeof refreshToken === "string" ? refreshToken : undefined;
-    const userId = resolveLoginUserId(data.userId, accessTokenValue);
+    const merchantId = resolveLoginMerchantId(
+      typeof data.merchantId === "number" ? data.merchantId : data.userId,
+      accessTokenValue,
+    );
     const accessTokenExpiresAt = getExpFromAccessToken(accessTokenValue) ?? undefined;
     const refreshTokenExpiresAt = await resolveRefreshCookieExpiry(
       refreshTokenValue,
@@ -67,7 +70,7 @@ export async function POST(req: Request) {
     );
 
     const response = NextResponse.json(
-      { ...data, userId, accessTokenExpiresAt, refreshTokenExpiresAt },
+      { ...data, merchantId, userId: undefined, accessTokenExpiresAt, refreshTokenExpiresAt },
       { status: 200 },
     );
 
@@ -80,9 +83,9 @@ export async function POST(req: Request) {
     };
     response.cookies.set("algory_2fa_pending", "", clearPending);
 
-    setAuthCookies(response, accessTokenValue, refreshTokenValue, userId);
+    setAuthCookies(response, accessTokenValue, refreshTokenValue, merchantId);
     setTokenExpiryCookies(response, accessTokenExpiresAt, refreshTokenExpiresAt);
-    await applyActivePackageCookie(response, userId, accessTokenValue);
+    await applyActivePackageCookie(response, merchantId, accessTokenValue);
     await applyPersonalDemoTrialCookie(response, accessTokenValue);
 
     return response;

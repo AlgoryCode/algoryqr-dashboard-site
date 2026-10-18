@@ -26,8 +26,8 @@ export function readRefreshTokenFromCookies(cookieStore: CookieStore): string | 
   return t || null;
 }
 
-export function readUserIdFromCookies(cookieStore: CookieStore): number | null {
-  const raw = cookieStore.get("userId")?.value?.trim();
+export function readMerchantIdFromCookies(cookieStore: CookieStore): number | null {
+  const raw = cookieStore.get("merchantId")?.value?.trim();
   if (!raw) return null;
   const parsed = parseInt(raw, 10);
   return Number.isFinite(parsed) ? parsed : null;
@@ -61,7 +61,7 @@ export function setAuthCookies(
   response: NextResponse,
   accessToken?: string,
   refreshToken?: string,
-  userId?: number,
+  merchantId?: number,
 ) {
   if (accessToken) {
     response.cookies.set("accessToken", accessToken, cookieOptions);
@@ -69,9 +69,10 @@ export function setAuthCookies(
   if (refreshToken) {
     response.cookies.set("refreshToken", refreshToken, cookieOptions);
   }
-  if (userId != null && userId > 0) {
-    response.cookies.set("userId", String(userId), cookieOptions);
+  if (merchantId != null && merchantId > 0) {
+    response.cookies.set("merchantId", String(merchantId), cookieOptions);
   }
+  response.cookies.set("userId", "", { ...cookieOptions, maxAge: 0 });
   clearLegacyAlgoryAuthCookies(response);
 }
 
@@ -115,6 +116,7 @@ export function clearAuthCookies(response: NextResponse) {
   response.cookies.set("refreshToken", "", clearOptions);
   response.cookies.set("accessTokenExp", "", clearOptions);
   response.cookies.set("refreshTokenExp", "", clearOptions);
+  response.cookies.set("merchantId", "", clearOptions);
   response.cookies.set("userId", "", clearOptions);
   response.cookies.set("activePackage", "", clearOptions);
   clearLegacyAlgoryAuthCookies(response);

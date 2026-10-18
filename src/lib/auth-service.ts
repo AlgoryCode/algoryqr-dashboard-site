@@ -21,6 +21,7 @@ interface AuthResponse {
   refreshTokenExpiresAt?: number;
   type?: string;
   sessionId?: string;
+  merchantId?: number;
   userId?: number;
   email?: string;
   firstName?: string;
@@ -99,9 +100,9 @@ export const authService = {
         return data;
       }
       if (data.user) setStoredUser(data.user);
-      else if (data.userId != null) {
+      else if ((data.merchantId ?? data.userId) != null) {
         setStoredUser({
-          id: String(data.userId),
+          id: String(data.merchantId ?? data.userId),
           email: data.email ?? params.email,
           first_name: data.firstName,
           last_name: data.lastName,
@@ -133,9 +134,9 @@ export const authService = {
     try {
       const { data } = await client().post<AuthResponse>("/auth/2fa/login/verify", { code });
       if (data.user) setStoredUser(data.user);
-      else if (data.userId != null) {
+      else if ((data.merchantId ?? data.userId) != null) {
         setStoredUser({
-          id: String(data.userId),
+          id: String(data.merchantId ?? data.userId),
           email: data.email ?? "",
           first_name: data.firstName,
           last_name: data.lastName,

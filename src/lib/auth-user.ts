@@ -157,29 +157,30 @@ function parseNumericClaim(value: unknown): number | null {
   return null;
 }
 
-export function getUserIdFromAccessToken(token?: string | null): number | null {
+export function getMerchantIdFromAccessToken(token?: string | null): number | null {
   if (!token) return null;
   const payload = parseJwtPayload(token);
   if (!payload) return null;
-  return (
-    parseNumericClaim(payload.merchantId) ??
-    parseNumericClaim(payload.userId) ??
-    parseNumericClaim(payload.accountId) ??
-    parseNumericClaim(payload.customerId) ??
-    parseNumericClaim(payload.id)
-  );
+  return parseNumericClaim(payload.merchantId);
+}
+
+export function getCustomerIdFromAccessToken(token?: string | null): number | null {
+  if (!token) return null;
+  const payload = parseJwtPayload(token);
+  if (!payload) return null;
+  return parseNumericClaim(payload.customerId) ?? parseNumericClaim(payload.userId);
 }
 
 type SessionCookieStore = { get: (name: string) => { value?: string } | undefined };
 
-export function resolveSessionUserId(
+export function resolveSessionMerchantId(
   accessToken: string | null | undefined,
   cookieStore?: SessionCookieStore,
 ): number | null {
-  const fromToken = getUserIdFromAccessToken(accessToken);
+  const fromToken = getMerchantIdFromAccessToken(accessToken);
   if (fromToken != null) return fromToken;
   if (!cookieStore) return null;
-  const raw = cookieStore.get("userId")?.value?.trim();
+  const raw = cookieStore.get("merchantId")?.value?.trim();
   if (!raw) return null;
   const parsed = parseInt(raw, 10);
   return Number.isFinite(parsed) ? parsed : null;
@@ -193,16 +194,12 @@ export function getUserFromAccessToken(token?: string | null): AuthUser | null {
   const email = (payload.email as string | undefined) || "";
   const firstName = (payload.firstName as string | undefined) || (payload.first_name as string | undefined);
   const lastName = (payload.lastName as string | undefined) || (payload.last_name as string | undefined);
-  const numericUserId = getUserIdFromAccessToken(token);
-  const fallbackId =
-    (payload.accountId as string | number | undefined) ||
-    (payload.customerId as string | number | undefined) ||
-    (payload.sub as string | number | undefined);
+  const merchantId = getMerchantIdFromAccessToken(token);
 
-  if (numericUserId == null && fallbackId == null && !email && !firstName && !lastName) return null;
+  if (merchantId == null && !email && !firstName && !lastName) return null;
 
   return {
-    id: numericUserId != null ? String(numericUserId) : fallbackId != null ? String(fallbackId) : undefined,
+    id: merchantId != null ? String(merchantId) : undefined,
     email: email || "",
     first_name: firstName,
     last_name: lastName,
@@ -309,8 +306,21 @@ export function hasProduct(profile: AccessProfile | null | undefined, product: P
 function productInPackage(profile: AccessProfile | null | undefined, product: ProductCode): boolean {
   if (!profile) return false;
   if (profile.products.includes(product)) return true;
-  if (product === "QR_ANALYTICS" && profile.products.includes("SMART_REPORTING")) return true;
+  if (profile.scopes.some((scope) => scope === `${product}_OWNER`)) return true;
+  if (
+    product === "QR_ANALYTICS" &&
+    (profile.products.includes("SMART_REPORTING") || profile.scopes.includes("SMART_REPORTING_OWNER"))
+  ) {
+    return true;
+  }
+  if (
+    product === "SMART_REPORTING" &&
+    (profile.products.includes("QR_ANALYTICS") || profile.scopes.includes("QR_ANALYTICS_OWNER"))
+  ) {
+    return true;
+  }
   if (product === "QR_AGENT" && profile.products.includes("SMART_ASSISTANT")) return true;
+  if (product === "SMART_ASSISTANT" && profile.products.includes("QR_AGENT")) return true;
   return false;
 }
 
@@ -326,9 +336,5 @@ export function buildUpstreamAuthHeaders(accessToken: string): Record<string, st
   const headers: Record<string, string> = {
     Authorization: `Bearer ${accessToken}`,
   };
-  const userId = getUserIdFromAccessToken(accessToken);
-  if (userId != null) {
-    headers["X-User-Id"] = String(userId);
-  }
   return headers;
 }

@@ -19,7 +19,8 @@ export type PrintPairingCode = {
 };
 
 export type PrintApiKeyCredentials = {
-  userId: number;
+  merchantId?: number;
+  userId?: number;
   deviceId: number;
   branchId: number;
   apiKey: string;
@@ -38,7 +39,8 @@ export type PrintFailedJob = {
 };
 
 export type PrintAgentSettings = {
-  userId: number;
+  merchantId?: number;
+  userId?: number;
   branchId: number;
   printKitchenEnabled: boolean;
   devices: PrintAgentDevice[];

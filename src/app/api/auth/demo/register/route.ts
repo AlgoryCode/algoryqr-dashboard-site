@@ -61,7 +61,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(
       {
-        userId: data.userId,
+        merchantId: typeof data.merchantId === "number" ? data.merchantId : data.userId,
         username: data.username ?? username,
         message: data.message ?? "Demo hesap oluşturuldu. Giriş yaparak devam edin.",
       },

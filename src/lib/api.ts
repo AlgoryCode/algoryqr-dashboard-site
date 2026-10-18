@@ -98,7 +98,7 @@ export type QrRequestDetails =
     };
 
 export interface CreateQrRequestBody {
-  userId?: number | string;
+  merchantId?: number | string;
   qrName: string;
   type: string;
   details: QrRequestDetails;
@@ -124,7 +124,7 @@ export interface CreateQrResponse {
 }
 
 export interface UpdateQrRequestBody {
-  userId?: number | string;
+  merchantId?: number | string;
   qrName: string;
   type: string;
   details: QrRequestDetails;
@@ -145,6 +145,7 @@ type UpdateQrNameGatewayResponse = {
 
 export interface UserQrApiItem {
   qrId: number;
+  merchantId?: number;
   userId?: number;
   customerId?: number;
   qrName: string;
@@ -1451,27 +1452,27 @@ export async function createQrRequest(payload: CreateQrRequestBody): Promise<Cre
 
 export type QrListScope = "ALL" | "CURRENT" | "LEGACY";
 
-export async function getUserQrsRequest(
-  userId: number | string,
+export async function getMerchantQrsRequest(
+  merchantId: number | string,
   options?: { includeImage?: boolean; page?: number; size?: number; scope?: QrListScope },
 ): Promise<UserQrPageApiResponse> {
   const includeImage = options?.includeImage === true;
   const page = options?.page ?? 0;
   const size = options?.size ?? 5;
   const scope = options?.scope ?? "ALL";
-  const response = await api.get<UserQrPageApiResponse>(`/qr/user/${userId}`, {
+  const response = await api.get<UserQrPageApiResponse>(`/merchant/${merchantId}/qr`, {
     params: { includeImage, page, size, scope },
   });
   return response.data;
 }
 
 export async function deleteQrRequest(qrId: number | string): Promise<string> {
-  const response = await api.delete<string>(`/qr/delete/${qrId}`);
+  const response = await api.delete<string>(`/merchant/qr/${qrId}`);
   return response.data;
 }
 
 export async function deleteMenuQrRequest(qrId: number | string): Promise<string> {
-  const response = await api.delete<string>(`/qr/delete-menu/${qrId}`);
+  const response = await api.delete<string>(`/merchant/qr/${qrId}/menu`);
   return response.data;
 }
 
@@ -1488,7 +1489,7 @@ export async function updateQrActiveRequest(
   qrId: number | string,
   payload: UpdateQrActiveRequestBody,
 ): Promise<UpdateQrActiveResponse> {
-  const response = await api.patch<UpdateQrActiveResponse>(`/qr/update-active/${qrId}`, payload);
+  const response = await api.patch<UpdateQrActiveResponse>(`/merchant/qr/${qrId}/active`, payload);
   return response.data;
 }
 
@@ -1497,12 +1498,12 @@ export async function updateQrRequest(
   payload: UpdateQrRequestBody
 ): Promise<UpdateQrGatewayResponse> {
   const requestBody = {
-    userId: payload.userId,
+    ...(payload.merchantId != null ? { merchantId: payload.merchantId } : {}),
     qrName: payload.qrName,
     type: payload.type,
     details: payload.details,
   };
-  const response = await api.put<UpdateQrGatewayResponse>(`/qr/update/${qrId}`, requestBody);
+  const response = await api.put<UpdateQrGatewayResponse>(`/merchant/qr/${qrId}`, requestBody);
   return response.data;
 }
 
@@ -1510,7 +1511,7 @@ export async function updateQrNameRequest(
   qrId: number | string,
   payload: UpdateQrNameRequestBody
 ): Promise<UpdateQrNameGatewayResponse> {
-  const response = await api.patch<UpdateQrNameGatewayResponse>(`/qr/update-name/${qrId}`, payload);
+  const response = await api.patch<UpdateQrNameGatewayResponse>(`/merchant/qr/${qrId}/name`, payload);
   return response.data;
 }
 

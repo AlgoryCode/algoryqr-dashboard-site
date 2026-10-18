@@ -26,7 +26,7 @@ describe("demo-onboarding-gate", () => {
   it("allows onboarding APIs while setup is pending", () => {
     expect(isDemoOnboardingApiAllowed("/api/auth/demo/provision", "POST")).toBe(true);
     expect(isDemoOnboardingApiAllowed("/api/branches", "GET")).toBe(true);
-    expect(isDemoOnboardingApiAllowed("/api/users/7/package", "GET")).toBe(true);
+    expect(isDemoOnboardingApiAllowed("/api/merchant/7/package", "GET")).toBe(true);
     expect(isDemoOnboardingApiAllowed("/api/access/context", "GET")).toBe(true);
     expect(isDemoOnboardingApiAllowed("/api/menu/my/active", "GET")).toBe(true);
     expect(isDemoOnboardingApiAllowed("/api/demo/setup", "POST")).toBe(true);

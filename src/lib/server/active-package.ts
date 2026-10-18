@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 
 import { activePackagePath } from "@/lib/active-package-path";
-import { getUserIdFromAccessToken } from "@/lib/auth-user";
+import { getAccessProfileFromToken, getMerchantIdFromAccessToken } from "@/lib/auth-user";
 import { API_BASE_URL } from "@/lib/config";
+import { mergePackagePayloadWithProfile } from "@/lib/package-access";
 import {
   setActivePackageCookie,
   type ActivePackageSnapshot,
@@ -10,21 +11,21 @@ import {
 
 const ACTIVE_PACKAGE_TIMEOUT_MS = 10_000;
 
-export function resolveLoginUserId(userId: unknown, accessToken?: string | null): number | undefined {
-  if (typeof userId === "number" && Number.isInteger(userId) && userId > 0) return userId;
-  const fromToken = getUserIdFromAccessToken(accessToken);
+export function resolveLoginMerchantId(merchantId: unknown, accessToken?: string | null): number | undefined {
+  if (typeof merchantId === "number" && Number.isInteger(merchantId) && merchantId > 0) return merchantId;
+  const fromToken = getMerchantIdFromAccessToken(accessToken);
   return fromToken != null && fromToken > 0 ? fromToken : undefined;
 }
 
 export async function fetchActivePackage(
-  userId: number,
+  merchantId: number,
   accessToken: string,
 ): Promise<ActivePackageSnapshot | null> {
-  if (!API_BASE_URL || !accessToken || !Number.isInteger(userId) || userId <= 0) return null;
+  if (!API_BASE_URL || !accessToken || !Number.isInteger(merchantId) || merchantId <= 0) return null;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ACTIVE_PACKAGE_TIMEOUT_MS);
   try {
-    const response = await fetch(`${API_BASE_URL}${activePackagePath(userId)}`, {
+    const response = await fetch(`${API_BASE_URL}${activePackagePath(merchantId)}`, {
       method: "GET",
       headers: {
         Accept: "application/json",
@@ -44,22 +45,28 @@ export async function fetchActivePackage(
 
 export async function applyActivePackageCookie(
   response: NextResponse,
-  userId: number | null | undefined,
+  merchantId: number | null | undefined,
   accessToken: string | undefined,
 ) {
-  if (userId == null || !accessToken) {
+  if (merchantId == null || !accessToken) {
     setActivePackageCookie(response, null);
     return;
   }
-  const snapshot = await fetchActivePackage(userId, accessToken);
+  const snapshot = await fetchActivePackage(merchantId, accessToken);
   setActivePackageCookie(response, snapshot);
 }
 
-export async function attachActivePackageCookie(upstream: NextResponse): Promise<NextResponse> {
+export async function attachActivePackageCookie(
+  upstream: NextResponse,
+  accessToken?: string | null,
+): Promise<NextResponse> {
   if (upstream.status < 200 || upstream.status >= 300) return upstream;
   const payload: unknown = await upstream.json();
-  const response = NextResponse.json(payload, { status: upstream.status });
-  setActivePackageCookie(response, parseActivePackageSnapshot(payload));
+  const merged = accessToken
+    ? mergePackagePayloadWithProfile(payload, getAccessProfileFromToken(accessToken))
+    : payload;
+  const response = NextResponse.json(merged, { status: upstream.status });
+  setActivePackageCookie(response, parseActivePackageSnapshot(merged));
   return response;
 }
 
