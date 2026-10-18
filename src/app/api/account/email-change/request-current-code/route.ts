@@ -14,15 +14,15 @@ async function forwardAuthorizedPost(path: string, body?: unknown) {
     return NextResponse.json({ message: "Oturum gerekli" }, { status: 401 });
   }
 
-  const userId = getMerchantIdFromAccessToken(accessToken);
-  if (userId == null) {
+  const merchantId = getMerchantIdFromAccessToken(accessToken);
+  if (merchantId == null) {
     return NextResponse.json({ message: "Token'da kullanıcı bilgisi yok" }, { status: 401 });
   }
 
   const upstream = await axios.post(`${API_BASE_URL}${path}`, body ?? {}, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      "X-Merchant-Id": String(userId),
+      "X-Merchant-Id": String(merchantId),
       "Content-Type": "application/json",
       Accept: "application/json",
     },

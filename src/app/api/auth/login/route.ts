@@ -50,7 +50,7 @@ export async function POST(req: Request) {
       code?: string;
       requiresTwoFactor?: boolean;
       twoFactorToken?: string;
-      userId?: number;
+      merchantId?: number;
       email?: string;
       firstName?: string;
       lastName?: string;
@@ -76,7 +76,7 @@ export async function POST(req: Request) {
       const response = NextResponse.json(
         {
           requiresTwoFactor: true,
-          merchantId: typeof data.merchantId === "number" ? data.merchantId : data.userId,
+          merchantId: typeof data.merchantId === "number" ? data.merchantId : undefined,
           email: data.email,
           firstName: data.firstName,
           lastName: data.lastName,
@@ -91,10 +91,7 @@ export async function POST(req: Request) {
     const refreshToken = data?.refreshToken ?? data?.refresh_token;
     const accessTokenValue = typeof accessToken === "string" ? accessToken : undefined;
     const refreshTokenValue = typeof refreshToken === "string" ? refreshToken : undefined;
-    const merchantId = resolveLoginMerchantId(
-      typeof data.merchantId === "number" ? data.merchantId : data.userId,
-      accessTokenValue,
-    );
+    const merchantId = resolveLoginMerchantId(data, accessTokenValue);
     const accessTokenExpiresAt =
       getExpFromAccessToken(accessTokenValue) ??
       isoToEpochSeconds(data.accessExpiresAt) ??

@@ -41,7 +41,6 @@ export async function POST(req: Request) {
       refreshToken?: string;
       access_token?: string;
       refresh_token?: string;
-      userId?: number;
       merchantId?: number;
       refreshExpiresAt?: string;
     };
@@ -62,10 +61,7 @@ export async function POST(req: Request) {
     const newRefresh = data?.refreshToken ?? data?.refresh_token;
     const accessTokenValue = typeof accessToken === "string" ? accessToken : undefined;
     const refreshTokenValue = typeof newRefresh === "string" ? newRefresh : undefined;
-    const merchantId = resolveLoginMerchantId(
-      typeof data.merchantId === "number" ? data.merchantId : data.userId,
-      accessTokenValue,
-    );
+    const merchantId = resolveLoginMerchantId(data, accessTokenValue);
     const accessTokenExpiresAt = getExpFromAccessToken(accessTokenValue);
     const refreshTokenExpiresAt = await resolveRefreshCookieExpiry(
       refreshTokenValue,

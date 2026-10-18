@@ -13,12 +13,12 @@ const ACCESS_CONTEXT_TIMEOUT_MS = 10_000;
 export async function fetchAccessSessionWithToken(
   accessToken: string,
 ): Promise<AccessSession | null> {
-  const userId = getMerchantIdFromAccessToken(accessToken);
-  if (!API_BASE_URL || !accessToken || userId == null) return null;
+  const merchantId = getMerchantIdFromAccessToken(accessToken);
+  if (!API_BASE_URL || !accessToken || merchantId == null) return null;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ACCESS_CONTEXT_TIMEOUT_MS);
   try {
-    const response = await fetch(`${API_BASE_URL}${activePackagePath(userId)}`, {
+    const response = await fetch(`${API_BASE_URL}${activePackagePath(merchantId)}`, {
       method: "GET",
       headers: {
         Accept: "application/json",

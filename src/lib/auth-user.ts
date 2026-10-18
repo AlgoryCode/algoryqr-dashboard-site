@@ -180,8 +180,7 @@ export function resolveSessionMerchantId(
   const fromToken = getMerchantIdFromAccessToken(accessToken);
   if (fromToken != null) return fromToken;
   if (!cookieStore) return null;
-  const raw =
-    cookieStore.get("merchantId")?.value?.trim() || cookieStore.get("userId")?.value?.trim();
+  const raw = cookieStore.get("merchantId")?.value?.trim();
   if (!raw) return null;
   const parsed = parseInt(raw, 10);
   return Number.isFinite(parsed) ? parsed : null;

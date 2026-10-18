@@ -7,7 +7,7 @@ describe("mapUserQrToDashboardItem", () => {
   it("maps package context fields for legacy and active QR items", () => {
     const activeQr: UserQrApiItem = {
       qrId: 1,
-      userId: 7,
+      merchantId: 7,
       qrName: "Aktif QR",
       imgSrc: "img",
       details: { url: "https://example.com" },
@@ -19,7 +19,7 @@ describe("mapUserQrToDashboardItem", () => {
     };
     const legacyQr: UserQrApiItem = {
       qrId: 2,
-      userId: 7,
+      merchantId: 7,
       qrName: "Eski QR",
       imgSrc: "img",
       details: { url: "https://legacy.example.com" },

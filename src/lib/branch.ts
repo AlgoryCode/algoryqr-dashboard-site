@@ -58,10 +58,8 @@ export type BranchWritePayload = {
 };
 
 function normalizeBranchItem(raw: BranchItem & { userId?: number }): BranchItem {
-  const { userId, ...rest } = raw;
-  const merchantId = rest.merchantId ?? userId;
-  if (merchantId == null) return rest;
-  return { ...rest, merchantId };
+  const { userId: _ignored, ...rest } = raw;
+  return rest;
 }
 
 function normalizeBranchList(data: BranchListResponse): BranchListResponse {

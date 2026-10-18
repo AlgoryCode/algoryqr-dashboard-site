@@ -71,11 +71,7 @@ export function pathForSession(
 function parseUser(value: unknown): SessionUser | null {
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
-  const merchantId = typeof record.merchantId === "number"
-    ? record.merchantId
-    : typeof record.userId === "number"
-      ? record.userId
-      : null;
+  const merchantId = typeof record.merchantId === "number" ? record.merchantId : null;
   if (merchantId == null || typeof record.email !== "string") return null;
   return {
     merchantId,

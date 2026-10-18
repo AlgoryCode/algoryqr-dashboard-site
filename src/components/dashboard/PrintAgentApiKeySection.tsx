@@ -47,7 +47,7 @@ export function PrintAgentApiKeySection({ merchantId, onNotify }: Props) {
         if (cancelled) return;
         setCredentials((prev) =>
           prev && prev.branchId === settings.branchId
-            ? { ...prev, merchantId: settings.merchantId ?? settings.userId }
+            ? { ...prev, merchantId: settings.merchantId }
             : prev,
         );
       } catch {
@@ -69,7 +69,7 @@ export function PrintAgentApiKeySection({ merchantId, onNotify }: Props) {
     [branchId, branches],
   );
 
-  const displayMerchantId = credentials?.merchantId ?? credentials?.userId ?? merchantId ?? null;
+  const displayMerchantId = credentials?.merchantId ?? merchantId ?? null;
   const maskedKey = credentials?.apiKey
     ? `${credentials.apiKey.slice(0, 8)}${"•".repeat(Math.max(12, credentials.apiKey.length - 12))}${credentials.apiKey.slice(-4)}`
     : "";

@@ -9,7 +9,6 @@ type ImpersonateBody = {
   accessToken?: string;
   refreshToken?: string;
   merchantId?: number;
-  userId?: number;
 };
 
 export async function POST(req: Request) {
@@ -17,11 +16,7 @@ export async function POST(req: Request) {
     const body = (await req.json()) as ImpersonateBody;
     const accessToken = typeof body.accessToken === "string" ? body.accessToken.trim() : "";
     const refreshToken = typeof body.refreshToken === "string" ? body.refreshToken.trim() : "";
-    const merchantId = typeof body.merchantId === "number"
-      ? body.merchantId
-      : typeof body.userId === "number"
-        ? body.userId
-        : undefined;
+    const merchantId = typeof body.merchantId === "number" ? body.merchantId : undefined;
 
     if (!accessToken || !refreshToken || !merchantId) {
       return NextResponse.json({ message: "Geçersiz oturum bilgisi" }, { status: 400 });

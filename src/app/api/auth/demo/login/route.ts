@@ -42,7 +42,7 @@ export async function POST(req: Request) {
     > & {
       message?: string;
       code?: string;
-      userId?: number;
+      merchantId?: number;
       accessToken?: string;
       access_token?: string;
       refreshToken?: string;
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
     const accessToken = data?.accessToken ?? data?.access_token;
     const refreshToken = data?.refreshToken ?? data?.refresh_token;
     const merchantId = resolveLoginMerchantId(
-      typeof data.merchantId === "number" ? data.merchantId : data.userId,
+      data,
       typeof accessToken === "string" ? accessToken : undefined,
     );
     const accessTokenExpiresAt =

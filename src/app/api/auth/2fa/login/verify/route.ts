@@ -58,10 +58,7 @@ export async function POST(req: Request) {
     const refreshToken = (data.refreshToken as string) || (data.refresh_token as string);
     const accessTokenValue = typeof accessToken === "string" ? accessToken : undefined;
     const refreshTokenValue = typeof refreshToken === "string" ? refreshToken : undefined;
-    const merchantId = resolveLoginMerchantId(
-      typeof data.merchantId === "number" ? data.merchantId : data.userId,
-      accessTokenValue,
-    );
+    const merchantId = resolveLoginMerchantId(data, accessTokenValue);
     const accessTokenExpiresAt = getExpFromAccessToken(accessTokenValue) ?? undefined;
     const refreshTokenExpiresAt = await resolveRefreshCookieExpiry(
       refreshTokenValue,

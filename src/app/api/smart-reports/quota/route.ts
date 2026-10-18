@@ -14,12 +14,12 @@ export async function GET() {
       return NextResponse.json({ message: "Oturum gerekli" }, { status: 401 });
     }
 
-    const userId = getMerchantIdFromAccessToken(accessToken);
+    const merchantId = getMerchantIdFromAccessToken(accessToken);
     const upstream = await axios.get(`${API_BASE_URL}/analytics/smart-reports/quota`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/json",
-        ...(userId != null ? { "X-Merchant-Id": String(userId) } : {}),
+        ...(merchantId != null ? { "X-Merchant-Id": String(merchantId) } : {}),
       },
       validateStatus: () => true,
       timeout: 15_000,

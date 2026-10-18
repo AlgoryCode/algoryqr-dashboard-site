@@ -27,8 +27,7 @@ export function readRefreshTokenFromCookies(cookieStore: CookieStore): string | 
 }
 
 export function readMerchantIdFromCookies(cookieStore: CookieStore): number | null {
-  const raw =
-    cookieStore.get("merchantId")?.value?.trim() || cookieStore.get("userId")?.value?.trim();
+  const raw = cookieStore.get("merchantId")?.value?.trim();
   if (!raw) return null;
   const parsed = parseInt(raw, 10);
   return Number.isFinite(parsed) ? parsed : null;

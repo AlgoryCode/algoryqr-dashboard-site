@@ -22,7 +22,6 @@ interface AuthResponse {
   type?: string;
   sessionId?: string;
   merchantId?: number;
-  userId?: number;
   email?: string;
   firstName?: string;
   lastName?: string;
@@ -101,7 +100,7 @@ export const authService = {
       }
       if (data.user) setStoredUser(data.user);
       else {
-        const accountId = data.merchantId ?? data.userId;
+        const accountId = data.merchantId;
         if (accountId != null) {
           setStoredUser({
             id: String(accountId),
@@ -138,7 +137,7 @@ export const authService = {
       const { data } = await client().post<AuthResponse>("/auth/2fa/login/verify", { code });
       if (data.user) setStoredUser(data.user);
       else {
-        const accountId = data.merchantId ?? data.userId;
+        const accountId = data.merchantId;
         if (accountId != null) {
           setStoredUser({
             id: String(accountId),

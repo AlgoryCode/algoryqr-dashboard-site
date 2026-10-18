@@ -21,7 +21,7 @@ export function resolveLoginMerchantId(
     merchantIdOrBody != null && typeof merchantIdOrBody === "object"
       ? (merchantIdOrBody as Record<string, unknown>)
       : null;
-  const fromBody = positiveMerchantId(body?.merchantId) ?? positiveMerchantId(body?.userId);
+  const fromBody = positiveMerchantId(body?.merchantId);
   if (fromBody != null) return fromBody;
   const fromToken = getMerchantIdFromAccessToken(accessToken);
   return fromToken != null && fromToken > 0 ? fromToken : undefined;

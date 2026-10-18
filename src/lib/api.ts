@@ -146,7 +146,6 @@ type UpdateQrNameGatewayResponse = {
 export interface UserQrApiItem {
   qrId: number;
   merchantId?: number;
-  userId?: number;
   customerId?: number;
   qrName: string;
   imgSrc?: string | null;

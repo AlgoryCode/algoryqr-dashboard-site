@@ -15,8 +15,8 @@ export async function POST() {
       return NextResponse.json({ message: "Oturum gerekli" }, { status: 401 });
     }
 
-    const userId = getMerchantIdFromAccessToken(accessToken);
-    if (userId == null) {
+    const merchantId = getMerchantIdFromAccessToken(accessToken);
+    if (merchantId == null) {
       return NextResponse.json({ message: "Token'da kullanıcı bilgisi yok" }, { status: 401 });
     }
 
@@ -26,7 +26,7 @@ export async function POST() {
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          "X-Merchant-Id": String(userId),
+          "X-Merchant-Id": String(merchantId),
           "Content-Type": "application/json",
           Accept: "application/json",
         },

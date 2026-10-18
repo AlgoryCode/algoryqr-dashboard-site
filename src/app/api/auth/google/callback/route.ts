@@ -210,7 +210,6 @@ export async function GET(req: NextRequest) {
       readPositiveNumber(data.refreshTokenExpiresAt);
     const merchantId =
       readPositiveNumber(data.merchantId) ??
-      readPositiveNumber(data.userId) ??
       getMerchantIdFromAccessToken(accessToken) ??
       undefined;
 
