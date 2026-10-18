@@ -109,7 +109,7 @@ function normalizeUsersResponse(data: MenuUsersResponse): MenuUsersResponse {
 }
 
 export async function listMerchantStaff(): Promise<MenuWaiterMember[]> {
-  const response = await ownerFetch("/api/waiter-panel/staff", {
+  const response = await ownerFetch("/api/staff/panel/staff", {
     headers: { Accept: "application/json" },
   });
   const data = await parseJson<MerchantStaffListResponse & { message?: string }>(response);
@@ -130,7 +130,7 @@ export async function createMerchantStaff(payload: {
   displayName: string;
   staffRole?: StaffRole;
 }): Promise<MenuWaiterMember> {
-  const response = await ownerFetch("/api/waiter-panel/staff", {
+  const response = await ownerFetch("/api/staff/panel/staff", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify(payload),
@@ -146,7 +146,7 @@ export async function assignMerchantStaffBranch(
   staffId: number,
   branchId: number | null,
 ): Promise<MenuWaiterMember> {
-  const response = await ownerFetch(`/api/waiter-panel/staff/${staffId}/branch`, {
+  const response = await ownerFetch(`/api/staff/panel/staff/${staffId}/branch`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ branchId }),
@@ -173,7 +173,7 @@ export async function updateMerchantStaff(
     commissionValue?: number;
   },
 ): Promise<MenuWaiterMember> {
-  const response = await ownerFetch(`/api/waiter-panel/staff/${staffId}`, {
+  const response = await ownerFetch(`/api/staff/panel/staff/${staffId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify(payload),
@@ -189,7 +189,7 @@ export async function updateMerchantStaff(
 }
 
 export async function listMenuUsers(branchId: number): Promise<MenuUsersResponse> {
-  const response = await ownerFetch(`/api/waiter-panel/branch/${branchId}/staff`, {
+  const response = await ownerFetch(`/api/staff/panel/branch/${branchId}/staff`, {
     headers: { Accept: "application/json" },
   });
   const data = await parseJson<MenuUsersResponse & { message?: string }>(response);
@@ -203,7 +203,7 @@ export async function createMenuWaiter(
   branchId: number,
   payload: { username: string; password: string; displayName: string; staffRole?: StaffRole },
 ): Promise<MenuWaiterMember> {
-  const response = await ownerFetch(`/api/waiter-panel/branch/${branchId}/staff`, {
+  const response = await ownerFetch(`/api/staff/panel/branch/${branchId}/staff`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify(payload),
@@ -216,7 +216,7 @@ export async function createMenuWaiter(
 }
 
 export async function listBusinessCustomers(): Promise<MenuCustomerItem[]> {
-  const response = await ownerFetch("/api/waiter-panel/customers/my", {
+  const response = await ownerFetch("/api/staff/panel/customers/my", {
     headers: { Accept: "application/json" },
   });
   const data = await parseJson<MenuCustomerItem[] | { message?: string }>(response);

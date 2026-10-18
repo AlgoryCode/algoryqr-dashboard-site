@@ -22,6 +22,7 @@ async function forwardAuthorizedPost(path: string, body?: unknown) {
   const upstream = await axios.post(`${API_BASE_URL}${path}`, body ?? {}, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
+      "X-Merchant-Id": String(userId),
       "Content-Type": "application/json",
       Accept: "application/json",
     },

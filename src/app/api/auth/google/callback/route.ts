@@ -1,6 +1,7 @@
 import axios from "axios";
 import { NextRequest, NextResponse } from "next/server";
 
+import { recordFlow } from "@/lib/flow-log";
 import {
   getCustomerIdFromAccessToken,
   getExpFromAccessToken,
@@ -75,7 +76,7 @@ function errorForStatus(status: number): GoogleAuthErrorCode {
   if (status === 400 || status === 401 || status === 404) return "invalid_ticket";
   if (status === 409) return "ticket_used";
   if (status === 410) return "ticket_expired";
-  if (status >= 500) return "upstream_unavailable";
+  if (status === 502 || status === 503 || status === 504) return "upstream_unavailable";
   return "oauth_failed";
 }
 
@@ -120,9 +121,11 @@ export async function GET(req: NextRequest) {
     return googleAuthErrorRedirect(req, requestedIntent, "invalid_ticket", customerReturnUrl);
   }
 
+  const redeemUrl = authUrl("googleRedeem");
+  const redeemStarted = Date.now();
   try {
     const upstream = await axios.post<RedeemResponse>(
-      authUrl("googleRedeem"),
+      redeemUrl,
       { ticket },
       {
         headers: {
@@ -134,6 +137,14 @@ export async function GET(req: NextRequest) {
         validateStatus: () => true,
       },
     );
+    recordFlow({
+      scope: "auth-google",
+      method: "POST",
+      path: redeemUrl,
+      status: upstream.status,
+      durationMs: Date.now() - redeemStarted,
+      body: upstream.status >= 300 ? upstream.data : undefined,
+    });
     const data =
       typeof upstream.data === "object" && upstream.data != null
         ? upstream.data
@@ -199,6 +210,7 @@ export async function GET(req: NextRequest) {
       readPositiveNumber(data.refreshTokenExpiresAt);
     const merchantId =
       readPositiveNumber(data.merchantId) ??
+      readPositiveNumber(data.userId) ??
       getMerchantIdFromAccessToken(accessToken) ??
       undefined;
 
@@ -249,11 +261,27 @@ export async function GET(req: NextRequest) {
     await applyActivePackageCookie(response, merchantId, accessToken);
     await applyPersonalDemoTrialCookie(response, accessToken);
     return response;
-  } catch {
+  } catch (error) {
+    recordFlow({
+      scope: "auth-google",
+      method: "POST",
+      path: redeemUrl,
+      status: 0,
+      durationMs: Date.now() - redeemStarted,
+      body: axios.isAxiosError(error) ? { code: error.code, message: error.message } : String(error),
+    });
+    console.error("[api/auth/google/callback] redeem request failed", redeemUrl, error);
+    const unreachable =
+      axios.isAxiosError(error) &&
+      !error.response &&
+      (error.code === "ECONNREFUSED" ||
+        error.code === "ENOTFOUND" ||
+        error.code === "ETIMEDOUT" ||
+        error.code === "ECONNABORTED");
     return googleAuthErrorRedirect(
       req,
       requestedIntent,
-      "upstream_unavailable",
+      unreachable ? "upstream_unavailable" : "oauth_failed",
       customerReturnUrl,
     );
   }

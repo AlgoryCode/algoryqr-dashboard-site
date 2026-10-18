@@ -1,6 +1,6 @@
 import axios from "axios";
 
-import { resolveRefreshExpiresAt } from "@/lib/auth-user";
+import { getMerchantIdFromAccessToken, resolveRefreshExpiresAt } from "@/lib/auth-user";
 import { API_BASE_URL } from "@/lib/config";
 
 type SessionRow = {
@@ -16,10 +16,12 @@ export async function fetchCurrentSessionRefreshExpiresAt(
   accessToken: string,
 ): Promise<number | undefined> {
   try {
+    const merchantId = getMerchantIdFromAccessToken(accessToken);
     const upstream = await axios.get<SessionPage>(`${API_BASE_URL}/account/sessions`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/json",
+        ...(merchantId != null ? { "X-Merchant-Id": String(merchantId) } : {}),
       },
       params: { page: 0, size: 50 },
       validateStatus: () => true,

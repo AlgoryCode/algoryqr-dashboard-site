@@ -29,6 +29,7 @@ export async function GET(request: Request) {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           Accept: "application/json",
+          ...(userId != null ? { "X-Merchant-Id": String(userId) } : {}),
           ...clientContextHeaders(request),
         },
         validateStatus: () => true,

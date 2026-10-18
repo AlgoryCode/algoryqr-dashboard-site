@@ -29,6 +29,7 @@ export async function POST() {
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
+          "X-Merchant-Id": String(userId),
         },
         responseType: "arraybuffer",
         validateStatus: () => true,

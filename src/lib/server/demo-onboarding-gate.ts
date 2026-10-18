@@ -147,13 +147,13 @@ const DEMO_ONBOARDING_API_ALLOWLIST: ReadonlyArray<{ method: string; path: strin
   { method: "POST", path: "/auth/logout" },
   { method: "POST", path: "/auth/refresh" },
   // Demo seed: alan, masa, personel oluşturma
-  { method: "GET", path: "/waiter-panel/menu" },
-  { method: "POST", path: "/waiter-panel/menu" },
-  { method: "GET", path: "/waiter-panel/branch" },
-  { method: "POST", path: "/waiter-panel/branch" },
-  { method: "GET", path: "/waiter-panel/staff" },
-  { method: "POST", path: "/waiter-panel/staff" },
-  { method: "PATCH", path: "/waiter-panel/staff" },
+  { method: "GET", path: "/staff/panel/menu" },
+  { method: "POST", path: "/staff/panel/menu" },
+  { method: "GET", path: "/staff/panel/branch" },
+  { method: "POST", path: "/staff/panel/branch" },
+  { method: "GET", path: "/staff/panel/staff" },
+  { method: "POST", path: "/staff/panel/staff" },
+  { method: "PATCH", path: "/staff/panel/staff" },
 ];
 
 function normalizeApiPath(pathname: string): string {

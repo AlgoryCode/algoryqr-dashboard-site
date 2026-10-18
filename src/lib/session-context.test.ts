@@ -39,6 +39,19 @@ describe("parseSessionContext", () => {
     expect(parsed?.user.email).toBe("ada@example.com");
     expect(parsed?.products).toEqual(["QR_MENU"]);
     expect(parsed?.entitlements[0]?.usedQuantity).toBe(2);
+    expect(parsed?.user.merchantId).toBe(7);
+  });
+
+  it("accepts merchantId on session user", () => {
+    const parsed = parseSessionContext({
+      decision: "ALLOW",
+      packageCode: "PRO_PACKAGE",
+      user: {
+        merchantId: 42,
+        email: "shop@example.com",
+      },
+    });
+    expect(parsed?.user.merchantId).toBe(42);
   });
 
   it("rejects a payload without a user", () => {

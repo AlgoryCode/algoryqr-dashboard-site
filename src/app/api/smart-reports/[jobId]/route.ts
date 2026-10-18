@@ -2,6 +2,7 @@ import axios, { AxiosError } from "axios";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { getMerchantIdFromAccessToken } from "@/lib/auth-user";
 import { API_BASE_URL } from "@/lib/config";
 import { readAccessTokenFromCookies } from "@/lib/server/auth-cookies";
 
@@ -21,10 +22,12 @@ export async function GET(
       return NextResponse.json({ message: "Gecersiz jobId" }, { status: 400 });
     }
 
+    const userId = getMerchantIdFromAccessToken(accessToken);
     const upstream = await axios.get(`${API_BASE_URL}/analytics/smart-reports/${jobId}`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/json",
+        ...(userId != null ? { "X-Merchant-Id": String(userId) } : {}),
       },
       validateStatus: () => true,
       timeout: 20_000,

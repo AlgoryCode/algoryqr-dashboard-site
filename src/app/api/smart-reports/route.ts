@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { getMerchantIdFromAccessToken } from "@/lib/auth-user";
 import { API_BASE_URL } from "@/lib/config";
 import { readAccessTokenFromCookies } from "@/lib/server/auth-cookies";
 
@@ -28,6 +29,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: "Oturum gerekli" }, { status: 401 });
     }
 
+    const userId = getMerchantIdFromAccessToken(accessToken);
     const { searchParams } = new URL(request.url);
     const page = searchParams.get("page") ?? "0";
     const size = searchParams.get("size") ?? "20";
@@ -39,6 +41,7 @@ export async function GET(request: Request) {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/json",
+        ...(userId != null ? { "X-Merchant-Id": String(userId) } : {}),
       },
       validateStatus: () => true,
       timeout: 20_000,
@@ -93,6 +96,7 @@ export async function POST(request: Request) {
     }
 
     const { menuId, from, to, locale, options } = parsed.data;
+    const userId = getMerchantIdFromAccessToken(accessToken);
 
     const upstream = await axios.post(
       `${API_BASE_URL}/features/SMART_REPORTING/menus/${menuId}/reports`,
@@ -107,6 +111,7 @@ export async function POST(request: Request) {
           Authorization: `Bearer ${accessToken}`,
           Accept: "application/json",
           "Content-Type": "application/json",
+          ...(userId != null ? { "X-Merchant-Id": String(userId) } : {}),
         },
         validateStatus: () => true,
         timeout: 30_000,

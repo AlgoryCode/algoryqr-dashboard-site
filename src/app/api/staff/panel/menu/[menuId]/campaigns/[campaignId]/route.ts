@@ -1,0 +1,37 @@
+import { proxyAuthenticatedRequest } from "@/lib/server/authenticated-proxy";
+
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ menuId: string; campaignId: string }> },
+) {
+  const { menuId, campaignId } = await context.params;
+  return proxyAuthenticatedRequest(
+    request,
+    `/staff/panel/menu/${menuId}/campaigns/${campaignId}`,
+    "GET",
+  );
+}
+
+export async function PUT(
+  request: Request,
+  context: { params: Promise<{ menuId: string; campaignId: string }> },
+) {
+  const { menuId, campaignId } = await context.params;
+  return proxyAuthenticatedRequest(
+    request,
+    `/staff/panel/menu/${menuId}/campaigns/${campaignId}`,
+    "PUT",
+  );
+}
+
+export async function DELETE(
+  request: Request,
+  context: { params: Promise<{ menuId: string; campaignId: string }> },
+) {
+  const { menuId, campaignId } = await context.params;
+  return proxyAuthenticatedRequest(
+    request,
+    `/staff/panel/menu/${menuId}/campaigns/${campaignId}`,
+    "DELETE",
+  );
+}

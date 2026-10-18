@@ -26,6 +26,7 @@ export async function POST() {
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
+          "X-Merchant-Id": String(userId),
           "Content-Type": "application/json",
           Accept: "application/json",
         },

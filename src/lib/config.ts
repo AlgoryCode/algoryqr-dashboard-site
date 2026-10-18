@@ -82,6 +82,19 @@ function resolveAppUrl(): string {
   return "";
 }
 
+/** Browser redirects (OAuth) should use localhost, not 127.0.0.1, so session cookies match. */
+function preferLoopbackLocalhost(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname === "127.0.0.1") {
+      parsed.hostname = "localhost";
+    }
+    return trimTrailingSlash(parsed.toString());
+  } catch {
+    return url;
+  }
+}
+
 export const API_BASE_URL = resolveApiBaseUrl();
 
 export const AUTH_BASE_URL = resolveAuthBaseUrl();
@@ -90,6 +103,10 @@ export const PUBLIC_API_BASE_URL = resolvePublicApiBaseUrl();
 
 export function authUrl(route: AuthRoute): string {
   return `${AUTH_BASE_URL}${AUTH_ROUTES[route]}`;
+}
+
+export function authBrowserUrl(route: AuthRoute): string {
+  return preferLoopbackLocalhost(authUrl(route));
 }
 
 export const APP_URL = resolveAppUrl();

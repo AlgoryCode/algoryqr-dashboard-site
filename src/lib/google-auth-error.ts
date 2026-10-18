@@ -22,7 +22,8 @@ const GOOGLE_AUTH_ERROR_MESSAGES: Record<string, string> = {
   registration_failed: "Google ile kayıt tamamlanamadı.",
   ticket_expired: "Google giriş bağlantısının süresi doldu.",
   ticket_used: "Google giriş bağlantısı daha önce kullanılmış.",
-  upstream_unavailable: "Kimlik doğrulama servisine ulaşılamıyor.",
+  upstream_unavailable:
+    "Kimlik doğrulama servisine ulaşılamıyor. qr-service'in http://localhost:8080 üzerinde çalıştığını doğrulayın.",
 };
 
 const PROVIDER_CONFLICT_CODES = new Set([

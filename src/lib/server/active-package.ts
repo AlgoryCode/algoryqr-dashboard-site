@@ -11,10 +11,25 @@ import {
 
 const ACTIVE_PACKAGE_TIMEOUT_MS = 10_000;
 
-export function resolveLoginMerchantId(merchantId: unknown, accessToken?: string | null): number | undefined {
-  if (typeof merchantId === "number" && Number.isInteger(merchantId) && merchantId > 0) return merchantId;
+export function resolveLoginMerchantId(
+  merchantIdOrBody: unknown,
+  accessToken?: string | null,
+): number | undefined {
+  const direct = positiveMerchantId(merchantIdOrBody);
+  if (direct != null) return direct;
+  const body =
+    merchantIdOrBody != null && typeof merchantIdOrBody === "object"
+      ? (merchantIdOrBody as Record<string, unknown>)
+      : null;
+  const fromBody = positiveMerchantId(body?.merchantId) ?? positiveMerchantId(body?.userId);
+  if (fromBody != null) return fromBody;
   const fromToken = getMerchantIdFromAccessToken(accessToken);
   return fromToken != null && fromToken > 0 ? fromToken : undefined;
+}
+
+function positiveMerchantId(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;
+  return undefined;
 }
 
 export async function fetchActivePackage(

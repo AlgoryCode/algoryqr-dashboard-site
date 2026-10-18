@@ -21,6 +21,7 @@ async function forwardToUpstream(req: Request, method: "GET" | "PATCH") {
   const url = `${API_BASE_URL}/account/myprofile`;
   const headers: Record<string, string> = {
     Authorization: `Bearer ${accessToken}`,
+    "X-Merchant-Id": String(userId),
     Accept: "application/json",
   };
 
