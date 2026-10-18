@@ -14,8 +14,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: "Oturum gerekli" }, { status: 401 });
     }
 
-    const userId = getMerchantIdFromAccessToken(accessToken);
-    const overview = await fetchAccountOverview(accessToken, userId, clientContextHeaders(request));
+    const merchantId = getMerchantIdFromAccessToken(accessToken);
+    const overview = await fetchAccountOverview(accessToken, merchantId, clientContextHeaders(request));
 
     if (!overview.profile.ok) {
       const status = overview.profile.status === 401 ? 401 : overview.profile.status >= 500 ? 502 : overview.profile.status;

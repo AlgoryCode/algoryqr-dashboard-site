@@ -13,15 +13,15 @@ async function forwardToUpstream(req: Request, method: "GET" | "PATCH") {
     return NextResponse.json({ message: "Oturum gerekli" }, { status: 401 });
   }
 
-  const userId = getMerchantIdFromAccessToken(accessToken);
-  if (userId == null) {
+  const merchantId = getMerchantIdFromAccessToken(accessToken);
+  if (merchantId == null) {
     return NextResponse.json({ message: "Token'da kullanıcı bilgisi yok" }, { status: 401 });
   }
 
   const url = `${API_BASE_URL}/account/myprofile`;
   const headers: Record<string, string> = {
     Authorization: `Bearer ${accessToken}`,
-    "X-Merchant-Id": String(userId),
+    "X-Merchant-Id": String(merchantId),
     Accept: "application/json",
   };
 

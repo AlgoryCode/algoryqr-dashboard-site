@@ -2,7 +2,6 @@ import axios, { AxiosError } from "axios";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { getCustomerIdFromAccessToken } from "@/lib/auth-user";
 import { API_BASE_URL } from "@/lib/config";
 import { readCustomerAccessTokenFromCookies } from "@/lib/server/customer-auth-cookies";
 import { trustedForwardedForHeader } from "@/lib/server/client-headers";
@@ -21,7 +20,6 @@ export async function proxyCustomerAuthenticatedRequest(
       return NextResponse.json({ message: "Oturum gerekli" }, { status: 401 });
     }
 
-    const customerId = accessToken ? getCustomerIdFromAccessToken(accessToken) : null;
     const requestUrl = new URL(request.url);
     const query = upstreamPath.includes("?") ? "" : requestUrl.search;
     const text = method === "GET" || method === "DELETE" ? "" : await request.text();
@@ -44,7 +42,6 @@ export async function proxyCustomerAuthenticatedRequest(
         Accept: "application/json",
         ...(text ? { "Content-Type": "application/json" } : {}),
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        ...(customerId != null ? { "X-Merchant-Id": String(customerId) } : {}),
         ...(tableSession ? { "X-Table-Session": tableSession } : {}),
         ...trustedForwardedForHeader(request),
       },

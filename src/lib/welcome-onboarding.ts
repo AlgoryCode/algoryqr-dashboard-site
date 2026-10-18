@@ -19,8 +19,8 @@ export const USAGE_PURPOSE_OPTIONS: ReadonlyArray<{ id: UsagePurpose; label: str
   { id: "explore_all", label: "Hepsi / keşfetmek istiyorum", hint: "Tüm özellikleri denemek istiyorum" },
 ];
 
-export function welcomeDoneKey(userId: string | number): string {
-  return `${WELCOME_DONE_PREFIX}${userId}`;
+export function welcomeDoneKey(merchantId: string | number): string {
+  return `${WELCOME_DONE_PREFIX}${merchantId}`;
 }
 
 export function welcomeBusinessKey(userId: string | number): string {

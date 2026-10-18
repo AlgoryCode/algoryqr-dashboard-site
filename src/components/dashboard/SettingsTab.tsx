@@ -883,7 +883,7 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
           </div>
         </div>
 
-        <PrintAgentApiKeySection userId={myProfile?.userId} onNotify={onNotify} />
+        <PrintAgentApiKeySection merchantId={myProfile?.merchantId} onNotify={onNotify} />
 
         {!isGoogleAccount && (
           <div className={`${ACCOUNT_SURFACE} p-6 space-y-5`}>

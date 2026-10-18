@@ -20,7 +20,7 @@ export async function proxyAuthenticatedRequest(
       return NextResponse.json({ message: "Oturum gerekli" }, { status: 401 });
     }
 
-    const userId = getMerchantIdFromAccessToken(accessToken);
+    const merchantId = getMerchantIdFromAccessToken(accessToken);
     const requestUrl = new URL(request.url);
     const query = upstreamPath.includes("?") ? "" : requestUrl.search;
     const writesJson = method !== "GET" && method !== "DELETE";
@@ -45,7 +45,7 @@ export async function proxyAuthenticatedRequest(
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/json",
         ...(writesJson ? { "Content-Type": "application/json" } : {}),
-        ...(userId != null ? { "X-Merchant-Id": String(userId) } : {}),
+        ...(merchantId != null ? { "X-Merchant-Id": String(merchantId) } : {}),
         ...clientContextHeaders(request),
       },
       validateStatus: () => true,

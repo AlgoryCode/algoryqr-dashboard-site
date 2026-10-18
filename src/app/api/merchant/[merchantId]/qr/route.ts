@@ -3,11 +3,15 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { buildUpstreamAuthHeaders, resolveSessionMerchantId } from "@/lib/auth-user";
-import { QR_API_BASE } from "@/lib/config";
+import { API_BASE_URL } from "@/lib/config";
 import { readAccessTokenFromCookies } from "@/lib/server/auth-cookies";
 
-export async function GET(req: Request) {
+export async function GET(
+  req: Request,
+  context: { params: Promise<{ merchantId: string }> },
+) {
   try {
+    const { merchantId: rawMerchantId } = await context.params;
     const cookieStore = await cookies();
     const accessToken = readAccessTokenFromCookies(cookieStore);
 
@@ -15,20 +19,25 @@ export async function GET(req: Request) {
       return NextResponse.json({ message: "Access token yok" }, { status: 401 });
     }
 
-    const merchantId = resolveSessionMerchantId(accessToken, cookieStore);
-
-    if (merchantId == null) {
+    const sessionMerchantId = resolveSessionMerchantId(accessToken, cookieStore);
+    if (sessionMerchantId == null) {
       return NextResponse.json({ message: "Token içinde merchantId yok" }, { status: 401 });
+    }
+
+    const requested = rawMerchantId === "me" ? sessionMerchantId : Number(rawMerchantId);
+    if (!Number.isInteger(requested) || requested !== sessionMerchantId) {
+      return NextResponse.json({ message: "QR kayıtları bu işletmeye ait değil" }, { status: 403 });
     }
 
     const searchParams = new URL(req.url).searchParams;
     const includeImage = searchParams.get("includeImage") === "true" ? "true" : "false";
     const page = searchParams.get("page") ?? "0";
     const size = searchParams.get("size") ?? "5";
+    const scope = searchParams.get("scope") ?? "ALL";
 
-    const upstream = await axios.get(`${QR_API_BASE}/user/${merchantId}`, {
+    const upstream = await axios.get(`${API_BASE_URL}/merchant/${sessionMerchantId}/qr`, {
       headers: buildUpstreamAuthHeaders(accessToken),
-      params: { includeImage, page, size },
+      params: { includeImage, page, size, scope },
       validateStatus: () => true,
       timeout: 20_000,
     });

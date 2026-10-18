@@ -26,11 +26,11 @@ import {
 } from "@/lib/print-agent";
 
 type Props = {
-  userId?: number | null;
+  merchantId?: number | null;
   onNotify: (type: "info" | "warning" | "danger", message: string) => void;
 };
 
-export function PrintAgentApiKeySection({ userId, onNotify }: Props) {
+export function PrintAgentApiKeySection({ merchantId, onNotify }: Props) {
   const branchesQuery = useBranches(true);
   const branches = branchesQuery.data?.content ?? [];
   const [branchId, setBranchId] = useState<string>("");
@@ -47,7 +47,7 @@ export function PrintAgentApiKeySection({ userId, onNotify }: Props) {
         if (cancelled) return;
         setCredentials((prev) =>
           prev && prev.branchId === settings.branchId
-            ? { ...prev, userId: settings.userId }
+            ? { ...prev, merchantId: settings.merchantId }
             : prev,
         );
       } catch {
@@ -69,7 +69,7 @@ export function PrintAgentApiKeySection({ userId, onNotify }: Props) {
     [branchId, branches],
   );
 
-  const displayUserId = credentials?.userId ?? userId ?? null;
+  const displayMerchantId = credentials?.merchantId ?? merchantId ?? null;
   const maskedKey = credentials?.apiKey
     ? `${credentials.apiKey.slice(0, 8)}${"•".repeat(Math.max(12, credentials.apiKey.length - 12))}${credentials.apiKey.slice(-4)}`
     : "";
@@ -160,14 +160,14 @@ export function PrintAgentApiKeySection({ userId, onNotify }: Props) {
               <Input
                 readOnly
                 className="bg-background font-mono"
-                value={displayUserId != null ? String(displayUserId) : "—"}
+                value={displayMerchantId != null ? String(displayMerchantId) : "—"}
               />
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
-                disabled={displayUserId == null}
-                onClick={() => void copyValue("Kullanıcı ID", String(displayUserId))}
+                disabled={displayMerchantId == null}
+                onClick={() => void copyValue("İşletme ID", String(displayMerchantId))}
                 aria-label="Kullanıcı ID kopyala"
               >
                 <Copy className="h-4 w-4" />

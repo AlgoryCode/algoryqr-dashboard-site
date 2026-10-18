@@ -88,7 +88,7 @@ function sessionContext() {
     scopes: OWNER_SCOPES,
     entitlements: [],
     user: {
-      userId: 1,
+      merchantId: 1,
       firstName: "Ayşe",
       lastName: "Yılmaz",
       email: "ayse@ornek.com",
@@ -136,7 +136,7 @@ function branches() {
     content: [
       {
         id: 1,
-        userId: 1,
+        merchantId: 1,
         name: "Kadıköy",
         grandfathered: false,
         active: true,

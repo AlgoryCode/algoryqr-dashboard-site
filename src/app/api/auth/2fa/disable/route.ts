@@ -25,8 +25,8 @@ export async function POST(req: Request) {
     const oauthBlock = forbidGoogleOAuthTwoFactor(accessToken);
     if (oauthBlock) return oauthBlock;
 
-    const userId = getMerchantIdFromAccessToken(accessToken);
-    if (userId == null) {
+    const merchantId = getMerchantIdFromAccessToken(accessToken);
+    if (merchantId == null) {
       return NextResponse.json({ message: "Token'da kullanıcı bilgisi yok" }, { status: 401 });
     }
 
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          "X-Merchant-Id": String(userId),
+          "X-Merchant-Id": String(merchantId),
           "Content-Type": "application/json",
           Accept: "application/json",
         },

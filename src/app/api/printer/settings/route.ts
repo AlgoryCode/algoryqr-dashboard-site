@@ -24,12 +24,12 @@ export async function GET(request: Request) {
     }
 
     if (!branchId) {
-      const userId = getMerchantIdFromAccessToken(accessToken);
+      const merchantId = getMerchantIdFromAccessToken(accessToken);
       const branches = await axios.get<BranchListResponse>(`${API_BASE_URL}/branches`, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           Accept: "application/json",
-          ...(userId != null ? { "X-Merchant-Id": String(userId) } : {}),
+          ...(merchantId != null ? { "X-Merchant-Id": String(merchantId) } : {}),
           ...clientContextHeaders(request),
         },
         validateStatus: () => true,
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
       const first = branches.data?.content?.[0];
       if (!first) {
         return NextResponse.json({
-          userId: userId ?? null,
+          merchantId: merchantId ?? null,
           branchId: null,
           printKitchenEnabled: false,
           devices: [],

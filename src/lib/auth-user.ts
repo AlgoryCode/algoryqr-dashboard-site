@@ -168,7 +168,7 @@ export function getCustomerIdFromAccessToken(token?: string | null): number | nu
   if (!token) return null;
   const payload = parseJwtPayload(token);
   if (!payload) return null;
-  return parseNumericClaim(payload.customerId);
+  return parseNumericClaim(payload.customerId) ?? parseNumericClaim(payload.userId);
 }
 
 type SessionCookieStore = { get: (name: string) => { value?: string } | undefined };
@@ -180,8 +180,7 @@ export function resolveSessionMerchantId(
   const fromToken = getMerchantIdFromAccessToken(accessToken);
   if (fromToken != null) return fromToken;
   if (!cookieStore) return null;
-  const raw =
-    cookieStore.get("merchantId")?.value?.trim() || cookieStore.get("userId")?.value?.trim();
+  const raw = cookieStore.get("merchantId")?.value?.trim();
   if (!raw) return null;
   const parsed = parseInt(raw, 10);
   return Number.isFinite(parsed) ? parsed : null;
@@ -195,23 +194,12 @@ export function getUserFromAccessToken(token?: string | null): AuthUser | null {
   const email = (payload.email as string | undefined) || "";
   const firstName = (payload.firstName as string | undefined) || (payload.first_name as string | undefined);
   const lastName = (payload.lastName as string | undefined) || (payload.last_name as string | undefined);
-  const numericMerchantId = getMerchantIdFromAccessToken(token);
-  const numericCustomerId = getCustomerIdFromAccessToken(token);
-  const fallbackId =
-    (payload.dashboardUserId as string | number | undefined) ||
-    (payload.sub as string | number | undefined);
+  const merchantId = getMerchantIdFromAccessToken(token);
 
-  if (numericMerchantId == null && numericCustomerId == null && fallbackId == null && !email && !firstName && !lastName) {
-    return null;
-  }
-
-  const id =
-    numericMerchantId ??
-    numericCustomerId ??
-    (typeof fallbackId === "number" ? fallbackId : parseNumericClaim(fallbackId));
+  if (merchantId == null && !email && !firstName && !lastName) return null;
 
   return {
-    id: id != null ? String(id) : undefined,
+    id: merchantId != null ? String(merchantId) : undefined,
     email: email || "",
     first_name: firstName,
     last_name: lastName,
@@ -318,8 +306,21 @@ export function hasProduct(profile: AccessProfile | null | undefined, product: P
 function productInPackage(profile: AccessProfile | null | undefined, product: ProductCode): boolean {
   if (!profile) return false;
   if (profile.products.includes(product)) return true;
-  if (product === "QR_ANALYTICS" && profile.products.includes("SMART_REPORTING")) return true;
+  if (profile.scopes.some((scope) => scope === `${product}_OWNER`)) return true;
+  if (
+    product === "QR_ANALYTICS" &&
+    (profile.products.includes("SMART_REPORTING") || profile.scopes.includes("SMART_REPORTING_OWNER"))
+  ) {
+    return true;
+  }
+  if (
+    product === "SMART_REPORTING" &&
+    (profile.products.includes("QR_ANALYTICS") || profile.scopes.includes("QR_ANALYTICS_OWNER"))
+  ) {
+    return true;
+  }
   if (product === "QR_AGENT" && profile.products.includes("SMART_ASSISTANT")) return true;
+  if (product === "SMART_ASSISTANT" && profile.products.includes("QR_AGENT")) return true;
   return false;
 }
 

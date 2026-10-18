@@ -76,7 +76,7 @@ export async function POST(req: Request) {
       const response = NextResponse.json(
         {
           requiresTwoFactor: true,
-          merchantId: typeof data.merchantId === "number" ? data.merchantId : resolveLoginMerchantId(data, undefined),
+          merchantId: typeof data.merchantId === "number" ? data.merchantId : undefined,
           email: data.email,
           firstName: data.firstName,
           lastName: data.lastName,
@@ -103,7 +103,7 @@ export async function POST(req: Request) {
     );
 
     const response = NextResponse.json(
-      { ...data, merchantId, accessTokenExpiresAt, refreshTokenExpiresAt },
+      { ...data, merchantId, userId: undefined, accessTokenExpiresAt, refreshTokenExpiresAt },
       { status: 200 },
     );
     setAuthCookies(

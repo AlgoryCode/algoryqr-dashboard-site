@@ -40,6 +40,24 @@ describe("auth-user access profile", () => {
     expect(hasScope(profile, "QR_MENU_OWNER")).toBe(false);
   });
 
+  it("grants menu access from owner scopes when products are missing", () => {
+    const profile = getAccessProfileFromToken(
+      buildToken({
+        activePackage: "ULTIMATE_PACKAGE",
+        products: [],
+        scopes: ["QR_MENU_OWNER", "QR_CREATE_OWNER", "WAITER_PANEL_OWNER", "SMART_REPORTING_OWNER"],
+        roles: ["ROLE_MERCHANT"],
+        provider: "GOOGLE",
+      }),
+    );
+
+    expect(hasScope(profile, "QR_MENU_OWNER")).toBe(true);
+    expect(hasScope(profile, "QR_CREATE_OWNER")).toBe(true);
+    expect(hasScope(profile, "WAITER_PANEL_OWNER")).toBe(true);
+    expect(hasScope(profile, "SMART_REPORTING_OWNER")).toBe(true);
+    expect(hasScope(profile, "ONLINE_ORDER_OWNER")).toBe(false);
+  });
+
   it("maps token products and scopes for menu access", () => {
     const profile = getAccessProfileFromToken(
       buildToken({

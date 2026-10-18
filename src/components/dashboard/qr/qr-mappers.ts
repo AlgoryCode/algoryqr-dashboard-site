@@ -6,7 +6,7 @@ import { MENU_APP_ORIGIN } from "@/lib/config";
 
 export type DashboardQrItem = {
   id: number;
-  userId: number;
+  merchantId: number;
   name: string;
   content: string;
   scans: number;
@@ -211,7 +211,7 @@ const formatQrContent = (details: Record<string, unknown>) => {
 
 export const mapUserQrToDashboardItem = (qr: UserQrApiItem): DashboardQrItem => ({
   id: qr.qrId,
-  userId: qr.userId ?? qr.customerId ?? 0,
+  merchantId: qr.merchantId ?? 0,
   name: qr.qrName,
   content: formatQrContent(qr.details),
   scans: 0,

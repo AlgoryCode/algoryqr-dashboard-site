@@ -29,7 +29,7 @@ export type QrRequestDetails =
     };
 
 export interface CreateQrRequestBody {
-  userId?: number | string;
+  merchantId?: number | string;
   qrName: string;
   type: string;
   details: QrRequestDetails;
@@ -52,7 +52,7 @@ export interface CreateQrResponse {
 }
 
 export interface UpdateQrRequestBody {
-  userId?: number | string;
+  merchantId?: number | string;
   qrName: string;
   type: string;
   details: QrRequestDetails;
@@ -65,7 +65,6 @@ export interface UpdateQrNameRequestBody {
 export interface UserQrApiItem {
   qrId: number;
   merchantId?: number;
-  userId?: number;
   qrName: string;
   imgSrc: string;
   details: Record<string, unknown>;

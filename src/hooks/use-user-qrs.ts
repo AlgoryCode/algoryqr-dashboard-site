@@ -2,21 +2,21 @@
 
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { mapUserQrToDashboardItem, type DashboardQrItem } from "@/components/dashboard/qr/qr-mappers";
-import { getUserQrsRequest } from "@/lib/api";
+import { getMerchantQrsRequest } from "@/lib/api";
 
-export const userQrsQueryKey = (userId: string, includeImage = false) =>
-  ["userQrs", userId, includeImage ? "withImage" : "noImage"] as const;
+export const merchantQrsQueryKey = (merchantId: string, includeImage = false) =>
+  ["merchantQrs", merchantId, includeImage ? "withImage" : "noImage"] as const;
 
 export function useUserQrs(
-  userId: string | undefined,
+  merchantId: string | undefined,
   options?: { includeImage?: boolean },
 ) {
-  const id = userId?.trim() || "me";
+  const id = merchantId?.trim() || "me";
   const includeImage = options?.includeImage === true;
   return useQuery({
-    queryKey: userQrsQueryKey(id, includeImage),
+    queryKey: merchantQrsQueryKey(id, includeImage),
     queryFn: async (): Promise<DashboardQrItem[]> => {
-      const response = await getUserQrsRequest(id, { includeImage, page: 0, size: 50 });
+      const response = await getMerchantQrsRequest(id, { includeImage, page: 0, size: 50 });
       return response.content.map(mapUserQrToDashboardItem);
     },
     enabled: true,
@@ -26,10 +26,10 @@ export function useUserQrs(
   });
 }
 
-export function invalidateUserQrs(queryClient: QueryClient, userId?: string | undefined) {
-  const id = userId?.trim() || "me";
+export function invalidateUserQrs(queryClient: QueryClient, merchantId?: string | undefined) {
+  const id = merchantId?.trim() || "me";
   return Promise.all([
-    queryClient.invalidateQueries({ queryKey: ["userQrs", id], exact: false }),
-    queryClient.invalidateQueries({ queryKey: ["userQrs", "me"], exact: false }),
+    queryClient.invalidateQueries({ queryKey: ["merchantQrs", id], exact: false }),
+    queryClient.invalidateQueries({ queryKey: ["merchantQrs", "me"], exact: false }),
   ]);
 }

@@ -1,3 +1,3 @@
 export function activePackagePath(merchantId: number): string {
-  return `/users/${merchantId}/package`;
+  return `/merchant/${merchantId}/package`;
 }

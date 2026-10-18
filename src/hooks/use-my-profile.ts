@@ -7,7 +7,7 @@ import { getSiteSameOriginAxios } from "@/lib/site-same-origin-axios";
 export const MY_PROFILE_QUERY_KEY = ["myProfile"] as const;
 
 export interface MyProfile {
-  userId: number;
+  merchantId: number;
   firstName: string | null;
   lastName: string | null;
   email: string | null;

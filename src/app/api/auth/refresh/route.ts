@@ -70,7 +70,7 @@ export async function POST(req: Request) {
     );
 
     const response = NextResponse.json(
-      { ...data, merchantId, accessTokenExpiresAt, refreshTokenExpiresAt },
+      { ...data, merchantId, userId: undefined, accessTokenExpiresAt, refreshTokenExpiresAt },
       { status: 200 },
     );
 

@@ -42,12 +42,12 @@ async function proxy(req: Request, method: string, path: string[]) {
     }
   }
   if (suffix === "/QR_MENU/qrs" && data && typeof data === "object") {
-    const userId = resolveSessionMerchantId(accessToken, cookieStore);
+    const merchantId = resolveSessionMerchantId(accessToken, cookieStore);
     const body = data as Record<string, unknown>;
     const details = body.details;
     data = {
       ...body,
-      userId,
+      merchantId,
       ...(details && typeof details === "object" && body.type === "menu"
         ? { details: { ...(details as Record<string, unknown>), publicOrigin: MENU_APP_ORIGIN } }
         : {}),

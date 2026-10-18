@@ -1,14 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const axiosGet = vi.hoisted(() => vi.fn());
-const storedUser = vi.hoisted(() => vi.fn((): { id?: string } | null => null));
 
 vi.mock("@/lib/site-same-origin-axios", () => ({
   getSiteSameOriginAxios: () => ({ get: axiosGet }),
-}));
-
-vi.mock("@/lib/api/storage", () => ({
-  getStoredUser: () => storedUser(),
 }));
 
 import { fetchSessionContextClient, parseSessionContext } from "./session-context";
@@ -68,22 +63,9 @@ describe("fetchSessionContextClient", () => {
   beforeEach(() => {
     axiosGet.mockReset();
     axiosGet.mockResolvedValue({ data: {} });
-    storedUser.mockReset();
-    storedUser.mockReturnValue(null);
   });
 
-  it("requests the active package for a numeric user id", async () => {
-    await fetchSessionContextClient(7);
-    expect(axiosGet).toHaveBeenCalledWith("/users/7/package");
-  });
-
-  it("uses the stored user id when the argument is a query context object", async () => {
-    storedUser.mockReturnValue({ id: "7" });
-    await fetchSessionContextClient({ queryKey: ["sessionContext"] } as unknown as number);
-    expect(axiosGet).toHaveBeenCalledWith("/users/7/package");
-  });
-
-  it("falls back to the access context when no user id is available", async () => {
+  it("requests the access context resolved from the session token", async () => {
     await fetchSessionContextClient();
     expect(axiosGet).toHaveBeenCalledWith("/access/context");
   });

@@ -44,7 +44,7 @@ export async function POST(req: Request) {
       unknown
     > & {
       message?: string;
-      userId?: number;
+      merchantId?: number;
       username?: string;
       accessToken?: string;
       access_token?: string;
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(
       {
-        userId: data.userId,
+        merchantId: typeof data.merchantId === "number" ? data.merchantId : undefined,
         username: data.username ?? username,
         message: data.message ?? "Demo hesap oluşturuldu. Giriş yaparak devam edin.",
       },

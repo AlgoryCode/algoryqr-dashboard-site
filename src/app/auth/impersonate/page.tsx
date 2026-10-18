@@ -22,13 +22,13 @@ export default function ImpersonatePage() {
       const params = readHashParams();
       const accessToken = params.get("accessToken")?.trim();
       const refreshToken = params.get("refreshToken")?.trim();
-      const userIdRaw = params.get("userId")?.trim();
+      const merchantIdRaw = params.get("merchantId")?.trim();
       const email = params.get("email")?.trim();
       const firstName = params.get("firstName")?.trim();
       const lastName = params.get("lastName")?.trim();
-      const userId = userIdRaw ? Number(userIdRaw) : NaN;
+      const merchantId = merchantIdRaw ? Number(merchantIdRaw) : NaN;
 
-      if (!accessToken || !refreshToken || !Number.isFinite(userId)) {
+      if (!accessToken || !refreshToken || !Number.isFinite(merchantId)) {
         setError("Geçersiz veya eksik oturum bilgisi.");
         return;
       }
@@ -37,7 +37,7 @@ export default function ImpersonatePage() {
         const res = await fetch("/api/auth/impersonate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ accessToken, refreshToken, userId }),
+          body: JSON.stringify({ accessToken, refreshToken, merchantId }),
         });
 
         if (!res.ok) {
@@ -48,7 +48,7 @@ export default function ImpersonatePage() {
 
         if (email) {
           setStoredUser({
-            id: String(userId),
+            id: String(merchantId),
             email,
             first_name: firstName,
             last_name: lastName,

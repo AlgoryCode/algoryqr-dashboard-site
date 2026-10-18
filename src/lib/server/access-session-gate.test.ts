@@ -90,7 +90,7 @@ describe("fetchAccessSessionWithToken", () => {
     mockFetchOk({ decision: "REQUIRE_PAYMENT", packageCode: "PRO" });
     const session = await fetchAccessSessionWithToken(accessToken());
     expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/users/7/package"),
+      expect.stringContaining("/merchant/7/package"),
       expect.objectContaining({ method: "GET" }),
     );
     expect(session).toEqual({

@@ -1,18 +1,18 @@
 import axios from "axios";
 
 import type { AccountOverview } from "@/lib/account-overview";
-import { API_BASE_URL } from "@/lib/config";
 import { getMerchantIdFromAccessToken } from "@/lib/auth-user";
+import { API_BASE_URL } from "@/lib/config";
 
 function authHeaders(
   accessToken: string,
-  userId: number | null,
+  merchantId: number | null,
   extra?: Record<string, string>,
 ): Record<string, string> {
   return {
     Authorization: `Bearer ${accessToken}`,
     Accept: "application/json",
-    ...(userId != null ? { "X-Merchant-Id": String(userId) } : {}),
+    ...(merchantId != null ? { "X-Merchant-Id": String(merchantId) } : {}),
     ...extra,
   };
 }
@@ -20,12 +20,12 @@ function authHeaders(
 /** Aggregated account snapshot from qr-service `GET /account/overview`. */
 export async function fetchAccountOverview(
   accessToken: string,
-  userId: number | null,
+  merchantId: number | null,
   clientHeaders?: Record<string, string>,
 ): Promise<AccountOverview> {
-  const resolvedUserId = userId ?? getMerchantIdFromAccessToken(accessToken);
+  const resolvedMerchantId = merchantId ?? getMerchantIdFromAccessToken(accessToken);
   const upstream = await axios.get<AccountOverview>(`${API_BASE_URL}/account/overview`, {
-    headers: authHeaders(accessToken, resolvedUserId, clientHeaders),
+    headers: authHeaders(accessToken, resolvedMerchantId, clientHeaders),
     validateStatus: () => true,
     timeout: 25_000,
   });

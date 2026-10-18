@@ -58,14 +58,14 @@ const DemoLogin = () => {
     }
     setLoading(true);
     try {
-      const { data } = await getSiteSameOriginAxios().post<{ merchantId?: number }>("/auth/demo/login", {
+      await getSiteSameOriginAxios().post("/auth/demo/login", {
         username: username.trim(),
         password,
       });
       queryClient.removeQueries({ queryKey: MY_PROFILE_QUERY_KEY });
       queryClient.removeQueries({ queryKey: ["demoAccount"] });
-      await loadPackageAccess(true, data.merchantId);
-      const session = await fetchSessionContextClient(data.merchantId);
+      await loadPackageAccess(true);
+      const session = await fetchSessionContextClient();
       if (session) {
         queryClient.setQueryData(SESSION_CONTEXT_QUERY_KEY, session);
       }

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { recordFlow } from "@/lib/flow-log";
 import {
+  getCustomerIdFromAccessToken,
   getExpFromAccessToken,
   getMerchantIdFromAccessToken,
   isoToEpochSeconds,
@@ -43,6 +44,7 @@ type RedeemResponse = {
   refreshToken?: unknown;
   refresh_token?: unknown;
   userId?: unknown;
+  merchantId?: unknown;
   customerId?: unknown;
   intent?: unknown;
   code?: unknown;
@@ -177,7 +179,7 @@ export async function GET(req: NextRequest) {
       const customerId =
         readPositiveNumber(data.customerId) ??
         readPositiveNumber(data.userId) ??
-        getMerchantIdFromAccessToken(accessToken) ??
+        getCustomerIdFromAccessToken(accessToken) ??
         undefined;
       const response = NextResponse.redirect(
         customerReturnUrl ?? new URL("/", getAppOrigin(req)).toString(),
@@ -206,8 +208,8 @@ export async function GET(req: NextRequest) {
         accessToken,
       )) ??
       readPositiveNumber(data.refreshTokenExpiresAt);
-    const userId =
-      readPositiveNumber(data.userId) ??
+    const merchantId =
+      readPositiveNumber(data.merchantId) ??
       getMerchantIdFromAccessToken(accessToken) ??
       undefined;
 
@@ -221,9 +223,9 @@ export async function GET(req: NextRequest) {
       response.headers.set("Referrer-Policy", "no-referrer");
       response.cookies.set("googleAuthIntent", "", clearGoogleIntentCookie);
       clearMerchantReturnUrlCookie(response);
-      setAuthCookies(response, accessToken, refreshToken, userId);
+      setAuthCookies(response, accessToken, refreshToken, merchantId);
       setTokenExpiryCookies(response, accessTokenExpiresAt, refreshTokenExpiresAt);
-      await applyActivePackageCookie(response, userId, accessToken);
+      await applyActivePackageCookie(response, merchantId, accessToken);
       await applyPersonalDemoTrialCookie(response, accessToken);
       return response;
     }
@@ -249,13 +251,13 @@ export async function GET(req: NextRequest) {
     response.headers.set("Cache-Control", "no-store");
     response.headers.set("Referrer-Policy", "no-referrer");
     response.cookies.set("googleAuthIntent", "", clearGoogleIntentCookie);
-    setAuthCookies(response, accessToken, refreshToken, userId);
+    setAuthCookies(response, accessToken, refreshToken, merchantId);
     setTokenExpiryCookies(
       response,
       accessTokenExpiresAt,
       refreshTokenExpiresAt,
     );
-    await applyActivePackageCookie(response, userId, accessToken);
+    await applyActivePackageCookie(response, merchantId, accessToken);
     await applyPersonalDemoTrialCookie(response, accessToken);
     return response;
   } catch (error) {

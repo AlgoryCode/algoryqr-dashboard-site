@@ -1,6 +1,4 @@
 import { destinationForDecision, parseAccessSession, type AccessSession } from "@/lib/access-session-gate";
-import { activePackagePath } from "@/lib/active-package-path";
-import { getStoredUser } from "@/lib/api/storage";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { getSiteSameOriginAxios } from "@/lib/site-same-origin-axios";
 
@@ -51,25 +49,13 @@ export function parseSessionContext(payload: unknown): SessionContext | null {
   };
 }
 
-export async function fetchSessionContextClient(merchantId?: number | null): Promise<SessionContext | null> {
-  const resolved = positiveMerchantId(merchantId) ?? storedMerchantId();
-  const path = resolved != null ? activePackagePath(resolved) : "/access/context";
+export async function fetchSessionContextClient(): Promise<SessionContext | null> {
   try {
-    const response = await getSiteSameOriginAxios().get(path);
+    const response = await getSiteSameOriginAxios().get("/access/context");
     return parseSessionContext(response.data);
   } catch {
     return null;
   }
-}
-
-function positiveMerchantId(value: unknown): number | null {
-  if (typeof value !== "number" && typeof value !== "string") return null;
-  const parsed = typeof value === "number" ? value : Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-}
-
-function storedMerchantId(): number | null {
-  return positiveMerchantId(getStoredUser()?.id);
 }
 
 export function pathForSession(
@@ -85,7 +71,7 @@ export function pathForSession(
 function parseUser(value: unknown): SessionUser | null {
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
-  const merchantId = positiveMerchantId(record.merchantId);
+  const merchantId = typeof record.merchantId === "number" ? record.merchantId : null;
   if (merchantId == null || typeof record.email !== "string") return null;
   return {
     merchantId,

@@ -11,7 +11,7 @@ import { SearchableSelect } from "@/components/dashboard/menu/SearchableSelect";
 import { useDigitalMenuAccess } from "@/hooks/use-digital-menu-access";
 import { useMenuByQr } from "@/hooks/use-menu-by-qr";
 import {
-  getUserQrsRequest,
+  getMerchantQrsRequest,
   type MenuProfileApiItem,
 } from "@/lib/api";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
@@ -29,7 +29,7 @@ export type DigitalMenuSelection = {
 export { useDigitalMenuAccess };
 
 async function loadAllMenuQrs(): Promise<DashboardQrItem[]> {
-  const qrs = await getUserQrsRequest("me", { includeImage: false, page: 0, size: 50 });
+  const qrs = await getMerchantQrsRequest("me", { includeImage: false, page: 0, size: 50 });
   return qrs.content
     .filter((qr) => isMenuQrDetails(qr.details ?? {}))
     .map(mapUserQrToDashboardItem);
@@ -38,7 +38,7 @@ async function loadAllMenuQrs(): Promise<DashboardQrItem[]> {
 export function mapDirectoryItemToDashboardQrItem(item: DigitalMenuDirectoryItem): DashboardQrItem {
   return {
     id: item.qrId,
-    userId: 0,
+    merchantId: 0,
     name: item.businessName?.trim() || `Menü #${item.qrId}`,
     content: "",
     scans: 0,

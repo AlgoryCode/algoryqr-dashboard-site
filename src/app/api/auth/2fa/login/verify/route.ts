@@ -58,7 +58,7 @@ export async function POST(req: Request) {
     const refreshToken = (data.refreshToken as string) || (data.refresh_token as string);
     const accessTokenValue = typeof accessToken === "string" ? accessToken : undefined;
     const refreshTokenValue = typeof refreshToken === "string" ? refreshToken : undefined;
-    const userId = resolveLoginMerchantId(data, accessTokenValue);
+    const merchantId = resolveLoginMerchantId(data, accessTokenValue);
     const accessTokenExpiresAt = getExpFromAccessToken(accessTokenValue) ?? undefined;
     const refreshTokenExpiresAt = await resolveRefreshCookieExpiry(
       refreshTokenValue,
@@ -67,7 +67,7 @@ export async function POST(req: Request) {
     );
 
     const response = NextResponse.json(
-      { ...data, userId, merchantId: userId, accessTokenExpiresAt, refreshTokenExpiresAt },
+      { ...data, merchantId, userId: undefined, accessTokenExpiresAt, refreshTokenExpiresAt },
       { status: 200 },
     );
 
@@ -80,9 +80,9 @@ export async function POST(req: Request) {
     };
     response.cookies.set("algory_2fa_pending", "", clearPending);
 
-    setAuthCookies(response, accessTokenValue, refreshTokenValue, userId);
+    setAuthCookies(response, accessTokenValue, refreshTokenValue, merchantId);
     setTokenExpiryCookies(response, accessTokenExpiresAt, refreshTokenExpiresAt);
-    await applyActivePackageCookie(response, userId, accessTokenValue);
+    await applyActivePackageCookie(response, merchantId, accessTokenValue);
     await applyPersonalDemoTrialCookie(response, accessTokenValue);
 
     return response;

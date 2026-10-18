@@ -28,5 +28,5 @@ export async function GET(
   }
 
   const upstream = await proxyAuthenticatedRequest(request, activePackagePath(merchantId), "GET");
-  return attachActivePackageCookie(upstream);
+  return attachActivePackageCookie(upstream, accessToken);
 }

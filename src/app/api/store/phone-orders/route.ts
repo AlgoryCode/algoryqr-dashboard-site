@@ -81,12 +81,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "En az bir ürün ekleyin" }, { status: 400 });
   }
 
-  const userId = getMerchantIdFromAccessToken(accessToken);
+  const merchantId = getMerchantIdFromAccessToken(accessToken);
   const authHeaders = {
     Authorization: `Bearer ${accessToken}`,
     Accept: "application/json",
     "Content-Type": "application/json",
-    ...(userId != null ? { "X-Merchant-Id": String(userId) } : {}),
+    ...(merchantId != null ? { "X-Merchant-Id": String(merchantId) } : {}),
     ...clientContextHeaders(request),
   };
 

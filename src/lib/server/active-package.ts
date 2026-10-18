@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 
 import { activePackagePath } from "@/lib/active-package-path";
-import { getMerchantIdFromAccessToken } from "@/lib/auth-user";
+import { getAccessProfileFromToken, getMerchantIdFromAccessToken } from "@/lib/auth-user";
 import { API_BASE_URL } from "@/lib/config";
+import { mergePackagePayloadWithProfile } from "@/lib/package-access";
 import {
   setActivePackageCookie,
   type ActivePackageSnapshot,
@@ -11,19 +12,24 @@ import {
 const ACTIVE_PACKAGE_TIMEOUT_MS = 10_000;
 
 export function resolveLoginMerchantId(
-  loginBody: unknown,
+  merchantIdOrBody: unknown,
   accessToken?: string | null,
 ): number | undefined {
+  const direct = positiveMerchantId(merchantIdOrBody);
+  if (direct != null) return direct;
   const body =
-    loginBody != null && typeof loginBody === "object"
-      ? (loginBody as Record<string, unknown>)
+    merchantIdOrBody != null && typeof merchantIdOrBody === "object"
+      ? (merchantIdOrBody as Record<string, unknown>)
       : null;
-  const merchantId = body?.merchantId;
-  if (typeof merchantId === "number" && Number.isInteger(merchantId) && merchantId > 0) {
-    return merchantId;
-  }
+  const fromBody = positiveMerchantId(body?.merchantId);
+  if (fromBody != null) return fromBody;
   const fromToken = getMerchantIdFromAccessToken(accessToken);
   return fromToken != null && fromToken > 0 ? fromToken : undefined;
+}
+
+function positiveMerchantId(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;
+  return undefined;
 }
 
 export async function fetchActivePackage(
@@ -65,11 +71,17 @@ export async function applyActivePackageCookie(
   setActivePackageCookie(response, snapshot);
 }
 
-export async function attachActivePackageCookie(upstream: NextResponse): Promise<NextResponse> {
+export async function attachActivePackageCookie(
+  upstream: NextResponse,
+  accessToken?: string | null,
+): Promise<NextResponse> {
   if (upstream.status < 200 || upstream.status >= 300) return upstream;
   const payload: unknown = await upstream.json();
-  const response = NextResponse.json(payload, { status: upstream.status });
-  setActivePackageCookie(response, parseActivePackageSnapshot(payload));
+  const merged = accessToken
+    ? mergePackagePayloadWithProfile(payload, getAccessProfileFromToken(accessToken))
+    : payload;
+  const response = NextResponse.json(merged, { status: upstream.status });
+  setActivePackageCookie(response, parseActivePackageSnapshot(merged));
   return response;
 }
 
