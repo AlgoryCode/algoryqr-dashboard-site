@@ -51,16 +51,16 @@ export function OverviewOrderQueue({
   href: string;
 }) {
   return (
-    <section className={DASHBOARD_PANEL} aria-label="Canlı siparişler">
+    <section className={DASHBOARD_PANEL} aria-label="Siparişlerim">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">Canlı siparişler</h2>
+          <h2 className="text-sm font-semibold text-foreground">Siparişlerim</h2>
           <p className="text-xs text-muted-foreground">
             {queue ? `${queue.open} açık sipariş` : "Her 30 saniyede yenilenir"}
           </p>
         </div>
         <Link href={href} className="text-xs font-medium text-foreground underline-offset-2 hover:underline">
-          Sipariş akışına git
+          Siparişlere git
         </Link>
       </div>
       <div className="grid grid-cols-3 gap-2">

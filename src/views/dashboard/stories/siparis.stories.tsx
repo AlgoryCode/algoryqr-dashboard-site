@@ -18,4 +18,5 @@ export const OnlineSiparisDetay = dashboardPage("Online sipariş detay", DASHBOA
 export const OnlineUrunler = dashboardPage("Online ürünler", DASHBOARD_ROUTES.onlineOrderProducts);
 export const OnlineKuryeler = dashboardPage("Kuryeler", DASHBOARD_ROUTES.onlineOrderCouriers);
 export const OnlineAyarlar = dashboardPage("Online ayarlar", DASHBOARD_ROUTES.onlineOrderSettings);
+export const Siparislerim = dashboardPage("Siparişlerim", DASHBOARD_ROUTES.orders);
 export const Rezervasyonlar = dashboardPage("Rezervasyonlar", DASHBOARD_ROUTES.reservations, qr);

@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import { buildEscPosBuffer, foldReceiptAscii } from "./receipt-escpos";
-import { billToReceipt, formatReceiptText, marketplaceOrderToReceipt } from "./receipt-ticket";
+import {
+  billToReceipt,
+  formatReceiptText,
+  kitchenOrderToReceipt,
+  marketplaceOrderToReceipt,
+} from "./receipt-ticket";
 
 describe("receipt ticket", () => {
   it("builds marketplace receipt fields", () => {
@@ -47,6 +52,59 @@ describe("receipt ticket", () => {
     expect(text).toContain("Bahsis · Nakit");
   });
 
+  it("prints internal orders with source header and grouped options", () => {
+    const text = formatReceiptText(
+      kitchenOrderToReceipt({
+        id: 42,
+        orderSource: "QR",
+        tableName: "Bahçe 4",
+        items: [
+          {
+            productName: "Burger",
+            quantity: 1,
+            selectedOptions: [
+              { groupName: "Malzemeler", optionName: "Soğan yok" },
+              { groupName: "Malzemeler", optionName: "Ekstra peynir" },
+              { groupName: "İçecek", optionName: "Kola" },
+              { groupName: "Tatlı", optionName: "Sufle" },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(text.startsWith("İç sipariş\nSiparis: 42\nMasa: Bahçe 4")).toBe(true);
+    expect(text).toContain("1x Burger");
+    expect(text).toContain("  Malzemeler: Soğan yok, Ekstra peynir");
+    expect(text).toContain("  İçecek: Kola");
+    expect(text).toContain("  Tatlı: Sufle");
+    expect(text).not.toContain("Tatlı seçimi");
+  });
+
+  it("labels online and phone orders and skips unselected groups", () => {
+    const online = formatReceiptText(
+      kitchenOrderToReceipt({
+        id: 7,
+        orderSource: "STORE",
+        deliveryType: "DELIVERY",
+        items: [
+          {
+            productName: "Pizza",
+            quantity: 1,
+            selectedOptions: [{ groupName: "İçecek", optionName: "Ayran" }],
+          },
+        ],
+      }),
+    );
+    expect(online.startsWith("Online Sipariş\n")).toBe(true);
+    expect(online).toContain("Teslimat");
+    expect(online).toContain("  İçecek: Ayran");
+    expect(online).not.toContain("Tatlı");
+
+    const phone = kitchenOrderToReceipt({ id: 8, orderSource: "PHONE", deliveryType: "PICKUP" });
+    expect(phone.platformLabel).toBe("Telefon");
+    expect(phone.locationLabel).toBe("Gel al");
+  });
+
   it("encodes ESC/POS init and cut", () => {
     const buffer = buildEscPosBuffer(
       {
@@ -60,5 +118,7 @@ describe("receipt ticket", () => {
     expect(buffer[1]).toBe(0x40);
     expect(foldReceiptAscii("Çorba")).toBe("Corba");
     expect(buffer.includes(0x1d)).toBe(true);
+    const printed = buffer.toString("latin1");
+    expect(printed.split("Test").length - 1).toBe(1);
   });
 });

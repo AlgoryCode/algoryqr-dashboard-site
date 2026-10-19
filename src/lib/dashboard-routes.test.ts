@@ -128,6 +128,18 @@ describe("kitchen monitor routes", () => {
     expect(DASHBOARD_ROUTES.kitchenScreen(12)).toBe("/mutfak?branch=12");
     expect(DASHBOARD_ROUTES.kitchenScreen()).toBe("/mutfak");
   });
+
+  it("opens merchant orders on Siparişlerim", () => {
+    expect(DASHBOARD_ROUTES.orders).toBe("/dashboard/siparislerim");
+    expect(DASHBOARD_NAV_ITEMS.find((item) => item.key === "liveOrders")?.label).toBe("Siparişlerim");
+    expect(DASHBOARD_NAV_ITEMS.find((item) => item.key === "liveOrders")?.href).toBe(
+      DASHBOARD_ROUTES.orders,
+    );
+    expect(buildDashboardBreadcrumbs(DASHBOARD_ROUTES.orders).map((crumb) => crumb.label)).toEqual([
+      "Genel Bakış",
+      "Siparişlerim",
+    ]);
+  });
 });
 
 describe("splitMobileDashboardNav", () => {

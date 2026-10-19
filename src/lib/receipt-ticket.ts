@@ -4,12 +4,14 @@ export type ReceiptLine = {
   quantity: number;
   name: string;
   detail?: string | null;
+  details?: string[] | null;
   unitPrice?: number | null;
 };
 
 export type ReceiptPayload = {
   platformLabel: string;
   orderNumber: string;
+  locationLabel?: string | null;
   createdAt?: string | null;
   customerName?: string | null;
   customerPhone?: string | null;
@@ -46,10 +48,17 @@ export type MarketplaceLikeOrder = {
   }>;
 };
 
+export type SelectedReceiptOption = {
+  groupName?: string | null;
+  optionName?: string | null;
+};
+
 export type KitchenLikeOrder = {
   id: number;
   orderSource?: string | null;
   tableName?: string | null;
+  tableId?: number | null;
+  deliveryType?: string | null;
   customerName?: string | null;
   note?: string | null;
   waiterNote?: string | null;
@@ -62,7 +71,7 @@ export type KitchenLikeOrder = {
     quantity: number;
     unitPrice?: number | string;
     note?: string | null;
-    selectedOptions?: Array<{ optionName?: string | null }>;
+    selectedOptions?: SelectedReceiptOption[] | null;
   }>;
 };
 
@@ -71,6 +80,57 @@ export function platformLabelForSource(source: PrintSource): string {
   if (source === "UBER_EATS") return "Uber Eats";
   if (source === "QR") return "QR / Masa";
   return "Test fisi";
+}
+
+function normalizeReceiptSource(value?: string | null): string {
+  return (value ?? "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+}
+
+export function receiptSourceLabel(orderSource?: string | null): string {
+  const source = normalizeReceiptSource(orderSource);
+  if (source === "UBER_EATS" || source === "UBEREATS" || source === "UBER") return "Uber Eats";
+  if (source === "YEMEKSEPETI" || source === "YEMEK_SEPETI" || source === "YS") return "Yemek Sepeti";
+  if (source === "PHONE") return "Telefon";
+  if (
+    source === "STORE" ||
+    source === "ONLINE" ||
+    source === "ONLINE_ORDER" ||
+    source === "WEB" ||
+    source === "ALGORY" ||
+    source === "ALGORYQR"
+  ) {
+    return "Online Sipariş";
+  }
+  return "İç sipariş";
+}
+
+export function formatSelectedOptionLines(options?: SelectedReceiptOption[] | null): string[] {
+  if (!options?.length) return [];
+  const groups: Array<{ groupName: string | null; names: string[] }> = [];
+  for (const option of options) {
+    const name = option.optionName?.trim();
+    if (!name) continue;
+    const groupName = option.groupName?.trim() || null;
+    const existing = groups.find((group) => group.groupName === groupName);
+    if (existing) existing.names.push(name);
+    else groups.push({ groupName, names: [name] });
+  }
+  return groups.map((group) =>
+    group.groupName ? `${group.groupName}: ${group.names.join(", ")}` : group.names.join(", "),
+  );
+}
+
+function receiptLocationLabel(order: KitchenLikeOrder): string | null {
+  if (receiptSourceLabel(order.orderSource) === "İç sipariş") {
+    const name = order.tableName?.trim();
+    if (name) return `Masa: ${name}`;
+    if (order.tableId != null) return `Masa: Masa ${order.tableId}`;
+    return "Masa";
+  }
+  const delivery = (order.deliveryType ?? "").trim().toUpperCase();
+  if (delivery === "PICKUP" || delivery === "STORE") return "Gel al";
+  if (delivery === "DELIVERY") return "Teslimat";
+  return null;
 }
 
 function formatAmount(value?: number | string | null, currency = "TRY"): string {
@@ -109,22 +169,18 @@ export function marketplaceOrderToReceipt(
 }
 
 export function kitchenOrderToReceipt(order: KitchenLikeOrder): ReceiptPayload {
-  const source = order.orderSource === "UBER_EATS" ? "Uber Eats" : order.tableName || "QR / Masa";
   return {
-    platformLabel: source,
+    platformLabel: receiptSourceLabel(order.orderSource),
     orderNumber: String(order.id),
+    locationLabel: receiptLocationLabel(order),
     createdAt: order.submittedAt || order.createdAt,
     customerName: order.customerName,
     note: [order.note, order.waiterNote].filter(Boolean).join(" | ") || null,
     items: (order.items ?? []).map((item) => ({
       quantity: item.quantity,
       name: item.productName?.trim() || "Urun",
-      detail: [
-        item.selectedOptions?.map((option) => option.optionName).filter(Boolean).join(", "),
-        item.note,
-      ]
-        .filter(Boolean)
-        .join(" | ") || null,
+      details: formatSelectedOptionLines(item.selectedOptions),
+      detail: item.note?.trim() || null,
       unitPrice: item.unitPrice != null ? Number(item.unitPrice) : null,
     })),
     totalAmount: order.totalAmount != null ? Number(order.totalAmount) : null,
@@ -145,11 +201,21 @@ export function testReceiptPayload(): ReceiptPayload {
   };
 }
 
+function indentedDetailLines(value?: string | null): string[] {
+  if (!value) return [];
+  return value
+    .split("\n")
+    .map((row) => row.trim())
+    .filter(Boolean)
+    .map((row) => `  ${row}`);
+}
+
 export function formatReceiptText(payload: ReceiptPayload): string {
   const lines: string[] = [
     payload.platformLabel,
     `Siparis: ${payload.orderNumber}`,
   ];
+  if (payload.locationLabel?.trim()) lines.push(payload.locationLabel.trim());
   if (payload.createdAt) lines.push(payload.createdAt);
   if (payload.customerName) lines.push(`Musteri: ${payload.customerName}`);
   if (payload.customerPhone) lines.push(`Tel: ${payload.customerPhone}`);
@@ -159,7 +225,11 @@ export function formatReceiptText(payload: ReceiptPayload): string {
   lines.push("----------------");
   for (const item of payload.items) {
     lines.push(`${item.quantity}x ${item.name}`);
-    if (item.detail) lines.push(`  ${item.detail}`);
+    for (const row of item.details ?? []) {
+      const trimmed = row.trim();
+      if (trimmed) lines.push(`  ${trimmed}`);
+    }
+    lines.push(...indentedDetailLines(item.detail));
   }
   if (payload.note) {
     lines.push("----------------");

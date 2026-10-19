@@ -45,9 +45,7 @@ export default function DashboardOverviewView() {
     shifts: showMenus && canReport,
   });
 
-  const liveOrdersHref = DASHBOARD_ROUTES.kitchenScreen(
-    effectiveScope === "all" ? (branches.length === 1 ? branches[0].id : null) : effectiveScope,
-  );
+  const liveOrdersHref = DASHBOARD_ROUTES.orders;
   const dataLoading = accessLoading || branchesQuery.isLoading;
 
   return (

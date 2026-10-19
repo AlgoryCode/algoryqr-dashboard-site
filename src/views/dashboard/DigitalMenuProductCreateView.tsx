@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 
 import {
@@ -33,6 +33,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   createCatalogProductRequest,
   createMenuProductRequest,
+  listCatalogProductsRequest,
   MenuProductRequestBody,
   NutritionBasis,
   NutritionFacts,
@@ -126,6 +127,12 @@ export default function DigitalMenuProductCreateView() {
   const tags = tagsQuery.data ?? [];
   const allergens = allergensQuery.data ?? [];
   const productsQuery = useMenuProducts(menuId > 0 ? menuId : null);
+  const catalogProductsQuery = useQuery({
+    queryKey: ["catalog-products"],
+    queryFn: listCatalogProductsRequest,
+    enabled: menuId <= 0,
+  });
+  const optionSourceProducts = menuId > 0 ? productsQuery.data ?? [] : catalogProductsQuery.data ?? [];
 
   const [form, setForm] = useState<MenuProductRequestBody>(() => emptyForm(presetCategoryId));
   const [optionGroups, setOptionGroups] = useState<ProductOptionGroupForm[]>(emptyOptionGroups);
@@ -461,6 +468,7 @@ export default function DigitalMenuProductCreateView() {
             groups={optionGroups}
             onChange={setOptionGroups}
             disabled={busy}
+            products={optionSourceProducts}
           />
 
           <ProductPairingFields
