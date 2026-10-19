@@ -7,6 +7,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 
 import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { PrintAgentApiKeySection } from "@/components/dashboard/PrintAgentApiKeySection";
 import { useDigitalMenuAccess } from "@/components/dashboard/menu/DigitalMenuPicker";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -105,7 +106,7 @@ export default function PrinterHubView() {
     persist({ sources });
   }
 
-  if (accessLoading || dashboardQuery.isLoading) {
+  if (accessLoading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
@@ -120,10 +121,6 @@ export default function PrinterHubView() {
 
   if (!canUseDigitalMenu) {
     return <p className="text-sm text-muted-foreground">Bu özellik dijital menü paketi gerektirir.</p>;
-  }
-
-  if (!settings || !station) {
-    return <p className="text-sm text-muted-foreground">Yazıcı ayarları alınamadı.</p>;
   }
 
   return (
@@ -148,6 +145,17 @@ export default function PrinterHubView() {
         }
       />
 
+      <PrintAgentApiKeySection onNotify={notify} />
+
+      {!settings || !station ? (
+        dashboardQuery.isLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Yazıcı bağlantısı yükleniyor...
+          </div>
+        ) : null
+      ) : (
+      <>
       <section className={`${DASHBOARD_SURFACE} space-y-4 p-4 sm:p-5`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -297,6 +305,8 @@ export default function PrinterHubView() {
           Otomatik kes
         </label>
       </section>
+      </>
+      )}
     </div>
   );
 }

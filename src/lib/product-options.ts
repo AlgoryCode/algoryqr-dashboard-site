@@ -206,6 +206,41 @@ export function formatSelectedOptionsLabel(
   return names.length ? names.join(", ") : null;
 }
 
+export type OptionSourceProduct = {
+  productId: number;
+  name: string;
+  price?: number | string | null;
+};
+
+export function formatOptionPriceDelta(price?: number | string | null): string {
+  if (price == null || price === "") return "0";
+  const amount = typeof price === "number" ? price : Number.parseFloat(String(price).replace(",", "."));
+  if (!Number.isFinite(amount)) return "0";
+  return amount.toLocaleString("tr-TR", { maximumFractionDigits: 2, useGrouping: false });
+}
+
+export function productChoicesFromCatalog(
+  existingNames: string[],
+  products: OptionSourceProduct[],
+  selectedIds: number[],
+): Array<{ name: string; priceDelta: string }> {
+  const taken = new Set(
+    existingNames.map((name) => name.trim().toLocaleLowerCase("tr-TR")).filter(Boolean),
+  );
+  const selected = new Set(selectedIds);
+  const drafts: Array<{ name: string; priceDelta: string }> = [];
+  for (const product of products) {
+    if (!selected.has(product.productId)) continue;
+    const name = product.name.trim();
+    if (!name) continue;
+    const key = name.toLocaleLowerCase("tr-TR");
+    if (taken.has(key)) continue;
+    taken.add(key);
+    drafts.push({ name, priceDelta: formatOptionPriceDelta(product.price) });
+  }
+  return drafts;
+}
+
 export function areOptionSelectionsValid(
   groups: MenuProductOptionGroupApiItem[] | undefined,
   selectedOptionIds: number[],

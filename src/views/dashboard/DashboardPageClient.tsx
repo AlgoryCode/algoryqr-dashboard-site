@@ -80,6 +80,7 @@ import CampaignDetailView from "@/views/dashboard/CampaignDetailView";
 import MenuUserDetailView from "@/views/dashboard/MenuUserDetailView";
 import MenuUsersView from "@/views/dashboard/MenuUsersView";
 import AccountingView from "@/views/dashboard/AccountingView";
+import MyOrdersView from "@/views/dashboard/MyOrdersView";
 
 interface DashboardPageClientProps {
   initialUser?: StoredUser | null;
@@ -289,6 +290,10 @@ export default function DashboardPageClient({ initialUser = null }: DashboardPag
         <FeedbackView />
       </Suspense>
     );
+  }
+
+  if (pathname === DASHBOARD_ROUTES.orders) {
+    return <MyOrdersView />;
   }
 
   if (pathname === DASHBOARD_ROUTES.reservations) {

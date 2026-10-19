@@ -88,7 +88,7 @@ export function PrintAgentApiKeySection({ merchantId, onNotify }: Props) {
       const result = await createPrintApiKeyRequest(id, "Print Agent");
       setCredentials(result);
       setShowApiKey(false);
-      onNotify("info", "API Key üretildi. Yazıcı ajanına Kullanıcı ID, Şube ID ve API Key ile bağlanın.");
+      onNotify("info", "API Key üretildi ve kaydedildi. Yazıcı ajanına İşletme ID, Şube ID ve API Key ile bağlanın.");
     } catch (error) {
       onNotify("danger", error instanceof ApiError ? error.message : "API Key üretilemedi.");
     } finally {
@@ -107,8 +107,8 @@ export function PrintAgentApiKeySection({ merchantId, onNotify }: Props) {
         <Printer className="h-4 w-4 text-muted-foreground" /> Yazıcı ajanı API Key
       </h2>
       <p className="text-sm text-muted-foreground">
-        Firma hesabınız için yazıcı ajanı anahtarı üretin. Windows uygulamasında Kullanıcı ID, Şube ID
-        ve API Key ile bağlanırsınız.
+        Fiş yazıcısı ajanı için işletme, şube ve API anahtarı gerekir. Key üret dediğinizde anahtar
+        oluşturulur, hesabınıza kaydedilir ve burada gösterilir.
       </p>
 
       {branchesQuery.isLoading ? (
@@ -155,7 +155,7 @@ export function PrintAgentApiKeySection({ merchantId, onNotify }: Props) {
           </div>
 
           <div className="space-y-1.5">
-            <Label>Kullanıcı ID</Label>
+            <Label>İşletme ID</Label>
             <div className="flex gap-2">
               <Input
                 readOnly
@@ -168,7 +168,7 @@ export function PrintAgentApiKeySection({ merchantId, onNotify }: Props) {
                 size="icon"
                 disabled={displayMerchantId == null}
                 onClick={() => void copyValue("İşletme ID", String(displayMerchantId))}
-                aria-label="Kullanıcı ID kopyala"
+                aria-label="İşletme ID kopyala"
               >
                 <Copy className="h-4 w-4" />
               </Button>
@@ -220,7 +220,7 @@ export function PrintAgentApiKeySection({ merchantId, onNotify }: Props) {
 
           <Button type="button" className="gap-2" disabled={busy || !branchId} onClick={() => void generate()}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-            {credentials ? "Yeni API Key üret" : "API Key üret"}
+            {credentials ? "Yeni key üret" : "Key üret"}
           </Button>
         </div>
       )}

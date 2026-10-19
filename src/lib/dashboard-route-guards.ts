@@ -30,7 +30,7 @@ export function resolveRequiredScope(pathname: string): ProductScope | null {
     return "SMART_REPORTING_OWNER";
   }
 
-  if (isReservationsSectionActive(pathname)) {
+  if (isReservationsSectionActive(pathname) || pathMatches(pathname, DASHBOARD_ROUTES.orders)) {
     return "QR_MENU_OWNER";
   }
 
@@ -65,6 +65,7 @@ export const ROUTE_SCOPES: Partial<Record<string, ProductScope>> = {
   [DASHBOARD_ROUTES.campaigns]: "QR_MENU_OWNER",
   [DASHBOARD_ROUTES.restaurantLayout]: "WAITER_PANEL_OWNER",
   [DASHBOARD_ROUTES.reservations]: "QR_MENU_OWNER",
+  [DASHBOARD_ROUTES.orders]: "QR_MENU_OWNER",
   [DASHBOARD_ROUTES.analyticsLegacy]: "SMART_REPORTING_OWNER",
   [DASHBOARD_ROUTES.analyticsMenuLegacy]: "SMART_REPORTING_OWNER",
   [DASHBOARD_ROUTES.smartReports]: "SMART_REPORTING_OWNER",

@@ -17,7 +17,7 @@ const NAV_EXTRA_KEYWORDS: Partial<Record<string, string>> = {
   products: "ürün yemek fiyat tükendi kategori opsiyon",
   feedback: "yorum puan şikayet geri bildirim",
   staff: "personel garson aşçı kurye kullanıcı",
-  liveOrders: "sipariş mutfak canlı akış",
+  liveOrders: "siparişlerim sipariş mutfak canlı akış fiş iptal",
 };
 
 const EXTRA_COMMANDS: DashboardCommandEntry[] = [

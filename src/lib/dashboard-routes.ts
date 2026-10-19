@@ -151,6 +151,7 @@ export const DASHBOARD_ROUTES = {
   courierPanel: STAFF_SITE_ORIGIN,
   kitchenScreen: (branchId?: number | string | null) =>
     branchId != null && branchId !== "" ? `/mutfak?branch=${branchId}` : "/mutfak",
+  orders: "/dashboard/siparislerim",
 
   digitalMenuCheckout: (packageId: number | string) =>
     `/dashboard/dijital-menu/satin-al/${packageId}`,
@@ -342,10 +343,10 @@ export const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
   },
   {
     key: "liveOrders",
-    label: "Canlı siparişler",
+    label: "Siparişlerim",
     mobileLabel: "Siparişler",
-    href: DASHBOARD_ROUTES.kitchenScreen(),
-    requiredScope: "WAITER_PANEL_OWNER",
+    href: DASHBOARD_ROUTES.orders,
+    requiredScope: "QR_MENU_OWNER",
   },
   {
     key: "reservations",
@@ -496,6 +497,11 @@ export function buildDashboardBreadcrumbs(
 
   if (isReservationsSectionActive(pathname)) {
     crumbs.push({ label: "Rezervasyonlar" });
+    return crumbs;
+  }
+
+  if (isOrdersSectionActive(pathname)) {
+    crumbs.push({ label: "Siparişlerim" });
     return crumbs;
   }
 
@@ -824,6 +830,10 @@ export function isReservationsSectionActive(pathname: string): boolean {
     pathname === DASHBOARD_ROUTES.reservations ||
     pathname.startsWith(`${DASHBOARD_ROUTES.reservations}/`)
   );
+}
+
+export function isOrdersSectionActive(pathname: string): boolean {
+  return pathname === DASHBOARD_ROUTES.orders || pathname.startsWith(`${DASHBOARD_ROUTES.orders}/`);
 }
 
 export function isIntegrationsSectionActive(pathname: string): boolean {

@@ -643,9 +643,9 @@ export default function BranchSettingsView({ branchId }: BranchSettingsViewProps
           onOpenChange={setPrintOpen}
         >
           <p className="text-sm text-muted-foreground">
-            Bu şube için otomatik mutfak fişini açıp kapatabilirsiniz. API Key üretmek için{" "}
-            <Link href={DASHBOARD_ROUTES.accountSecurity} className="underline underline-offset-2">
-              Hesabım → Güvenlik
+            Bu şube için otomatik mutfak fişini açıp kapatabilirsiniz. API Key, işletme ID ve şube ID için{" "}
+            <Link href={DASHBOARD_ROUTES.printer} className="underline underline-offset-2">
+              Ödeme ve entegrasyonlar → Fiş yazıcısı
             </Link>
             {" "}sayfasını kullanın.
           </p>
@@ -660,7 +660,7 @@ export default function BranchSettingsView({ branchId }: BranchSettingsViewProps
               {printKitchenEnabled ? "Otomatik fişi kapat" : "Otomatik fişi aç"}
             </Button>
             <Button asChild variant="outline" size="sm">
-              <Link href={DASHBOARD_ROUTES.accountSecurity}>API Key yönet</Link>
+              <Link href={DASHBOARD_ROUTES.printer}>API Key yönet</Link>
             </Button>
           </div>
           {printDevices.length > 0 ? (

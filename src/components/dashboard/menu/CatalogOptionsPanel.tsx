@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, Link2, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 
+import { AddProductsAsOptions } from "@/components/dashboard/menu/ProductOptionFields";
 import { SearchableSelect } from "@/components/dashboard/menu/SearchableSelect";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import {
@@ -514,6 +515,24 @@ export function CatalogOptionsPanel() {
                     Seçenek
                   </Button>
                 </div>
+                <AddProductsAsOptions
+                  products={products}
+                  existingNames={draft.choices.map((choice) => choice.name)}
+                  disabled={saving}
+                  onAdd={(added) =>
+                    setDraft({
+                      ...draft,
+                      choices: [
+                        ...draft.choices,
+                        ...added.map((choice) => ({
+                          name: choice.name,
+                          priceDelta: choice.priceDelta,
+                          available: true,
+                        })),
+                      ],
+                    })
+                  }
+                />
                 {draft.choices.map((choice, index) => (
                   <div key={index} className="grid grid-cols-[minmax(0,1fr)_7rem_auto_auto] items-center gap-2">
                     <Input

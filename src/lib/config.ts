@@ -31,7 +31,7 @@ function resolveApiBaseUrl(): string {
     // ignore
   }
 
-  if (typeof window !== "undefined" || process.env.NODE_ENV !== "production") return "http://localhost:8055";
+  if (typeof window !== "undefined" || process.env.NODE_ENV !== "production") return "http://localhost:8080";
   if (process.env["NEXT_PHASE"] === "phase-production-build") return STAGE_API_BASE;
   throw new Error("API_BASE_URL is required");
 }

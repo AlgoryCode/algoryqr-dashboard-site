@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 
+import { SearchableMultiSelect } from "@/components/dashboard/menu/SearchableMultiSelect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +24,8 @@ import {
   normalizeOptionUnit,
   type MenuProductOptionGroupKind,
   type MenuProductOptionUnit,
+  type OptionSourceProduct,
+  productChoicesFromCatalog,
 } from "@/lib/product-options";
 
 export type ProductOptionFormItem = {
@@ -97,7 +101,65 @@ type ProductOptionFieldsProps = {
   groups: ProductOptionGroupForm[];
   onChange: (next: ProductOptionGroupForm[]) => void;
   disabled?: boolean;
+  products?: OptionSourceProduct[];
+  excludeProductId?: number;
 };
+
+export function AddProductsAsOptions({
+  products,
+  existingNames,
+  disabled = false,
+  excludeProductId,
+  onAdd,
+}: {
+  products: OptionSourceProduct[];
+  existingNames: string[];
+  disabled?: boolean;
+  excludeProductId?: number;
+  onAdd: (drafts: Array<{ name: string; priceDelta: string }>) => void;
+}) {
+  const [selected, setSelected] = useState<string[]>([]);
+  const choices = products.filter((product) => product.productId !== excludeProductId && product.name.trim());
+  if (choices.length === 0) return null;
+
+  return (
+    <div className="flex items-end gap-2">
+      <div className="min-w-0 flex-1 space-y-1">
+        <Label className="text-xs">Ürünlerden ekle</Label>
+        <SearchableMultiSelect
+          values={selected}
+          onValuesChange={setSelected}
+          options={choices.map((product) => ({
+            value: String(product.productId),
+            label: product.name,
+          }))}
+          placeholder="İçecek, tatlı..."
+          searchPlaceholder="Ürün ara..."
+          emptyText="Ürün yok."
+          disabled={disabled}
+        />
+      </div>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="h-10 shrink-0"
+        disabled={disabled || selected.length === 0}
+        onClick={() => {
+          const drafts = productChoicesFromCatalog(
+            existingNames,
+            choices,
+            selected.map((value) => Number(value)).filter((id) => Number.isFinite(id)),
+          );
+          if (drafts.length > 0) onAdd(drafts);
+          setSelected([]);
+        }}
+      >
+        Ekle
+      </Button>
+    </div>
+  );
+}
 
 function defaultsForKind(kind: MenuProductOptionGroupKind) {
   return OPTION_GROUP_KINDS.find((item) => item.value === kind) ?? OPTION_GROUP_KINDS.at(-1)!;
@@ -107,6 +169,8 @@ export function ProductOptionFields({
   groups,
   onChange,
   disabled = false,
+  products = [],
+  excludeProductId,
 }: ProductOptionFieldsProps) {
   const updateGroup = (index: number, patch: Partial<ProductOptionGroupForm>) => {
     onChange(groups.map((group, i) => (i === index ? { ...group, ...patch } : group)));
@@ -360,6 +424,25 @@ export function ProductOptionFields({
                   </Button>
                 </div>
               ))}
+              <AddProductsAsOptions
+                products={products}
+                existingNames={group.options.map((option) => option.name)}
+                disabled={disabled}
+                excludeProductId={excludeProductId}
+                onAdd={(drafts) =>
+                  updateGroup(groupIndex, {
+                    options: [
+                      ...group.options,
+                      ...drafts.map((draft, index) => ({
+                        name: draft.name,
+                        priceDelta: draft.priceDelta,
+                        available: true,
+                        sortOrder: group.options.length + index,
+                      })),
+                    ],
+                  })
+                }
+              />
               <Button
                 type="button"
                 size="sm"

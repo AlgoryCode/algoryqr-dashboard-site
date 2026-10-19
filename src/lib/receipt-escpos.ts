@@ -44,7 +44,9 @@ export function buildEscPosBuffer(payload: ReceiptPayload, options?: { copies?: 
     line(payload.platformLabel);
     push(ESC, 0x45, 0);
     push(ESC, 0x61, 0);
-    for (const row of formatReceiptText(payload).split("\n")) {
+    const rows = formatReceiptText(payload).split("\n");
+    const body = rows[0] === payload.platformLabel ? rows.slice(1) : rows;
+    for (const row of body) {
       line(row);
     }
     push(0x0a, 0x0a);

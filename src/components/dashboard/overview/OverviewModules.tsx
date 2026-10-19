@@ -38,10 +38,11 @@ const OVERVIEW_MODULES: OverviewModule[] = [
   {
     id: "orders",
     title: "Siparişler ve rezervasyon",
-    description: "Canlı sipariş akışı, masa planı ve rezervasyon takvimi",
+    description: "Siparişler, masa planı ve rezervasyon takvimi",
     icon: ClipboardList,
     links: [
-      { label: "Canlı akış", href: DASHBOARD_ROUTES.kitchenScreen(), requiredScope: "WAITER_PANEL_OWNER" },
+      { label: "Siparişlerim", href: DASHBOARD_ROUTES.orders, requiredScope: "QR_MENU_OWNER" },
+      { label: "Mutfak ekranı", href: DASHBOARD_ROUTES.kitchenScreen(), requiredScope: "WAITER_PANEL_OWNER" },
       { label: "Online siparişler", href: DASHBOARD_ROUTES.onlineOrderOrders, requiredScope: "QR_MENU_OWNER" },
       { label: "Masa planı", href: DASHBOARD_ROUTES.restaurantLayout, requiredScope: "WAITER_PANEL_OWNER" },
       { label: "Rezervasyonlar", href: DASHBOARD_ROUTES.reservations, requiredScope: "QR_MENU_OWNER" },

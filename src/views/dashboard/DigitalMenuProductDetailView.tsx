@@ -501,6 +501,8 @@ export default function DigitalMenuProductDetailView({ productId }: DigitalMenuP
                   groups={form.optionGroups}
                   onChange={(optionGroups) => setForm({ ...form, optionGroups })}
                   disabled={busy}
+                  products={scopedToMenu ? productsQuery.data ?? [] : catalogQuery.data ?? []}
+                  excludeProductId={product.productId}
                 />
               </div>
               <div className="col-span-2">
