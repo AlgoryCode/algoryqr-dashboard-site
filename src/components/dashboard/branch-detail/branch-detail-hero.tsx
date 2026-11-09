@@ -449,7 +449,7 @@ function Contact({ address, phone }: { address: string | null; phone: string | n
 const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 
-function BranchPhoto({
+export function BranchPhoto({
   branchId,
   name,
   photoUrl,

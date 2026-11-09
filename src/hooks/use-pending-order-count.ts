@@ -11,7 +11,13 @@ export function usePendingOrderCount(enabled: boolean) {
 
   const ordersQuery = useQuery({
     queryKey: ["menu-orders-active-count", menuId],
-    queryFn: () => listMerchantOrders(menuId!, "ALL"),
+    queryFn: async () => {
+      const [confirmed, submitted] = await Promise.all([
+        listMerchantOrders(menuId!, "CONFIRMED"),
+        listMerchantOrders(menuId!, "SUBMITTED"),
+      ]);
+      return [...confirmed, ...submitted];
+    },
     enabled: enabled && menuId != null,
     refetchInterval: 30_000,
     staleTime: 15_000,

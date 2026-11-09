@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, Loader2, Plus, Search } from "lucide-react";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronLeft, ChevronRight, Loader2, Plus, Search } from "lucide-react";
 
 import { SearchableSelect } from "@/components/dashboard/menu/SearchableSelect";
 import { ChoiceBadges, StaffBranchAssignForm } from "@/components/dashboard/staff/StaffRosterControls";
@@ -32,12 +32,13 @@ import {
 } from "@/components/ui/table";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
 import { useBranches } from "@/hooks/use-branches";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { formatBranchCode, formatBranchListLabel, type BranchItem } from "@/lib/branch";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import {
   assignMerchantStaffBranch,
   createMerchantStaff,
-  listMerchantStaff,
+  listMerchantStaffPage,
   MERCHANT_STAFF_QUERY_KEY,
   parseStaffRole,
   STAFF_ROLE_LABEL,
@@ -76,10 +77,7 @@ const CREATE_ROLE_OPTIONS: ReadonlyArray<{ value: StaffRole; label: string }> = 
   { value: "COURIER", label: "Kurye" },
 ];
 
-function matchesSearch(haystack: string, query: string): boolean {
-  if (!query) return true;
-  return haystack.toLocaleLowerCase("tr").includes(query);
-}
+const STAFF_PAGE_SIZE = 20;
 
 function branchLabel(branches: BranchItem[], branchId?: number | null): string {
   if (branchId == null) return "Şubesiz";
@@ -119,18 +117,52 @@ export default function MenuUsersView() {
   const [activity, setActivity] = useState<ActivityFilter>("all");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
   const [branchFilter, setBranchFilter] = useState<number | "all">(initialBranchId ?? "all");
-  const [createOpen, setCreateOpen] = useState(false);
+  // Üst bardaki "Yeni → Personel" kısayolu ?yeni=1 ile gelir.
+  const [createOpen, setCreateOpen] = useState(() => searchParams.get("yeni") === "1");
+  const createRequested = searchParams.get("yeni") === "1";
+  useEffect(() => {
+    if (createRequested) setCreateOpen(true);
+  }, [createRequested]);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [staffRole, setStaffRole] = useState<StaffRole>("WAITER");
   const [assignTarget, setAssignTarget] = useState<MenuWaiterMember | null>(null);
+  const debouncedSearch = useDebouncedValue(search.trim(), 300);
+  const effectiveBranchId = assignment === "assigned" && branchFilter !== "all" ? branchFilter : null;
+
+  // Sayfa, filtre anahtarına bağlı: arama/filtre değişince otomatik ilk sayfaya döner.
+  const filterKey = [debouncedSearch, assignment, activity, roleFilter, effectiveBranchId ?? ""].join("|");
+  const [pageState, setPageState] = useState({ key: filterKey, page: 0 });
+  const page = pageState.key === filterKey ? pageState.page : 0;
+  const setPage = (next: number | ((current: number) => number)) =>
+    setPageState({ key: filterKey, page: typeof next === "function" ? next(page) : next });
+
+  const pageParams = {
+    page,
+    size: STAFF_PAGE_SIZE,
+    q: debouncedSearch,
+    assignment,
+    branchId: effectiveBranchId,
+    active: activity === "all" ? null : activity === "active",
+    role: roleFilter === "all" ? null : roleFilter,
+  };
 
   const usersQuery = useQuery({
-    queryKey: MERCHANT_STAFF_QUERY_KEY,
+    queryKey: [...MERCHANT_STAFF_QUERY_KEY, "page", pageParams],
     enabled: canUseWaiterPanel && !accessLoading,
-    queryFn: listMerchantStaff,
+    queryFn: () => listMerchantStaffPage(pageParams),
+    placeholderData: keepPreviousData,
   });
+
+  const totalPages = usersQuery.data?.totalPages ?? 0;
+
+  // Son sayfadaki kayıtlar azaldıysa geçerli sayfaya çek.
+  useEffect(() => {
+    if (totalPages > 0 && page > totalPages - 1) {
+      setPageState({ key: filterKey, page: totalPages - 1 });
+    }
+  }, [filterKey, page, totalPages]);
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -140,7 +172,7 @@ export default function MenuUsersView() {
         displayName: displayName.trim(),
         staffRole,
       }),
-    onSuccess: async (created) => {
+    onSuccess: async () => {
       setUsername("");
       setPassword("");
       setDisplayName("");
@@ -151,11 +183,6 @@ export default function MenuUsersView() {
       setRoleFilter("all");
       setBranchFilter("all");
       setSearch("");
-      queryClient.setQueryData<MenuWaiterMember[]>(MERCHANT_STAFF_QUERY_KEY, (current) => {
-        const staff = current ?? [];
-        if (staff.some((member) => member.id === created.id)) return staff;
-        return [...staff, created];
-      });
       await queryClient.invalidateQueries({ queryKey: MERCHANT_STAFF_QUERY_KEY });
       await queryClient.invalidateQueries({ queryKey: ["menu-users"] });
       router.replace(DASHBOARD_ROUTES.menuUsers);
@@ -181,33 +208,12 @@ export default function MenuUsersView() {
     },
   });
 
-  const waiters = usersQuery.data ?? [];
-  const query = search.trim().toLocaleLowerCase("tr");
-
-  const filteredWaiters = useMemo(
-    () =>
-      waiters.filter((member) => {
-        const assigned = member.branchId != null;
-        if (assignment === "assigned" && !assigned) return false;
-        if (assignment === "unassigned" && assigned) return false;
-        if (assignment === "assigned" && branchFilter !== "all" && member.branchId !== branchFilter) {
-          return false;
-        }
-        if (activity === "active" && !member.active) return false;
-        if (activity === "inactive" && member.active) return false;
-        if (roleFilter !== "all" && parseStaffRole(member.staffRole) !== roleFilter) return false;
-        return matchesSearch(
-          [
-            member.displayName,
-            member.username,
-            STAFF_ROLE_LABEL[parseStaffRole(member.staffRole)],
-            branchLabel(branches, member.branchId),
-          ].join(" "),
-          query,
-        );
-      }),
-    [activity, assignment, branchFilter, branches, query, roleFilter, waiters],
-  );
+  const staffPage = usersQuery.data;
+  const pagedStaff = staffPage?.items ?? [];
+  const totalElements = staffPage?.totalElements ?? 0;
+  const currentPage = staffPage?.page ?? page;
+  const rangeStart = totalElements === 0 ? 0 : currentPage * STAFF_PAGE_SIZE + 1;
+  const rangeEnd = Math.min(totalElements, currentPage * STAFF_PAGE_SIZE + pagedStaff.length);
 
   const resetCreateForm = () => {
     setUsername("");
@@ -217,7 +223,7 @@ export default function MenuUsersView() {
   };
 
   const hasFilter =
-    Boolean(query) ||
+    Boolean(debouncedSearch) ||
     assignment !== "all" ||
     activity !== "all" ||
     roleFilter !== "all";
@@ -257,7 +263,7 @@ export default function MenuUsersView() {
 
       {!canUseWaiterPanel ? (
         <p className="text-sm text-muted-foreground">Personel paneli bu hesapta açık değil.</p>
-      ) : usersQuery.isLoading ? (
+      ) : usersQuery.isPending ? (
         <DashboardLoadingState label="Personel yükleniyor..." />
       ) : usersQuery.isError ? (
         <p className="text-sm text-destructive">
@@ -270,6 +276,9 @@ export default function MenuUsersView() {
               <h2 className="text-base font-semibold">Personel</h2>
               <div className="relative w-full sm:max-w-xs">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                {usersQuery.isFetching ? (
+                  <Loader2 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+                ) : null}
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -327,7 +336,7 @@ export default function MenuUsersView() {
               />
             </div>
 
-            {filteredWaiters.length === 0 ? (
+            {pagedStaff.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
                 {emptyLabel}
               </div>
@@ -345,7 +354,7 @@ export default function MenuUsersView() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredWaiters.map((member) => {
+                    {pagedStaff.map((member) => {
                       const href = DASHBOARD_ROUTES.menuUserDetail(member.id, member.branchId);
                       return (
                         <TableRow
@@ -388,6 +397,41 @@ export default function MenuUsersView() {
                 </Table>
               </div>
             )}
+
+            {totalElements > 0 ? (
+              <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                <span>
+                  {rangeStart}–{rangeEnd} / {totalElements} personel
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1"
+                    disabled={currentPage <= 0 || usersQuery.isFetching}
+                    onClick={() => setPage((current) => Math.max(0, current - 1))}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Önceki
+                  </Button>
+                  <span className="min-w-[72px] text-center">
+                    {currentPage + 1} / {Math.max(totalPages, 1)}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1"
+                    disabled={!staffPage?.hasNext || usersQuery.isFetching}
+                    onClick={() => setPage((current) => current + 1)}
+                  >
+                    Sonraki
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </section>
         </div>
       )}
@@ -396,7 +440,10 @@ export default function MenuUsersView() {
         open={createOpen}
         onOpenChange={(open) => {
           setCreateOpen(open);
-          if (!open) resetCreateForm();
+          if (!open) {
+            resetCreateForm();
+            if (searchParams.get("yeni") === "1") router.replace(DASHBOARD_ROUTES.menuUsers, { scroll: false });
+          }
         }}
       >
         <DialogContent className="max-w-sm">

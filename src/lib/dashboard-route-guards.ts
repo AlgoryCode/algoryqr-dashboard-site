@@ -67,7 +67,6 @@ export const ROUTE_SCOPES: Partial<Record<string, ProductScope>> = {
   [DASHBOARD_ROUTES.reservations]: "QR_MENU_OWNER",
   [DASHBOARD_ROUTES.orders]: "QR_MENU_OWNER",
   [DASHBOARD_ROUTES.analyticsLegacy]: "SMART_REPORTING_OWNER",
-  [DASHBOARD_ROUTES.analyticsMenuLegacy]: "SMART_REPORTING_OWNER",
   [DASHBOARD_ROUTES.smartReports]: "SMART_REPORTING_OWNER",
   [DASHBOARD_ROUTES.qrCodes]: "QR_CREATE_OWNER",
   [DASHBOARD_ROUTES.digitalMenu]: "QR_MENU_OWNER",

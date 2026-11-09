@@ -18,7 +18,7 @@ export type AccessSession = {
 const PURCHASE_ALLOWLIST_PREFIXES = [
   DASHBOARD_ROUTES.accountPackages,
   DASHBOARD_ROUTES.modules,
-  "/dashboard/hesabim/abonelik",
+  "/hesabim/abonelik",
   DASHBOARD_ROUTES.accountPaymentMethods,
   DASHBOARD_ROUTES.accountBillingAddresses,
   DASHBOARD_ROUTES.accountPaymentHistory,

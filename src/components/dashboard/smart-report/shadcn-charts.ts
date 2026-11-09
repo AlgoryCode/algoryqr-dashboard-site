@@ -73,7 +73,29 @@ export function keepActivePoints(points: PulseAreaPoint[]): PulseAreaPoint[] {
 export type CiroWorthPoint = {
   label: string;
   value: number;
+  /** Nakit tahsilat; API kırılım göndermediyse tanımsız. */
+  cash?: number;
+  /** Kart tahsilatı; API kırılım göndermediyse tanımsız. */
+  card?: number;
 };
+
+type PaymentSplitRow = { cashRevenue?: number | string | null; cardRevenue?: number | string | null };
+
+function hasPaymentSplit(rows: PaymentSplitRow[]): boolean {
+  return rows.some((row) => row.cashRevenue != null || row.cardRevenue != null);
+}
+
+function splitByKey<K>(
+  rows: (PaymentSplitRow & { key: K })[],
+): { cash: Map<K, number>; card: Map<K, number> } {
+  const cash = new Map<K, number>();
+  const card = new Map<K, number>();
+  for (const row of rows) {
+    cash.set(row.key, (cash.get(row.key) ?? 0) + toAmount(row.cashRevenue));
+    card.set(row.key, (card.get(row.key) ?? 0) + toAmount(row.cardRevenue));
+  }
+  return { cash, card };
+}
 
 export function buildCiroWorthSeries(revenue: MenuRevenueReportResponse): CiroWorthPoint[] {
   const points = isSingleDayRange(revenue.from, revenue.to) ? hourlyWorth(revenue) : dailyWorth(revenue);
@@ -83,17 +105,23 @@ export function buildCiroWorthSeries(revenue: MenuRevenueReportResponse): CiroWo
 }
 
 function hourlyWorth(revenue: MenuRevenueReportResponse): CiroWorthPoint[] {
-  return fillHourlyPoints(revenue.hourly ?? []).map((row) => ({
+  const rows = revenue.hourly ?? [];
+  const split = hasPaymentSplit(rows) ? splitByKey(rows.map((row) => ({ ...row, key: row.hour }))) : null;
+  return fillHourlyPoints(rows).map((row) => ({
     label: pulseHourLabel(row.hour),
     value: row.revenue,
+    ...(split ? { cash: split.cash.get(row.hour) ?? 0, card: split.card.get(row.hour) ?? 0 } : {}),
   }));
 }
 
 function dailyWorth(revenue: MenuRevenueReportResponse): CiroWorthPoint[] {
-  const totals = sumByDate(revenue.daily ?? []);
+  const rows = revenue.daily ?? [];
+  const totals = sumByDate(rows);
+  const split = hasPaymentSplit(rows) ? splitByKey(rows.map((row) => ({ ...row, key: row.date }))) : null;
   return eachIsoDate(revenue.from, revenue.to).map((date) => ({
     label: formatReportingDate(date),
     value: totals.get(date) ?? 0,
+    ...(split ? { cash: split.cash.get(date) ?? 0, card: split.card.get(date) ?? 0 } : {}),
   }));
 }
 

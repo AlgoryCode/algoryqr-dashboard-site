@@ -19,6 +19,7 @@ import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { getSiteSameOriginAxios } from "@/lib/site-same-origin-axios";
 import { DASHBOARD_BACK, DASHBOARD_PANEL } from "@/lib/dashboard-surface";
 import { isActivePaidPurchase } from "@/lib/product-access";
+import { TONE_ACTION } from "@/components/dashboard/tone";
 
 export default function PaymentMethodsView() {
   const queryClient = useQueryClient();
@@ -87,7 +88,7 @@ export default function PaymentMethodsView() {
                   </p>
                 </div>
               </div>
-              <Button variant="ghost" size="icon" onClick={() => void removeMethod(method.id)}>
+              <Button variant="ghost" size="icon" onClick={() => void removeMethod(method.id)} className={TONE_ACTION.delete}>
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
             </div>

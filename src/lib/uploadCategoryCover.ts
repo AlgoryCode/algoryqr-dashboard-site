@@ -13,7 +13,7 @@ export async function uploadCatalogCategoryCover(
 
   try {
     const response = await api.post<MainCategoryApiItem>(
-      `/menu/catalog/categories/${categoryId}/cover`,
+      `/menu/categories/${categoryId}/cover`,
       form,
       {
         headers: { "Content-Type": undefined },
@@ -32,7 +32,7 @@ export async function uploadCatalogCategoryCover(
 export async function deleteCatalogCategoryCover(categoryId: number): Promise<MainCategoryApiItem> {
   try {
     const response = await api.delete<MainCategoryApiItem>(
-      `/menu/catalog/categories/${categoryId}/cover`,
+      `/menu/categories/${categoryId}/cover`,
     );
     return response.data;
   } catch (error) {

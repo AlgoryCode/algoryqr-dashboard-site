@@ -21,14 +21,14 @@ export const Kategoriler = dashboardPage("Kategoriler", DASHBOARD_ROUTES.digital
 export const Opsiyonlar = dashboardPage("Opsiyonlar", DASHBOARD_ROUTES.digitalMenuOptions);
 export const Urunler = dashboardPage("Ürünler", DASHBOARD_ROUTES.digitalMenuProducts, qr);
 export const UrunOlustur = dashboardPage("Ürün oluştur", DASHBOARD_ROUTES.digitalMenuProductCreate, qr);
-export const UrunDetay = dashboardPage("Ürün detay", "/dashboard/dijital-menu/urunler/101", { qr: "34" });
+export const UrunDetay = dashboardPage("Ürün detay", "/urunler/101", { qr: "34" });
 export const AiImport = dashboardPage("AI menü aktar", DASHBOARD_ROUTES.digitalMenuAiImport, qr);
 export const SubeOlustur = dashboardPage("Şube oluştur", DASHBOARD_ROUTES.branchCreate);
 export const SubeDetay = dashboardPage("Şube detay", DASHBOARD_ROUTES.branchDetail(1));
 export const SubeAyarlari = dashboardPage("Şube ayarları", DASHBOARD_ROUTES.branchSettings(1));
 export const RestoranDuzeni = dashboardPage(
   "Restoran düzeni",
-  "/dashboard/subedetay/1/ayarlar/restoran-duzeni",
+  "/subedetay/1/ayarlar/restoran-duzeni",
   { qr: "34" },
 );
 export const QrKodlar = dashboardPage("QR kodları", DASHBOARD_ROUTES.qrCodes);

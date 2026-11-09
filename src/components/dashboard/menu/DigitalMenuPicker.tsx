@@ -48,6 +48,8 @@ export function mapDirectoryItemToDashboardQrItem(item: DigitalMenuDirectoryItem
     imgSrc: null,
     details: { type: "menu", businessName: item.businessName, menuId: item.menuId, branchId: item.branchId },
     menuId: item.menuId,
+    trackingEnabled: false,
+    dailyScans: [],
   };
 }
 

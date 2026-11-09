@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import type { RestaurantTable } from "@/lib/ordering-api";
 import { parseLayoutShape, resolveTableCapacity, tableLayoutSize } from "@/lib/restaurant-layout";
 import { cn } from "@/lib/utils";
+import { TONE_ACTION } from "@/components/dashboard/tone";
 
 type LayoutTableToolbarProps = {
   tables: RestaurantTable[];
@@ -127,7 +128,7 @@ export function LayoutTableToolbar({
             type="button"
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className={`h-7 w-7 ${TONE_ACTION.edit}`}
             aria-label={`${table.name} düzenle`}
             onPointerDown={(event) => {
               event.preventDefault();
@@ -142,7 +143,7 @@ export function LayoutTableToolbar({
           type="button"
           variant="ghost"
           size="icon"
-          className="h-7 w-7 text-destructive hover:text-destructive"
+          className={`h-7 w-7 ${TONE_ACTION.delete}`}
           aria-label={many ? "Seçili masaları sil" : `${table.name} sil`}
           onPointerDown={(event) => {
             event.preventDefault();

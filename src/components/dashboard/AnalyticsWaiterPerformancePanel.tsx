@@ -128,6 +128,7 @@ export default function AnalyticsWaiterPerformancePanel({
   );
 
   const { currency, empty, rows, chartData, daily, hourly, products } = view;
+  const itemCards = [...rows].sort((a, b) => b.itemCount - a.itemCount);
   const isFiltered = activeFilter !== WAITER_FILTER_ALL;
   const kpis = view.kpis.map((m) => ({
     ...m,
@@ -192,6 +193,55 @@ export default function AnalyticsWaiterPerformancePanel({
     );
   }
 
+  const soldItemCards =
+    itemCards.length > 0 ? (
+      <div className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold text-foreground">Satılan ürün adedi</h2>
+          {!isMobile ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Personelin seçilen dönemde ödemesini aldığı ürün adedi.
+            </p>
+          ) : null}
+        </div>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 xl:gap-4">
+          {itemCards.map((row) => {
+            const top = row.topProducts[0];
+            return (
+              <div
+                key={row.key}
+                className="rounded-2xl border border-[#e5e7eb] bg-white text-card-foreground shadow-none dark:border-border dark:bg-card"
+              >
+                <div className={cn("flex flex-col", isMobile ? "gap-1.5 p-3.5" : "gap-2 p-5")}>
+                  <div className="flex items-center gap-2">
+                    <ShoppingBag className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" style={{ color: COLORS.violet }} />
+                    <p className="truncate text-xs font-semibold text-muted-foreground sm:text-sm sm:text-foreground">
+                      {row.displayName}
+                    </p>
+                    {!row.unassigned && !row.active ? (
+                      <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+                        Pasif
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="text-lg font-semibold tracking-tight tabular-nums text-foreground sm:text-2xl">
+                    {row.itemCount.toLocaleString("tr-TR")}{" "}
+                    <span className="text-sm font-medium text-muted-foreground">adet</span>
+                  </p>
+                  <p className="text-[11px] text-muted-foreground sm:text-xs">Satılan ürün adedi</p>
+                  {top ? (
+                    <p className="truncate text-[11px] text-muted-foreground sm:text-xs">
+                      En çok: {top.name} ({top.quantity.toLocaleString("tr-TR")} adet)
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    ) : null;
+
   const overview = (
     <div className="space-y-4 md:space-y-6">
       {isMobile && revenueKpi ? (
@@ -229,6 +279,8 @@ export default function AnalyticsWaiterPerformancePanel({
           </motion.div>
         ))}
       </div>
+
+      {soldItemCards}
     </div>
   );
 
@@ -549,7 +601,10 @@ function PersonnelMobileList({
                 </div>
                 <p className="mt-2 text-[11px] tabular-nums text-muted-foreground">
                   {row.orderCount.toLocaleString("tr-TR")} sipariş ·{" "}
-                  {row.itemCount.toLocaleString("tr-TR")} ürün · Bahşiş{" "}
+                  <span className="font-semibold text-foreground">
+                    {row.itemCount.toLocaleString("tr-TR")} adet ürün
+                  </span>{" "}
+                  · Bahşiş{" "}
                   {formatMenuPrice(row.tipAmount, currency)} · Komisyon{" "}
                   {formatMenuPrice(row.commissionAmount, currency)}
                 </p>
@@ -567,7 +622,9 @@ function PersonnelMobileList({
               </button>
               {expanded && row.topProducts.length > 0 ? (
                 <div className="space-y-2 border-t border-border/60 bg-muted/10 px-4 py-3">
-                  <p className="text-[11px] font-medium text-muted-foreground">En çok sattığı ürünler</p>
+                  <p className="text-[11px] font-medium text-muted-foreground">
+                    Toplam {row.itemCount.toLocaleString("tr-TR")} adet ürün · En çok sattığı ürünler
+                  </p>
                   {row.topProducts.map((product) => (
                     <div
                       key={product.key}
@@ -606,8 +663,8 @@ function PersonnelDesktopTable({
       <div className="border-b border-border px-6 py-4">
         <h2 className="text-base font-semibold text-foreground">Personel performans tablosu</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Adisyon ödemeleri, ödeyen garsona göre gruplanır. Satır detayında personelin en çok sattığı ürünler
-          görünür.
+          Adisyon ödemeleri, ödemeyi alan personele göre gruplanır. Satılan ürün, personelin ödemesini aldığı
+          ürün adedidir; satır detayında ürün bazlı adetler görünür.
         </p>
       </div>
       <div className="overflow-x-auto">
@@ -616,7 +673,7 @@ function PersonnelDesktopTable({
             <tr className="border-b border-border bg-muted/30 text-left text-xs text-muted-foreground">
               <th className="px-6 py-3 font-medium">Personel</th>
               <th className="px-4 py-3 font-medium">Sipariş</th>
-              <th className="px-4 py-3 font-medium">Ürün adedi</th>
+              <th className="px-4 py-3 font-medium">Satılan ürün</th>
               <th className="px-4 py-3 font-medium">Ciro</th>
               <th className="px-4 py-3 font-medium">Bahşiş</th>
               <th className="px-4 py-3 font-medium">Komisyon</th>
@@ -655,7 +712,9 @@ function PersonnelDesktopTable({
                       </div>
                     </td>
                     <td className="px-4 py-3 text-foreground">{row.orderCount.toLocaleString("tr-TR")}</td>
-                    <td className="px-4 py-3 text-foreground">{row.itemCount.toLocaleString("tr-TR")}</td>
+                    <td className="px-4 py-3 font-semibold tabular-nums text-foreground">
+                      {row.itemCount.toLocaleString("tr-TR")} adet
+                    </td>
                     <td className="px-4 py-3 text-foreground">{formatMenuPrice(row.revenue, currency)}</td>
                     <td className="px-4 py-3 text-foreground">{formatMenuPrice(row.tipAmount, currency)}</td>
                     <td className="px-4 py-3 text-foreground">
@@ -677,7 +736,9 @@ function PersonnelDesktopTable({
                   {expanded && row.topProducts.length > 0 ? (
                     <tr className="border-b border-border/70 bg-muted/10">
                       <td colSpan={10} className="px-6 py-4">
-                        <p className="mb-2 text-xs font-medium text-muted-foreground">En çok sattığı ürünler</p>
+                        <p className="mb-2 text-xs font-medium text-muted-foreground">
+                          Toplam {row.itemCount.toLocaleString("tr-TR")} adet ürün · En çok sattığı ürünler
+                        </p>
                         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                           {row.topProducts.map((product) => (
                             <div

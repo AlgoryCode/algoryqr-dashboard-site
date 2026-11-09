@@ -17,7 +17,7 @@ export function usePackageUsage(enabled = true) {
     queryFn: async (): Promise<PackageUsageSummary> => {
       const [entitlements, purchases] = await Promise.all([
         getMyEntitlementsRequest(),
-        getMyPurchasesRequest(),
+        getMyPurchasesRequest({ activeOnly: true }),
       ]);
       return aggregatePackageUsage(entitlements, purchases);
     },

@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, ImageIcon, Loader2, Plus, Trash2, Pencil } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Plus } from "lucide-react";
 
 import { AddExistingProductDialog } from "@/components/dashboard/menu/AddExistingProductDialog";
 
@@ -23,7 +22,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { deleteMenuProductRequest, flattenMenuCategories } from "@/lib/api";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
-import { DASHBOARD_LIST_ITEM } from "@/lib/dashboard-surface";
+import { formatProductPrice } from "@/lib/product-list";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
 import { SearchableSelect } from "@/components/dashboard/menu/SearchableSelect";
 import { useMenuCategories, useMenuCategoriesByQr } from "@/hooks/use-menu-categories";
@@ -31,6 +30,7 @@ import {
   invalidateMenuProducts,
   useMenuProductsPage,
 } from "@/hooks/use-menu-products";
+import { ProductListHead, ProductRow } from "@/components/dashboard/menu/ProductRow";
 
 type MenuProductsPanelProps = {
   menuId: number;
@@ -40,32 +40,6 @@ type MenuProductsPanelProps = {
 
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
-
-function ProductListThumbnail({
-  name,
-  imageUrl,
-}: {
-  name: string;
-  imageUrl?: string | null;
-}) {
-  return (
-    <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md border border-border/70 bg-muted/40 sm:h-16 sm:w-16">
-      {imageUrl ? (
-        <img
-          src={imageUrl}
-          alt={name}
-          className="h-full w-full object-cover"
-          loading="lazy"
-          decoding="async"
-        />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center">
-          <ImageIcon className="h-5 w-5 text-muted-foreground/60" aria-hidden />
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default function MenuProductsPanel({
   menuId,
@@ -242,66 +216,37 @@ export default function MenuProductsPanel({
       ) : products.length === 0 ? (
         <p className="text-sm text-muted-foreground">Bu filtrede ürün yok.</p>
       ) : (
-        <div className="space-y-2">
-          {products.map((product) => {
-            const categoryLabel =
-              [product.mainCategoryName, product.subCategoryName]
-                .filter(Boolean)
-                .join(" / ") || product.subCategorySlug;
-            const servingLabel =
-              product.servesPeopleMin != null && product.servesPeopleMax != null
-                ? product.servesPeopleMin === product.servesPeopleMax
-                  ? `${product.servesPeopleMin} kişilik`
-                  : `${product.servesPeopleMin}–${product.servesPeopleMax} kişilik`
-                : null;
-            const priceLabel = product.price ? `${product.price} ${product.currency}` : null;
-
-            return (
-            <div
-              key={product.productId}
-              className={`${DASHBOARD_LIST_ITEM} flex items-start gap-3 sm:items-center`}
-            >
-              <ProductListThumbnail name={product.name} imageUrl={product.imageUrl} />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium leading-snug">{product.name}</p>
-                {categoryLabel ? (
-                  <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{categoryLabel}</p>
-                ) : null}
-                {servingLabel || priceLabel ? (
-                  <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
-                    {[servingLabel, priceLabel].filter(Boolean).join(" · ")}
-                  </p>
-                ) : null}
-              </div>
-              <div className="flex shrink-0 gap-1">
-                <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-                  <Link
-                    href={
-                      qrId != null
-                        ? DASHBOARD_ROUTES.digitalMenuProductDetail(product.productId, qrId)
-                        : DASHBOARD_ROUTES.digitalMenuProductDetailForMenu(
-                            product.productId,
-                            resolvedMenuId,
-                          )
-                    }
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Link>
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-destructive"
-                  onClick={() =>
-                    setDeleteTarget({ productId: product.productId, name: product.name })
+        <div className="-mx-4 border-y border-border sm:-mx-5">
+          <ProductListHead showPlacement={false} />
+          <ul className="divide-y divide-border">
+            {products.map((product) => {
+              const categoryLabel =
+                [product.mainCategoryName, product.subCategoryName].filter(Boolean).join(" / ") ||
+                product.subCategorySlug;
+              const servingLabel =
+                product.servesPeopleMin != null && product.servesPeopleMax != null
+                  ? product.servesPeopleMin === product.servesPeopleMax
+                    ? `${product.servesPeopleMin} kişilik`
+                    : `${product.servesPeopleMin}–${product.servesPeopleMax} kişilik`
+                  : null;
+              return (
+                <ProductRow
+                  key={product.productId}
+                  name={product.name}
+                  imageUrl={product.imageUrl}
+                  href={
+                    qrId != null
+                      ? DASHBOARD_ROUTES.digitalMenuProductDetail(product.productId, qrId)
+                      : DASHBOARD_ROUTES.digitalMenuProductDetailForMenu(product.productId, resolvedMenuId)
                   }
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
-            );
-          })}
+                  category={[categoryLabel, servingLabel].filter(Boolean).join(" · ") || null}
+                  price={formatProductPrice(product.price, product.currency)}
+                  available={product.available !== false}
+                  onDelete={() => setDeleteTarget({ productId: product.productId, name: product.name })}
+                />
+              );
+            })}
+          </ul>
         </div>
       )}
 

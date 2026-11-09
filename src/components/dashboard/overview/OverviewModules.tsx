@@ -17,7 +17,8 @@ import { useAccessProfile } from "@/hooks/use-access-profile";
 import { useAccessSession } from "@/hooks/use-commerce";
 import { hasScope, type ProductScope } from "@/lib/auth-user";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
-import { DASHBOARD_ICON_WELL, DASHBOARD_SURFACE } from "@/lib/dashboard-surface";
+import { DASHBOARD_SURFACE } from "@/lib/dashboard-surface";
+import { ToneIcon, type Tone } from "@/components/dashboard/tone";
 
 type ModuleLink = {
   label: string;
@@ -31,6 +32,7 @@ type OverviewModule = {
   title: string;
   description: string;
   icon: LucideIcon;
+  tone: Tone;
   links: ModuleLink[];
 };
 
@@ -40,6 +42,7 @@ const OVERVIEW_MODULES: OverviewModule[] = [
     title: "Siparişler ve rezervasyon",
     description: "Siparişler, masa planı ve rezervasyon takvimi",
     icon: ClipboardList,
+    tone: "orange",
     links: [
       { label: "Siparişlerim", href: DASHBOARD_ROUTES.orders, requiredScope: "QR_MENU_OWNER" },
       { label: "Mutfak ekranı", href: DASHBOARD_ROUTES.kitchenScreen(), requiredScope: "WAITER_PANEL_OWNER" },
@@ -53,6 +56,7 @@ const OVERVIEW_MODULES: OverviewModule[] = [
     title: "Menü",
     description: "Ürün, fiyat, kategori ve seçenekler",
     icon: BookOpen,
+    tone: "green",
     links: [
       { label: "Menülerim", href: DASHBOARD_ROUTES.digitalMenuMenus, requiredScope: "QR_MENU_OWNER" },
       { label: "Ürünler", href: DASHBOARD_ROUTES.digitalMenuProducts, requiredScope: "QR_MENU_OWNER" },
@@ -65,6 +69,7 @@ const OVERVIEW_MODULES: OverviewModule[] = [
     title: "Stok",
     description: "Hammadde, kritik seviye, fire ve reçeteye göre otomatik düşüm",
     icon: Warehouse,
+    tone: "blue",
     links: [{ label: "Hammaddeler", href: DASHBOARD_ROUTES.stock, requiredScope: "QR_MENU_OWNER" }],
   },
   {
@@ -72,6 +77,7 @@ const OVERVIEW_MODULES: OverviewModule[] = [
     title: "Personel",
     description: "Personel hesapları, roller ve performans",
     icon: IdCard,
+    tone: "teal",
     links: [
       { label: "Personeller", href: DASHBOARD_ROUTES.menuUsers, requiredScope: "WAITER_PANEL_OWNER" },
       { label: "Performans", href: DASHBOARD_ROUTES.reportsHub, requiredScope: "SMART_REPORTING_OWNER" },
@@ -82,6 +88,7 @@ const OVERVIEW_MODULES: OverviewModule[] = [
     title: "Finans ve muhasebe",
     description: "Ciro, gider kayıtları, kâr-zarar ve tahsilat türleri",
     icon: Calculator,
+    tone: "green",
     links: [
       { label: "Gelir-gider", href: DASHBOARD_ROUTES.muhasebe, requiresAllowAccess: true },
       { label: "Ciro raporu", href: DASHBOARD_ROUTES.reportsHub, requiredScope: "SMART_REPORTING_OWNER" },
@@ -92,6 +99,7 @@ const OVERVIEW_MODULES: OverviewModule[] = [
     title: "Müşteri ve pazarlama",
     description: "Yorumlar, müşteriler, kampanya ve kuponlar",
     icon: Megaphone,
+    tone: "red",
     links: [
       { label: "Yorumlar", href: DASHBOARD_ROUTES.feedback, requiredScope: "QR_MENU_OWNER" },
       { label: "Müşteriler", href: DASHBOARD_ROUTES.menuCustomers, requiredScope: "WAITER_PANEL_OWNER" },
@@ -103,6 +111,7 @@ const OVERVIEW_MODULES: OverviewModule[] = [
     title: "Raporlar ve analiz",
     description: "Saatlik yoğunluk, ürün satışları, şube karşılaştırma",
     icon: TrendingUp,
+    tone: "violet",
     links: [
       { label: "Raporlar", href: DASHBOARD_ROUTES.reportsHub, requiredScope: "SMART_REPORTING_OWNER" },
       { label: "Akıllı raporlar", href: DASHBOARD_ROUTES.smartReports, requiredScope: "SMART_REPORTING_OWNER" },
@@ -113,6 +122,7 @@ const OVERVIEW_MODULES: OverviewModule[] = [
     title: "Ayarlar",
     description: "Şubeler, çalışma bilgileri, ödeme ve entegrasyonlar",
     icon: Settings,
+    tone: "blue",
     links: [
       { label: "Şubeler", href: DASHBOARD_ROUTES.myBranches, requiredScope: "QR_MENU_OWNER" },
       { label: "Entegrasyonlar", href: DASHBOARD_ROUTES.integrations, requiredScope: "QR_MENU_OWNER" },
@@ -146,9 +156,7 @@ export function OverviewModules() {
           return (
             <article key={module.id} className={`${DASHBOARD_SURFACE} flex flex-col p-4`}>
               <Link href={module.links[0].href} className="group flex items-start gap-3">
-                <span className={`${DASHBOARD_ICON_WELL} h-9 w-9 text-sm`}>
-                  <Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden />
-                </span>
+                <ToneIcon tone={module.tone} icon={Icon} size="lg" />
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold text-foreground group-hover:underline">
                     {module.title}

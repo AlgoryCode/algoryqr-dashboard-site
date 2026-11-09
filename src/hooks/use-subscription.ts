@@ -42,6 +42,17 @@ export function useSubscription(enabled = true) {
   });
 }
 
+/** For screens that only need the current package; the prefixed key is cleared by invalidateSubscription. */
+export function useActivePurchase(enabled = true) {
+  return useQuery({
+    queryKey: [...SUBSCRIPTION_QUERY_KEY, "active-purchase"],
+    queryFn: async () => pickActivePurchase(await getMyPurchasesRequest({ activeOnly: true })),
+    enabled,
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
 export function useActivePackages(enabled = true) {
   return useQuery({
     queryKey: ACTIVE_PACKAGES_QUERY_KEY,

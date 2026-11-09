@@ -12,6 +12,7 @@ import {
   emptyModifierOption,
   type UberEatsModifierGroupForm,
 } from "@/lib/ubereats-item-form";
+import { TONE_ACTION } from "@/components/dashboard/tone";
 
 type UberEatsModifierGroupFieldsProps = {
   groups: UberEatsModifierGroupForm[];
@@ -71,7 +72,7 @@ export function UberEatsModifierGroupFields({
                 type="button"
                 size="icon"
                 variant="ghost"
-                className="mt-5 shrink-0"
+                className={`mt-5 shrink-0 ${TONE_ACTION.delete}`}
                 disabled={disabled}
                 onClick={() => onChange(groups.filter((_, current) => current !== groupIndex))}
               >
@@ -170,8 +171,7 @@ export function UberEatsModifierGroupFields({
                           options: group.options.filter((_, current) => current !== optionIndex),
                         }),
                       )
-                    }
-                  >
+                    } className={TONE_ACTION.delete}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>

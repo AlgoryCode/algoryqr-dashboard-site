@@ -12,6 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { TONES } from "@/components/dashboard/tone";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DASHBOARD_PANEL } from "@/lib/dashboard-surface";
 import type { OverviewAlert, OverviewAlertKind, OverviewAlertTone } from "@/lib/overview-dashboard";
@@ -26,9 +27,9 @@ const KIND_ICON: Record<OverviewAlertKind, LucideIcon> = {
 };
 
 const TONE_CLASS: Record<OverviewAlertTone, string> = {
-  danger: "bg-red-50 text-red-700",
-  warning: "bg-amber-50 text-amber-700",
-  info: "bg-sky-50 text-sky-700",
+  danger: TONES.red,
+  warning: TONES.orange,
+  info: TONES.blue,
 };
 
 export function OverviewAlerts({ alerts, loading }: { alerts: OverviewAlert[]; loading: boolean }) {

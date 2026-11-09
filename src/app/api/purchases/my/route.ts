@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 import { API_BASE_URL } from "@/lib/config";
 import { readAccessTokenFromCookies } from "@/lib/server/auth-cookies";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const cookieStore = await cookies();
     const accessToken = readAccessTokenFromCookies(cookieStore);
@@ -14,8 +14,10 @@ export async function GET() {
       return NextResponse.json({ message: "Access token yok" }, { status: 401 });
     }
 
+    const activeOnly = new URL(request.url).searchParams.get("activeOnly") === "true";
     const upstream = await axios.get(`${API_BASE_URL}/account/purchases`, {
       headers: { Authorization: `Bearer ${accessToken}` },
+      params: activeOnly ? { activeOnly: true } : undefined,
       validateStatus: () => true,
       timeout: 20_000,
     });

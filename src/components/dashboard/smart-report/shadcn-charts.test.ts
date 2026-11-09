@@ -113,6 +113,35 @@ describe("pulse helpers", () => {
     ]);
   });
 
+  it("buildCiroWorthSeries_whenPaymentSplitPresent_thenCarriesCashAndCard", () => {
+    const daily = buildCiroWorthSeries(
+      revenue({
+        from: "2026-09-11",
+        to: "2026-09-12",
+        daily: [
+          { date: "2026-09-11", revenue: 100, cashRevenue: 60, cardRevenue: 40 },
+          { date: "2026-09-12", revenue: 50, cashRevenue: 0, cardRevenue: 50 },
+        ],
+      }),
+    );
+    expect(daily.map((point) => [point.value, point.cash, point.card])).toEqual([
+      [100, 60, 40],
+      [50, 0, 50],
+    ]);
+
+    const legacy = buildCiroWorthSeries(
+      revenue({
+        from: "2026-09-11",
+        to: "2026-09-12",
+        daily: [
+          { date: "2026-09-11", revenue: 100 },
+          { date: "2026-09-12", revenue: 50 },
+        ],
+      }),
+    );
+    expect(legacy.every((point) => point.cash === undefined && point.card === undefined)).toBe(true);
+  });
+
   it("buildCiroWorthSeries_trimsIdleEdges", () => {
     const daily = buildCiroWorthSeries(
       revenue({

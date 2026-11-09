@@ -2,22 +2,22 @@ import type { ProductScope } from "@/lib/auth-user";
 import { STAFF_SITE_ORIGIN } from "@/lib/config";
 
 export const DASHBOARD_ROUTES = {
-  root: "/dashboard",
-  overview: "/dashboard/genel-bakis",
+  root: "/genel-bakis",
+  overview: "/genel-bakis",
   /** Canonical reports URL (same as {@link DASHBOARD_ROUTES.reportsHub}). */
-  analytics: "/dashboard/raporlar",
-  analyticsLegacy: "/dashboard/analitik",
+  analytics: "/raporlar",
+  analyticsLegacy: "/analitik",
   /** Old menu-nested reports path; kept for redirects and bookmarks. */
-  analyticsMenuLegacy: "/dashboard/dijital-menu/analitik",
-  digitalMenu: "/dashboard/dijital-menu",
-  myBranches: "/dashboard/subelerim",
-  digitalMenuMenus: "/dashboard/dijital-menu/menuler",
-  digitalMenuProducts: "/dashboard/dijital-menu/urunler",
-  digitalMenuProductCreate: "/dashboard/dijital-menu/urunler/yeni",
-  digitalMenuAiImport: "/dashboard/dijital-menu/urunler/ai-import",
+  analyticsMenuLegacy: "/analitik",
+  digitalMenu: "/menu-yonetimi",
+  myBranches: "/subelerim",
+  digitalMenuMenus: "/menuler",
+  digitalMenuProducts: "/urunler",
+  digitalMenuProductCreate: "/urunler/yeni",
+  digitalMenuAiImport: "/urunler/ai-import",
   digitalMenuAiImportFor: (qrId?: number | string | null) => {
-    if (qrId == null || qrId === "") return "/dashboard/dijital-menu/urunler/ai-import";
-    return `/dashboard/dijital-menu/urunler/ai-import?qr=${qrId}`;
+    if (qrId == null || qrId === "") return "/urunler/ai-import";
+    return `/urunler/ai-import?qr=${qrId}`;
   },
   digitalMenuProductCreateFor: (
     qrId?: number | string | null,
@@ -28,8 +28,8 @@ export const DASHBOARD_ROUTES = {
     if (subCategoryId != null && subCategoryId !== "") params.set("category", String(subCategoryId));
     const query = params.toString();
     return query
-      ? `/dashboard/dijital-menu/urunler/yeni?${query}`
-      : "/dashboard/dijital-menu/urunler/yeni";
+      ? `/urunler/yeni?${query}`
+      : "/urunler/yeni";
   },
   digitalMenuProductCreateForMenu: (
     menuId: number | string,
@@ -37,29 +37,29 @@ export const DASHBOARD_ROUTES = {
   ) => {
     const params = new URLSearchParams({ menu: String(menuId) });
     if (subCategoryId != null && subCategoryId !== "") params.set("category", String(subCategoryId));
-    return `/dashboard/dijital-menu/urunler/yeni?${params.toString()}`;
+    return `/urunler/yeni?${params.toString()}`;
   },
   digitalMenuProductDetail: (productId: number | string, qrId: number | string) =>
-    `/dashboard/dijital-menu/urunler/${productId}?qr=${qrId}`,
+    `/urunler/${productId}?qr=${qrId}`,
   digitalMenuProductDetailForMenu: (productId: number | string, menuId: number | string) =>
-    `/dashboard/dijital-menu/urunler/${productId}?menu=${menuId}`,
-  digitalMenuCategories: "/dashboard/dijital-menu/kategoriler",
-  digitalMenuOptions: "/dashboard/dijital-menu/opsiyonlar",
-  digitalMenuCreate: "/dashboard/dijital-menu/olustur",
+    `/urunler/${productId}?menu=${menuId}`,
+  digitalMenuCategories: "/kategoriler",
+  digitalMenuOptions: "/opsiyonlar",
+  digitalMenuCreate: "/olustur",
   digitalMenuCreateForBranch: (branchId: number | string) =>
-    `/dashboard/dijital-menu/olustur?branch=${branchId}`,
-  branchCreate: "/dashboard/subelerim/yeni",
-  branchDetail: (branchId: number | string) => `/dashboard/subedetay/${branchId}`,
-  branchSettings: (branchId: number | string) => `/dashboard/subedetay/${branchId}/ayarlar`,
+    `/olustur?branch=${branchId}`,
+  branchCreate: "/subelerim/yeni",
+  branchDetail: (branchId: number | string) => `/subedetay/${branchId}`,
+  branchSettings: (branchId: number | string) => `/subedetay/${branchId}/ayarlar`,
   catalogProductCheckout: (code: string) =>
-    `/dashboard/dijital-menu/urun-satin-al/${encodeURIComponent(code)}`,
-  digitalMenuEdit: (qrId: number | string) => `/dashboard/dijital-menu/qr/${qrId}`,
+    `/urun-satin-al/${encodeURIComponent(code)}`,
+  digitalMenuEdit: (qrId: number | string) => `/qr/${qrId}`,
   digitalMenuSettings: (qrId: number | string) =>
-    `/dashboard/dijital-menu/qr/${qrId}/ayarlar`,
+    `/qr/${qrId}/ayarlar`,
   digitalMenuProductsForQr: (qrId: number | string) =>
-    `/dashboard/dijital-menu/urunler?qr=${qrId}`,
+    `/urunler?qr=${qrId}`,
   digitalMenuCategoriesForQr: (qrId: number | string) =>
-    `/dashboard/dijital-menu/kategoriler?qr=${qrId}`,
+    `/kategoriler?qr=${qrId}`,
   digitalMenuAnalytics: (qrId: number | string) =>
     `${DASHBOARD_ROUTES.reportsHub}?qr=${qrId}`,
   digitalMenuAnalyticsForBranch: (
@@ -71,77 +71,77 @@ export const DASHBOARD_ROUTES = {
     if (qrId != null && qrId !== "") params.set("qr", String(qrId));
     return `${DASHBOARD_ROUTES.reportsHub}?${params.toString()}`;
   },
-  smartReports: "/dashboard/dijital-menu/akilli-raporlar",
+  smartReports: "/akilli-raporlar",
   smartReportDetail: (jobId: string) =>
-    `/dashboard/dijital-menu/akilli-raporlar/${jobId}`,
-  feedback: "/dashboard/dijital-menu/geri-bildirimler",
+    `/akilli-raporlar/${jobId}`,
+  feedback: "/geri-bildirimler",
   feedbackForQr: (qrId: number | string) =>
-    `/dashboard/dijital-menu/geri-bildirimler?qr=${qrId}`,
-  reservations: "/dashboard/rezervasyonlar",
+    `/geri-bildirimler?qr=${qrId}`,
+  reservations: "/rezervasyonlar",
   reservationsForBranch: (branchId: number | string) =>
-    `/dashboard/rezervasyonlar?branch=${branchId}`,
+    `/rezervasyonlar?branch=${branchId}`,
   reservationsForQr: (qrId: number | string) =>
-    `/dashboard/rezervasyonlar?qr=${qrId}`,
-  restaurantLayout: "/dashboard/dijital-menu/restaurant-layout",
+    `/rezervasyonlar?qr=${qrId}`,
+  restaurantLayout: "/restaurant-layout",
   restaurantLayoutForQr: (qrId: number | string) =>
-    `/dashboard/dijital-menu/restaurant-layout?qr=${qrId}`,
+    `/restaurant-layout?qr=${qrId}`,
   restaurantLayoutForBranch: (
     branchId: number | string,
     qrId?: number | string | null,
   ) => {
-    const path = `/dashboard/subedetay/${branchId}/ayarlar/restoran-duzeni`;
+    const path = `/subedetay/${branchId}/ayarlar/restoran-duzeni`;
     if (qrId == null || qrId === "") return path;
     return `${path}?qr=${qrId}`;
   },
-  integrations: "/dashboard/entegrasyonlar",
-  yemekSepeti: "/dashboard/entegrasyonlar/yemek-sepeti",
-  yemekSepetiOrders: "/dashboard/entegrasyonlar/yemek-sepeti/siparisler",
-  printer: "/dashboard/entegrasyonlar/yazici",
-  onlineOrder: "/dashboard/online-siparis",
-  onlineOrderSetup: "/dashboard/online-siparis/kurulum",
-  onlineOrderOrders: "/dashboard/online-siparis/siparisler",
+  integrations: "/entegrasyonlar",
+  yemekSepeti: "/entegrasyonlar/yemek-sepeti",
+  yemekSepetiOrders: "/entegrasyonlar/yemek-sepeti/siparisler",
+  printer: "/entegrasyonlar/yazici",
+  onlineOrder: "/online-siparis",
+  onlineOrderSetup: "/online-siparis/kurulum",
+  onlineOrderOrders: "/online-siparis/siparisler",
   onlineOrderDetail: (orderId: number | string) =>
-    `/dashboard/online-siparis/siparisler/${orderId}`,
-  onlineOrderProducts: "/dashboard/online-siparis/urunler",
-  onlineOrderCouriers: "/dashboard/online-siparis/kuryeler",
-  onlineOrderSettings: "/dashboard/online-siparis/ayarlar",
-  uberEats: "/dashboard/uber-eats",
-  uberEatsProducts: "/dashboard/uber-eats/urunler",
-  uberEatsOrders: "/dashboard/uber-eats/siparisler",
-  uberEatsPending: "/dashboard/uber-eats/onay-bekleyen",
-  uberEatsMenuSync: "/dashboard/uber-eats/menu-senkron",
-  reportsHub: "/dashboard/raporlar",
-  orderPanel: "/dashboard/siparis-paneli",
-  muhasebe: "/dashboard/muhasebe",
-  stock: "/dashboard/stok",
-  stockForBranch: (branchId: number | string) => `/dashboard/stok?branch=${branchId}`,
-  waiter: "/dashboard/garson",
+    `/online-siparis/siparisler/${orderId}`,
+  onlineOrderProducts: "/online-siparis/urunler",
+  onlineOrderCouriers: "/online-siparis/kuryeler",
+  onlineOrderSettings: "/online-siparis/ayarlar",
+  uberEats: "/uber-eats",
+  uberEatsProducts: "/uber-eats/urunler",
+  uberEatsOrders: "/uber-eats/siparisler",
+  uberEatsPending: "/uber-eats/onay-bekleyen",
+  uberEatsMenuSync: "/uber-eats/menu-senkron",
+  reportsHub: "/raporlar",
+  orderPanel: "/siparis-paneli",
+  muhasebe: "/muhasebe",
+  stock: "/stok",
+  stockForBranch: (branchId: number | string) => `/stok?branch=${branchId}`,
+  waiter: "/garson",
   waiterForQr: (qrId: number | string) =>
-    `/dashboard/garson?qr=${qrId}`,
+    `/garson?qr=${qrId}`,
   waiterOrderDetail: (orderId: number | string, qrId?: number | string | null) =>
     qrId != null && qrId !== ""
-      ? `/dashboard/garson/${orderId}?qr=${qrId}`
-      : `/dashboard/garson/${orderId}`,
-  kitchenMonitor: "/dashboard/garson/mutfak",
+      ? `/garson/${orderId}?qr=${qrId}`
+      : `/garson/${orderId}`,
+  kitchenMonitor: "/garson/mutfak",
   kitchenMonitorForQr: (qrId: number | string) =>
-    `/dashboard/garson/mutfak?qr=${qrId}`,
-  menuUsers: "/dashboard/kullanicilar",
+    `/garson/mutfak?qr=${qrId}`,
+  menuUsers: "/kullanicilar",
   menuUsersForBranch: (branchId: number | string) =>
-    `/dashboard/kullanicilar?branch=${branchId}`,
+    `/kullanicilar?branch=${branchId}`,
   menuUserDetail: (waiterId: number | string, branchId?: number | string | null) =>
     branchId != null && branchId !== ""
-      ? `/dashboard/kullanicilar/${waiterId}?branch=${branchId}`
-      : `/dashboard/kullanicilar/${waiterId}`,
-  menuCustomers: "/dashboard/musteriler",
+      ? `/kullanicilar/${waiterId}?branch=${branchId}`
+      : `/kullanicilar/${waiterId}`,
+  menuCustomers: "/musteriler",
   menuCustomersForQr: (qrId: number | string) =>
-    `/dashboard/musteriler?qr=${qrId}`,
-  campaigns: "/dashboard/kampanyalar",
-  campaignsCreate: "/dashboard/kampanyalar/yeni",
-  campaignDetail: (campaignId: number | string) => `/dashboard/kampanyalar/${campaignId}`,
+    `/musteriler?qr=${qrId}`,
+  campaigns: "/kampanyalar",
+  campaignsCreate: "/kampanyalar/yeni",
+  campaignDetail: (campaignId: number | string) => `/kampanyalar/${campaignId}`,
   campaignDetailForQr: (campaignId: number | string, qrId: number | string) =>
-    `/dashboard/kampanyalar/${campaignId}?qr=${qrId}`,
+    `/kampanyalar/${campaignId}?qr=${qrId}`,
   campaignsForQr: (qrId: number | string) =>
-    `/dashboard/kampanyalar?qr=${qrId}`,
+    `/kampanyalar?qr=${qrId}`,
   staffGate: STAFF_SITE_ORIGIN,
   waiterLogin: STAFF_SITE_ORIGIN,
   waiterPanel: STAFF_SITE_ORIGIN,
@@ -151,40 +151,40 @@ export const DASHBOARD_ROUTES = {
   courierPanel: STAFF_SITE_ORIGIN,
   kitchenScreen: (branchId?: number | string | null) =>
     branchId != null && branchId !== "" ? `/mutfak?branch=${branchId}` : "/mutfak",
-  orders: "/dashboard/siparislerim",
+  orders: "/siparislerim",
 
   digitalMenuCheckout: (packageId: number | string) =>
-    `/dashboard/dijital-menu/satin-al/${packageId}`,
-  qrCodes: "/dashboard/qr-kodlarim",
-  qrCodesNew: "/dashboard/qr-kodlarim/yeni",
-  qrCodeDetail: (id: number | string) => `/dashboard/qr-kodlarim/${id}`,
-  account: "/dashboard/hesabim",
-  accountSecurity: "/dashboard/hesabim/guvenlik",
-  accountSessions: "/dashboard/hesabim/oturumlar",
-  accountSessionsDetail: "/dashboard/hesabim/oturumlar/detay",
-  accountSubscription: "/dashboard/hesabim/abonelik",
-  accountPackages: "/dashboard/hesabim/abonelik/paketler",
+    `/satin-al/${packageId}`,
+  qrCodes: "/qr-kodlarim",
+  qrCodesNew: "/qr-kodlarim/yeni",
+  qrCodeDetail: (id: number | string) => `/qr-kodlarim/${id}`,
+  account: "/hesabim",
+  accountSecurity: "/hesabim/guvenlik",
+  accountSessions: "/hesabim/oturumlar",
+  accountSessionsDetail: "/hesabim/oturumlar/detay",
+  accountSubscription: "/hesabim/abonelik",
+  accountPackages: "/hesabim/abonelik/paketler",
   accountPackagesHighlight: (highlight: string) =>
-    `/dashboard/hesabim/abonelik/paketler?highlight=${encodeURIComponent(highlight)}`,
+    `/hesabim/abonelik/paketler?highlight=${encodeURIComponent(highlight)}`,
   accountPlanChange: (packageId: number | string) =>
-    `/dashboard/hesabim/abonelik/paket-degistir?to=${packageId}`,
+    `/hesabim/abonelik/paket-degistir?to=${packageId}`,
   accountSubscriptionCheckout: (packageId: number | string) =>
-    `/dashboard/hesabim/abonelik/satin-al/${packageId}`,
-  accountCartCheckout: "/dashboard/hesabim/abonelik/sepet",
-  modules: "/dashboard/moduller",
+    `/hesabim/abonelik/satin-al/${packageId}`,
+  accountCartCheckout: "/hesabim/abonelik/sepet",
+  modules: "/moduller",
   accountPurchaseDetail: (purchaseId: number | string) =>
-    `/dashboard/hesabim/abonelik/satin-alma/${purchaseId}`,
-  accountPaymentHistory: "/dashboard/hesabim/odeme-gecmisi",
+    `/hesabim/abonelik/satin-alma/${purchaseId}`,
+  accountPaymentHistory: "/hesabim/odeme-gecmisi",
   accountPaymentHistoryDetail: (purchaseId: number | string) =>
-    `/dashboard/hesabim/odeme-gecmisi/${purchaseId}`,
-  accountPaymentMethods: "/dashboard/hesabim/kayitli-kartlarim",
-  accountBillingAddresses: "/dashboard/hesabim/fatura-adreslerim",
-  trialStart: "/dashboard/deneme/baslat",
-  trialExpired: "/dashboard/deneme/bitti",
+    `/hesabim/odeme-gecmisi/${purchaseId}`,
+  accountPaymentMethods: "/hesabim/kayitli-kartlarim",
+  accountBillingAddresses: "/hesabim/fatura-adreslerim",
+  trialStart: "/deneme/baslat",
+  trialExpired: "/deneme/bitti",
   demoLanding: "/demo",
   demoLogin: "/demo/login",
   demoRegister: "/demo/register",
-  welcomeOnboarding: "/dashboard/karsilama",
+  welcomeOnboarding: "/karsilama",
 } as const;
 
 export type DashboardNavKey =
@@ -239,20 +239,17 @@ export type DashboardNavGroup = {
 export const DASHBOARD_NAV_GROUPS: DashboardNavGroup[] = [
   { id: "main", label: "", items: ["overview"] },
   {
-    id: "orders",
-    label: "Siparişler ve Rezervasyon",
-    items: ["liveOrders", "reservations", "restaurantLayout"],
+    id: "operations",
+    label: "Operasyon",
+    items: ["liveOrders", "reservations", "restaurantLayout", "stock"],
   },
   { id: "menu", label: "Menü", items: ["myMenus", "products", "qrCodes"] },
-  { id: "stock", label: "Stok", items: ["stock"] },
-  { id: "staff", label: "Personeller", items: ["staff"] },
-  { id: "finance", label: "Finans ve Muhasebe", items: ["accounting"] },
   {
-    id: "marketing",
-    label: "Müşteri ve Pazarlama",
-    items: ["feedback", "menuCustomers", "campaigns"],
+    id: "business",
+    label: "İşletme",
+    items: ["staff", "menuCustomers", "feedback", "campaigns"],
   },
-  { id: "reports", label: "Raporlar ve Analiz", items: ["reports", "smartReports"] },
+  { id: "finance", label: "Finans ve raporlar", items: ["accounting", "reports", "smartReports"] },
   {
     id: "settings",
     label: "Ayarlar",
@@ -289,6 +286,22 @@ export function splitMobileDashboardNav(items: DashboardNavItem[]): {
   };
 }
 
+const DIGITAL_MENU_SECTION_ROOTS = [
+  DASHBOARD_ROUTES.digitalMenu,
+  DASHBOARD_ROUTES.digitalMenuMenus,
+  DASHBOARD_ROUTES.digitalMenuProducts,
+  "/akilli-raporlar",
+  "/analitik",
+  "/geri-bildirimler",
+  "/kategoriler",
+  "/olustur",
+  "/opsiyonlar",
+  "/qr",
+  "/restaurant-layout",
+  "/satin-al",
+  "/urun-satin-al",
+];
+
 export const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
   { key: "overview", label: "Genel Bakış", mobileLabel: "Genel", href: DASHBOARD_ROUTES.overview },
   { key: "modules", label: "Modüller", mobileLabel: "Modüller", href: DASHBOARD_ROUTES.modules },
@@ -303,7 +316,7 @@ export const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
   },
   {
     key: "myBranches",
-    label: "Şube yönetimi",
+    label: "Şubelerim",
     mobileLabel: "Şubelerim",
     href: DASHBOARD_ROUTES.myBranches,
     requiredScope: "QR_MENU_OWNER",
@@ -336,7 +349,7 @@ export const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
   },
   {
     key: "uberEats",
-    label: "Ödeme ve entegrasyonlar",
+    label: "Entegrasyonlar",
     mobileLabel: "Entegrasyon",
     href: DASHBOARD_ROUTES.integrations,
     requiredScope: "QR_MENU_OWNER",
@@ -646,7 +659,7 @@ export function buildDashboardBreadcrumbs(
       crumbs.push({ label: "Menü Oluşturma Sihirbazı" });
       return crumbs;
     }
-    if (pathname.startsWith(`${DASHBOARD_ROUTES.digitalMenu}/qr/`)) {
+    if (pathname.startsWith(`/qr/`)) {
       if (pathname.endsWith("/ayarlar")) {
         crumbs.push({ label: currentLabel ?? "Menü", href: pathname.replace(/\/ayarlar$/, "") });
         crumbs.push({ label: "Ayarlar" });
@@ -726,7 +739,7 @@ export function buildDashboardBreadcrumbs(
   return crumbs;
 }
 
-const BRANCH_DETAIL_PREFIX = "/dashboard/subedetay/";
+const BRANCH_DETAIL_PREFIX = "/subedetay/";
 
 export function isBranchesSectionActive(pathname: string): boolean {
   return (
@@ -868,10 +881,7 @@ export function isDigitalMenuSectionActive(pathname: string): boolean {
   ) {
     return false;
   }
-  return (
-    pathname === DASHBOARD_ROUTES.digitalMenu ||
-    pathname.startsWith(`${DASHBOARD_ROUTES.digitalMenu}/`)
-  );
+  return DIGITAL_MENU_SECTION_ROOTS.some((root) => pathname === root || pathname.startsWith(`${root}/`));
 }
 
 function parsePositiveId(value: string | undefined): number | null {

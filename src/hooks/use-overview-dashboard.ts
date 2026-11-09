@@ -44,6 +44,9 @@ function combineResults<T>(results: UseQueryResult<T>[]) {
   };
 }
 
+/** The queue only reacts to recent work; an order left open for longer than this is not actionable here. */
+const OVERVIEW_ORDER_DAYS = 7;
+
 export function useOverviewDashboard(
   branches: BranchItem[],
   scope: BranchScope,
@@ -71,7 +74,7 @@ export function useOverviewDashboard(
 
   const ordersQuery = useQuery({
     queryKey: ["overview-orders", scopedMenus.map((menu) => menu.menuId)],
-    queryFn: () => listScopedMenuOrders(scopedMenus),
+    queryFn: () => listScopedMenuOrders(scopedMenus, OVERVIEW_ORDER_DAYS),
     enabled: access.orders && scopedMenus.length > 0,
     refetchInterval: 30_000,
     staleTime: 15_000,

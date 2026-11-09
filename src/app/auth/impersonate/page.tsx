@@ -56,7 +56,7 @@ export default function ImpersonatePage() {
         }
 
         window.history.replaceState(null, "", "/auth/impersonate");
-        router.replace("/dashboard");
+        router.replace("/genel-bakis");
       } catch {
         setError("Oturum başlatılırken bir hata oluştu.");
       }

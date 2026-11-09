@@ -21,6 +21,7 @@ import {
   type StoreCourierVehicleType,
 } from "@/lib/store-api";
 import { STORE_VEHICLE_TYPE_LABEL } from "@/lib/store-ui";
+import { TONE_ACTION } from "@/components/dashboard/tone";
 
 const EMPTY_FORM: StoreCourierPayload = {
   fullName: "",
@@ -181,13 +182,13 @@ export default function OnlineOrderCouriersView() {
                   {courier.active ? "Aktif" : "Pasif"}
                 </p>
               </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => startEdit(courier)}>
+              <Button variant="ghost" size="icon" className={`h-8 w-8 ${TONE_ACTION.edit}`} onClick={() => startEdit(courier)}>
                 <Pencil className="h-3.5 w-3.5" />
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-destructive"
+                className={`h-8 w-8 ${TONE_ACTION.delete}`}
                 disabled={deleteMutation.isPending}
                 onClick={() => {
                   if (!window.confirm(`${courier.fullName} silinsin mi?`)) return;

@@ -130,7 +130,8 @@ function MyOrdersContent() {
   const ordersQuery = useQuery({
     queryKey: [QUERY_KEY, menus.map((menu) => menu.menuId), dateRange.from, dateRange.to],
     queryFn: () => listAllManagedOrders(menus, dateRange),
-    refetchInterval: 8_000,
+    // Without a start date the whole history is downloaded, so it is refreshed far less often.
+    refetchInterval: dateRange.from ? 8_000 : 120_000,
   });
 
   const filtered = useMemo(
