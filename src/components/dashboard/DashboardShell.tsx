@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -8,37 +8,15 @@ import axios from "axios";
 import { AnimatePresence, motion } from "framer-motion";
 import { BrandLogo } from "@/components/BrandLogo";
 import {
-  QrCode,
-  LogOut,
-  BarChart3,
-  Blocks,
-  User,
-  UsersRound,
   Info,
   AlertTriangle,
   XCircle,
   X,
   PanelLeft,
   PanelLeftClose,
-  TrendingUp,
-  Calculator,
-  Megaphone,
   Menu,
-  Search,
-  UtensilsCrossed,
-  CalendarDays,
-  ChevronDown,
-  Building2,
-  Warehouse,
-  Package,
-  ClipboardList,
-  LayoutGrid,
-  IdCard,
-  Sparkles,
-  MessageSquare,
 } from "lucide-react";
 
-import { DigitalMenuIcon } from "@/components/icons/DigitalMenuIcon";
 import TrialReminderDialog from "@/components/dashboard/TrialReminderDialog";
 import TrialReminderHeaderBadge from "@/components/dashboard/TrialReminderHeaderBadge";
 import PackageAccessGate from "@/components/dashboard/PackageAccessGate";
@@ -49,15 +27,17 @@ import {
   useCommandPaletteHotkey,
 } from "@/components/dashboard/DashboardCommandPalette";
 import { DashboardMobileNav } from "@/components/dashboard/DashboardMobileNav";
+import { DashboardSidebarNav, sidebarLabelClass } from "@/components/dashboard/DashboardSidebarNav";
+import {
+  AccountMenu,
+  DashboardTopBar,
+  QuickCreateMenu,
+  ShortcutsDialog,
+  useShortcutsHotkey,
+} from "@/components/dashboard/DashboardTopBar";
 import { DashboardPageLabelProvider, useDashboardPageLabelValue } from "@/contexts/dashboard-page-label";
 import { DashboardAssistantLauncher } from "@/components/dashboard/DashboardAssistantChat";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DashboardBannersProvider,
@@ -73,39 +53,14 @@ import type { SessionContext } from "@/lib/session-context";
 import {
   DASHBOARD_NAV_ITEMS,
   DASHBOARD_ROUTES,
-  getVisibleDashboardNavGroups,
   isDashboardNavActive,
   splitMobileDashboardNav,
   type DashboardNavItem,
-  type DashboardNavKey,
 } from "@/lib/dashboard-routes";
 import { DASHBOARD_CONTENT } from "@/lib/dashboard-surface";
 import { hasScope } from "@/lib/auth-user";
 import type { StoredUser } from "@/lib/api";
 import { cn } from "@/lib/utils";
-
-const NAV_ICONS: Record<DashboardNavKey, ComponentType<{ className?: string }>> = {
-  overview: BarChart3,
-  modules: Blocks,
-  digitalMenu: DigitalMenuIcon,
-  myBranches: Building2,
-  myMenus: DigitalMenuIcon,
-  products: Package,
-  uberEats: UtensilsCrossed,
-  liveOrders: ClipboardList,
-  reservations: CalendarDays,
-  restaurantLayout: LayoutGrid,
-  stock: Warehouse,
-  staff: IdCard,
-  reports: TrendingUp,
-  smartReports: Sparkles,
-  accounting: Calculator,
-  feedback: MessageSquare,
-  menuCustomers: UsersRound,
-  campaigns: Megaphone,
-  qrCodes: QrCode,
-  account: User,
-} as const;
 
 const bannerStyles = {
   info: "bg-[color-mix(in_srgb,hsl(var(--card))_88%,hsl(217_91%_60%)_12%)] border-blue-500/20 text-blue-500 shadow-lg",
@@ -118,14 +73,14 @@ const bannerIcons = { info: Info, warning: AlertTriangle, danger: XCircle };
 const SIDEBAR_COLLAPSED_KEY = "algory-dashboard-sidebar-collapsed";
 
 const SIDEBAR_ITEM =
-  "flex h-10 w-full items-center justify-start gap-3 overflow-hidden rounded-lg px-2.5 text-sm font-medium transition-colors";
+  "flex h-9 w-full items-center justify-start gap-2.5 overflow-hidden rounded-[10px] px-1.5 text-sm font-medium transition-colors";
 
 function sidebarItemClass(active: boolean) {
   return cn(
     SIDEBAR_ITEM,
     active
       ? "bg-primary/10 text-primary"
-      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+      : "text-muted-foreground hover:bg-muted hover:text-foreground",
   );
 }
 
@@ -136,109 +91,6 @@ function navSectionActive(pathname: string, item: DashboardNavItem) {
   );
 }
 
-function SidebarNavItem({
-  item,
-  collapsed,
-  pathname,
-  expanded,
-  onToggle,
-}: {
-  item: DashboardNavItem;
-  collapsed: boolean;
-  pathname: string;
-  expanded: boolean | undefined;
-  onToggle: () => void;
-}) {
-  const Icon = NAV_ICONS[item.key];
-  const children = item.children ?? [];
-  const parentActive = isDashboardNavActive(pathname, item.href, item.key);
-  const childActive = children.some((child) => isDashboardNavActive(pathname, child.href));
-  const open = expanded ?? true;
-
-  if (children.length === 0) {
-    return (
-      <Tooltip open={collapsed ? undefined : false}>
-        <TooltipTrigger asChild>
-          <Link href={item.href} className={sidebarItemClass(parentActive)}>
-            <Icon className="size-4 shrink-0" />
-            <span className={sidebarLabelClass(collapsed)}>{item.label}</span>
-          </Link>
-        </TooltipTrigger>
-        <TooltipContent side="right" sideOffset={12}>
-          {item.label}
-        </TooltipContent>
-      </Tooltip>
-    );
-  }
-
-  if (collapsed) {
-    return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            className={sidebarItemClass(parentActive || childActive)}
-            aria-label={item.label}
-          >
-            <Icon className="size-4 shrink-0" />
-            <span className={sidebarLabelClass(true)}>{item.label}</span>
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent side="right" align="start" sideOffset={12} className="min-w-44">
-          <DropdownMenuItem asChild>
-            <Link href={item.href}>{item.label}</Link>
-          </DropdownMenuItem>
-          {children.map((child) => (
-            <DropdownMenuItem key={child.key} asChild>
-              <Link href={child.href}>{child.label}</Link>
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    );
-  }
-
-  return (
-    <div className="space-y-0.5">
-      <button
-        type="button"
-        className={cn(sidebarItemClass(parentActive), "gap-1 pr-1")}
-        aria-expanded={open}
-        onClick={onToggle}
-      >
-        <Icon className="size-4 shrink-0" />
-        <span className={cn(sidebarLabelClass(false), "flex-1 text-left")}>{item.label}</span>
-        <ChevronDown className={cn("size-3.5 shrink-0 transition-transform", open && "rotate-180")} />
-      </button>
-      {open
-        ? children.map((child) => {
-            const active = isDashboardNavActive(pathname, child.href);
-            return (
-              <Link
-                key={child.key}
-                href={child.href}
-                className={cn(
-                  "flex h-9 w-full items-center rounded-lg pl-10 pr-2.5 text-sm font-medium transition-colors",
-                  active
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-                )}
-              >
-                {child.label}
-              </Link>
-            );
-          })
-        : null}
-    </div>
-  );
-}
-
-function sidebarLabelClass(collapsed: boolean) {
-  return cn(
-    "min-w-0 truncate whitespace-nowrap transition-opacity duration-200 ease-in-out",
-    collapsed ? "pointer-events-none opacity-0 duration-150" : "opacity-100 delay-100",
-  );
-}
 
 interface DashboardShellProps {
   initialUser?: StoredUser | null;
@@ -256,7 +108,7 @@ function SessionCacheHydrator({ session }: { session?: SessionContext | null }) 
   return null;
 }
 
-function DashboardShellInner({ children, initialSession }: DashboardShellProps) {
+function DashboardShellInner({ children, initialSession, initialUser }: DashboardShellProps) {
   const router = useRouter();
   const pathname = usePathname();
   const isOnlineBoard = pathname === DASHBOARD_ROUTES.onlineOrderOrders;
@@ -292,29 +144,6 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
     () => visibleNavItems.filter((item) => item.key !== "uberEats" && !item.excludeFromMobileNav),
     [visibleNavItems],
   );
-  const visibleNavGroups = useMemo(
-    () => getVisibleDashboardNavGroups(menuNavItems),
-    [menuNavItems],
-  );
-  const [openGroupIds, setOpenGroupIds] = useState<Record<string, boolean>>({});
-  const [openNavKeys, setOpenNavKeys] = useState<Record<string, boolean>>({});
-  const isGroupOpen = (groupId: string) => openGroupIds[groupId] ?? true;
-  const toggleGroup = (groupId: string) => {
-    setOpenGroupIds((prev) => ({ ...prev, [groupId]: !(prev[groupId] ?? true) }));
-  };
-  useEffect(() => {
-    setOpenNavKeys((prev) => {
-      let changed = false;
-      const next = { ...prev };
-      for (const item of visibleNavItems) {
-        if (!item.children?.length || !navSectionActive(pathname, item)) continue;
-        if (next[item.key] === true) continue;
-        next[item.key] = true;
-        changed = true;
-      }
-      return changed ? next : prev;
-    });
-  }, [pathname, visibleNavItems]);
   const [commandOpen, setCommandOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const mobileOverflow = useMemo(
@@ -326,6 +155,10 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
     mobileNavItems.some((item) => navSectionActive(pathname, item) && (item.children?.length ?? 0) > 0 &&
       (item.children ?? []).some((child) => isDashboardNavActive(pathname, child.href)));
   const toggleCommand = useCallback(() => setCommandOpen((open) => !open), []);
+  const openCommand = useCallback(() => setCommandOpen(true), []);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const openShortcuts = useCallback(() => setShortcutsOpen(true), []);
+  useShortcutsHotkey(openShortcuts);
   useCommandPaletteHotkey(toggleCommand);
 
   useEffect(() => {
@@ -352,6 +185,20 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
       return next;
     });
   };
+
+  // Ctrl/Cmd + B: yan menüyü daralt / genişlet.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "b") {
+        const target = event.target as HTMLElement | null;
+        if (target && (target.isContentEditable || target.tagName === "TEXTAREA")) return;
+        event.preventDefault();
+        toggleCollapsed();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  });
 
   const pageLabel = useDashboardPageLabelValue();
   const isFullScreenGate =
@@ -403,6 +250,7 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
         <PackageAccessGate />
         <TrialReminderDialog />
         <DashboardCommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
+        <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
         {isFullScreenGate ? (
           <div className="h-svh overflow-hidden bg-background">{children}</div>
         ) : (
@@ -418,12 +266,14 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
               <TooltipTrigger asChild>
                 <Link
                   href={DASHBOARD_ROUTES.overview}
-                  className={cn(SIDEBAR_ITEM, "text-foreground hover:bg-muted hover:text-foreground")}
+                  className={cn(SIDEBAR_ITEM, "text-foreground hover:bg-muted hover:text-foreground", collapsed && "justify-center px-0")}
                 >
                   <BrandLogo size="sm" />
-                  <span className={cn(sidebarLabelClass(collapsed), "text-base font-bold")}>
-                    Algory<span className="text-muted-foreground">QR</span>
-                  </span>
+                  {!collapsed ? (
+                    <span className={cn(sidebarLabelClass(false), "text-base font-bold")}>
+                      Algory<span className="text-muted-foreground">QR</span>
+                    </span>
+                  ) : null}
                 </Link>
               </TooltipTrigger>
               <TooltipContent side="right" sideOffset={12}>
@@ -432,72 +282,32 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
             </Tooltip>
           </div>
 
-          <nav className="mt-3 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden">
-            {visibleNavGroups.map(({ group, items }) => {
-              const showChildren = collapsed || !group.label || isGroupOpen(group.id);
-              return (
-                <div key={group.id} className="space-y-1">
-                  {group.label && !collapsed ? (
-                    <button
-                      type="button"
-                      className="flex w-full items-center justify-between gap-2 px-2.5 pb-0.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 hover:text-foreground"
-                      aria-expanded={isGroupOpen(group.id)}
-                      onClick={() => toggleGroup(group.id)}
-                    >
-                      <span>{group.label}</span>
-                      <ChevronDown
-                        className={cn(
-                          "size-3.5 shrink-0 transition-transform",
-                          isGroupOpen(group.id) && "rotate-180",
-                        )}
-                      />
-                    </button>
-                  ) : null}
-                  {showChildren
-                    ? items.map((item) => (
-                        <SidebarNavItem
-                          key={item.key}
-                          item={item}
-                          collapsed={collapsed}
-                          pathname={pathname}
-                          expanded={openNavKeys[item.key]}
-                          onToggle={() => {
-                            setOpenNavKeys((prev) => {
-                              const current = prev[item.key] ?? true;
-                              return { ...prev, [item.key]: !current };
-                            });
-                          }}
-                        />
-                      ))
-                    : null}
-                </div>
-              );
-            })}
-          </nav>
+          <DashboardSidebarNav
+            items={menuNavItems}
+            pathname={pathname}
+            collapsed={collapsed}
+            onOpenPalette={openCommand}
+          />
 
           <div className="mt-3 shrink-0 space-y-1 border-t border-border pt-3">
             <DashboardAssistantLauncher
               iconOnly={collapsed}
-              className={cn(collapsed ? "h-10 w-10 min-w-0 px-0" : "h-10 w-full justify-start px-2.5")}
+              className={cn(collapsed ? "mx-auto flex h-9 w-9 min-w-0 px-0" : "h-9 w-full justify-start px-2")}
             />
             <Tooltip open={collapsed ? undefined : false}>
               <TooltipTrigger asChild>
                 <Button
                   type="button"
                   variant="ghost"
-                  className={sidebarItemClass(false)}
+                  className={cn(sidebarItemClass(false), collapsed && "justify-center px-0")}
                   onClick={toggleCollapsed}
                   aria-label={collapsed ? "Menüyü genişlet" : "Menüyü küçült"}
                   aria-expanded={!collapsed}
                 >
-                  {collapsed ? (
-                    <PanelLeft className="size-4 shrink-0" />
-                  ) : (
-                    <PanelLeftClose className="size-4 shrink-0" />
-                  )}
-                  <span className={sidebarLabelClass(collapsed)}>
-                    {collapsed ? "Genişlet" : "Küçült"}
+                  <span className="flex size-6 shrink-0 items-center justify-center">
+                    {collapsed ? <PanelLeft className="size-4" /> : <PanelLeftClose className="size-4" />}
                   </span>
+                  {!collapsed ? <span className={sidebarLabelClass(false)}>Küçült</span> : null}
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="right" sideOffset={12}>
@@ -505,23 +315,6 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
               </TooltipContent>
             </Tooltip>
 
-            <Tooltip open={collapsed ? undefined : false}>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className={cn(sidebarItemClass(false), "text-muted-foreground")}
-                  onClick={logout}
-                  aria-label="Çıkış Yap"
-                >
-                  <LogOut className="size-4 shrink-0" />
-                  <span className={sidebarLabelClass(collapsed)}>Çıkış Yap</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right" sideOffset={12}>
-                Çıkış Yap
-              </TooltipContent>
-            </Tooltip>
           </div>
         </aside>
 
@@ -537,8 +330,10 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
                 Algory<span className="text-muted-foreground">QR</span>
               </span>
             </Link>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               <TrialReminderHeaderBadge compact />
+              <QuickCreateMenu compact />
+              <AccountMenu user={initialUser} onLogout={logout} onShowShortcuts={openShortcuts} compact />
               <button
                 type="button"
                 className={cn(
@@ -562,26 +357,14 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
             onMoreOpenChange={setMoreOpen}
           />
 
-          <div className="hidden px-8 pt-3 lg:block">
-            <div className="flex w-full items-center gap-2.5">
-              <button
-                type="button"
-                onClick={() => setCommandOpen(true)}
-                className="flex h-11 w-full max-w-xl items-center gap-2.5 rounded-[14px] border border-border bg-muted/40 px-3.5 text-left transition-colors hover:bg-muted/60"
-              >
-                <Search className="size-[18px] shrink-0 text-muted-foreground opacity-70" />
-                <span className="min-w-0 flex-1 truncate text-[15px] text-muted-foreground">
-                  Ara...
-                </span>
-                <kbd className="hidden shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline">
-                  Ctrl K
-                </kbd>
-              </button>
-              <div className="ml-auto flex items-center gap-2.5">
-                <TrialReminderHeaderBadge />
-              </div>
-            </div>
-          </div>
+          <DashboardTopBar
+            pathname={pathname}
+            pageLabel={pageLabel}
+            user={initialUser}
+            onOpenSearch={openCommand}
+            onLogout={logout}
+            onShowShortcuts={openShortcuts}
+          />
 
           <div
             className={cn(
@@ -595,7 +378,9 @@ function DashboardShellInner({ children, initialSession }: DashboardShellProps) 
             )}
           >
             {isOnlineBoard ? null : (
-              <DashboardBreadcrumbs pathname={pathname} currentLabel={pageLabel} />
+              <div className="lg:hidden">
+                <DashboardBreadcrumbs pathname={pathname} currentLabel={pageLabel} />
+              </div>
             )}
             {children}
           </div>

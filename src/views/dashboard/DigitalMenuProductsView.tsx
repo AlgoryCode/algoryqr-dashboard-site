@@ -3,11 +3,12 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 
 import { CatalogProductsPanel } from "@/components/dashboard/menu/CatalogProductsPanel";
 import MenuProductsPanel from "@/components/dashboard/menu/MenuProductsPanel";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { Button } from "@/components/ui/button";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { DASHBOARD_BACK, DASHBOARD_PANEL } from "@/lib/dashboard-surface";
 
@@ -30,7 +31,17 @@ export default function DigitalMenuProductsView() {
         hint={
           fromHub
             ? "Bu menünün ürünleri. Yeni ürün oluşturabilir veya var olan bir ürünü ekleyebilirsiniz."
-            : "Ürünler menüden bağımsız oluşturulur. İstediğiniz menüye daha sonra atanır."
+            : "Tüm menülerinizdeki ürünler. Şube ve menüye göre daraltabilirsiniz."
+        }
+        action={
+          fromHub ? undefined : (
+            <Button size="sm" className="h-9 w-full shrink-0 gap-1.5 sm:w-auto" asChild>
+              <Link href={DASHBOARD_ROUTES.digitalMenuProductCreate}>
+                <Plus className="size-3.5" />
+                Ürün oluştur
+              </Link>
+            </Button>
+          )
         }
         back={
           fromHub ? (
@@ -50,9 +61,7 @@ export default function DigitalMenuProductsView() {
             <MenuProductsPanel menuId={0} qrId={initialQrId} presetCategoryId={presetCategoryId} />
           </div>
         ) : (
-          <div className={DASHBOARD_PANEL}>
-            <CatalogProductsPanel />
-          </div>
+          <CatalogProductsPanel />
         )}
     </div>
   );

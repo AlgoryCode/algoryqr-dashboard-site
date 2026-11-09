@@ -27,6 +27,7 @@ import {
   type OptionSourceProduct,
   productChoicesFromCatalog,
 } from "@/lib/product-options";
+import { TONE_ACTION } from "@/components/dashboard/tone";
 
 export type ProductOptionFormItem = {
   name: string;
@@ -344,7 +345,7 @@ export function ProductOptionFields({
                 type="button"
                 size="icon"
                 variant="ghost"
-                className="h-8 w-8 shrink-0 text-destructive"
+                className={`h-8 w-8 shrink-0 ${TONE_ACTION.delete}`}
                 disabled={disabled}
                 onClick={() => onChange(groups.filter((_, i) => i !== groupIndex))}
                 aria-label="Grubu sil"
@@ -411,7 +412,7 @@ export function ProductOptionFields({
                     type="button"
                     size="icon"
                     variant="ghost"
-                    className="h-8 w-8 text-destructive"
+                    className={`h-8 w-8 ${TONE_ACTION.delete}`}
                     disabled={disabled || group.options.length <= 1}
                     onClick={() =>
                       updateGroup(groupIndex, {

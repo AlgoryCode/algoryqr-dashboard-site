@@ -30,7 +30,7 @@ describe("trial-flow", () => {
       "/register?intent=trial&package=ultimate-trial",
     );
     expect(buildTrialStartUrl("ultimate-trial")).toBe(
-      "/dashboard/deneme/baslat?package=ultimate-trial",
+      "/deneme/baslat?package=ultimate-trial",
     );
   });
 
@@ -48,8 +48,8 @@ describe("trial-flow", () => {
 
   it("validates same-origin return urls", () => {
     expect(
-      resolveSafeReturnUrl("/dashboard/deneme/baslat?package=ultimate-trial", "https://app.test"),
-    ).toBe("/dashboard/deneme/baslat?package=ultimate-trial");
+      resolveSafeReturnUrl("/deneme/baslat?package=ultimate-trial", "https://app.test"),
+    ).toBe("/deneme/baslat?package=ultimate-trial");
     expect(resolveSafeReturnUrl("https://evil.test/path", "https://app.test")).toBeNull();
   });
 

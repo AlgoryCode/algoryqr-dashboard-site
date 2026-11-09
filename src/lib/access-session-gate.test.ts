@@ -8,7 +8,7 @@ describe("access-session-gate", () => {
     expect(destinationForDecision("START_PACKAGE", null)).toBe(DASHBOARD_ROUTES.demoRegister);
     expect(destinationForDecision("REQUIRE_PURCHASE", null)).toBe(SHOP_PATH);
     expect(destinationForDecision("REQUIRE_PAYMENT", null)).toBe(DASHBOARD_ROUTES.accountPackages);
-    expect(destinationForDecision("ALLOW", "/dashboard/dijital-menu")).toBe("/dashboard/dijital-menu");
+    expect(destinationForDecision("ALLOW", "/menu-yonetimi")).toBe("/menu-yonetimi");
     expect(destinationForDecision("ALLOW", null)).toBe(DASHBOARD_ROUTES.root);
   });
 
@@ -21,7 +21,7 @@ describe("access-session-gate", () => {
     expect(destinationForDecision("START_PACKAGE", DASHBOARD_ROUTES.trialStart)).toBe(
       DASHBOARD_ROUTES.trialStart,
     );
-    expect(destinationForDecision("REQUIRE_PAYMENT", "/dashboard")).toBe(DASHBOARD_ROUTES.accountPackages);
+    expect(destinationForDecision("REQUIRE_PAYMENT", "/genel-bakis")).toBe(DASHBOARD_ROUTES.accountPackages);
   });
 
   it("parses session payloads", () => {

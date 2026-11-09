@@ -1,8 +1,13 @@
 "use client";
 
-import { Star } from "lucide-react";
+import { useState } from "react";
+import Link from "next/link";
+import { ChevronRight, Filter, ShoppingBag, Star, UserRound } from "lucide-react";
 
+import { ResponsiveSheet } from "@/components/dashboard/reports/ReportShell";
+import { Button } from "@/components/ui/button";
 import type { MenuWaiterPerformanceReportResponse, MenuWaiterPerformanceRow } from "@/lib/api";
+import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { cn } from "@/lib/utils";
 import { revenueShare, toAmount } from "@/reporting/numbers";
 
@@ -15,11 +20,14 @@ export function StaffPage({
   waiter,
   money: formatMoney,
   roles,
+  onStaffFocus,
 }: {
   waiter: MenuWaiterPerformanceReportResponse;
   money: (value: number) => string;
   roles?: Record<string, string>;
+  onStaffFocus?: (staffId: number) => void;
 }) {
+  const [selected, setSelected] = useState<MenuWaiterPerformanceRow | null>(null);
   const score = staffScorecard(waiter);
   const rows = [...(waiter.waiters ?? [])].sort((a, b) => toAmount(b.revenue) - toAmount(a.revenue));
   const star = rows[0];
@@ -29,10 +37,23 @@ export function StaffPage({
   const tipShare = score.revenue > 0 ? (score.tip / score.revenue) * 100 : null;
   const rosterShare = score.roster > 0 ? (score.activeStaff / score.roster) * 100 : null;
   const showOps = assignment != null || tipShare != null || rosterShare != null;
+  const soldItems = rows.reduce((sum, row) => sum + (row.itemCount ?? 0), 0);
+  const topSoldProduct = [...rows.flatMap((row) => row.topProducts ?? [])].sort(
+    (a, b) => (b.quantity ?? 0) - (a.quantity ?? 0),
+  )[0];
 
   return (
-    <div className="space-y-3.5">
-      <section className="grid grid-cols-2 gap-2.5 lg:grid-cols-4" aria-label="Personel özeti">
+    <div className="min-w-0 space-y-3.5">
+      <section className="grid grid-cols-2 gap-2.5 lg:grid-cols-5" aria-label="Personel özeti">
+        <KpiCard
+          label="Satılan ürün adedi"
+          value={`${soldItems.toLocaleString("tr-TR")} adet`}
+          hint={
+            topSoldProduct
+              ? `En çok: ${topSoldProduct.name} (${(topSoldProduct.quantity ?? 0).toLocaleString("tr-TR")} adet)`
+              : undefined
+          }
+        />
         <KpiCard
           label="Bahşiş"
           value={formatMoney(score.tip)}
@@ -58,25 +79,26 @@ export function StaffPage({
         />
       </section>
 
-      <div className="grid items-start gap-3.5 lg:grid-cols-5">
+      <div className="grid grid-cols-1 items-start gap-3.5 lg:grid-cols-5">
         {star ? (
-          <div className="lg:col-span-2">
+          <div className="min-w-0 lg:col-span-2">
             <SpotlightCard
               row={star}
+              onOpen={() => setSelected(star)}
               formatMoney={formatMoney}
               role={roleLabel(star, roles)}
               share={Math.round(star.revenueSharePercent ?? revenueShare(toAmount(star.revenue), score.revenue))}
             />
           </div>
         ) : null}
-        <div className={star ? "lg:col-span-3" : "lg:col-span-5"}>
+        <div className={cn("min-w-0", star ? "lg:col-span-3" : "lg:col-span-5")}>
           <ShareChartCard rows={rows} roles={roles} />
         </div>
       </div>
 
       <div
         className={cn(
-          "grid items-start gap-3.5",
+          "grid grid-cols-1 items-start gap-3.5 [&>*]:min-w-0",
           showOps && rows.length > 0 && "lg:grid-cols-[18rem_minmax(0,1fr)]",
         )}
       >
@@ -109,8 +131,19 @@ export function StaffPage({
         </section>
       ) : null}
 
-      {rows.length > 0 ? <StaffTable rows={rows} formatMoney={formatMoney} roles={roles} /> : null}
+      {rows.length > 0 ? (
+        <StaffTable rows={rows} formatMoney={formatMoney} roles={roles} onSelect={setSelected} />
+      ) : null}
       </div>
+
+      <StaffDetailSheet
+        row={selected}
+        onClose={() => setSelected(null)}
+        formatMoney={formatMoney}
+        role={selected ? roleLabel(selected, roles) : undefined}
+        rank={selected ? rows.indexOf(selected) + 1 : 0}
+        onStaffFocus={onStaffFocus}
+      />
     </div>
   );
 }
@@ -131,10 +164,12 @@ function KpiCard({
   live?: boolean;
 }) {
   return (
-    <article className={cn(CARD, "p-3.5")}>
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <div className="mt-1 flex items-baseline justify-between gap-2">
-        <p className="text-2xl font-bold tracking-tight text-foreground">{value}</p>
+    <article className={cn(CARD, "min-w-0 p-3.5")}>
+      <p className="truncate text-xs font-medium text-muted-foreground">{label}</p>
+      <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+        <p className="min-w-0 truncate text-xl font-bold tracking-tight text-foreground sm:text-2xl" title={value}>
+          {value}
+        </p>
         {badge ? (
           <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">
             {badge}
@@ -148,7 +183,7 @@ function KpiCard({
         ) : null}
       </div>
       {hint ? (
-        <p className={cn("mt-1 text-[10px] font-medium", hintTone === "positive" ? "text-emerald-600 dark:text-emerald-300" : "text-muted-foreground")}>
+        <p className={cn("mt-1 line-clamp-2 text-[10px] font-medium", hintTone === "positive" ? "text-emerald-600 dark:text-emerald-300" : "text-muted-foreground")}>
           {hint}
         </p>
       ) : null}
@@ -161,7 +196,9 @@ function SpotlightCard({
   formatMoney,
   role,
   share,
+  onOpen,
 }: {
+  onOpen?: () => void;
   row: MenuWaiterPerformanceRow;
   formatMoney: (value: number) => string;
   role?: string;
@@ -173,16 +210,27 @@ function SpotlightCard({
   const top = row.topProducts?.[0];
 
   return (
-    <section className={cn(CARD, "p-4")} aria-label="Dönemin yıldızı">
-      <div className="flex items-center justify-between gap-3">
+    <section className={cn(CARD, "min-w-0 overflow-hidden p-4")} aria-label="Dönemin yıldızı">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="inline-flex items-center gap-1 rounded-full border border-primary/15 bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
           <Star className="h-3 w-3 fill-current" />
           Dönemin yıldızı
         </span>
-        <span className="text-xs font-medium text-muted-foreground">Ekip içinde 1. sıra</span>
+        {onOpen ? (
+          <button
+            type="button"
+            onClick={onOpen}
+            className="inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Detay
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        ) : (
+          <span className="text-xs font-medium text-muted-foreground">Ekip içinde 1. sıra</span>
+        )}
       </div>
-      <div className="mt-3 flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
+      <div className="mt-3 flex min-w-0 items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           <div className="relative shrink-0">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-tr from-primary to-orange-400 p-0.5">
               <div className="flex h-full w-full items-center justify-center rounded-[10px] bg-card text-base font-extrabold text-primary">
@@ -199,12 +247,13 @@ function SpotlightCard({
             {top ? <p className="mt-0.5 truncate text-[11px] font-medium text-foreground/80">{top.name}</p> : null}
           </div>
         </div>
-        <div className="shrink-0 rounded-xl border border-border/80 bg-muted/40 px-3 py-1.5 text-right">
+        <div className="shrink-0 rounded-xl border border-border/80 bg-muted/40 px-2.5 py-1.5 text-right sm:px-3">
           <span className="block text-[10px] font-semibold uppercase text-muted-foreground">Ciro payı</span>
           <span className="text-lg font-black tracking-tight text-foreground">%{share}</span>
         </div>
       </div>
-      <div className="mt-3 grid grid-cols-3 gap-2 border-t border-border/70 pt-2.5 text-center">
+      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/70 pt-2.5 text-center sm:grid-cols-4 lg:grid-cols-2 2xl:grid-cols-4">
+        <StatPill label="Satılan ürün" value={`${(row.itemCount ?? 0).toLocaleString("tr-TR")} adet`} />
         <StatPill label="Hesap" value={`${bills.toLocaleString("tr-TR")} adet`} />
         <StatPill label="Ort. sepet" value={formatMoney(basket)} />
         <StatPill label="Bahşiş" value={formatMoney(toAmount(row.tipAmount))} tone="positive" />
@@ -215,9 +264,9 @@ function SpotlightCard({
 
 function StatPill({ label, value, tone = "default" }: { label: string; value: string; tone?: "default" | "positive" }) {
   return (
-    <div className="rounded-lg border border-border/70 bg-muted/40 px-1 py-1.5">
-      <span className="block text-[10px] text-muted-foreground">{label}</span>
-      <span className={cn("text-xs font-bold", tone === "positive" ? "text-emerald-600 dark:text-emerald-300" : "text-foreground")}>
+    <div className="min-w-0 rounded-lg border border-border/70 bg-muted/40 px-1.5 py-1.5">
+      <span className="block truncate text-[10px] text-muted-foreground">{label}</span>
+      <span title={value} className={cn("block truncate text-xs font-bold tabular-nums", tone === "positive" ? "text-emerald-600 dark:text-emerald-300" : "text-foreground")}>
         {value}
       </span>
     </div>
@@ -242,8 +291,8 @@ function ShareChartCard({
   }));
 
   return (
-    <section className={cn(CARD, "p-4")} aria-label="Ciro payı ve sipariş payı">
-      <div className="mb-4 flex items-center justify-between gap-3">
+    <section className={cn(CARD, "min-w-0 p-4")} aria-label="Ciro payı ve sipariş payı">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
         <h2 className="text-sm font-bold text-foreground">Ciro payı / sipariş payı</h2>
         <div className="flex items-center gap-3 text-[11px] font-medium text-muted-foreground">
           <span className="flex items-center gap-1.5">
@@ -358,14 +407,19 @@ function StaffTable({
   rows,
   formatMoney,
   roles,
+  onSelect,
 }: {
   rows: MenuWaiterPerformanceRow[];
   formatMoney: (value: number) => string;
   roles?: Record<string, string>;
+  onSelect?: (row: MenuWaiterPerformanceRow) => void;
 }) {
   return (
-    <section className={cn(CARD, "p-4")} aria-label="Personel listesi">
-      <h2 className="mb-2 text-sm font-bold text-foreground">Personel</h2>
+    <section className={cn(CARD, "min-w-0 p-4")} aria-label="Personel listesi">
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <h2 className="text-sm font-bold text-foreground">Personel</h2>
+        {onSelect ? <p className="text-[11px] text-muted-foreground">Detay için satıra dokunun</p> : null}
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -376,6 +430,7 @@ function StaffTable({
               <th className="pb-1.5 text-right font-medium">Sepet</th>
               <th className="pb-1.5 text-right font-medium">Bahşiş</th>
               <th className="pb-1.5 text-right font-medium">En çok satan</th>
+              {onSelect ? <th className="w-6 pb-1.5" aria-hidden /> : null}
             </tr>
           </thead>
           <tbody>
@@ -386,7 +441,23 @@ function StaffTable({
               const top = row.topProducts?.[0];
               const role = roleLabel(row, roles);
               return (
-                <tr key={`${row.waiterId ?? row.displayName}-${index}`}>
+                <tr
+                  key={`${row.waiterId ?? row.displayName}-${index}`}
+                  className={cn(onSelect && "cursor-pointer transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none")}
+                  tabIndex={onSelect ? 0 : undefined}
+                  aria-label={onSelect ? `${row.displayName} detayını aç` : undefined}
+                  onClick={onSelect ? () => onSelect(row) : undefined}
+                  onKeyDown={
+                    onSelect
+                      ? (event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            onSelect(row);
+                          }
+                        }
+                      : undefined
+                  }
+                >
                   <td className="py-1.5 text-left">
                     <span className="block truncate font-medium text-foreground">{row.displayName}</span>
                     {role ? <span className="block text-[10px] text-muted-foreground">{role}</span> : null}
@@ -398,6 +469,11 @@ function StaffTable({
                   <td className="py-1.5 text-right text-foreground">
                     {top ? `${top.name} · ${top.quantity.toLocaleString("tr-TR")}` : "—"}
                   </td>
+                  {onSelect ? (
+                    <td className="py-1.5 pl-2 text-right text-muted-foreground">
+                      <ChevronRight className="ml-auto h-4 w-4" />
+                    </td>
+                  ) : null}
                 </tr>
               );
             })}
@@ -459,4 +535,138 @@ function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length >= 2) return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
   return name.replace(/\s+/g, "").slice(0, 2).toUpperCase() || "—";
+}
+
+function StaffDetailSheet({
+  row,
+  onClose,
+  formatMoney,
+  role,
+  rank,
+  onStaffFocus,
+}: {
+  row: MenuWaiterPerformanceRow | null;
+  onClose: () => void;
+  formatMoney: (value: number) => string;
+  role?: string;
+  rank: number;
+  onStaffFocus?: (staffId: number) => void;
+}) {
+  const staffId = row ? (row.staffId ?? row.waiterId ?? null) : null;
+  const orders = row?.orderCount ?? 0;
+  const items = row?.itemCount ?? 0;
+  const revenue = toAmount(row?.revenue);
+  const basket = toAmount(row?.avgOrderValue) || (orders > 0 ? revenue / orders : 0);
+  const products = row?.topProducts ?? [];
+  const peak = Math.max(1, ...products.map((product) => product.quantity ?? 0));
+
+  const metrics: { label: string; value: string; accent?: boolean }[] = row
+    ? [
+        { label: "Satılan ürün", value: `${items.toLocaleString("tr-TR")} adet`, accent: true },
+        { label: "Ciro", value: formatMoney(revenue), accent: true },
+        { label: "Sipariş", value: orders.toLocaleString("tr-TR") },
+        { label: "Ort. sepet", value: formatMoney(basket) },
+        { label: "Bahşiş", value: formatMoney(toAmount(row.tipAmount)) },
+        { label: "Komisyon", value: formatMoney(toAmount(row.commissionAmount)) },
+        { label: "Kapanan hesap", value: (row.billsClosedCount ?? 0).toLocaleString("tr-TR") },
+        {
+          label: "Ciro payı",
+          value: `%${(row.revenueSharePercent ?? 0).toLocaleString("tr-TR", { maximumFractionDigits: 1 })}`,
+        },
+      ]
+    : [];
+
+  return (
+    <ResponsiveSheet
+      open={row != null}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      icon={UserRound}
+      title={row?.displayName ?? "Personel"}
+      description={[role ?? "Personel", rank > 0 ? `Ekip içinde ${rank}. sıra` : null].filter(Boolean).join(" · ")}
+      footer={
+        staffId != null ? (
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {onStaffFocus ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1 gap-1.5"
+                onClick={() => {
+                  onStaffFocus(staffId);
+                  onClose();
+                }}
+              >
+                <Filter className="h-4 w-4" />
+                Raporu daralt
+              </Button>
+            ) : null}
+            <Button asChild className="flex-1 gap-1.5">
+              <Link href={DASHBOARD_ROUTES.menuUserDetail(staffId)}>
+                <UserRound className="h-4 w-4" />
+                Personel sayfası
+              </Link>
+            </Button>
+          </div>
+        ) : null
+      }
+    >
+      {row ? (
+        <div className="space-y-5">
+          <div className="grid grid-cols-2 gap-2">
+            {metrics.map((metric) => (
+              <div
+                key={metric.label}
+                className={cn(
+                  "rounded-xl border px-3 py-2.5",
+                  metric.accent ? "border-primary/20 bg-primary/5" : "border-border/70 bg-muted/30",
+                )}
+              >
+                <p className="text-[11px] font-medium text-muted-foreground">{metric.label}</p>
+                <p className="mt-0.5 truncate text-base font-semibold tabular-nums text-foreground">{metric.value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <ShoppingBag className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold text-foreground">En çok sattığı ürünler</h3>
+            </div>
+            {products.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-border px-3 py-4 text-center text-sm text-muted-foreground">
+                Bu dönemde ürün satışı yok.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {products.map((product) => (
+                  <li key={product.productId} className="space-y-1">
+                    <div className="flex items-baseline justify-between gap-3 text-sm">
+                      <span className="min-w-0 truncate font-medium text-foreground">{product.name}</span>
+                      <span className="shrink-0 tabular-nums text-muted-foreground">
+                        {product.quantity.toLocaleString("tr-TR")} adet · {formatMoney(toAmount(product.revenue))}
+                      </span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-primary/70"
+                        style={{ width: `${Math.max(4, (product.quantity / peak) * 100)}%` }}
+                      />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {staffId == null ? (
+            <p className="text-xs text-muted-foreground">
+              Bu satır personele atanmamış ödemeleri gösterir.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </ResponsiveSheet>
+  );
 }

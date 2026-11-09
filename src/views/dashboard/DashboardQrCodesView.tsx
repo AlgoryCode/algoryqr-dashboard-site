@@ -1,16 +1,15 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   createQrRequest, deleteQrRequest, getMyActiveMenusRequest, getStoredUser,
-  getMerchantQrsRequest, QrResponse, StoredUser, updateQrActiveRequest, updateQrNameRequest, updateQrRequest,
+  getMerchantQrsRequest, StoredUser, updateQrActiveRequest, updateQrNameRequest, updateQrRequest,
 } from "@/lib/api";
 import { refreshAccessAfterEntitlementChange } from "@/lib/refresh-access";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
@@ -19,19 +18,23 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
-  QrCode, Plus, Eye, Calendar, Download, Share2, Trash2, Edit, Copy,
-  Link as LinkIcon, Wifi, Mail, Phone, FileText, MapPin, Paintbrush, RotateCcw, Check, ArrowLeft,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  QrCode, Plus, MoreHorizontal, Download, Share2, Trash2, Edit, Copy,
+  Link as LinkIcon, Wifi, Mail, Phone, FileText, MapPin, Check, ArrowLeft,
   ChevronLeft, ChevronRight, Search,
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import PackageUsageCard from "@/components/dashboard/PackageUsageCard";
-import { QRCodesSkeleton } from "@/components/dashboard/DashboardSkeletons";
 import { QrTypeDetails, QrTypeData, QrTypeValue } from "@/components/dashboard/qr-create/QrTypeDetails";
 import {
   createInitialQrTypeData, getQrDetailsByType, getBackendTypeFromDetails,
   mapDetailsToQrTypeData, getReadableDetailRows, mapUserQrToDashboardItem,
   isMenuQrDetails,
+  validateQrDetails,
+  buildScanChart,
   type DashboardQrItem,
 } from "@/components/dashboard/qr/qr-mappers";
 // removed QrListScope filter; always listing ALL
@@ -41,11 +44,11 @@ import {
   downloadQrImage,
   shareQr,
 } from "@/components/dashboard/qr/qr-actions";
+import { TONE_BUTTON, TONES, ToneIcon } from "@/components/dashboard/tone";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
-import { invalidatePackageUsage, usePackageUsage } from "@/hooks/use-package-usage";
+import { invalidatePackageUsage } from "@/hooks/use-package-usage";
 import { invalidateSubscription } from "@/hooks/use-subscription";
 import { EmptyState } from "@/components/dashboard/EmptyState";
-import { DashboardFilterBar } from "@/components/dashboard/DashboardFilterBar";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { FilterSelect } from "@/components/dashboard/FilterSelect";
 import { useDashboardPageLabel } from "@/contexts/dashboard-page-label";
@@ -54,20 +57,34 @@ import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { useQrCreateAccess } from "@/hooks/use-qr-create-access";
 import {
   DASHBOARD_BACK,
-  DASHBOARD_METRIC_LABEL,
-  DASHBOARD_METRIC_VALUE,
-  DASHBOARD_STAT_TILE,
   DASHBOARD_SURFACE,
 } from "@/lib/dashboard-surface";
 
 const qrTypes = [
-  { value: "link", label: "Link", icon: LinkIcon, desc: "Web sitesi veya URL" },
-  { value: "wifi", label: "WiFi", icon: Wifi, desc: "Kablosuz ağ bilgisi" },
-  { value: "mail", label: "E-Posta", icon: Mail, desc: "E-posta şablonu" },
-  { value: "contact", label: "İletişim", icon: Phone, desc: "vCard bilgileri" },
-  { value: "text", label: "Metin", icon: FileText, desc: "Düz metin içeriği" },
-  { value: "location", label: "Konum", icon: MapPin, desc: "GPS koordinatları" },
+  { value: "link", label: "Link", icon: LinkIcon, tone: "teal", desc: "Web sitesi veya URL" },
+  { value: "wifi", label: "WiFi", icon: Wifi, tone: "violet", desc: "Kablosuz ağ bilgisi" },
+  { value: "mail", label: "E-Posta", icon: Mail, tone: "orange", desc: "E-posta şablonu" },
+  { value: "contact", label: "İletişim", icon: Phone, tone: "green", desc: "vCard bilgileri" },
+  { value: "text", label: "Metin", icon: FileText, tone: "blue", desc: "Düz metin içeriği" },
+  { value: "location", label: "Konum", icon: MapPin, tone: "red", desc: "GPS koordinatları" },
 ] as const;
+
+const qrModes = [
+  {
+    value: "dynamic",
+    label: "Dinamik",
+    desc: "Basılı QR aynı kalır, içeriği sonradan değiştirebilirsiniz.",
+    wifiDesc: "Şifre değişse de QR aynı kalır, müşteri ağa elle bağlanır.",
+  },
+  {
+    value: "static",
+    label: "Sabit",
+    desc: "İçerik QR'ın içindedir, değişirse yeniden basılması gerekir.",
+    wifiDesc: "Telefon okutunca WiFi'ye doğrudan bağlanır, şifre değişirse yeniden basılır.",
+  },
+] as const;
+
+const listTypeOf = (qr: DashboardQrItem) => qrTypes.find((type) => type.label === qr.type);
 
 function useTooltipStyle() {
   return {
@@ -96,15 +113,11 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
   const router = useRouter();
   const queryClient = useQueryClient();
   const { notify } = useDashboardBanners();
-  const { data: packageUsage, isLoading: isPackageUsageLoading } = usePackageUsage(mode === "create");
   const { canCreateQr, qrQuotaLabel, accessLoading: isQrAccessLoading, accessError, retryAccess } = useQrCreateAccess();
   const { searchParams, setQuery } = useListQueryState();
   const [isLoading, setIsLoading] = useState(false);
   // scope filter removed; always list ALL
   const [nameQuery, setNameQuery] = useState(() => searchParams.get("q") ?? "");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">(
-    () => (searchParams.get("status") as "all" | "active" | "inactive") || "all",
-  );
   const [typeFilter, setTypeFilter] = useState(() => searchParams.get("type") ?? "all");
   const [page, setPage] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
@@ -113,10 +126,16 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
   const [selectedQrType, setSelectedQrType] = useState<QrTypeValue>("link");
   const [qrName, setQrName] = useState("");
   const [qrTypeData, setQrTypeData] = useState<QrTypeData>(() => createInitialQrTypeData());
-  const [qrColor, setQrColor] = useState("#000000");
-  const [qrBgColor, setQrBgColor] = useState("#ffffff");
   const [qrTracking, setQrTracking] = useState(true);
-  const [latestQrResponse, setLatestQrResponse] = useState<QrResponse | null>(null);
+  const [qrMode, setQrMode] = useState<"dynamic" | "static">("dynamic");
+  const selectQrType = (type: QrTypeValue) => {
+    setSelectedQrType(type);
+    // A phone only joins WiFi automatically from a static QR; everything else benefits from being editable.
+    setQrMode(type === "wifi" ? "static" : "dynamic");
+  };
+  const [isCreating, setIsCreating] = useState(false);
+  const [qrPendingDelete, setQrPendingDelete] = useState<DashboardQrItem | null>(null);
+  const createInFlight = useRef(false);
   const [userQrs, setUserQrs] = useState<DashboardQrItem[]>([]);
 
   // QR Detail/Edit state
@@ -127,8 +146,6 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
   const [editActive, setEditActive] = useState(true);
   const [editQrType, setEditQrType] = useState<QrTypeValue>("link");
   const [editQrTypeData, setEditQrTypeData] = useState<QrTypeData>(() => createInitialQrTypeData());
-  const [menuId, setMenuId] = useState<number | null>(null);
-  const [publicUrl, setPublicUrl] = useState<string | null>(null);
 
   // UI: Kaydet butonunun hangi uyarıyı göstermesi gerektiğini belirler.
   const editNameTrimmed = editName.trim();
@@ -144,8 +161,14 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
     ? isMenuQrDetails(selectedQR.details) && !nameChangedForUi && !activeUnchangedForUi && detailsUnchangedForUi
     : false;
   const hasChangesForUi = selectedQR ? nameChangedForUi || !activeUnchangedForUi || !detailsUnchangedForUi : false;
+  // A dynamic QR keeps its printed image, so only the other cases need a warning.
+  const reprintWarning = !selectedQR || selectedQR.publicUrl
+    ? null
+    : isMenuQrDetails(selectedQR.details)
+      ? "Güncelleme yeni bir QR oluşturur; eski QR devre dışı kalır. Devam edilsin mi?"
+      : "Bu sabit bir QR: bilgiler görselin içinde saklanır. Kaydedince yeni bir görsel üretilir, eski basılı QR eski bilgilerle kalır. Devam edilsin mi?";
 
-  const hasListFilter = nameQuery.trim() !== "" || statusFilter !== "all" || typeFilter !== "all";
+  const hasListFilter = nameQuery.trim() !== "" || typeFilter !== "all";
 
   const fetchUserQrs = useCallback(async (): Promise<DashboardQrItem[]> => {
     setIsLoading(true);
@@ -184,13 +207,11 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
   const visibleQrs = useMemo(() => {
     const query = nameQuery.trim().toLocaleLowerCase("tr");
     return userQrs.filter((qr) => {
-      if (statusFilter === "active" && !qr.active) return false;
-      if (statusFilter === "inactive" && qr.active) return false;
       if (typeFilter !== "all" && qr.type !== typeFilter) return false;
       if (!query) return true;
       return `${qr.name} ${qr.content} ${qr.type}`.toLocaleLowerCase("tr").includes(query);
     });
-  }, [nameQuery, statusFilter, typeFilter, userQrs]);
+  }, [nameQuery, typeFilter, userQrs]);
 
   const handleDeleteQr = useCallback(async (qr: DashboardQrItem) => {
     try {
@@ -325,33 +346,10 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
     }
 
     const details = getQrDetailsByType(editQrType, editQrTypeData);
-    if (editQrType === "link" && !String((details as { url?: string }).url ?? "").trim()) {
-      notify("warning", "URL zorunlu.");
+    const detailsError = validateQrDetails(editQrType, details);
+    if (detailsError) {
+      notify("warning", detailsError);
       return;
-    }
-    if (editQrType === "wifi" && !String((details as { ssid?: string }).ssid ?? "").trim()) {
-      notify("warning", "WiFi SSID zorunlu.");
-      return;
-    }
-    if (editQrType === "mail" && !String((details as { mail?: string }).mail ?? "").trim()) {
-      notify("warning", "E-posta adresi zorunlu.");
-      return;
-    }
-    if (editQrType === "contact" && !String((details as { fullName?: string }).fullName ?? "").trim()) {
-      notify("warning", "Ad Soyad zorunlu.");
-      return;
-    }
-    if (editQrType === "text" && !String((details as { text?: string }).text ?? "").trim()) {
-      notify("warning", "Metin zorunlu.");
-      return;
-    }
-    if (editQrType === "location") {
-      const latitude = String((details as { latitude?: string }).latitude ?? "").trim();
-      const longitude = String((details as { longitude?: string }).longitude ?? "").trim();
-      if (!latitude || !longitude) {
-        notify("warning", "Enlem/Boylam zorunlu.");
-        return;
-      }
     }
 
     try {
@@ -364,7 +362,7 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
 
       const refreshedQrs = await fetchUserQrs();
       const refreshedSelected =
-        refreshedQrs.find((item) => item.imgSrc === updateResponse.imgSrc) || refreshedQrs[0] || null;
+        refreshedQrs.find((item) => item.id === (updateResponse.qrId ?? selectedQR.id)) || refreshedQrs[0] || null;
 
       setSelectedQR(refreshedSelected);
       setIsEditing(false);
@@ -376,12 +374,16 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
         setEditQrTypeData(mapDetailsToQrTypeData(refreshedSelected.details));
       }
 
-      notify("warning", `"${trimmedName}" güncellendi. Güncelleme yeni bir QR oluşturur; eski QR devre dışı kalır.`);
+      if (reprintWarning) {
+        notify("warning", `"${trimmedName}" güncellendi. Yeni QR görselini indirip basılı QR'ı yenileyin.`);
+      } else {
+        notify("info", `"${trimmedName}" güncellendi. Basılı QR aynı kalır, yeni içeriği açar.`);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "QR kod güncellenemedi.";
       notify("danger", message);
     }
-  }, [editActive, editName, editQrType, editQrTypeData, fetchUserQrs, notify, queryClient, selectedQR]);
+  }, [editActive, editName, editQrType, editQrTypeData, fetchUserQrs, notify, queryClient, reprintWarning, selectedQR]);
 
   useEffect(() => {
     if (true) {
@@ -427,16 +429,6 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
     };
   }, [isLoading, mode, qrId, router, userQrs]);
 
-  useEffect(() => {
-    if (!selectedQR || !isMenuQrDetails(selectedQR.details)) {
-      setMenuId(null);
-      setPublicUrl(null);
-      return;
-    }
-    setMenuId(null);
-    setPublicUrl(null);
-  }, [selectedQR]);
-
   const handleCreateQR = useCallback(async () => {
     if (!canCreateQr) {
       notify(
@@ -457,20 +449,29 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
       return;
     }
 
+    const detailsError = validateQrDetails(selectedQrType, details);
+    if (detailsError) {
+      notify("warning", detailsError);
+      return;
+    }
+
+    // The ref blocks a second click in the same tick, before the disabled state reaches the button.
+    if (createInFlight.current) return;
+    createInFlight.current = true;
+    setIsCreating(true);
+
     try {
       const response = await createQrRequest({
         qrName: trimmedQrName,
         type: selectedQrType,
         details,
+        trackingEnabled: qrTracking && qrMode === "dynamic",
+        qrMode,
       });
-      setLatestQrResponse(response.qrResponse);
-
       notify("info", `"${trimmedQrName}" başarıyla oluşturuldu!`);
       setQrName("");
       setQrTypeData(createInitialQrTypeData());
-      setQrColor("#000000");
-      setQrBgColor("#ffffff");
-      setSelectedQrType("link");
+      selectQrType("link");
       void invalidatePackageUsage(queryClient);
       void invalidateSubscription(queryClient);
       await fetchUserQrs();
@@ -480,197 +481,232 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
     } catch (error) {
       const message = error instanceof Error ? error.message : "QR kod oluşturulamadı.";
       notify("danger", message);
+    } finally {
+      createInFlight.current = false;
+      setIsCreating(false);
     }
-  }, [accessError, canCreateQr, fetchUserQrs, notify, qrName, qrQuotaLabel, qrTypeData, queryClient, router, selectedQrType]);
+  }, [accessError, canCreateQr, fetchUserQrs, notify, qrMode, qrName, qrQuotaLabel, qrTracking, qrTypeData, queryClient, router, selectedQrType]);
+
+  const selectedTypeMeta = selectedQR ? listTypeOf(selectedQR) : undefined;
+  const handleCopyAddress = async (address: string) => {
+    const copied = await copyTextToClipboard(address).catch(() => false);
+    if (copied) notify("info", "Sabit adres kopyalandı.");
+    else notify("warning", "Kopyalama başarısız.");
+  };
 
   return (
     <>
           {mode === "list" && (
-            <div className="space-y-6 animate-fade-in">
+            <div className="space-y-5 animate-fade-in">
               <DashboardPageHeader
                 title="QR Kodlarım"
-                hint={`${totalElements} QR kod oluşturuldu${
-                  !isQrAccessLoading && qrQuotaLabel ? ` · ${qrQuotaLabel}` : ""
-                }`}
-              />
-
-              {isLoading ? (
-                <QRCodesSkeleton />
-              ) : (
-                <>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                {canCreateQr ? (
-                  <Button variant="hero" size="sm" className="gap-2 self-start sm:self-auto" asChild>
-                    <Link href={DASHBOARD_ROUTES.qrCodesNew}>
+                hint={[
+                  totalElements > 0 ? `${totalElements} QR kod` : null,
+                  !isQrAccessLoading ? qrQuotaLabel : null,
+                ].filter(Boolean).join(" · ")}
+                action={
+                  canCreateQr ? (
+                    <Button className="w-full gap-2 sm:w-auto" asChild>
+                      <Link href={DASHBOARD_ROUTES.qrCodesNew}>
+                        <Plus className="h-4 w-4" />
+                        Yeni QR Kod
+                      </Link>
+                    </Button>
+                  ) : (
+                    <Button
+                      className="w-full gap-2 sm:w-auto"
+                      disabled
+                      title={qrQuotaLabel ?? "QR oluşturma hakkınız yok"}
+                    >
                       <Plus className="h-4 w-4" />
                       Yeni QR Kod
-                    </Link>
-                  </Button>
-                ) : (
-                  <Button
-                    variant="hero"
-                    size="sm"
-                    className="gap-2 self-start sm:self-auto"
-                    disabled
-                    title={qrQuotaLabel ?? "QR oluşturma hakkınız yok"}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Yeni QR Kod
-                  </Button>
-                )}
-              </div>
+                    </Button>
+                  )
+                }
+              />
 
-              <DashboardFilterBar>
-                <div className="relative min-w-0 flex-1">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={nameQuery}
-                    onChange={(event) => {
-                      const next = event.target.value;
-                      setNameQuery(next);
-                      setQuery({ q: next.trim() || null });
+              {totalElements > 0 || hasListFilter ? (
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                  <div className="relative min-w-0 flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={nameQuery}
+                      onChange={(event) => {
+                        const next = event.target.value;
+                        setNameQuery(next);
+                        setQuery({ q: next.trim() || null });
+                      }}
+                      placeholder="Ad veya içerik ara…"
+                      className="h-10 pl-9"
+                      aria-label="QR ara"
+                    />
+                  </div>
+                  <FilterSelect
+                    className="w-full sm:w-[10rem]"
+                    label="Tür"
+                    value={typeFilter}
+                    onValueChange={(next) => {
+                      setTypeFilter(next);
+                      setQuery({ type: next === "all" ? null : next });
                     }}
-                    placeholder="Ad veya içerik ara…"
-                    className="h-10 pl-9"
-                    aria-label="QR ara"
+                    options={[
+                      { value: "all", label: "Tümü" },
+                      ...qrTypes.map((type) => ({ value: type.label, label: type.label })),
+                    ]}
                   />
                 </div>
-                <FilterSelect
-                  className="w-full sm:w-[10rem]"
-                  label="Durum"
-                  value={statusFilter}
-                  onValueChange={(next) => {
-                    const value = next as typeof statusFilter;
-                    setStatusFilter(value);
-                    setQuery({ status: value === "all" ? null : value });
-                  }}
-                  options={[
-                    { value: "all", label: "Tümü" },
-                    { value: "active", label: "Aktif" },
-                    { value: "inactive", label: "Pasif" },
-                  ]}
-                />
-                <FilterSelect
-                  className="w-full sm:w-[10rem]"
-                  label="Tür"
-                  value={typeFilter}
-                  onValueChange={(next) => {
-                    setTypeFilter(next);
-                    setQuery({ type: next === "all" ? null : next });
-                  }}
-                  options={[
-                    { value: "all", label: "Tümü" },
-                    ...qrTypes.map((type) => ({ value: type.label, label: type.label })),
-                  ]}
-                />
-              </DashboardFilterBar>
+              ) : null}
 
-              <div className="grid gap-4">
-                {userQrs.length === 0 ? (
-                  <EmptyState
-                    title="Henüz QR kod yok"
-                    description="İlk QR kodunuzu oluşturup masaya veya menüye bağlayın."
-                    action={
+              {isLoading && userQrs.length === 0 ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 3 }).map((_, index) => (
+                    <Skeleton key={index} className="h-[4.5rem] w-full rounded-lg" />
+                  ))}
+                </div>
+              ) : userQrs.length === 0 ? (
+                <EmptyState
+                  title="Henüz QR kod yok"
+                  description="İlk QR kodunuzu oluşturup masaya veya menüye bağlayın."
+                  action={
+                    canCreateQr ? (
                       <Button asChild>
                         <Link href={DASHBOARD_ROUTES.qrCodesNew}>QR oluştur</Link>
                       </Button>
-                    }
-                  />
-                ) : visibleQrs.length === 0 ? (
-                  <EmptyState
-                    title="Filtrelere uyan QR yok"
-                    description="Arama, durum veya tür filtresini temizleyip tekrar deneyin."
-                    action={
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setNameQuery("");
-                          setStatusFilter("all");
-                          setTypeFilter("all");
-                          setQuery({ q: null, status: null, type: null });
-                        }}
-                      >
-                        Filtreleri temizle
-                      </Button>
-                    }
-                  />
-                ) : visibleQrs.map((qr) => (
-                  <Card
-                    key={qr.id}
-                    className={`${DASHBOARD_SURFACE} cursor-pointer transition-colors hover:bg-accent/30`}
-                    onClick={() => {
-                      router.push(DASHBOARD_ROUTES.qrCodeDetail(qr.id));
-                    }}
-                  >
-                    <CardContent className="p-4 sm:p-5">
-                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                        <div className="min-w-0 flex items-start gap-3">
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted sm:h-12 sm:w-12">
-                            {qr.imgSrc ? (
-                              <img
-                                src={`data:image/png;base64,${qr.imgSrc}`}
-                                alt={`${qr.name} QR kodu`}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <QrCode className="h-6 w-6 text-muted-foreground" />
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-2">
-                              <h3 className="break-words pr-2 font-semibold text-sm leading-5">{qr.name}</h3>
-                              <span className={`inline-flex w-fit shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${qr.active ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}`}>
-                                {qr.active ? "Aktif" : "Pasif"}
-                              </span>
-                              {/* package badges removed */}
-                            </div>
-                            <p className="mt-0.5 break-words text-xs leading-5 text-muted-foreground">{qr.content}</p>
-                            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                              <span className="flex items-center gap-1 whitespace-nowrap"><Eye className="h-3 w-3" />{qr.scans} tarama</span>
-                              <span className="flex items-center gap-1 whitespace-nowrap"><Calendar className="h-3 w-3" />{qr.created}</span>
-                              <span className="rounded bg-muted px-1.5 py-0.5 text-xs whitespace-nowrap">{qr.type}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-1 border-t border-border/60 pt-2 lg:justify-end lg:border-0 lg:pt-0" onClick={(e) => e.stopPropagation()}>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground sm:h-8 sm:w-8" onClick={() => void handleCopyQr(qr)}><Copy className="h-3.5 w-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground sm:h-8 sm:w-8" onClick={() => handleDownloadQr(qr)}><Download className="h-3.5 w-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground sm:h-8 sm:w-8" onClick={() => void handleShareQr(qr)}><Share2 className="h-3.5 w-3.5" /></Button>
-                          <Button
-                            variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground sm:h-8 sm:w-8"
-                            onClick={() => router.push(DASHBOARD_ROUTES.qrCodeDetail(qr.id))}
-                          >
-                            <Edit className="h-3.5 w-3.5" />
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive sm:h-8 sm:w-8">
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>QR silinsin mi?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  <span className="font-medium">{qr.name}</span> QR’ını tamamen silersiniz. Bu işlem
-                                  geri alınamaz.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Vazgeç</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => void handleDeleteQr(qr)}>Sil</AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
+                    ) : undefined
+                  }
+                />
+              ) : visibleQrs.length === 0 ? (
+                <EmptyState
+                  title="Sonuç bulunamadı"
+                  description="Aramayı veya tür filtresini değiştirip tekrar deneyin."
+                  action={
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setNameQuery("");
+                        setTypeFilter("all");
+                        setQuery({ q: null, type: null });
+                      }}
+                    >
+                      Filtreleri temizle
+                    </Button>
+                  }
+                />
+              ) : (
+                <ul className={`${DASHBOARD_SURFACE} divide-y divide-border overflow-hidden`}>
+                  {visibleQrs.map((qr) => (
+                    <li key={qr.id} className="relative flex items-center gap-3 p-3 transition-colors hover:bg-accent/30 sm:gap-4 sm:p-4">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+                        {qr.imgSrc ? (
+                          <img
+                            src={`data:image/png;base64,${qr.imgSrc}`}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <QrCode className="h-5 w-5 text-muted-foreground" />
+                        )}
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                      <div className="min-w-0 flex-1">
+                        <Link
+                          href={DASHBOARD_ROUTES.qrCodeDetail(qr.id)}
+                          className="block truncate text-sm font-medium text-foreground after:absolute after:inset-0"
+                        >
+                          {qr.name}
+                        </Link>
+                        <p className="truncate text-xs text-muted-foreground">{qr.content || "İçerik yok"}</p>
+                        <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium leading-4 ${qr.publicUrl ? TONES.green : TONES.orange}`}>
+                            {qr.publicUrl ? "Dinamik" : "Sabit"}
+                          </span>
+                          {listTypeOf(qr) ? (
+                            <ToneIcon tone={listTypeOf(qr)!.tone} icon={listTypeOf(qr)!.icon} size="sm" />
+                          ) : null}
+                          <span className="truncate">
+                            {qr.type}
+                            <span className="hidden sm:inline"> · {qr.created}</span>
+                            {qr.publicUrl ? ` · ${qr.scans} tarama` : ""}
+                          </span>
+                        </p>
+                      </div>
+                      <div className="relative z-10 flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          className={`${TONE_BUTTON} w-9 ${TONES.green}`}
+                          title="İndir"
+                          aria-label={`${qr.name} QR kodunu indir`}
+                          onClick={() => handleDownloadQr(qr)}
+                        >
+                          <Download className="h-4 w-4 [stroke-width:1.75]" />
+                        </button>
+                        <DropdownMenu modal={false}>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-9 w-9 text-muted-foreground"
+                              aria-label={`${qr.name} için diğer işlemler`}
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onSelect={() => router.push(DASHBOARD_ROUTES.qrCodeDetail(qr.id))}>
+                              <span className="mr-2"><ToneIcon tone="violet" icon={Edit} /></span>
+                              Düzenle
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => void handleCopyQr(qr)}>
+                              <span className="mr-2"><ToneIcon tone="teal" icon={Copy} /></span>
+                              Kopyala
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => void handleShareQr(qr)}>
+                              <span className="mr-2"><ToneIcon tone="orange" icon={Share2} /></span>
+                              Paylaş
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onSelect={() => setQrPendingDelete(qr)}
+                            >
+                              <span className="mr-2"><ToneIcon tone="red" icon={Trash2} /></span>
+                              Sil
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <AlertDialog
+                open={qrPendingDelete != null}
+                onOpenChange={(open) => {
+                  if (!open) setQrPendingDelete(null);
+                }}
+              >
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>QR silinsin mi?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      <span className="font-medium">{qrPendingDelete?.name}</span> QR’ını tamamen silersiniz. Bu işlem
+                      geri alınamaz.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Vazgeç</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => {
+                        if (qrPendingDelete) void handleDeleteQr(qrPendingDelete);
+                      }}
+                    >
+                      Sil
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
 
               {!hasListFilter && totalElements > QR_PAGE_SIZE ? (
-                <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
+                <div className="flex items-center justify-between gap-3">
                   <p className="text-xs text-muted-foreground">
                     Sayfa {page + 1} / {Math.max(1, totalPages)}
                   </p>
@@ -700,17 +736,22 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
                   </div>
                 </div>
               ) : null}
-                </>
-              )}
             </div>
           )}
 
           {/* ── QR Detail / Edit ── */}
-          {!isLoading && mode === "detail" && selectedQR && (
-            <div className="space-y-6 animate-fade-in">
+          {mode === "detail" && !selectedQR ? (
+            <div className="mx-auto grid max-w-4xl gap-5 md:grid-cols-[18rem_minmax(0,1fr)]">
+              <Skeleton className="h-96 rounded-xl" />
+              <Skeleton className="h-64 rounded-xl" />
+            </div>
+          ) : null}
+
+          {mode === "detail" && selectedQR && (
+            <div className="mx-auto max-w-4xl space-y-5 animate-fade-in">
               <DashboardPageHeader
-                title={isEditing ? "QR Kod Düzenle" : selectedQR.name}
-                hint={isEditing ? "Bilgileri güncelleyip kaydedin." : "QR kod detayları ve istatistikleri."}
+                title={isEditing ? "QR Kodu Düzenle" : selectedQR.name}
+                hint={isEditing ? null : `${selectedQR.created} tarihinde oluşturuldu`}
                 back={
                   <button
                     type="button"
@@ -726,53 +767,119 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
                 }
                 action={
                   !isEditing ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-2 self-start sm:self-auto"
-                    onClick={() => {
-                      setIsEditing(true);
-                      setEditName(selectedQR.name);
-                      setEditActive(selectedQR.active);
-                      const backendType = getBackendTypeFromDetails(selectedQR.details);
-                      setEditQrType(backendType);
-                      setEditQrTypeData(mapDetailsToQrTypeData(selectedQR.details));
-                    }}
-                  >
-                    <Edit className="h-3.5 w-3.5" />
-                    Düzenle
-                  </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full gap-2 sm:w-auto"
+                      onClick={() => {
+                        setIsEditing(true);
+                        setEditName(selectedQR.name);
+                        setEditActive(selectedQR.active);
+                        const backendType = getBackendTypeFromDetails(selectedQR.details);
+                        setEditQrType(backendType);
+                        setEditQrTypeData(mapDetailsToQrTypeData(selectedQR.details));
+                      }}
+                    >
+                      <Edit className="h-4 w-4" />
+                      Düzenle
+                    </Button>
                   ) : null
                 }
               />
 
-              <div className="grid gap-6 lg:grid-cols-3">
-                <div className="lg:col-span-2 space-y-6">
-                  {isEditing ? (
-                    <div className={`${DASHBOARD_SURFACE} p-6 space-y-5`}>
-                      <h2 className="text-base font-semibold text-foreground">QR Kod Bilgileri</h2>
-                      <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground">QR Kod Adı</Label>
-                        <Input value={editName} onChange={(e) => setEditName(e.target.value)} className="bg-background" />
+              <div className="grid items-start gap-5 md:grid-cols-[18rem_minmax(0,1fr)]">
+                <div className={`${DASHBOARD_SURFACE} space-y-3 p-4 md:sticky md:top-6`}>
+                  <div className="mx-auto aspect-square w-full max-w-[16rem] overflow-hidden rounded-lg border border-border bg-white p-2">
+                    {selectedQR.imgSrc ? (
+                      <img
+                        src={`data:image/png;base64,${selectedQR.imgSrc}`}
+                        alt={`${selectedQR.name} QR kodu`}
+                        className="h-full w-full object-contain"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center">
+                        <QrCode className="h-16 w-16 text-muted-foreground" />
                       </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className={`${TONE_BUTTON} h-10 w-full gap-2 text-sm font-medium ${TONES.green}`}
+                    onClick={() => handleDownloadQr(selectedQR)}
+                  >
+                    <Download className="h-4 w-4 [stroke-width:1.75]" />
+                    İndir
+                  </button>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      className={`${TONE_BUTTON} w-full gap-1.5 text-xs font-medium ${TONES.teal}`}
+                      title="QR görselini kopyala"
+                      onClick={() => void handleCopyQr(selectedQR)}
+                    >
+                      <Copy className="h-3.5 w-3.5 [stroke-width:1.75]" />
+                      Kopyala
+                    </button>
+                    <button
+                      type="button"
+                      className={`${TONE_BUTTON} w-full gap-1.5 text-xs font-medium ${TONES.orange}`}
+                      onClick={() => void handleShareQr(selectedQR)}
+                    >
+                      <Share2 className="h-3.5 w-3.5 [stroke-width:1.75]" />
+                      Paylaş
+                    </button>
+                    {!isMenuQrDetails(selectedQR.details) ? (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <button type="button" className={`${TONE_BUTTON} w-full gap-1.5 text-xs font-medium ${TONES.red}`}>
+                            <Trash2 className="h-3.5 w-3.5 [stroke-width:1.75]" />
+                            Sil
+                          </button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>QR silinsin mi?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              <span className="font-medium">{selectedQR.name}</span> QR’ını tamamen silersiniz. Bu işlem geri alınamaz.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Vazgeç</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => void handleDeleteQr(selectedQR)}>Sil</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="min-w-0 space-y-5">
+                  {isEditing ? (
+                    <div className={`${DASHBOARD_SURFACE} space-y-5 p-5`}>
                       <div className="space-y-2">
-                        <QrTypeDetails
-                          selectedType={editQrType}
-                          data={editQrTypeData}
-                          onChange={setEditQrTypeData}
+                        <Label htmlFor="qr-edit-name" className="text-xs text-muted-foreground">QR kod adı</Label>
+                        <Input
+                          id="qr-edit-name"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          className="bg-background"
                         />
                       </div>
-                      {selectedQR && isMenuQrDetails(selectedQR.details) ? (
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-medium text-foreground">Durum</p>
-                            <p className="text-xs text-muted-foreground">Menü QR kodunu aktif veya pasif yapın</p>
-                          </div>
-                          <Switch checked={editActive} onCheckedChange={setEditActive} />
+                      <QrTypeDetails
+                        selectedType={editQrType}
+                        data={editQrTypeData}
+                        onChange={setEditQrTypeData}
+                      />
+                      {isMenuQrDetails(selectedQR.details) ? (
+                        <div className="flex items-center justify-between gap-4">
+                          <Label htmlFor="qr-edit-active" className="text-sm font-normal text-foreground">Aktif</Label>
+                          <Switch id="qr-edit-active" checked={editActive} onCheckedChange={setEditActive} />
                         </div>
                       ) : null}
-                      <div className="flex gap-3 pt-2">
-                        {nameOnlyEditForUi || menuActiveOnlyEditForUi ? (
+                      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                        <Button variant="outline" onClick={() => setIsEditing(false)}>
+                          İptal
+                        </Button>
+                        {nameOnlyEditForUi || menuActiveOnlyEditForUi || (hasChangesForUi && !reprintWarning) ? (
                           <Button className="gap-2" onClick={() => void handleSaveQrEdit()}>
                             <Check className="h-4 w-4" />
                             Kaydet
@@ -788,9 +895,7 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
                             <AlertDialogContent>
                               <AlertDialogHeader>
                                 <AlertDialogTitle>Kaydet onayı</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Güncelleme yeni bir QR oluşturur; eski QR devre dışı kalır. Devam edilsin mi?
-                                </AlertDialogDescription>
+                                <AlertDialogDescription>{reprintWarning}</AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>İptal</AlertDialogCancel>
@@ -806,165 +911,109 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
                             Kaydet
                           </Button>
                         )}
-                        <Button variant="outline" onClick={() => setIsEditing(false)}>
-                          İptal
-                        </Button>
                       </div>
                     </div>
                   ) : (
                     <>
-                      <div className="grid gap-4 sm:grid-cols-3">
-                        {[
-                          { label: "Toplam Tarama", value: selectedQR.scans.toLocaleString() },
-                          { label: "Oluşturulma", value: selectedQR.created },
-                          { label: "Tür", value: selectedQR.type },
-                        ].map((s) => (
-                          <div key={s.label} className={DASHBOARD_STAT_TILE}>
-                            <p className={DASHBOARD_METRIC_LABEL}>{s.label}</p>
-                            <p className={DASHBOARD_METRIC_VALUE}>{s.value}</p>
+                      <div className={`${DASHBOARD_SURFACE} p-5`}>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {selectedTypeMeta ? <ToneIcon tone={selectedTypeMeta.tone} icon={selectedTypeMeta.icon} size="lg" /> : null}
+                          <span className="text-sm font-medium text-foreground">{selectedQR.type}</span>
+                          <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium leading-4 ${selectedQR.publicUrl ? TONES.green : TONES.orange}`}>
+                            {selectedQR.publicUrl ? "Dinamik" : "Sabit"}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {selectedQR.publicUrl
+                            ? "İçeriği değiştirdiğinizde basılı QR aynı kalır."
+                            : "İçerik QR'ın içindedir. Değiştirirseniz yeniden basılması gerekir."}
+                        </p>
+
+                        <dl className="mt-3 divide-y divide-border border-t border-border">
+                          {getReadableDetailRows(selectedQR.details)
+                            .filter((row) => row.value)
+                            .map((row) => (
+                              <div key={row.label} className="flex items-start justify-between gap-4 py-2.5">
+                                <dt className="shrink-0 text-sm text-muted-foreground">{row.label}</dt>
+                                <dd className="min-w-0 break-words text-right text-sm font-medium text-foreground">{row.value}</dd>
+                              </div>
+                            ))}
+                          {selectedQR.publicUrl ? (
+                            <div className="flex items-center justify-between gap-4 py-2.5">
+                              <dt className="shrink-0 text-sm text-muted-foreground">Sabit adres</dt>
+                              <dd className="flex min-w-0 items-center gap-2">
+                                <a
+                                  href={selectedQR.publicUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="min-w-0 truncate text-sm font-medium text-primary"
+                                >
+                                  {selectedQR.publicUrl.replace(/^https?:\/\//, "")}
+                                </a>
+                                <button
+                                  type="button"
+                                  className={`${TONE_BUTTON} h-8 w-8 shrink-0 ${TONES.teal}`}
+                                  title="Adresi kopyala"
+                                  aria-label="Sabit adresi kopyala"
+                                  onClick={() => void handleCopyAddress(selectedQR.publicUrl!)}
+                                >
+                                  <Copy className="h-3.5 w-3.5 [stroke-width:1.75]" />
+                                </button>
+                              </dd>
+                            </div>
+                          ) : null}
+                        </dl>
+                      </div>
+
+                      {selectedQR.publicUrl ? (
+                        <div className={`${DASHBOARD_SURFACE} p-5`}>
+                          <div className="flex items-baseline justify-between gap-4">
+                            <h2 className="text-sm font-semibold text-foreground">Taramalar</h2>
+                            {selectedQR.trackingEnabled ? (
+                              <p className="text-xs text-muted-foreground">
+                                Toplam <span className="text-lg font-semibold text-foreground">{selectedQR.scans.toLocaleString("tr-TR")}</span>
+                              </p>
+                            ) : null}
                           </div>
-                        ))}
-                      </div>
-
-                      <div className={`${DASHBOARD_SURFACE} p-6 space-y-4`}>
-                        <h2 className="text-base font-semibold text-foreground">Bilgiler</h2>
-                        <div className="space-y-3">
-                          {[
-                            { label: "Ad", value: selectedQR.name },
-                            { label: "URL / İçerik", value: selectedQR.content },
-                            { label: "Tür", value: selectedQR.type },
-                            { label: "Durum", value: selectedQR.active ? "Aktif" : "Pasif" },
-                            { label: "Oluşturulma Tarihi", value: selectedQR.created },
-                          ].map((row) => (
-                            <div key={row.label} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                              <span className="text-sm text-muted-foreground">{row.label}</span>
-                              <span className="text-sm font-medium text-foreground">{row.value}</span>
+                          {selectedQR.trackingEnabled ? (
+                            <div className="mt-3 h-40">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={buildScanChart(selectedQR.dailyScans)} margin={{ left: -24, right: 4, top: 4, bottom: 0 }}>
+                                  <defs>
+                                    <linearGradient id="detailGrad" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="0%" stopColor="#128C7E" stopOpacity={0.2} />
+                                      <stop offset="100%" stopColor="#128C7E" stopOpacity={0} />
+                                    </linearGradient>
+                                  </defs>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                                  <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
+                                  <YAxis allowDecimals={false} stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
+                                  <Tooltip contentStyle={tooltipStyle} formatter={(value) => [value, "Tarama"]} />
+                                  <Area type="monotone" dataKey="scans" stroke="#128C7E" strokeWidth={1.75} fill="url(#detailGrad)" />
+                                </AreaChart>
+                              </ResponsiveContainer>
                             </div>
-                          ))}
-                          {publicUrl && (
-                            <div className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                              <span className="text-sm text-muted-foreground">Public URL</span>
-                              <a href={publicUrl} target="_blank" rel="noreferrer" className="text-sm font-medium text-primary text-right max-w-[60%] break-all">
-                                {publicUrl}
-                              </a>
-                            </div>
+                          ) : (
+                            <p className="mt-2 text-sm text-muted-foreground">Bu QR için tarama takibi kapalı.</p>
                           )}
-                          {getReadableDetailRows(selectedQR.details).map((row) => (
-                            <div key={row.label} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                              <span className="text-sm text-muted-foreground">{row.label}</span>
-                              <span className="text-sm font-medium text-foreground text-right max-w-[60%] break-words">{row.value || "—"}</span>
-                            </div>
-                          ))}
                         </div>
-                      </div>
-
-                      <div className={`${DASHBOARD_SURFACE} p-6`}>
-                        <h2 className="mb-4 text-base font-semibold text-foreground">Son 7 Günlük Taramalar</h2>
-                        <div className="h-48">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={[
-                              { day: "Pzt", scans: Math.floor(selectedQR.scans * 0.12) },
-                              { day: "Sal", scans: Math.floor(selectedQR.scans * 0.18) },
-                              { day: "Çar", scans: Math.floor(selectedQR.scans * 0.14) },
-                              { day: "Per", scans: Math.floor(selectedQR.scans * 0.22) },
-                              { day: "Cum", scans: Math.floor(selectedQR.scans * 0.19) },
-                              { day: "Cmt", scans: Math.floor(selectedQR.scans * 0.09) },
-                              { day: "Paz", scans: Math.floor(selectedQR.scans * 0.06) },
-                            ]}>
-                              <defs>
-                                <linearGradient id="detailGrad" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="0%" stopColor="hsl(var(--foreground))" stopOpacity={0.15} />
-                                  <stop offset="100%" stopColor="hsl(var(--foreground))" stopOpacity={0} />
-                                </linearGradient>
-                              </defs>
-                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                              <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                              <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                              <Tooltip contentStyle={tooltipStyle} />
-                              <Area type="monotone" dataKey="scans" stroke="hsl(var(--foreground))" strokeWidth={1.5} fill="url(#detailGrad)" />
-                            </AreaChart>
-                          </ResponsiveContainer>
-                        </div>
-                      </div>
+                      ) : null}
                     </>
                   )}
-                </div>
-
-                <div className="space-y-6">
-                  <div className={`${DASHBOARD_SURFACE} p-6 sticky top-6`}>
-                    <h2 className="text-base font-semibold text-foreground mb-4">QR Kod</h2>
-                    <div className="aspect-square rounded-lg border border-border bg-background flex items-center justify-center overflow-hidden">
-                      {selectedQR.imgSrc ? (
-                        <img
-                          src={`data:image/png;base64,${selectedQR.imgSrc}`}
-                          alt={`${selectedQR.name} QR kodu`}
-                          className="h-full w-full object-contain p-4"
-                        />
-                      ) : (
-                        <QrCode className="h-24 w-24 text-foreground" />
-                      )}
-                    </div>
-                    <div className="mt-4 space-y-2 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Durum</span>
-                        <span className={`font-medium ${selectedQR.active ? "text-success" : "text-muted-foreground"}`}>
-                          {selectedQR.active ? "Aktif" : "Pasif"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Tarama</span>
-                        <span className="text-foreground font-medium">{selectedQR.scans.toLocaleString()}</span>
-                      </div>
-                    </div>
-                    <div className="mt-6 grid grid-cols-4 gap-2">
-                      <Button variant="outline" size="icon" className="h-9 w-full" title="İndir" aria-label="İndir" onClick={() => handleDownloadQr(selectedQR)}><Download className="h-4 w-4" /></Button>
-                      <Button variant="outline" size="icon" className="h-9 w-full" title="Kopyala" aria-label="Kopyala" onClick={() => void handleCopyQr(selectedQR)}><Copy className="h-4 w-4" /></Button>
-                      <Button variant="outline" size="icon" className="h-9 w-full" title="Paylaş" aria-label="Paylaş" onClick={() => void handleShareQr(selectedQR)}><Share2 className="h-4 w-4" /></Button>
-                      {!isMenuQrDetails(selectedQR.details) ? (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-9 w-full text-destructive hover:text-destructive"
-                              title="Sil"
-                              aria-label="Sil"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>QR silinsin mi?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                <span className="font-medium">{selectedQR.name}</span> QR’ını tamamen silersiniz. Bu işlem geri alınamaz.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Vazgeç</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => void handleDeleteQr(selectedQR)}>Sil</AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      ) : null}
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
           )}
 
           {/* ── QR Create ── */}
-          {!isLoading && mode === "create" && (
-            <div className="space-y-6 animate-fade-in">
+          {mode === "create" && (
+            <div className="mx-auto max-w-xl space-y-6 animate-fade-in">
               <DashboardPageHeader
-                title="Yeni QR Kod Oluştur"
+                title="Yeni QR Kod"
                 hint={
                   accessError
                     ? "Paket bilgileri alınamadı. Lütfen tekrar deneyin."
-                    : canCreateQr
-                      ? "İçerik türünü seçin ve detayları doldurun."
-                      : (qrQuotaLabel ?? "QR oluşturmak için uygun bir paket gerekli.")
+                    : (qrQuotaLabel ?? (canCreateQr ? undefined : "QR oluşturmak için uygun bir paket gerekli."))
                 }
                 back={
                   <button
@@ -984,174 +1033,82 @@ const DashboardQrCodesView = ({ mode, qrId, initialUser = null }: DashboardQrCod
                 </Button>
               ) : null}
 
-              <PackageUsageCard usage={packageUsage} isLoading={isPackageUsageLoading} />
-
-              <div className="grid gap-6 lg:grid-cols-3">
-                <div className="lg:col-span-2 space-y-6">
-                  {/* QR Type Selection */}
-                  <div className={`${DASHBOARD_SURFACE} p-6`}>
-                    <h2 className="text-base font-semibold text-foreground mb-4">İçerik Türü</h2>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {qrTypes.map((type) => (
-                        <button
-                          key={type.value}
-                          onClick={() => setSelectedQrType(type.value)}
-                          disabled={!canCreateQr}
-                          className={`flex flex-col items-center gap-2 rounded-lg border p-4 text-center transition-all ${
-                            selectedQrType === type.value
-                              ? "border-foreground/30 bg-accent"
-                              : "border-border hover:border-foreground/15 hover:bg-accent/50"
-                          } ${!canCreateQr ? "cursor-not-allowed opacity-50" : ""}`}
-                        >
-                          <type.icon className={`h-5 w-5 ${selectedQrType === type.value ? "text-foreground" : "text-muted-foreground"}`} />
-                          <span className={`text-xs font-medium ${selectedQrType === type.value ? "text-foreground" : "text-muted-foreground"}`}>
-                            {type.label}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* QR Details */}
-                  <div className={`${DASHBOARD_SURFACE} p-6 space-y-5`}>
-                    <h2 className="text-base font-semibold text-foreground">Detaylar</h2>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="qr-name" className="text-xs text-muted-foreground">QR Kod Adı</Label>
-                      <Input
-                        id="qr-name"
-                        placeholder="Örn: Web Sitesi QR"
-                        value={qrName}
-                        onChange={(e) => setQrName(e.target.value)}
-                        className="bg-background"
-                      />
-                    </div>
-
-                    <QrTypeDetails
-                      selectedType={selectedQrType}
-                      data={qrTypeData}
-                      onChange={setQrTypeData}
-                    />
-                  </div>
-
-                  {/* Customization */}
-                  <div className={`${DASHBOARD_SURFACE} p-6 space-y-5`}>
-                    <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-                      <Paintbrush className="h-4 w-4 text-muted-foreground" />
-                      Özelleştirme
-                    </h2>
-
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground">QR Rengi</Label>
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="color"
-                            value={qrColor}
-                            onChange={(e) => setQrColor(e.target.value)}
-                            className="h-9 w-9 rounded-md border border-border cursor-pointer bg-transparent"
-                          />
-                          <Input value={qrColor} onChange={(e) => setQrColor(e.target.value)} className="bg-background font-mono text-xs" />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground">Arka Plan Rengi</Label>
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="color"
-                            value={qrBgColor}
-                            onChange={(e) => setQrBgColor(e.target.value)}
-                            className="h-9 w-9 rounded-md border border-border cursor-pointer bg-transparent"
-                          />
-                          <Input value={qrBgColor} onChange={(e) => setQrBgColor(e.target.value)} className="bg-background font-mono text-xs" />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-foreground">Tarama Takibi</p>
-                        <p className="text-xs text-muted-foreground">QR kod taramalarını analitik panelde görüntüleyin</p>
-                      </div>
-                      <Switch checked={qrTracking} onCheckedChange={setQrTracking} />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right: Preview */}
-                <div className="space-y-6">
-                  <div className={`${DASHBOARD_SURFACE} p-6 sticky top-6`}>
-                    <h2 className="text-base font-semibold text-foreground mb-4">Önizleme</h2>
-
-                    {/* QR Preview placeholder */}
-                    <div
-                      className="aspect-square rounded-lg border border-border flex items-center justify-center"
-                      style={{ backgroundColor: qrBgColor }}
-                    >
-                      {latestQrResponse?.imgSrc ? (
-                        <img
-                          src={`data:image/png;base64,${latestQrResponse.imgSrc}`}
-                          alt={`${latestQrResponse.qrName} QR kodu`}
-                          className="h-full w-full rounded-lg object-contain p-4"
-                        />
-                      ) : (
-                        <div className="text-center space-y-3">
-                          <QrCode className="h-24 w-24 mx-auto" style={{ color: qrColor }} />
-                          <p className="text-xs text-muted-foreground">QR Kod Önizlemesi</p>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="mt-4 space-y-2 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Tür</span>
-                        <span className="text-foreground font-medium">
-                          {qrTypes.find((t) => t.value === selectedQrType)?.label}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Ad</span>
-                        <span className="text-foreground font-medium">{qrName || "—"}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Takip</span>
-                        <span className="text-foreground font-medium">{qrTracking ? "Açık" : "Kapalı"}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Durum</span>
-                        <span className="text-foreground font-medium">
-                          {latestQrResponse?.status === "active" ? "Aktif" : "Hazır"}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="mt-6 flex flex-col gap-2">
-                      <Button
-                        className="w-full gap-2"
-                        onClick={handleCreateQR}
+              <div className={`${DASHBOARD_SURFACE} space-y-6 p-5 sm:p-6`}>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">İçerik türü</Label>
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                    {qrTypes.map((type) => (
+                      <button
+                        key={type.value}
+                        type="button"
+                        aria-pressed={selectedQrType === type.value}
+                        onClick={() => selectQrType(type.value)}
                         disabled={!canCreateQr}
+                        className={`flex flex-col items-center gap-1.5 rounded-lg border px-2 py-3 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                          selectedQrType === type.value
+                            ? "border-foreground/30 bg-accent text-foreground"
+                            : "border-border text-muted-foreground hover:bg-accent/50"
+                        }`}
                       >
-                        <Check className="h-4 w-4" />
-                        QR Kod Oluştur
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="w-full gap-2"
-                        onClick={() => {
-                          setQrName("");
-                          setQrTypeData(createInitialQrTypeData());
-                          setQrColor("#000000");
-                          setQrBgColor("#ffffff");
-                          setSelectedQrType("link");
-                          setLatestQrResponse(null);
-                        }}
-                      >
-                        <RotateCcw className="h-4 w-4" />
-                        Sıfırla
-                      </Button>
-                    </div>
+                        <ToneIcon tone={type.tone} icon={type.icon} size="lg" />
+                        {type.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="qr-name" className="text-xs text-muted-foreground">QR kod adı</Label>
+                  <Input
+                    id="qr-name"
+                    placeholder="Örn: Web Sitesi QR"
+                    value={qrName}
+                    onChange={(e) => setQrName(e.target.value)}
+                    className="bg-background"
+                  />
+                </div>
+
+                <QrTypeDetails
+                  selectedType={selectedQrType}
+                  data={qrTypeData}
+                  onChange={setQrTypeData}
+                />
+
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">QR modu</Label>
+                  <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+                    {qrModes.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        aria-pressed={qrMode === option.value}
+                        onClick={() => setQrMode(option.value)}
+                        disabled={!canCreateQr}
+                        className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                          qrMode === option.value
+                            ? "bg-background text-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {qrModes.find((option) => option.value === qrMode)?.[selectedQrType === "wifi" ? "wifiDesc" : "desc"]}
+                  </p>
+                </div>
+
+                {qrMode === "dynamic" ? (
+                  <div className="flex items-center justify-between gap-4">
+                    <Label htmlFor="qr-tracking" className="text-sm font-normal text-foreground">Taramaları say</Label>
+                    <Switch id="qr-tracking" checked={qrTracking} onCheckedChange={setQrTracking} />
+                  </div>
+                ) : null}
+
+                <Button className="w-full" onClick={handleCreateQR} disabled={!canCreateQr || isCreating}>
+                  {isCreating ? "Oluşturuluyor…" : "QR Kod Oluştur"}
+                </Button>
               </div>
             </div>
           )}

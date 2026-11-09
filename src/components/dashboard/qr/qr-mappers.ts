@@ -21,6 +21,72 @@ export type DashboardQrItem = {
   packageName?: string | null;
   legacy?: boolean;
   activePackage?: boolean;
+  trackingEnabled: boolean;
+  dailyScans: { date: string; count: number }[];
+};
+
+const isWebUrl = (value: string) => {
+  try {
+    const url = new URL(value.includes("://") ? value : `https://${value}`);
+    if ((url.protocol !== "http:" && url.protocol !== "https:") || url.username) return false;
+    return url.hostname === "localhost" || (url.hostname.includes(".") && !url.hostname.endsWith("."));
+  } catch {
+    return false;
+  }
+};
+
+const isEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+const isCoordinate = (value: string, limit: number) => {
+  const normalized = value.trim().replace(",", ".");
+  return normalized !== "" && Number.isFinite(Number(normalized)) && Math.abs(Number(normalized)) <= limit;
+};
+
+/** Returns the message to show when the details would produce a useless QR, otherwise null. */
+export const validateQrDetails = (type: QrTypeValue, details: Record<string, unknown>): string | null => {
+  const field = (key: string) => String(details[key] ?? "").trim();
+  if (type === "link") {
+    if (!field("url")) return "URL zorunlu.";
+    return isWebUrl(field("url")) ? null : "Geçerli bir web adresi girin. Örn: https://example.com";
+  }
+  if (type === "wifi") {
+    if (!field("ssid")) return "WiFi ağ adı (SSID) zorunlu.";
+    return field("security") !== "NONE" && !String(details.password ?? "") ? "WiFi şifresi zorunlu." : null;
+  }
+  if (type === "mail") {
+    if (!field("mail")) return "E-posta adresi zorunlu.";
+    return isEmail(field("mail")) ? null : "Geçerli bir e-posta adresi girin.";
+  }
+  if (type === "contact") {
+    if (!field("fullName")) return "Ad Soyad zorunlu.";
+    return field("mail") && !isEmail(field("mail")) ? "Geçerli bir e-posta adresi girin." : null;
+  }
+  if (type === "text") return field("text") ? null : "Metin zorunlu.";
+  if (type === "location") {
+    if (!isCoordinate(field("latitude"), 90)) return "Enlem -90 ile 90 arasında olmalı.";
+    return isCoordinate(field("longitude"), 180) ? null : "Boylam -180 ile 180 arasında olmalı.";
+  }
+  return null;
+};
+
+const SCAN_ZONE = "Europe/Istanbul";
+const CHART_DAYS = 7;
+const DAY_MS = 86_400_000;
+const scanDayKey = new Intl.DateTimeFormat("en-CA", {
+  timeZone: SCAN_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+const scanDayLabel = new Intl.DateTimeFormat("tr-TR", { timeZone: SCAN_ZONE, weekday: "short" });
+
+/** One point per day for the last week, including days with no scans. */
+export const buildScanChart = (daily: DashboardQrItem["dailyScans"], now = new Date()) => {
+  const countByDay = new Map(daily.map((item) => [item.date, item.count]));
+  return Array.from({ length: CHART_DAYS }, (_, index) => {
+    const day = new Date(now.getTime() - (CHART_DAYS - 1 - index) * DAY_MS);
+    return { day: scanDayLabel.format(day), scans: countByDay.get(scanDayKey.format(day)) ?? 0 };
+  });
 };
 
 export const createInitialQrTypeData = (): QrTypeData => ({
@@ -214,7 +280,10 @@ export const mapUserQrToDashboardItem = (qr: UserQrApiItem): DashboardQrItem => 
   merchantId: qr.merchantId ?? 0,
   name: qr.qrName,
   content: formatQrContent(qr.details),
-  scans: 0,
+  scans: qr.totalScans ?? 0,
+  publicUrl: qr.publicUrl ?? undefined,
+  trackingEnabled: qr.trackingEnabled ?? true,
+  dailyScans: qr.dailyScans ?? [],
   created: new Date(qr.createdAt).toLocaleDateString("tr-TR"),
   type: formatQrType(qr.details),
   active: qr.active ?? true,

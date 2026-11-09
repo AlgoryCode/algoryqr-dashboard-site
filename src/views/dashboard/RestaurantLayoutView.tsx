@@ -97,6 +97,7 @@ import {
   type FloorPlacement,
   type LayoutShape,
 } from "@/lib/restaurant-layout";
+import { TONE_ACTION } from "@/components/dashboard/tone";
 
 function printQr(imgSrc?: string | null, title?: string) {
   const dataUrl = getQrDataUrl(imgSrc ?? undefined);
@@ -1314,7 +1315,7 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8"
+                                className={`h-8 w-8 ${TONE_ACTION.edit}`}
                                 aria-label={`${area.name} düzenle`}
                                 onClick={() => {
                                   setEditingAreaId(area.id);
@@ -1327,7 +1328,7 @@ export default function RestaurantLayoutView({ branchId = null }: RestaurantLayo
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                className={`h-8 w-8 ${TONE_ACTION.delete}`}
                                 aria-label={`${area.name} sil`}
                                 onClick={() => {
                                   setDeleteAreaTarget(area);

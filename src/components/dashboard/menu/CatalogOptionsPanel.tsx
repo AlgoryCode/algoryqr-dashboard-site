@@ -65,6 +65,7 @@ import {
   optionKindLabel,
   type MenuProductOptionGroupKind,
 } from "@/lib/product-options";
+import { TONE_ACTION } from "@/components/dashboard/tone";
 
 type ChoiceDraft = {
   name: string;
@@ -571,7 +572,7 @@ export function CatalogOptionsPanel() {
                       type="button"
                       size="icon"
                       variant="ghost"
-                      className="h-8 w-8 text-destructive"
+                      className={`h-8 w-8 ${TONE_ACTION.delete}`}
                       aria-label={`Seçenek ${index + 1} sil`}
                       disabled={saving || draft.choices.length === 1}
                       onClick={() =>

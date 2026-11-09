@@ -93,12 +93,6 @@ export default function DashboardPageClient({ initialUser = null }: DashboardPag
   const { notify } = useDashboardBanners();
 
   useEffect(() => {
-    if (pathname === "/dashboard/dijital-menu/rezervasyonlar") {
-      router.replace(DASHBOARD_ROUTES.reservations);
-    }
-  }, [pathname, router]);
-
-  useEffect(() => {
     if (isOrderPanelSectionActive(pathname)) {
       router.replace(DASHBOARD_ROUTES.overview);
     }
@@ -189,7 +183,7 @@ export default function DashboardPageClient({ initialUser = null }: DashboardPag
   }, [pathname]);
 
   const catalogProductCheckout = useMemo(() => {
-    const prefix = `${DASHBOARD_ROUTES.digitalMenu}/urun-satin-al/`;
+    const prefix = `/urun-satin-al/`;
     if (!pathname.startsWith(prefix)) return null;
     const code = decodeURIComponent(pathname.slice(prefix.length).split("/")[0] ?? "");
     return code === "QR_BRANCH" || code === "QR_MENU" ? code : null;
@@ -202,14 +196,14 @@ export default function DashboardPageClient({ initialUser = null }: DashboardPag
   );
 
   const digitalMenuCheckout = useMemo(() => {
-    const prefix = `${DASHBOARD_ROUTES.digitalMenu}/satin-al/`;
+    const prefix = `/satin-al/`;
     if (!pathname.startsWith(prefix)) return null;
     const packageId = Number(pathname.slice(prefix.length).split("/")[0]);
     return Number.isSafeInteger(packageId) && packageId > 0 ? packageId : null;
   }, [pathname]);
 
   const digitalMenuSettingsQrId = useMemo(() => {
-    const prefix = `${DASHBOARD_ROUTES.digitalMenu}/qr/`;
+    const prefix = `/qr/`;
     if (!pathname.startsWith(prefix)) return null;
     const rest = pathname.slice(prefix.length);
     const [qrSlug, settingsSlug] = rest.split("/");
@@ -219,7 +213,7 @@ export default function DashboardPageClient({ initialUser = null }: DashboardPag
   }, [pathname]);
 
   const digitalMenuEditQrId = useMemo(() => {
-    const prefix = `${DASHBOARD_ROUTES.digitalMenu}/qr/`;
+    const prefix = `/qr/`;
     if (!pathname.startsWith(prefix)) return null;
     const rest = pathname.slice(prefix.length);
     if (rest.includes("/")) return null;
@@ -302,10 +296,6 @@ export default function DashboardPageClient({ initialUser = null }: DashboardPag
         <ReservationsView />
       </Suspense>
     );
-  }
-
-  if (pathname === "/dashboard/dijital-menu/rezervasyonlar") {
-    return null;
   }
 
   if (pathname === DASHBOARD_ROUTES.integrations) {

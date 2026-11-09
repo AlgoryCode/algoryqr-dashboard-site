@@ -14,6 +14,7 @@ import {
   patchMenuProductNutritionRequest,
 } from "@/lib/api";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
+import { TONE_ACTION } from "@/components/dashboard/tone";
 
 type ProductNutritionPanelProps = {
   productId: number;
@@ -338,7 +339,7 @@ export default function ProductNutritionPanel({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-9 w-9 text-destructive"
+                    className={`h-9 w-9 ${TONE_ACTION.delete}`}
                     onClick={() =>
                       updateField(
                         "otherNutrients",

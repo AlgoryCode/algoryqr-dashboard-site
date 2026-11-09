@@ -34,10 +34,13 @@ export function ordersForStaffBranch<T extends { branchId?: number | null }>(
   return orders.filter((order) => order.branchId == null || order.branchId === branchId);
 }
 
-export async function listScopedMenuOrders(menus: DigitalMenuDirectoryItem[]): Promise<OrderResponse[]> {
+export async function listScopedMenuOrders(
+  menus: DigitalMenuDirectoryItem[],
+  days?: number,
+): Promise<OrderResponse[]> {
   const batches = await Promise.all(
     menus.map(async (menu) => {
-      const orders = await listMerchantOrders(menu.menuId, "ALL");
+      const orders = await listMerchantOrders(menu.menuId, "ALL", days);
       return orders.map((order) => stampMenuOrder(order, menu));
     }),
   );

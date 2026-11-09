@@ -75,6 +75,10 @@ export interface UserQrApiItem {
   activePackage?: boolean;
   active?: boolean;
   menuId?: number | null;
+  publicUrl?: string | null;
+  trackingEnabled?: boolean;
+  totalScans?: number;
+  dailyScans?: { date: string; count: number }[];
 }
 
 export type QrListScope = "ALL" | "CURRENT" | "LEGACY";

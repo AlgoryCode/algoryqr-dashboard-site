@@ -729,17 +729,17 @@ describe("order management panel links", () => {
   it("keeps current filters when opening and closing a panel", () => {
     const current = new URLSearchParams("qr=12&status=open");
     expect(orderManagementPanelHref(current, "kitchen")).toBe(
-      "/dashboard/garson?qr=12&status=open&panel=kitchen",
+      "/garson?qr=12&status=open&panel=kitchen",
     );
     expect(orderManagementHomeHref(new URLSearchParams("qr=12&status=open&panel=kitchen"))).toBe(
-      "/dashboard/garson?qr=12&status=open",
+      "/garson?qr=12&status=open",
     );
-    expect(orderManagementHomeHref(new URLSearchParams("panel=online"))).toBe("/dashboard/garson");
+    expect(orderManagementHomeHref(new URLSearchParams("panel=online"))).toBe("/garson");
   });
 
   it("sends restaurant layout back to the current order management screen", () => {
-    expect(restaurantLayoutFromOrderManagementHref("/dashboard/garson?qr=12")).toBe(
-      "/dashboard/dijital-menu/restaurant-layout?return=%2Fdashboard%2Fgarson%3Fqr%3D12",
+    expect(restaurantLayoutFromOrderManagementHref("/garson?qr=12")).toBe(
+      "/restaurant-layout?return=%2Fgarson%3Fqr%3D12",
     );
   });
 });

@@ -13,6 +13,7 @@ import { useMenuCategories } from "@/hooks/use-menu-categories";
 import { useMenuProducts } from "@/hooks/use-menu-products";
 import { flattenMenuCategories, type MainCategoryApiItem } from "@/lib/api";
 import type { ChefChatSettings, ChefQuickOption, ChefQuickOptionTarget } from "@/lib/chef/chef-quick-option";
+import { TONE_ACTION } from "@/components/dashboard/tone";
 
 type ChefQuickOptionsEditorProps = {
   menuId: number;
@@ -127,7 +128,7 @@ export function ChefQuickOptionsEditor({ menuId, value, onChange }: ChefQuickOpt
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 text-destructive"
+                  className={`h-8 w-8 ${TONE_ACTION.delete}`}
                   onClick={() =>
                     onChange({
                       ...value,

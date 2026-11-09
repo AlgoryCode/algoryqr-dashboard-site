@@ -102,6 +102,8 @@ export interface CreateQrRequestBody {
   qrName: string;
   type: string;
   details: QrRequestDetails;
+  trackingEnabled?: boolean;
+  qrMode?: "dynamic" | "static";
 }
 
 export interface QrResponse {
@@ -131,7 +133,9 @@ export interface UpdateQrRequestBody {
 }
 
 type UpdateQrGatewayResponse = {
+  qrId?: number;
   imgSrc: string;
+  publicUrl?: string;
 };
 
 export interface UpdateQrNameRequestBody {
@@ -157,6 +161,10 @@ export interface UserQrApiItem {
   activePackage?: boolean;
   active?: boolean;
   menuId?: number | null;
+  publicUrl?: string | null;
+  trackingEnabled?: boolean;
+  totalScans?: number;
+  dailyScans?: { date: string; count: number }[];
 }
 
 export interface UserQrPageApiResponse {
@@ -479,8 +487,12 @@ export async function getMyEntitlementsRequest(): Promise<UserEntitlementApiItem
   return [];
 }
 
-export async function getMyPurchasesRequest(): Promise<PurchaseApiItem[]> {
-  const response = await api.get<PurchaseApiItem[] | { content?: PurchaseApiItem[] }>("/purchases/my");
+export async function getMyPurchasesRequest(
+  options?: { activeOnly?: boolean },
+): Promise<PurchaseApiItem[]> {
+  const response = await api.get<PurchaseApiItem[] | { content?: PurchaseApiItem[] }>("/purchases/my", {
+    params: options?.activeOnly ? { activeOnly: true } : undefined,
+  });
   const data = response.data;
   if (Array.isArray(data)) return data;
   if (data && Array.isArray(data.content)) return data.content;
@@ -1093,19 +1105,19 @@ export async function createMenuProductRequest(
 }
 
 export async function listCatalogProductsRequest(): Promise<MenuProductApiItem[]> {
-  const response = await api.get<MenuProductApiItem[]>("/menu/catalog/products");
+  const response = await api.get<MenuProductApiItem[]>("/menu/products");
   return Array.isArray(response.data) ? response.data : [];
 }
 
 export async function listCatalogOptionGroupsRequest(): Promise<MenuProductOptionGroupApiItem[]> {
-  const response = await api.get<MenuProductOptionGroupApiItem[]>("/menu/catalog/option-groups");
+  const response = await api.get<MenuProductOptionGroupApiItem[]>("/menu/option-groups");
   return Array.isArray(response.data) ? response.data : [];
 }
 
 export async function createCatalogOptionGroupRequest(
   payload: CatalogOptionGroupWriteBody,
 ): Promise<MenuProductOptionGroupApiItem> {
-  const response = await api.post<MenuProductOptionGroupApiItem>("/menu/catalog/option-groups", payload);
+  const response = await api.post<MenuProductOptionGroupApiItem>("/menu/option-groups", payload);
   return response.data;
 }
 
@@ -1114,14 +1126,14 @@ export async function updateCatalogOptionGroupRequest(
   payload: CatalogOptionGroupWriteBody,
 ): Promise<MenuProductOptionGroupApiItem> {
   const response = await api.put<MenuProductOptionGroupApiItem>(
-    `/menu/catalog/option-groups/${groupId}`,
+    `/menu/option-groups/${groupId}`,
     payload,
   );
   return response.data;
 }
 
 export async function deleteCatalogOptionGroupRequest(groupId: number): Promise<void> {
-  await api.delete(`/menu/catalog/option-groups/${groupId}`);
+  await api.delete(`/menu/option-groups/${groupId}`);
 }
 
 export async function assignCatalogOptionGroupRequest(
@@ -1129,21 +1141,21 @@ export async function assignCatalogOptionGroupRequest(
   productIds: number[],
 ): Promise<MenuProductOptionGroupApiItem> {
   const response = await api.post<MenuProductOptionGroupApiItem>(
-    `/menu/catalog/option-groups/${groupId}/assign`,
+    `/menu/option-groups/${groupId}/assign`,
     { productIds },
   );
   return response.data;
 }
 
 export async function listCatalogCategoriesRequest(): Promise<MainCategoryApiItem[]> {
-  const response = await api.get<MainCategoryApiItem[]>("/menu/catalog/categories");
+  const response = await api.get<MainCategoryApiItem[]>("/menu/categories");
   return Array.isArray(response.data) ? response.data : [];
 }
 
 export async function createCatalogCategoryRequest(
   payload: MenuCategoryCreateBody,
 ): Promise<MainCategoryApiItem> {
-  const response = await api.post<MainCategoryApiItem>("/menu/catalog/categories", payload);
+  const response = await api.post<MainCategoryApiItem>("/menu/categories", payload);
   return response.data;
 }
 
@@ -1152,14 +1164,14 @@ export async function updateCatalogCategoryRequest(
   payload: MenuCategoryUpdateBody,
 ): Promise<MainCategoryApiItem> {
   const response = await api.put<MainCategoryApiItem>(
-    `/menu/catalog/categories/${categoryId}`,
+    `/menu/categories/${categoryId}`,
     payload,
   );
   return response.data;
 }
 
 export async function deleteCatalogCategoryRequest(categoryId: number | string): Promise<void> {
-  await api.delete(`/menu/catalog/categories/${categoryId}`);
+  await api.delete(`/menu/categories/${categoryId}`);
 }
 
 export async function createCatalogSubCategoryRequest(
@@ -1167,7 +1179,7 @@ export async function createCatalogSubCategoryRequest(
   payload: MenuSubCategoryCreateBody,
 ): Promise<SubCategoryApiItem> {
   const response = await api.post<SubCategoryApiItem>(
-    `/menu/catalog/categories/${categoryId}/subs`,
+    `/menu/categories/${categoryId}/subs`,
     payload,
   );
   return response.data;
@@ -1177,18 +1189,18 @@ export async function updateCatalogSubCategoryRequest(
   subId: number | string,
   payload: MenuSubCategoryUpdateBody,
 ): Promise<SubCategoryApiItem> {
-  const response = await api.put<SubCategoryApiItem>(`/menu/catalog/subs/${subId}`, payload);
+  const response = await api.put<SubCategoryApiItem>(`/menu/subs/${subId}`, payload);
   return response.data;
 }
 
 export async function deleteCatalogSubCategoryRequest(subId: number | string): Promise<void> {
-  await api.delete(`/menu/catalog/subs/${subId}`);
+  await api.delete(`/menu/subs/${subId}`);
 }
 
 export async function createCatalogProductRequest(
   payload: MenuProductRequestBody,
 ): Promise<MenuProductApiItem> {
-  const response = await api.post<MenuProductApiItem>("/menu/catalog/products", payload);
+  const response = await api.post<MenuProductApiItem>("/menu/products", payload);
   return response.data;
 }
 
@@ -1424,6 +1436,8 @@ export async function createQrRequest(payload: CreateQrRequestBody): Promise<Cre
     qrName: payload.qrName,
     type: payload.type,
     details,
+    ...(payload.trackingEnabled != null ? { trackingEnabled: payload.trackingEnabled } : {}),
+    ...(payload.qrMode ? { qrMode: payload.qrMode } : {}),
   };
   const response = await api.post<CreateQrGatewayResponse>("/features/QR_MENU/qrs", requestBody);
   const now = new Date().toISOString();
@@ -1579,7 +1593,14 @@ export interface MenuRevenueReportResponse {
   from: string;
   to: string;
   kpis: MenuRevenueKpis;
-  daily: { date: string; revenue?: number | string | null; orderCount?: number }[];
+  /** cashRevenue / cardRevenue: günlük nakit ve kart tahsilatı (bahşiş hariç). Eski API'de yok. */
+  daily: {
+    date: string;
+    revenue?: number | string | null;
+    orderCount?: number;
+    cashRevenue?: number | string | null;
+    cardRevenue?: number | string | null;
+  }[];
   products: MenuRevenueProductRow[];
   categories: {
     categoryId?: number | null;
@@ -1592,7 +1613,13 @@ export interface MenuRevenueReportResponse {
     byRevenue?: MenuRevenueProductRow | null;
     leastSoldByQuantity?: MenuRevenueProductRow | null;
   } | null;
-  hourly?: { hour: number; revenue?: number | string | null; orderCount?: number }[];
+  hourly?: {
+    hour: number;
+    revenue?: number | string | null;
+    orderCount?: number;
+    cashRevenue?: number | string | null;
+    cardRevenue?: number | string | null;
+  }[];
   unsold?: {
     count?: number;
     products?: { productId: number; name: string }[];

@@ -17,13 +17,13 @@ import { applyListQueryParams } from "@/hooks/use-list-query-state";
 
 describe("dashboard report routes", () => {
   it("builds branch analytics urls", () => {
-    expect(DASHBOARD_ROUTES.reportsHub).toBe("/dashboard/raporlar");
+    expect(DASHBOARD_ROUTES.reportsHub).toBe("/raporlar");
     expect(DASHBOARD_ROUTES.analytics).toBe(DASHBOARD_ROUTES.reportsHub);
     expect(DASHBOARD_ROUTES.digitalMenuAnalyticsForBranch(4)).toBe(
-      "/dashboard/raporlar?branch=4",
+      "/raporlar?branch=4",
     );
     expect(DASHBOARD_ROUTES.digitalMenuAnalyticsForBranch(4, 12)).toBe(
-      "/dashboard/raporlar?branch=4&qr=12",
+      "/raporlar?branch=4&qr=12",
     );
   });
 });
@@ -31,92 +31,92 @@ describe("dashboard report routes", () => {
 describe("restaurant layout under branch settings", () => {
   it("nests the layout page under branch settings", () => {
     expect(DASHBOARD_ROUTES.restaurantLayoutForBranch(16)).toBe(
-      "/dashboard/subedetay/16/ayarlar/restoran-duzeni",
+      "/subedetay/16/ayarlar/restoran-duzeni",
     );
     expect(DASHBOARD_ROUTES.restaurantLayoutForBranch(16, 20)).toBe(
-      "/dashboard/subedetay/16/ayarlar/restoran-duzeni?qr=20",
+      "/subedetay/16/ayarlar/restoran-duzeni?qr=20",
     );
   });
 
   it("parses branch settings vs nested layout paths", () => {
-    expect(DASHBOARD_ROUTES.branchDetail(16)).toBe("/dashboard/subedetay/16");
-    expect(parseBranchDetailId("/dashboard/subedetay/16")).toBe(16);
-    expect(parseBranchDetailId("/dashboard/subedetay/16/ayarlar")).toBe(null);
-    expect(parseBranchDetailId("/dashboard/subelerim/yeni")).toBe(null);
-    expect(parseBranchSettingsId("/dashboard/subedetay/16/ayarlar")).toBe(16);
-    expect(parseBranchSettingsId("/dashboard/subedetay/16/ayarlar/restoran-duzeni")).toBe(
+    expect(DASHBOARD_ROUTES.branchDetail(16)).toBe("/subedetay/16");
+    expect(parseBranchDetailId("/subedetay/16")).toBe(16);
+    expect(parseBranchDetailId("/subedetay/16/ayarlar")).toBe(null);
+    expect(parseBranchDetailId("/subelerim/yeni")).toBe(null);
+    expect(parseBranchSettingsId("/subedetay/16/ayarlar")).toBe(16);
+    expect(parseBranchSettingsId("/subedetay/16/ayarlar/restoran-duzeni")).toBe(
       null,
     );
     expect(
-      parseRestaurantLayoutBranchId("/dashboard/subedetay/16/ayarlar/restoran-duzeni"),
+      parseRestaurantLayoutBranchId("/subedetay/16/ayarlar/restoran-duzeni"),
     ).toBe(16);
-    expect(isRestaurantLayoutPath("/dashboard/subedetay/16/ayarlar/restoran-duzeni")).toBe(
+    expect(isRestaurantLayoutPath("/subedetay/16/ayarlar/restoran-duzeni")).toBe(
       true,
     );
-    expect(isRestaurantLayoutPath("/dashboard/subedetay/16/ayarlar")).toBe(false);
+    expect(isRestaurantLayoutPath("/subedetay/16/ayarlar")).toBe(false);
   });
 });
 
 describe("integrations routes", () => {
   it("exposes hub and partner console paths under Uber Eats", () => {
-    expect(DASHBOARD_ROUTES.integrations).toBe("/dashboard/entegrasyonlar");
-    expect(DASHBOARD_ROUTES.yemekSepeti).toBe("/dashboard/entegrasyonlar/yemek-sepeti");
+    expect(DASHBOARD_ROUTES.integrations).toBe("/entegrasyonlar");
+    expect(DASHBOARD_ROUTES.yemekSepeti).toBe("/entegrasyonlar/yemek-sepeti");
     expect(DASHBOARD_ROUTES.yemekSepetiOrders).toBe(
-      "/dashboard/entegrasyonlar/yemek-sepeti/siparisler",
+      "/entegrasyonlar/yemek-sepeti/siparisler",
     );
-    expect(DASHBOARD_ROUTES.printer).toBe("/dashboard/entegrasyonlar/yazici");
-    expect(DASHBOARD_ROUTES.uberEats).toBe("/dashboard/uber-eats");
-    expect(DASHBOARD_ROUTES.uberEatsProducts).toBe("/dashboard/uber-eats/urunler");
-    expect(DASHBOARD_ROUTES.uberEatsOrders).toBe("/dashboard/uber-eats/siparisler");
-    expect(DASHBOARD_ROUTES.uberEatsPending).toBe("/dashboard/uber-eats/onay-bekleyen");
-    expect(DASHBOARD_ROUTES.uberEatsMenuSync).toBe("/dashboard/uber-eats/menu-senkron");
+    expect(DASHBOARD_ROUTES.printer).toBe("/entegrasyonlar/yazici");
+    expect(DASHBOARD_ROUTES.uberEats).toBe("/uber-eats");
+    expect(DASHBOARD_ROUTES.uberEatsProducts).toBe("/uber-eats/urunler");
+    expect(DASHBOARD_ROUTES.uberEatsOrders).toBe("/uber-eats/siparisler");
+    expect(DASHBOARD_ROUTES.uberEatsPending).toBe("/uber-eats/onay-bekleyen");
+    expect(DASHBOARD_ROUTES.uberEatsMenuSync).toBe("/uber-eats/menu-senkron");
   });
 });
 
 describe("online order routes", () => {
   it("exposes the store panel paths", () => {
-    expect(DASHBOARD_ROUTES.onlineOrder).toBe("/dashboard/online-siparis");
-    expect(DASHBOARD_ROUTES.onlineOrderSetup).toBe("/dashboard/online-siparis/kurulum");
-    expect(DASHBOARD_ROUTES.onlineOrderOrders).toBe("/dashboard/online-siparis/siparisler");
-    expect(DASHBOARD_ROUTES.onlineOrderDetail(42)).toBe("/dashboard/online-siparis/siparisler/42");
-    expect(DASHBOARD_ROUTES.onlineOrderProducts).toBe("/dashboard/online-siparis/urunler");
-    expect(DASHBOARD_ROUTES.onlineOrderCouriers).toBe("/dashboard/online-siparis/kuryeler");
-    expect(DASHBOARD_ROUTES.onlineOrderSettings).toBe("/dashboard/online-siparis/ayarlar");
+    expect(DASHBOARD_ROUTES.onlineOrder).toBe("/online-siparis");
+    expect(DASHBOARD_ROUTES.onlineOrderSetup).toBe("/online-siparis/kurulum");
+    expect(DASHBOARD_ROUTES.onlineOrderOrders).toBe("/online-siparis/siparisler");
+    expect(DASHBOARD_ROUTES.onlineOrderDetail(42)).toBe("/online-siparis/siparisler/42");
+    expect(DASHBOARD_ROUTES.onlineOrderProducts).toBe("/online-siparis/urunler");
+    expect(DASHBOARD_ROUTES.onlineOrderCouriers).toBe("/online-siparis/kuryeler");
+    expect(DASHBOARD_ROUTES.onlineOrderSettings).toBe("/online-siparis/ayarlar");
   });
 
   it("targets a store menu instead of a qr for catalog product pages", () => {
     expect(DASHBOARD_ROUTES.digitalMenuProductCreateForMenu(9)).toBe(
-      "/dashboard/dijital-menu/urunler/yeni?menu=9",
+      "/urunler/yeni?menu=9",
     );
     expect(DASHBOARD_ROUTES.digitalMenuProductCreateForMenu(9, 3)).toBe(
-      "/dashboard/dijital-menu/urunler/yeni?menu=9&category=3",
+      "/urunler/yeni?menu=9&category=3",
     );
     expect(DASHBOARD_ROUTES.digitalMenuProductDetailForMenu(7, 9)).toBe(
-      "/dashboard/dijital-menu/urunler/7?menu=9",
+      "/urunler/7?menu=9",
     );
   });
 
   it("keeps the store section inside the integrations nav branch", () => {
-    expect(isOnlineOrderSectionActive("/dashboard/online-siparis/siparisler/8")).toBe(true);
-    expect(isOnlineOrderSectionActive("/dashboard/entegrasyonlar")).toBe(false);
-    expect(isIntegrationsSectionActive("/dashboard/online-siparis/kuryeler")).toBe(true);
+    expect(isOnlineOrderSectionActive("/online-siparis/siparisler/8")).toBe(true);
+    expect(isOnlineOrderSectionActive("/entegrasyonlar")).toBe(false);
+    expect(isIntegrationsSectionActive("/online-siparis/kuryeler")).toBe(true);
   });
 
   it("builds breadcrumbs down to the order detail", () => {
     expect(
-      buildDashboardBreadcrumbs("/dashboard/online-siparis/siparisler/8", "Sipariş #S-8").map(
+      buildDashboardBreadcrumbs("/online-siparis/siparisler/8", "Sipariş #S-8").map(
         (crumb) => crumb.label,
       ),
     ).toEqual(["Genel Bakış", "Entegrasyonlar", "Online Sipariş", "Siparişler", "Sipariş #S-8"]);
     expect(
-      buildDashboardBreadcrumbs("/dashboard/online-siparis/kuryeler").map((crumb) => crumb.label),
+      buildDashboardBreadcrumbs("/online-siparis/kuryeler").map((crumb) => crumb.label),
     ).toEqual(["Genel Bakış", "Entegrasyonlar", "Online Sipariş", "Kuryeler"]);
   });
 });
 
 describe("kitchen monitor routes", () => {
   it("sends staff screens to the staff site", () => {
-    expect(DASHBOARD_ROUTES.kitchenMonitor).toBe("/dashboard/garson/mutfak");
+    expect(DASHBOARD_ROUTES.kitchenMonitor).toBe("/garson/mutfak");
     expect(DASHBOARD_ROUTES.staffGate).toBe("http://localhost:3001");
     expect(DASHBOARD_ROUTES.kitchenPanel).toBe("http://localhost:3001");
     expect(DASHBOARD_ROUTES.kitchenLogin).toBe("http://localhost:3001");
@@ -130,7 +130,7 @@ describe("kitchen monitor routes", () => {
   });
 
   it("opens merchant orders on Siparişlerim", () => {
-    expect(DASHBOARD_ROUTES.orders).toBe("/dashboard/siparislerim");
+    expect(DASHBOARD_ROUTES.orders).toBe("/siparislerim");
     expect(DASHBOARD_NAV_ITEMS.find((item) => item.key === "liveOrders")?.label).toBe("Siparişlerim");
     expect(DASHBOARD_NAV_ITEMS.find((item) => item.key === "liveOrders")?.href).toBe(
       DASHBOARD_ROUTES.orders,
@@ -186,8 +186,8 @@ describe("module sidebar active state", () => {
     expect(activeKeys(DASHBOARD_ROUTES.feedback)).toEqual(["feedback"]);
     expect(activeKeys(DASHBOARD_ROUTES.digitalMenuMenus)).toEqual(["myMenus"]);
     expect(activeKeys(DASHBOARD_ROUTES.digitalMenu)).toEqual(["myBranches"]);
-    expect(DASHBOARD_ROUTES.myBranches).toBe("/dashboard/subelerim");
-    expect(DASHBOARD_ROUTES.branchCreate).toBe("/dashboard/subelerim/yeni");
+    expect(DASHBOARD_ROUTES.myBranches).toBe("/subelerim");
+    expect(DASHBOARD_ROUTES.branchCreate).toBe("/subelerim/yeni");
     expect(activeKeys(DASHBOARD_ROUTES.myBranches)).toEqual(["myBranches"]);
     expect(activeKeys(DASHBOARD_ROUTES.branchDetail(16))).toEqual(["myBranches"]);
     expect(activeKeys(DASHBOARD_ROUTES.restaurantLayoutForBranch(4))).toEqual(["restaurantLayout"]);

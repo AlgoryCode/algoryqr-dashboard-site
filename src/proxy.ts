@@ -20,6 +20,7 @@ import {
   isPersonalDemoAccount,
 } from "@/lib/server/demo-onboarding-gate";
 import { setDemoSetupDoneCookie } from "@/lib/server/demo-onboarding-cookies";
+import { isKnownPath, isPanelPath, legacyPanelPath, NOT_FOUND_PATH } from "@/lib/panel-paths";
 
 const DEMO_SETUP_PATH = "/demo-kurulum";
 
@@ -59,6 +60,15 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  const currentPath = legacyPanelPath(pathname);
+  if (currentPath) {
+    return NextResponse.redirect(new URL(`${currentPath}${request.nextUrl.search}`, request.url), 308);
+  }
+
+  if (!isKnownPath(pathname)) {
+    return NextResponse.rewrite(new URL(NOT_FOUND_PATH, request.url));
+  }
+
   // ── /demo-kurulum: if setup already done → dashboard ──
   if (pathname === DEMO_SETUP_PATH || pathname.startsWith(`${DEMO_SETUP_PATH}/`)) {
     const accessToken = readAccessToken(request);
@@ -71,7 +81,7 @@ export async function proxy(request: NextRequest) {
       setupDoneFromDb = isPersonalDemoAccount(status) && getPersonalDemoSetupState(status) === true;
     }
     if (!isDemoSetupPending(request) || setupDoneFromDb) {
-      const response = NextResponse.redirect(new URL("/dashboard/genel-bakis", request.url));
+      const response = NextResponse.redirect(new URL("/genel-bakis", request.url));
       if (setupDoneFromDb) setDemoSetupDoneCookie(response);
       return response;
     }
@@ -83,7 +93,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // ── Dashboard routes ──
-  if (!pathname.startsWith("/dashboard")) {
+  if (!isPanelPath(pathname)) {
     return NextResponse.next();
   }
 
@@ -163,5 +173,6 @@ async function gateShop(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/demo-kurulum/:path*", "/magaza", "/magaza/:path*", "/api/:path*"],
+  // Panel addresses have no shared prefix; only assets (anything with a dot) and Next internals are left out.
+  matcher: ["/((?!_next/|.*\\.).*)"],
 };

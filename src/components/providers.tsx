@@ -14,8 +14,18 @@ interface ProvidersProps {
   children: ReactNode;
 }
 
+function shouldRetryQuery(failureCount: number, error: unknown): boolean {
+  const failure = error as { status?: number; response?: { status?: number } };
+  const status = failure?.status ?? failure?.response?.status;
+  // A client error gives the same answer every time; only timeouts and rate limits can change.
+  if (status != null && status >= 400 && status < 500 && status !== 408 && status !== 429) return false;
+  return failureCount < 3;
+}
+
 export default function Providers({ children }: ProvidersProps) {
-  const [queryClient] = useState(() => new QueryClient());
+  const [queryClient] = useState(
+    () => new QueryClient({ defaultOptions: { queries: { retry: shouldRetryQuery } } }),
+  );
 
   return (
     <QueryClientProvider client={queryClient}>

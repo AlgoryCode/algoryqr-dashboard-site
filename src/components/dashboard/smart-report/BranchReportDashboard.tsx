@@ -67,6 +67,7 @@ export default function BranchReportDashboard({
   initialTab,
   allowedTabs,
   staffRoles,
+  onStaffFocus,
 }: {
   revenue?: MenuRevenueReportResponse | null;
   visits?: MenuAnalyticsReportResponse | null;
@@ -77,6 +78,8 @@ export default function BranchReportDashboard({
   initialTab?: TabId;
   allowedTabs?: TabId[];
   staffRoles?: Record<string, string>;
+  /** Personel detayındaki "Raporu bu personele daralt" eylemi. */
+  onStaffFocus?: (staffId: number) => void;
 }) {
   const tabs = useMemo(() => {
     if (allowedTabs?.length) {
@@ -163,7 +166,7 @@ export default function BranchReportDashboard({
           ) : null}
           {activeTab === "staff" ? (
             waiter ? (
-              <StaffPage waiter={waiter} money={m} roles={staffRoles} />
+              <StaffPage waiter={waiter} money={m} roles={staffRoles} onStaffFocus={onStaffFocus} />
             ) : (
               <ReportEmpty text="Personel verisi yok." />
             )

@@ -713,8 +713,10 @@ export async function deleteMenuTable(menuId: number, tableId: number): Promise<
 export async function listMerchantOrders(
   menuId: number,
   status = "ALL",
+  days?: number,
 ): Promise<OrderResponse[]> {
   const params = new URLSearchParams({ status });
+  if (days != null) params.set("days", String(days));
   const response = await fetch(`/api/staff/panel/menu/${menuId}/orders?${params}`, {
     method: "GET",
     headers: { Accept: "application/json" },

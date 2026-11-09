@@ -17,7 +17,7 @@ export const Abonelik = dashboardPage("Abonelik", DASHBOARD_ROUTES.accountSubscr
 export const Paketler = dashboardPage("Paketler", DASHBOARD_ROUTES.accountPackages);
 export const PaketDegistir = dashboardPage(
   "Paket değiştir",
-  "/dashboard/hesabim/abonelik/paket-degistir",
+  "/hesabim/abonelik/paket-degistir",
   { to: "2" },
 );
 export const PaketSatinAl = dashboardPage("Paket satın al", DASHBOARD_ROUTES.accountSubscriptionCheckout(2));
