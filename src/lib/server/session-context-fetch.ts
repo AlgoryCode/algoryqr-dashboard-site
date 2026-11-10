@@ -38,7 +38,6 @@ export async function fetchDashboardSessionContext(): Promise<SessionContext | n
   const cookieStore = await cookies();
   const accessToken =
     cookieStore.get("accessToken")?.value?.trim() ||
-    cookieStore.get("algory_access_token")?.value?.trim() ||
     null;
   if (!accessToken) return null;
   return fetchSessionContextWithToken(accessToken);

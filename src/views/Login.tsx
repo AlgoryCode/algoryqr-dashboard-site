@@ -21,7 +21,8 @@ import {
   resolveSafeReturnUrl,
 } from "@/lib/trial-flow";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
-import { clearPackageAccess, loadPackageAccess } from "@/lib/load-package-access";
+import { loadPackageAccess } from "@/lib/load-package-access";
+import { discardPendingLogin } from "@/lib/site-session";
 import { fetchSessionContextClient, pathForSession } from "@/lib/session-context";
 import { SESSION_CONTEXT_QUERY_KEY } from "@/hooks/use-session-context";
 import {
@@ -116,8 +117,7 @@ const Login = () => {
   }, [searchParams]);
 
   const cancelTwoFactor = async () => {
-    clearPackageAccess();
-    await getSiteSameOriginAxios().post("/auth/logout", {}).catch(() => undefined);
+    await discardPendingLogin();
     setAwaiting2FA(false);
     setTotpCode("");
     setTwoFactorHintEmail(null);

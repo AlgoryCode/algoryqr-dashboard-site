@@ -5,9 +5,7 @@ import axios, { AxiosError, type AxiosInstance, type InternalAxiosRequestConfig 
 import { getJsonErrorText } from "@/lib/api-error-text";
 import { ApiError } from "@/lib/api/errors";
 import { recordFlow } from "@/lib/flow-log";
-import { clearPackageAccess, loadPackageAccess } from "@/lib/load-package-access";
-
-let refreshPromise: Promise<boolean> | null = null;
+import { endSession, refreshSession } from "@/lib/site-session";
 
 const EMAIL_NOT_VERIFIED_CODE = "EMAIL_NOT_VERIFIED";
 
@@ -34,43 +32,10 @@ function isEmailNotVerified(data: unknown): boolean {
   return (data as { code?: unknown }).code === EMAIL_NOT_VERIFIED_CODE;
 }
 
+/** Kept for existing callers; delegates to the shared single-flight refresh. */
 export async function refreshSiteSession(): Promise<boolean> {
-  if (typeof window === "undefined") return false;
-  if (!refreshPromise) {
-    refreshPromise = (async () => {
-      try {
-        const r = await axios.post("/api/auth/refresh", {}, {
-          withCredentials: true,
-          validateStatus: (s) => s < 500,
-        });
-        recordFlow({
-          scope: "api",
-          method: "POST",
-          path: "/api/auth/refresh",
-          status: r.status,
-          body: r.data,
-        });
-        if (r.status === 401) {
-          clearPackageAccess();
-          await axios.post("/api/auth/logout", {}, { withCredentials: true, validateStatus: () => true }).catch(() => undefined);
-          if (window.location.pathname !== "/login") {
-            window.location.assign("/login");
-          }
-          return false;
-        }
-        if (r.status >= 200 && r.status < 300) {
-          void loadPackageAccess(true);
-          return true;
-        }
-        return false;
-      } catch {
-        return false;
-      }
-    })().finally(() => {
-      refreshPromise = null;
-    });
-  }
-  return refreshPromise;
+  const result = await refreshSession();
+  return result.ok;
 }
 
 type SiteRetryCfg = InternalAxiosRequestConfig & { __site401Retried?: boolean; __flowStarted?: number };
@@ -130,11 +95,7 @@ export function getSiteSameOriginAxios(): AxiosInstance {
         && isEmailNotVerified(error.response?.data)
         && !isPublicAuthApiPath(requestUrl)
       ) {
-        clearPackageAccess();
-        await axios
-          .post("/api/auth/logout", {}, { withCredentials: true, validateStatus: () => true })
-          .catch(() => undefined);
-        window.location.assign("/login?verify=1");
+        await endSession("email-not-verified");
         return Promise.reject(toApiError(error));
       }
       if (typeof window !== "undefined" && status === 401 && cfg && !cfg.__site401Retried) {

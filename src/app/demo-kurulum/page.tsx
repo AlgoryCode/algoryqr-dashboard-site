@@ -15,7 +15,6 @@ export default async function DemoSetupPage() {
 
   const accessToken =
     cookieStore.get("accessToken")?.value?.trim() ||
-    cookieStore.get("algory_access_token")?.value?.trim() ||
     null;
 
   if (!accessToken) {

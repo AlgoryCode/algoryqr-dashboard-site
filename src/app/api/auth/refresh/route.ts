@@ -12,6 +12,7 @@ import {
   setTokenExpiryCookies,
 } from "@/lib/server/auth-cookies";
 import { resolveRefreshCookieExpiry } from "@/lib/server/session-expiry";
+import { toPublicAuthPayload } from "@/lib/server/public-auth-payload";
 
 export async function POST(req: Request) {
   try {
@@ -70,7 +71,7 @@ export async function POST(req: Request) {
     );
 
     const response = NextResponse.json(
-      { ...data, merchantId, userId: undefined, accessTokenExpiresAt, refreshTokenExpiresAt },
+      { ...toPublicAuthPayload(data), merchantId, userId: undefined, accessTokenExpiresAt, refreshTokenExpiresAt },
       { status: 200 },
     );
 

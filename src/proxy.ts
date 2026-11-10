@@ -27,7 +27,6 @@ const DEMO_SETUP_PATH = "/demo-kurulum";
 function readAccessToken(request: NextRequest): string | null {
   return (
     request.cookies.get("accessToken")?.value?.trim() ||
-    request.cookies.get("algory_access_token")?.value?.trim() ||
     null
   );
 }
@@ -35,7 +34,6 @@ function readAccessToken(request: NextRequest): string | null {
 function readRefreshToken(request: NextRequest): string | null {
   return (
     request.cookies.get("refreshToken")?.value?.trim() ||
-    request.cookies.get("algory_refresh_token")?.value?.trim() ||
     null
   );
 }

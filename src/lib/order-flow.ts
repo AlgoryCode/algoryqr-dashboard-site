@@ -640,8 +640,10 @@ export function orderFlowLane(status: string | null | undefined, context: OrderF
     return context.courierEnabled ? "courier" : "waiter";
   }
   if (normalized === "CONFIRMED" || normalized === "PREPARING" || normalized === "READY") {
-    if (!context.kitchenEnabled) return "waiter";
-    return "kitchen";
+    if (context.kitchenEnabled) return "kitchen";
+    // Kitchen step off: early statuses go to the waiter, but an order already being prepared
+    // stays with the kitchen (matches buildOpsLaneSnapshots).
+    return normalized === "PREPARING" ? "kitchen" : "waiter";
   }
   if (normalized === "PENDING") return "waiter";
   return null;

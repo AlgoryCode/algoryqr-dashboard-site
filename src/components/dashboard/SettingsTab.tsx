@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { getSiteSameOriginAxios } from "@/lib/site-same-origin-axios";
+import { logout, refreshSession } from "@/lib/site-session";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,7 +20,6 @@ import {
   useHydrateAccountOverviewCaches,
 } from "@/hooks/use-account-overview";
 import { useAccessProfile } from "@/hooks/use-access-profile";
-import { clearPackageAccess, loadPackageAccess } from "@/lib/load-package-access";
 import type { MyProfile } from "@/hooks/use-my-profile";
 import {
   ArrowLeft,
@@ -249,12 +249,12 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
       if (remaining <= 0 && !refreshTriggeredRef.current) {
         refreshTriggeredRef.current = true;
         setNextRefreshAt(null);
-        getSiteSameOriginAxios()
-          .post<{ accessTokenExpiresAt?: number }>("/auth/refresh", {})
-          .then((res) => {
-            const exp = res.data?.accessTokenExpiresAt;
+        // An expired session is ended (logout + redirect) inside refreshSession.
+        refreshSession()
+          .then((result) => {
+            if (!result.ok) return;
+            const exp = result.accessTokenExpiresAt;
             if (exp != null) setAccessTokenExpiresAt(exp);
-            void loadPackageAccess(true);
             onNotify("info", "Token otomatik yenilendi.");
             fetchTokenExp();
             const nextAt =
@@ -262,15 +262,6 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
             setNextRefreshAt(nextAt);
             if (nextAt != null && typeof sessionStorage !== "undefined") {
               sessionStorage.setItem(NEXT_REFRESH_AT_KEY, String(nextAt));
-            }
-          })
-          .catch((err: unknown) => {
-            const status = err instanceof ApiError ? err.status : 0;
-            if (status === 401) {
-              clearPackageAccess();
-              onNotify("warning", "Oturum sonlandı. Tekrar giriş yapın.");
-              router.push("/login");
-              router.refresh();
             }
           })
           .finally(() => {
@@ -281,18 +272,12 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
     update();
     const id = setInterval(update, 1000);
     return () => clearInterval(id);
-  }, [nextRefreshAt, onNotify, router, fetchTokenExp]);
+  }, [nextRefreshAt, onNotify, fetchTokenExp]);
 
   const handleLogout = async () => {
     setLogoutLoading(true);
     try {
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("algory_user");
-      }
-      clearPackageAccess();
-      await getSiteSameOriginAxios().post("/auth/logout", {}).catch(() => undefined);
-      router.push("/login");
-      router.refresh();
+      await logout();
     } finally {
       setLogoutLoading(false);
     }
@@ -313,10 +298,14 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
 
   const handleRefreshAccess = () => {
     setRefreshLoading(true);
-    getSiteSameOriginAxios()
-      .post<{ accessTokenExpiresAt?: number }>("/auth/refresh", {})
-      .then((res) => {
-        const exp = res.data?.accessTokenExpiresAt;
+    refreshSession()
+      .then((result) => {
+        if (!result.ok) {
+          // 401 already ended the session and redirected to /login.
+          if (result.status !== 401) onNotify("danger", "Token yenilenemedi.");
+          return;
+        }
+        const exp = result.accessTokenExpiresAt;
         if (exp != null) {
           setAccessTokenExpiresAt(exp);
           const nextAt = nextRefreshAtFromAccessExp(exp);
@@ -326,18 +315,7 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
           }
         }
         onNotify("info", "Access token yenilendi.");
-        void loadPackageAccess(true);
         fetchTokenExp();
-      })
-      .catch((err: unknown) => {
-        const status = err instanceof ApiError ? err.status : 0;
-        if (status === 401) {
-          onNotify("warning", "Oturum sonlandı. Tekrar giriş yapın.");
-          router.push("/login");
-          router.refresh();
-        } else {
-          onNotify("danger", "Token yenilenemedi.");
-        }
       })
       .finally(() => setRefreshLoading(false));
   };
@@ -387,15 +365,13 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
   };
 
   const handlePasswordChangeSuccess = async () => {
-    clearPackageAccess();
-    await getSiteSameOriginAxios().post("/auth/logout", {}).catch(() => undefined);
-    router.replace("/login");
+    await logout();
   };
 
   const handleEmailChangeSuccess = async () => {
     try {
-      await getSiteSameOriginAxios().post("/auth/refresh", {});
-      void loadPackageAccess(true);
+      const refreshed = await refreshSession();
+      if (!refreshed.ok) throw new Error("refresh failed");
       const profile = await queryClient.fetchQuery({
         queryKey: MY_PROFILE_QUERY_KEY,
         queryFn: async () => {
@@ -414,9 +390,7 @@ export default function SettingsTab({ onNotify }: SettingsTabProps) {
       onNotify("info", "E-posta adresiniz güncellendi. Oturumunuz yeni e-posta ile yenilendi.");
     } catch {
       onNotify("warning", "E-posta güncellendi fakat oturum yenilenemedi. Lütfen tekrar giriş yapın.");
-      clearPackageAccess();
-      await getSiteSameOriginAxios().post("/auth/logout", {}).catch(() => undefined);
-      router.replace("/login");
+      await logout();
     }
   };
 

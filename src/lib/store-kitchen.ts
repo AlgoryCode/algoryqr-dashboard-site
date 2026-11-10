@@ -1,5 +1,4 @@
 import { kitchenOrderOrigin, readKitchenOrderList } from "@/lib/kitchen-queue";
-import { loadPackageAccess } from "@/lib/load-package-access";
 import {
   applyKitchenOrderFlow,
   applyOrderFlow,
@@ -9,6 +8,7 @@ import {
   type KitchenRevertTarget,
   type OrderCancelRequest,
 } from "@/lib/order-flow";
+import { refreshSiteSession } from "@/lib/site-same-origin-axios";
 import { isPhoneCustomerName, stripPhoneCustomerName } from "@/lib/phone-order";
 import type { OrderItemResponse, OrderResponse } from "@/lib/ordering-api";
 import type { StoreOrderDetail, StoreOrderPage, StoreOrderSummary } from "@/lib/store-api";
@@ -48,14 +48,10 @@ async function fetchStore(path: string, init?: RequestInit): Promise<Response> {
   const first = await request();
   if (first.status !== 401) return first;
 
-  const refreshed = await fetch("/api/auth/refresh", {
-    method: "POST",
-    credentials: "same-origin",
-    headers: { Accept: "application/json", "Content-Type": "application/json" },
-    body: "{}",
-  });
-  if (!refreshed.ok) return first;
-  void loadPackageAccess(true);
+  // Shared, de-duplicated refresh: on an expired session it logs out and sends the user to
+  // /login instead of letting every poll retry /auth/refresh forever.
+  const refreshed = await refreshSiteSession();
+  if (!refreshed) return first;
   return request();
 }
 

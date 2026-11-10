@@ -5,6 +5,7 @@ import { authUrl } from "@/lib/config";
 import { messageFromRegisterUpstream } from "@/lib/register-upstream-error";
 import { clientContextHeaders } from "@/lib/server/client-headers";
 import { normalizePhoneNumber } from "@/lib/server/upstream-config";
+import { toPublicAuthPayload } from "@/lib/server/public-auth-payload";
 
 type RegisterBody = {
   firstName?: string;
@@ -78,7 +79,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(
       {
-        ...data,
+        ...toPublicAuthPayload(data),
         userId: data.customerId ?? data.userId,
         message: data.message ?? "Kayıt başarılı",
       },

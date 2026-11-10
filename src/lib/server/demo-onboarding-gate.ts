@@ -179,7 +179,6 @@ export function isDemoOnboardingApiAllowed(pathname: string, method: string): bo
 function readAccessTokenFromRequest(request: NextRequest): string | null {
   return (
     request.cookies.get("accessToken")?.value?.trim() ||
-    request.cookies.get("algory_access_token")?.value?.trim() ||
     null
   );
 }

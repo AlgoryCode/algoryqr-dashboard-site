@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import axios from "axios";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, ChevronUp, Minus, Plus, Search } from "lucide-react";
 
@@ -23,7 +22,7 @@ import { useActivePackages } from "@/hooks/use-subscription";
 import type { PlanPackageApiItem, PlanPackageModuleApi } from "@/lib/api";
 import { destinationForDecision } from "@/lib/access-session-gate";
 import type { BillingPeriod } from "@/lib/commerce";
-import { clearPackageAccess } from "@/lib/load-package-access";
+import { logout } from "@/lib/site-session";
 import {
   ACCOUNT_CARD,
   ACCOUNT_MENU_LABEL,
@@ -217,11 +216,7 @@ export default function ShopPage() {
   };
 
   const signOut = async () => {
-    localStorage.removeItem("algory_user");
-    clearPackageAccess();
-    await axios.post("/api/auth/logout", undefined, { withCredentials: true }).catch(() => undefined);
-    router.push("/login");
-    router.refresh();
+    await logout();
   };
 
   if (session.isLoading || (session.data && session.data.decision !== "REQUIRE_PURCHASE")) {
