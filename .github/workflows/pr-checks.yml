@@ -1,0 +1,45 @@
+name: PR checks
+
+# Type-checks and tests every pull request (and main) before the staging deploy,
+# which runs on every push to main.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: pr-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Typecheck, tests, lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20" # same as the Dockerfile
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit -p .
+
+      - name: Unit tests
+        run: npx vitest run
+
+      # The codebase still has pre-existing lint errors, so lint is reported but does not
+      # block merging yet. Remove continue-on-error once `npm run lint` is clean.
+      - name: Lint (non-blocking)
+        continue-on-error: true
+        run: npx eslint src
