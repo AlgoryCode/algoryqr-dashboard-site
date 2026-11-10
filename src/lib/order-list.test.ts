@@ -76,9 +76,9 @@ describe("address round trip", () => {
   it("restores presets, custom ranges and the other filters", () => {
     const filters = {
       tab: "late" as const,
-      branch: 5,
+      branches: [5, 24],
       range: { from: "2026-11-01", to: "2026-11-05" },
-      channel: "UBER_EATS" as const,
+      channels: ["UBER_EATS" as const, "QR" as const],
       query: "masa 4",
       page: 3,
     };
@@ -97,6 +97,6 @@ describe("address round trip", () => {
 
   it("counts the filters kept in the mobile sheet", () => {
     expect(hiddenOrderFilterCount(defaultOrderListFilters(), new Date())).toBe(0);
-    expect(hiddenOrderFilterCount({ ...defaultOrderListFilters(), branch: 5, channel: "QR" }, new Date())).toBe(2);
+    expect(hiddenOrderFilterCount({ ...defaultOrderListFilters(), branches: [5], channels: ["QR"] }, new Date())).toBe(2);
   });
 });

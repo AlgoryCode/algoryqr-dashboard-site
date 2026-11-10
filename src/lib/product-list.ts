@@ -1,25 +1,31 @@
 import type { ActiveMenuSummaryApiItem, MenuProductApiItem } from "@/lib/api";
+import { inList, readList, writeList } from "@/lib/filter-params";
 
 export const PRODUCT_PAGE_SIZE = 25;
 
 export const PRODUCT_STATUSES = ["all", "no-photo", "unassigned", "unavailable"] as const;
 export type ProductStatus = (typeof PRODUCT_STATUSES)[number];
 
+/** Product flags a list can be narrowed to; several at once show products with any of them. */
+export const PRODUCT_FLAGS = ["no-photo", "unassigned", "unavailable"] as const;
+export type ProductFlag = (typeof PRODUCT_FLAGS)[number];
+
+/** Every filter holds a list; an empty list means the filter is off. */
 export type ProductListFilters = {
   query: string;
-  branch: string;
-  menu: string;
-  category: string;
-  status: ProductStatus;
+  branches: string[];
+  menus: string[];
+  categories: string[];
+  statuses: ProductFlag[];
   page: number;
 };
 
 export const EMPTY_PRODUCT_FILTERS: ProductListFilters = {
   query: "",
-  branch: "all",
-  menu: "all",
-  category: "all",
-  status: "all",
+  branches: [],
+  menus: [],
+  categories: [],
+  statuses: [],
   page: 1,
 };
 
@@ -32,7 +38,7 @@ export type ProductListRow = MenuProductApiItem & {
   branchName: string | null;
 };
 
-export type ProductFilterOption = { value: string; label: string };
+export type ProductFilterOption = { value: string; label: string; count?: number };
 
 /** Lets "kofte" find "Köfte" and "ipek" find "İPEK", which plain lower-casing does not. */
 export function foldSearchText(value: string): string {
@@ -100,15 +106,15 @@ function matchesStatus(row: ProductListRow, status: ProductStatus): boolean {
 }
 
 function matchesBranch(row: ProductListRow, filters: ProductListFilters) {
-  return filters.branch === "all" || row.branchKey === filters.branch;
+  return inList(filters.branches, row.branchKey);
 }
 
 function matchesMenu(row: ProductListRow, filters: ProductListFilters) {
-  return filters.menu === "all" || String(row.menuId) === filters.menu;
+  return inList(filters.menus, String(row.menuId));
 }
 
 function matchesCategory(row: ProductListRow, filters: ProductListFilters) {
-  return filters.category === "all" || row.mainCategoryName === filters.category;
+  return filters.categories.length === 0 || (row.mainCategoryName != null && filters.categories.includes(row.mainCategoryName));
 }
 
 function matchesQuery(row: ProductListRow, foldedQuery: string) {
@@ -130,7 +136,9 @@ function withoutStatus(rows: ProductListRow[], filters: ProductListFilters) {
 }
 
 export function filterProducts(rows: ProductListRow[], filters: ProductListFilters): ProductListRow[] {
-  return withoutStatus(rows, filters).filter((row) => matchesStatus(row, filters.status));
+  return withoutStatus(rows, filters).filter(
+    (row) => filters.statuses.length === 0 || filters.statuses.some((flag) => matchesStatus(row, flag)),
+  );
 }
 
 export function productStatusCounts(rows: ProductListRow[], filters: ProductListFilters): Record<ProductStatus, number> {
@@ -143,11 +151,10 @@ export function productStatusCounts(rows: ProductListRow[], filters: ProductList
   };
 }
 
-function toOptions(counts: Map<string, { label: string; count: number }>, allLabel: string): ProductFilterOption[] {
-  const options = [...counts.entries()]
+function toOptions(counts: Map<string, { label: string; count: number }>): ProductFilterOption[] {
+  return [...counts.entries()]
     .sort(([, a], [, b]) => a.label.localeCompare(b.label, "tr"))
-    .map(([value, { label, count }]) => ({ value, label: `${label} (${count})` }));
-  return [{ value: "all", label: allLabel }, ...options];
+    .map(([value, { label, count }]) => ({ value, label, count }));
 }
 
 function tally(
@@ -177,21 +184,20 @@ export function productFilterOptions(rows: ProductListRow[], filters: ProductLis
   }
 
   return {
-    branches: toOptions(branches, "Tüm şubeler"),
-    menus: toOptions(menus, "Tüm menüler"),
-    categories: toOptions(categories, "Tüm kategoriler"),
+    branches: toOptions(branches),
+    menus: toOptions(menus),
+    categories: toOptions(categories),
   };
 }
 
 export function parseProductFilters(params: URLSearchParams): ProductListFilters {
-  const status = params.get("durum");
   const page = Number(params.get("sayfa"));
   return {
     query: params.get("ara") ?? "",
-    branch: params.get("sube") ?? "all",
-    menu: params.get("menu") ?? "all",
-    category: params.get("kategori") ?? "all",
-    status: PRODUCT_STATUSES.includes(status as ProductStatus) ? (status as ProductStatus) : "all",
+    branches: readList(params, "sube"),
+    menus: readList(params, "menu"),
+    categories: readList(params, "kategori"),
+    statuses: readList(params, "durum", PRODUCT_FLAGS),
     page: Number.isSafeInteger(page) && page > 0 ? page : 1,
   };
 }
@@ -199,16 +205,19 @@ export function parseProductFilters(params: URLSearchParams): ProductListFilters
 export function serializeProductFilters(filters: ProductListFilters): URLSearchParams {
   const params = new URLSearchParams();
   if (filters.query.trim()) params.set("ara", filters.query.trim());
-  if (filters.branch !== "all") params.set("sube", filters.branch);
-  if (filters.menu !== "all") params.set("menu", filters.menu);
-  if (filters.category !== "all") params.set("kategori", filters.category);
-  if (filters.status !== "all") params.set("durum", filters.status);
+  writeList(params, "sube", filters.branches);
+  writeList(params, "menu", filters.menus);
+  writeList(params, "kategori", filters.categories);
+  writeList(params, "durum", filters.statuses);
   if (filters.page > 1) params.set("sayfa", String(filters.page));
   return params;
 }
 
-export function activeProductFilterCount(filters: ProductListFilters): number {
-  return [filters.branch, filters.menu, filters.category].filter((value) => value !== "all").length;
+export function isProductListNarrowed(filters: ProductListFilters): boolean {
+  return (
+    filters.query.trim() !== "" ||
+    filters.branches.length + filters.menus.length + filters.categories.length + filters.statuses.length > 0
+  );
 }
 
 /** Page buttons for the footer: first, last and the current page's neighbours, with gaps between. */

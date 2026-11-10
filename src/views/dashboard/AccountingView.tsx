@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Trash2 } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CalendarClock, Loader2, Plus, Receipt, ReceiptText, Trash2, TrendingDown, TrendingUp, type LucideIcon } from "lucide-react";
 
 import {
   DigitalMenuPicker,
@@ -13,10 +13,34 @@ import {
 import { BranchPicker, useBranchSelection } from "@/components/dashboard/BranchPicker";
 import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { DateFilterMenu } from "@/components/dashboard/DateFilterMenu";
+import { FilterChips } from "@/components/dashboard/FilterChips";
+import { FilterMenu } from "@/components/dashboard/FilterMenu";
+import { ListPagination } from "@/components/dashboard/ListPagination";
+import { LIST_ROW, LIST_ROW_LINK, ListCard, ListHead, ListMessage, ListSkeleton } from "@/components/dashboard/ListLayout";
+import { ListToolbar } from "@/components/dashboard/ListToolbar";
 import { SearchableSelect } from "@/components/dashboard/menu/SearchableSelect";
+import { StatTile } from "@/components/dashboard/StatTile";
+import { ToneBadge } from "@/components/dashboard/ToneBadge";
+import { TONE_ACTION, ToneIcon, type Tone } from "@/components/dashboard/tone";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { MoneyInput, parseMoneyInput } from "@/components/ui/money-input";
 import {
   Dialog,
@@ -29,13 +53,21 @@ import {
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
 import { useAccessSession } from "@/hooks/use-commerce";
 import {
-  DASHBOARD_FILTER_FIELD,
-  DASHBOARD_FILTER_LABEL,
-  DASHBOARD_METRIC_LABEL,
-  DASHBOARD_METRIC_VALUE,
-  DASHBOARD_PANEL,
-  DASHBOARD_STAT_TILE,
-} from "@/lib/dashboard-surface";
+  ACCOUNTING_PAGE_SIZE,
+  ACCOUNTING_TYPES,
+  accountingTypeParam,
+  EMPTY_ACCOUNTING_FILTERS,
+  entryTypeLabel,
+  formatAccountingAmount,
+  formatAccountingDate,
+  isAccountingNarrowed,
+  parseAccountingFilters,
+  serializeAccountingFilters,
+  signedAmountPrefix,
+  sourceTypeLabel,
+  type AccountingListFilters,
+} from "@/lib/accounting-list";
+import { ENTRY_SOURCE_TONE, ENTRY_TYPE_TONE } from "@/lib/badge-tones";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { cn } from "@/lib/utils";
 import {
@@ -47,71 +79,28 @@ import {
   listAccountingEntriesRequest,
   type AccountingEntryApiItem,
   type AccountingEntryType,
-  type AccountingSourceType,
   type FixedExpensePeriod,
 } from "@/lib/api";
 
-type TypeFilter = AccountingEntryType | "all";
+const formatAmount = formatAccountingAmount;
+const formatDateTime = formatAccountingDate;
 
-function formatDateTime(value?: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("tr-TR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+const ENTRY_ICON: Record<AccountingEntryType, LucideIcon> = {
+  GELIR: TrendingUp,
+  GIDER: TrendingDown,
+  BORC: Receipt,
+};
 
-function formatAmount(value: number | string, currency = "TRY"): string {
-  const amount = Number(value);
-  if (!Number.isFinite(amount)) return "—";
-  return new Intl.NumberFormat("tr-TR", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
+/** Amount colour follows the entry type: money in green, money out red, debt orange. */
+const AMOUNT_TEXT: Record<AccountingEntryType, string> = {
+  GELIR: "text-[#128C7E] dark:text-[#4ADE80]",
+  GIDER: "text-[#F03245] dark:text-[#FB7185]",
+  BORC: "text-[#C2410C] dark:text-[#FB923C]",
+};
 
-function toLocalInputValue(date = new Date()): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function fromLocalInputValue(value: string): string {
-  return value.length === 16 ? `${value}:00` : value;
-}
-
-function entryTypeLabel(type: AccountingEntryType): string {
-  switch (type) {
-    case "GELIR":
-      return "Gelir";
-    case "GIDER":
-      return "Gider";
-    case "BORC":
-      return "Borç";
-    default:
-      return type;
-  }
-}
-
-function sourceTypeLabel(type: AccountingSourceType): string {
-  switch (type) {
-    case "BILL_SALE":
-      return "Adisyon satışı";
-    case "BILL_TIP":
-      return "Bahşiş";
-    case "ORDER_SALE":
-      return "Sipariş satışı";
-    case "MANUAL":
-      return "Manuel kayıt";
-    default:
-      return type;
-  }
-}
+/** The menu column only fits on wide screens; below that the menu name moves under the title. */
+const ROW_COLUMNS =
+  "lg:grid lg:grid-cols-[minmax(0,1fr)_5rem_8.5rem_7.5rem_2rem] lg:items-center lg:gap-3 xl:grid-cols-[minmax(0,2.2fr)_5rem_8.5rem_minmax(0,1.2fr)_7.5rem_2rem] xl:gap-4";
 
 function canLoadEntryLines(item: AccountingEntryApiItem): boolean {
   return (
@@ -121,44 +110,16 @@ function canLoadEntryLines(item: AccountingEntryApiItem): boolean {
   );
 }
 
-function entryTypeClass(type: AccountingEntryType): string {
-  switch (type) {
-    case "GELIR":
-      return "bg-emerald-500/15 text-emerald-700";
-    case "GIDER":
-      return "bg-red-500/15 text-red-700";
-    case "BORC":
-      return "bg-amber-500/15 text-amber-700";
-    default:
-      return "bg-muted text-muted-foreground";
-  }
+type ExpenseMode = "ONE_TIME" | "FIXED";
+
+function toLocalInputValue(date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-// Pill-shaped outline styling for the action buttons, keyed to each entry type's accent color.
-// Base shape mirrors the app's outline-pill pattern (h-8, rounded-full, border-2, bg-background).
-const ACTION_BUTTON_BASE =
-  "h-8 shrink-0 rounded-full border-2 bg-background px-3 font-medium shadow-none";
-
-const actionButtonClass: Record<AccountingEntryType | "FIXED", string> = {
-  GELIR: cn(
-    ACTION_BUTTON_BASE,
-    "border-emerald-500 text-emerald-700 hover:bg-emerald-500 hover:text-white",
-  ),
-  GIDER: cn(
-    ACTION_BUTTON_BASE,
-    "border-red-500 text-red-700 hover:bg-red-500 hover:text-white",
-  ),
-  BORC: cn(
-    ACTION_BUTTON_BASE,
-    "border-amber-500 text-amber-700 hover:bg-amber-500 hover:text-white",
-  ),
-  FIXED: cn(
-    ACTION_BUTTON_BASE,
-    "border-border text-foreground hover:bg-foreground hover:text-background",
-  ),
-};
-
-type ExpenseMode = "ONE_TIME" | "FIXED";
+function fromLocalInputValue(value: string): string {
+  return value.length === 16 ? `${value}:00` : value;
+}
 
 export default function AccountingView() {
   const router = useRouter();
@@ -180,6 +141,9 @@ export default function AccountingView() {
 }
 
 function AccountingViewContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { notify } = useDashboardBanners();
   const queryClient = useQueryClient();
 
@@ -191,12 +155,10 @@ function AccountingViewContent() {
     select: selectFixedExpenseBranch,
   } = useBranchSelection(null, true);
 
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
-  const [q, setQ] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [page, setPage] = useState(0);
+  // Filters live in the address, so a trip to another page and back lands on the same list.
+  const filters = useMemo(() => parseAccountingFilters(new URLSearchParams(searchParams.toString())), [searchParams]);
   const [detailItem, setDetailItem] = useState<AccountingEntryApiItem | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AccountingEntryApiItem | null>(null);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogType, setDialogType] = useState<AccountingEntryType>("GELIR");
@@ -208,6 +170,12 @@ function AccountingViewContent() {
   const [expenseMode, setExpenseMode] = useState<ExpenseMode>("ONE_TIME");
   const [expensePeriod, setExpensePeriod] = useState<FixedExpensePeriod>("MONTHLY");
   const [dialogBranchId, setDialogBranchId] = useState<number | null>(null);
+
+  const update = (patch: Partial<AccountingListFilters>) => {
+    const current = parseAccountingFilters(new URLSearchParams(window.location.search));
+    const query = serializeAccountingFilters({ ...current, page: 1, ...patch }).toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
 
   const createFixedExpenseMutation = useMutation({
     mutationFn: (payload: {
@@ -234,16 +202,17 @@ function AccountingViewContent() {
   });
 
   const listQuery = useQuery({
-    queryKey: ["accounting-entries", typeFilter, q, from, to, page],
+    queryKey: ["accounting-entries", filters.types.join(","), filters.query, filters.range.from, filters.range.to, filters.page],
     queryFn: () =>
       listAccountingEntriesRequest({
-        type: typeFilter,
-        q: q.trim() || undefined,
-        from: from || undefined,
-        to: to || undefined,
-        page,
-        size: 20,
+        type: accountingTypeParam(filters.types),
+        q: filters.query.trim() || undefined,
+        from: filters.range.from || undefined,
+        to: filters.range.to || undefined,
+        page: filters.page - 1,
+        size: ACCOUNTING_PAGE_SIZE,
       }),
+    placeholderData: keepPreviousData,
   });
 
   const createMutation = useMutation({
@@ -264,6 +233,7 @@ function AccountingViewContent() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["accounting-entries"] });
       setDetailItem(null);
+      setDeleteTarget(null);
       notify("info", "Kayıt silindi.");
     },
     onError: (err) => {
@@ -272,17 +242,19 @@ function AccountingViewContent() {
   });
 
   const items = listQuery.data?.content ?? [];
+  const totalElements = listQuery.data?.totalElements ?? 0;
   const totalPages = listQuery.data?.totalPages ?? 0;
   const summary = listQuery.data?.summary;
+  const narrowed = isAccountingNarrowed(filters);
 
-  const summaryCards = useMemo(
-    () => [
-      { label: "Toplam Gelir", value: formatAmount(summary?.totalGelir ?? 0) },
-      { label: "Toplam Gider", value: formatAmount(summary?.totalGider ?? 0) },
-      { label: "Toplam Borç", value: formatAmount(summary?.totalBorc ?? 0) },
-    ],
-    [summary],
-  );
+  // The last page can vanish after a delete or a filter change; step back to the real last one.
+  useEffect(() => {
+    if (totalPages > 0 && filters.page > totalPages) {
+      const current = parseAccountingFilters(new URLSearchParams(window.location.search));
+      const query = serializeAccountingFilters({ ...current, page: totalPages }).toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    }
+  }, [filters.page, totalPages, pathname, router]);
 
   function resetForm() {
     setTitle("");
@@ -351,182 +323,156 @@ function AccountingViewContent() {
 
   const saving = createMutation.isPending || createFixedExpenseMutation.isPending;
 
+  const typeOptions: Array<{ value: AccountingEntryType; label: string; tone?: Tone }> = [
+    { value: "GELIR", label: "Gelir", tone: ENTRY_TYPE_TONE.GELIR },
+    { value: "GIDER", label: "Gider", tone: ENTRY_TYPE_TONE.GIDER },
+    { value: "BORC", label: "Borç", tone: ENTRY_TYPE_TONE.BORC },
+  ];
+
+  const stats: Array<{ type: AccountingEntryType; label: string; value: number | string | undefined }> = [
+    { type: "GELIR", label: "Toplam gelir", value: summary?.totalGelir },
+    { type: "GIDER", label: "Toplam gider", value: summary?.totalGider },
+    { type: "BORC", label: "Toplam borç", value: summary?.totalBorc },
+  ];
+
+  const addActions: Array<{ label: string; icon: LucideIcon; tone: Tone; run: () => void }> = [
+    { label: "Gelir ekle", icon: TrendingUp, tone: ENTRY_TYPE_TONE.GELIR, run: () => openDialog("GELIR") },
+    { label: "Gider ekle", icon: TrendingDown, tone: ENTRY_TYPE_TONE.GIDER, run: () => openDialog("GIDER") },
+    { label: "Borç ekle", icon: Receipt, tone: ENTRY_TYPE_TONE.BORC, run: () => openDialog("BORC") },
+    { label: "Sabit gider ekle", icon: CalendarClock, tone: ENTRY_TYPE_TONE.GIDER, run: openFixedExpenseDialog },
+  ];
+
   return (
     <div className="space-y-4 animate-fade-in">
       <DashboardPageHeader
         title="Muhasebe"
         hint="Gelir, gider ve borç kayıtlarınızı takip edin."
+        action={
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" size="sm" className="h-9 w-full shrink-0 gap-1.5 sm:w-auto">
+                <Plus className="size-4" />
+                Kayıt ekle
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-48">
+              {addActions.map((action) => (
+                <DropdownMenuItem key={action.label} onSelect={action.run} className="gap-2.5">
+                  <ToneIcon tone={action.tone} icon={action.icon} size="sm" />
+                  {action.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        {summaryCards.map((card) => (
-          <div key={card.label} className={DASHBOARD_STAT_TILE}>
-            <p className={DASHBOARD_METRIC_LABEL}>{card.label}</p>
-            <p className={DASHBOARD_METRIC_VALUE}>{card.value}</p>
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-3 sm:gap-3 sm:px-0">
+        {stats.map((stat) => (
+          <div key={stat.type} className="min-w-[13.5rem] flex-1 sm:min-w-0">
+            <StatTile
+              label={stat.label}
+              value={formatAmount(stat.value ?? 0, summary?.currency)}
+              icon={ENTRY_ICON[stat.type]}
+              tone={ENTRY_TYPE_TONE[stat.type]}
+              loading={listQuery.isPending}
+              selected={filters.types.includes(stat.type)}
+              onClick={() =>
+                update({
+                  types: filters.types.includes(stat.type)
+                    ? filters.types.filter((type) => type !== stat.type)
+                    : ACCOUNTING_TYPES.filter((type) => type === stat.type || filters.types.includes(type)),
+                })
+              }
+            />
           </div>
         ))}
       </div>
 
-      <div className={`${DASHBOARD_PANEL} space-y-4`}>
-        {/*
-          Responsive filter row.
-          - Mobile (<sm): everything stacks in a single column, full width. The date range
-            filter is wrapped in its own `w-full overflow-x-auto` box as a safety net — if
-            DateRangeFilter renders two side-by-side inputs internally that don't wrap, this
-            keeps that scroll contained to the filter itself instead of the whole page.
-          - sm and up: original inline row returns, fields size themselves instead of being
-            forced full-width.
-        */}
-        <div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-end">
-            <div className={cn(DASHBOARD_FILTER_FIELD, "w-full sm:w-[11rem]")}>
-              <label className={DASHBOARD_FILTER_LABEL}>Tür</label>
-              <SearchableSelect
-                value={typeFilter}
-                onValueChange={(value) => {
-                  setTypeFilter(value as TypeFilter);
-                  setPage(0);
-                }}
-                options={[
-                  { value: "all", label: "Tümü" },
-                  { value: "GELIR", label: "Gelir" },
-                  { value: "GIDER", label: "Gider" },
-                  { value: "BORC", label: "Borç" },
-                ]}
-                placeholder="Tür seçin"
-                searchPlaceholder="Tür ara..."
+      <ListCard label="Muhasebe kayıtları">
+        <ListToolbar
+          query={filters.query}
+          onQueryChange={(query) => update({ query })}
+          searchPlaceholder="Başlık veya not ara"
+          searchLabel="Kayıt ara"
+          searching={listQuery.isFetching && !listQuery.isPending}
+          narrowed={narrowed}
+          onClear={() => update(EMPTY_ACCOUNTING_FILTERS)}
+          filters={
+            <>
+              <FilterMenu
+                label="Tür"
+                icon={ReceiptText}
+                multiple
+                values={filters.types}
+                options={typeOptions}
+                onValuesChange={(types) => update({ types })}
               />
-            </div>
-
-            <div className="w-full overflow-x-auto sm:w-auto sm:overflow-visible">
-              <DateRangeFilter
-                value={{ from, to }}
-                onChange={(next) => {
-                  setFrom(next.from);
-                  setTo(next.to);
-                  setPage(0);
-                }}
+              <DateFilterMenu
+                value={filters.range}
+                emptyRange={EMPTY_ACCOUNTING_FILTERS.range}
+                onChange={(range) => update({ range })}
               />
-            </div>
+            </>
+          }
+        />
 
-            <div className={cn(DASHBOARD_FILTER_FIELD, "w-full sm:min-w-[12rem] sm:w-auto sm:flex-1 sm:max-w-xs")}>
-              <label className={DASHBOARD_FILTER_LABEL}>Ara</label>
-              <input
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                value={q}
-                placeholder="Başlık veya not"
-                onChange={(e) => {
-                  setQ(e.target.value);
-                  setPage(0);
-                }}
-              />
-            </div>
-          </div>
-
-          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-            <Button
-              variant="outline"
-              className={cn(actionButtonClass.GELIR, "flex-1 sm:flex-none")}
-              onClick={() => openDialog("GELIR")}
-            >
-              Gelir Gir
-            </Button>
-            <Button
-              variant="outline"
-              className={cn(actionButtonClass.GIDER, "flex-1 sm:flex-none")}
-              onClick={() => openDialog("GIDER")}
-            >
-              Gider Gir
-            </Button>
-            <Button
-              variant="outline"
-              className={cn(actionButtonClass.BORC, "flex-1 sm:flex-none")}
-              onClick={() => openDialog("BORC")}
-            >
-              Borç Gir
-            </Button>
-            <Button
-              variant="outline"
-              className={cn(actionButtonClass.FIXED, "flex-1 sm:flex-none")}
-              onClick={openFixedExpenseDialog}
-            >
-              Sabit Gider Ekle
-            </Button>
-          </div>
-        </div>
-
-        {listQuery.isLoading ? (
-          <DashboardLoadingState label="Kayıtlar yükleniyor…" />
+        {listQuery.isPending ? (
+          <ListSkeleton />
+        ) : listQuery.isError ? (
+          <ListMessage
+            title="Kayıtlar alınamadı"
+            action={{ label: "Tekrar dene", onClick: () => void listQuery.refetch() }}
+          />
         ) : items.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-            Bu filtrelerle kayıt yok.
-          </div>
+          narrowed ? (
+            <ListMessage
+              title="Bu filtrelerle kayıt yok"
+              description="Türü veya tarih aralığını değiştirerek tekrar bakın."
+              action={{ label: "Filtreleri temizle", onClick: () => update(EMPTY_ACCOUNTING_FILTERS) }}
+            />
+          ) : (
+            <ListMessage
+              icon={ReceiptText}
+              title="Henüz kayıt yok"
+              description="Adisyon ve sipariş satışları kendiliğinden buraya düşer. Gider ve borcu siz eklersiniz."
+              action={{ label: "İlk geliri ekle", onClick: () => openDialog("GELIR"), variant: "default" }}
+            />
+          )
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="w-full min-w-[720px] text-sm">
-              <thead className="border-b border-border bg-muted/40 text-left text-xs text-muted-foreground">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Tarih</th>
-                  <th className="px-4 py-3 font-medium">Tür</th>
-                  <th className="px-4 py-3 font-medium">Başlık</th>
-                  <th className="px-4 py-3 font-medium">Tutar</th>
-                  <th className="px-4 py-3 font-medium">Menü</th>
-                  <th className="px-4 py-3 font-medium" />
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item) => (
-                  <AccountingRow
-                    key={item.id}
-                    item={item}
-                    onOpen={() => setDetailItem(item)}
-                    onDelete={
-                      item.sourceType === "MANUAL"
-                        ? () => deleteMutation.mutate(item.id)
-                        : undefined
-                    }
-                    deleting={deleteMutation.isPending}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <ListHead
+              columns={ROW_COLUMNS}
+              labels={["Kayıt", "Tür", "Tarih", { label: "Menü", className: "hidden xl:block" }, { right: "Tutar" }, { srOnly: "İşlemler" }]}
+            />
+            <ul className="divide-y divide-border">
+              {items.map((item) => (
+                <AccountingRow
+                  key={item.id}
+                  item={item}
+                  onOpen={() => setDetailItem(item)}
+                  onDelete={item.sourceType === "MANUAL" ? () => setDeleteTarget(item) : undefined}
+                />
+              ))}
+            </ul>
+            <ListPagination
+              page={Math.min(filters.page, Math.max(totalPages, 1))}
+              pageSize={ACCOUNTING_PAGE_SIZE}
+              total={totalElements}
+              unit="kayıt"
+              onPage={(page) => update({ page })}
+            />
+          </>
         )}
-
-        {totalPages > 1 ? (
-          <div className="flex items-center justify-between gap-3 pt-2">
-            <p className="text-xs text-muted-foreground">
-              Sayfa {page + 1} / {totalPages}
-            </p>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={page <= 0}
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-              >
-                Önceki
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={page + 1 >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Sonraki
-              </Button>
-            </div>
-          </div>
-        ) : null}
-      </div>
+      </ListCard>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
               {dialogType === "GIDER" && expenseMode === "FIXED"
-                ? "Sabit Gider Ekle"
-                : `${entryTypeLabel(dialogType)} Gir`}
+                ? "Sabit gider ekle"
+                : `${entryTypeLabel(dialogType)} ekle`}
             </DialogTitle>
             <DialogDescription>
               {dialogType === "GELIR"
@@ -538,35 +484,15 @@ function AccountingViewContent() {
           </DialogHeader>
           <div className="space-y-3">
             {dialogType === "GIDER" ? (
-              <div className="space-y-1.5">
-                <label className="text-xs text-muted-foreground">Gider türü</label>
-                <div className="inline-flex w-full gap-1 rounded-2xl border border-border/60 bg-muted/30 p-1">
-                  <button
-                    type="button"
-                    className={cn(
-                      "flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all",
-                      expenseMode === "ONE_TIME"
-                        ? "bg-background text-foreground shadow-sm ring-1 ring-border/70"
-                        : "text-muted-foreground hover:bg-background/70 hover:text-foreground",
-                    )}
-                    onClick={() => setExpenseMode("ONE_TIME")}
-                  >
-                    Tek seferlik
-                  </button>
-                  <button
-                    type="button"
-                    className={cn(
-                      "flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all",
-                      expenseMode === "FIXED"
-                        ? "bg-background text-foreground shadow-sm ring-1 ring-border/70"
-                        : "text-muted-foreground hover:bg-background/70 hover:text-foreground",
-                    )}
-                    onClick={() => setExpenseMode("FIXED")}
-                  >
-                    Sabit
-                  </button>
-                </div>
-              </div>
+              <FilterChips<ExpenseMode>
+                label="Gider türü"
+                value={expenseMode}
+                onChange={setExpenseMode}
+                options={[
+                  { value: "ONE_TIME", label: "Tek seferlik" },
+                  { value: "FIXED", label: "Sabit (düzenli)" },
+                ]}
+              />
             ) : null}
             <div className="space-y-1.5">
               <label className="text-xs text-muted-foreground">Başlık</label>
@@ -662,14 +588,41 @@ function AccountingViewContent() {
         item={detailItem}
         deleting={deleteMutation.isPending}
         onDelete={
-          detailItem?.sourceType === "MANUAL"
-            ? () => deleteMutation.mutate(detailItem.id)
-            : undefined
+          detailItem?.sourceType === "MANUAL" ? () => setDeleteTarget(detailItem) : undefined
         }
         onOpenChange={(open) => {
           if (!open) setDetailItem(null);
         }}
       />
+
+      <AlertDialog
+        open={deleteTarget != null}
+        onOpenChange={(open) => {
+          if (!open && !deleteMutation.isPending) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Kayıt silinsin mi?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <span className="font-medium">{deleteTarget?.title}</span> kaydı silinecek. Bu işlem geri alınamaz.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Vazgeç</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteMutation.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                if (deleteTarget) deleteMutation.mutate(deleteTarget.id);
+              }}
+            >
+              {deleteMutation.isPending ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+              Sil
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -678,59 +631,74 @@ function AccountingRow({
   item,
   onOpen,
   onDelete,
-  deleting,
 }: {
   item: AccountingEntryApiItem;
   onOpen: () => void;
   onDelete?: () => void;
-  deleting: boolean;
 }) {
+  const tone = ENTRY_TYPE_TONE[item.entryType] ?? "blue";
+  const Icon = ENTRY_ICON[item.entryType] ?? Receipt;
+  const amount = `${signedAmountPrefix(item.entryType)}${formatAmount(item.amount, item.currency)}`;
+
   return (
-    <tr
-      className="cursor-pointer border-b border-border/60 last:border-0 hover:bg-muted/30"
-      onClick={onOpen}
-    >
-      <td className="px-4 py-3 text-muted-foreground">{formatDateTime(item.occurredAt)}</td>
-      <td className="px-4 py-3">
-        <span
-          className={`rounded-md px-2 py-0.5 text-xs font-medium uppercase tracking-wide ${entryTypeClass(item.entryType)}`}
-        >
-          {entryTypeLabel(item.entryType)}
-        </span>
-      </td>
-      <td className="px-4 py-3">
-        <div>
-          <p className="font-medium text-foreground">{item.title}</p>
-          {item.note ? <p className="text-xs text-muted-foreground">{item.note}</p> : null}
+    <li className={cn(LIST_ROW, ROW_COLUMNS)}>
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <ToneIcon tone={tone} icon={Icon} size="lg" />
+        <div className="min-w-0 flex-1">
+          <button type="button" onClick={onOpen} className={cn("block max-w-full truncate text-left text-sm font-medium text-foreground", LIST_ROW_LINK)}>
+            {item.title}
+          </button>
+          <p className="truncate text-xs text-muted-foreground">
+            {item.note || sourceTypeLabel(item.sourceType)}
+            {item.menuName ? <span className="xl:hidden"> · {item.menuName}</span> : null}
+          </p>
+          <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-muted-foreground lg:hidden">
+            <ToneBadge tone={tone}>{entryTypeLabel(item.entryType)}</ToneBadge>
+            <span className="truncate">{formatDateTime(item.occurredAt)}</span>
+          </div>
         </div>
-      </td>
-      <td className="px-4 py-3 font-medium">{formatAmount(item.amount, item.currency)}</td>
-      <td className="px-4 py-3 text-muted-foreground">{item.menuName ?? "—"}</td>
-      <td className="px-4 py-3 text-right">
+        <p className={cn("shrink-0 text-sm font-semibold tabular-nums lg:hidden", AMOUNT_TEXT[item.entryType])}>{amount}</p>
+      </div>
+
+      <div className="hidden lg:block">
+        <ToneBadge tone={tone}>{entryTypeLabel(item.entryType)}</ToneBadge>
+      </div>
+      <p className="hidden truncate text-sm text-muted-foreground lg:block">{formatDateTime(item.occurredAt)}</p>
+      <p className="hidden truncate text-sm text-muted-foreground xl:block" title={item.menuName ?? undefined}>
+        {item.menuName ?? "—"}
+      </p>
+      <p className={cn("hidden text-right text-sm font-semibold tabular-nums lg:block", AMOUNT_TEXT[item.entryType])}>{amount}</p>
+
+      <div className="relative z-10 flex justify-end">
         {onDelete ? (
           <Button
-            size="sm"
+            type="button"
+            size="icon"
             variant="ghost"
-            disabled={deleting}
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-            aria-label="Kaydı sil"
+            className={cn("size-8", TONE_ACTION.delete)}
+            onClick={onDelete}
+            aria-label={`${item.title} kaydını sil`}
+            title="Sil"
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="size-3.5" />
           </Button>
         ) : null}
-      </td>
-    </tr>
+      </div>
+    </li>
   );
 }
 
-function DetailField({ label, value }: { label: string; value: string }) {
+function DetailField({ label, value, tone }: { label: string; value: string; tone?: Tone | "muted" }) {
   return (
-    <div className="rounded-xl border border-border bg-muted px-3 py-2.5">
-      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-0.5 text-sm font-medium text-foreground">{value}</p>
+    <div className="rounded-xl border border-border px-3 py-2.5">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      {tone ? (
+        <ToneBadge tone={tone} className="mt-1">
+          {value}
+        </ToneBadge>
+      ) : (
+        <p className="mt-0.5 text-sm font-medium text-foreground">{value}</p>
+      )}
     </div>
   );
 }
@@ -763,11 +731,7 @@ function AccountingEntryDetailDialog({
             <DialogHeader>
               <div className="flex flex-wrap items-center gap-2 pr-6">
                 <DialogTitle>{item.title}</DialogTitle>
-                <span
-                  className={`rounded-md px-2 py-0.5 text-xs font-medium uppercase tracking-wide ${entryTypeClass(item.entryType)}`}
-                >
-                  {entryTypeLabel(item.entryType)}
-                </span>
+                <ToneBadge tone={ENTRY_TYPE_TONE[item.entryType] ?? "blue"}>{entryTypeLabel(item.entryType)}</ToneBadge>
               </div>
               <DialogDescription>
                 {formatAmount(item.amount, item.currency)} · {formatDateTime(item.occurredAt)}
@@ -775,7 +739,7 @@ function AccountingEntryDetailDialog({
             </DialogHeader>
 
             <div className="grid gap-2 sm:grid-cols-2">
-              <DetailField label="Kaynak" value={sourceTypeLabel(item.sourceType)} />
+              <DetailField label="Kaynak" value={sourceTypeLabel(item.sourceType)} tone={ENTRY_SOURCE_TONE[item.sourceType as keyof typeof ENTRY_SOURCE_TONE]} />
               <DetailField label="Menü" value={item.menuName ?? "—"} />
               {item.sourceOrderId != null ? (
                 <DetailField label="Sipariş" value={`#${item.sourceOrderId}`} />
@@ -788,7 +752,7 @@ function AccountingEntryDetailDialog({
 
             {loadLines ? (
               <div className="space-y-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <p className="text-sm font-medium text-foreground">
                   Kalemler
                 </p>
                 {detailQuery.isLoading ? (
@@ -804,7 +768,7 @@ function AccountingEntryDetailDialog({
                   </p>
                 ) : (
                   <div className="overflow-hidden rounded-2xl border border-border">
-                    <div className="grid grid-cols-[1fr_auto] gap-x-3 border-b border-border bg-muted px-3 py-2 text-xs uppercase tracking-wide text-muted-foreground">
+                    <div className="grid grid-cols-[1fr_auto] gap-x-3 border-b border-border bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground">
                       <span>Ürün</span>
                       <span>Tutar</span>
                     </div>

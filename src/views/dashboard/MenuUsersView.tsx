@@ -1,15 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Loader2, Plus, Search } from "lucide-react";
+import { Building2, CircleDot, Loader2, Plus, UserRoundCog, UsersRound } from "lucide-react";
 
-import { SearchableSelect } from "@/components/dashboard/menu/SearchableSelect";
-import { ChoiceBadges, StaffBranchAssignForm } from "@/components/dashboard/staff/StaffRosterControls";
+import { StaffBranchAssignForm } from "@/components/dashboard/staff/StaffRosterControls";
+import { StaffListHead, StaffRow } from "@/components/dashboard/staff/StaffRow";
 import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { FilterChips } from "@/components/dashboard/FilterChips";
+import { FilterMenu } from "@/components/dashboard/FilterMenu";
+import { ListPagination } from "@/components/dashboard/ListPagination";
+import { ListCard, ListMessage, ListSkeleton } from "@/components/dashboard/ListLayout";
+import { ListToolbar } from "@/components/dashboard/ListToolbar";
 import { useWaiterPanelAccess } from "@/components/dashboard/waiter/WaiterPanelAccess";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,18 +27,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
 import { useBranches } from "@/hooks/use-branches";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { formatBranchCode, formatBranchListLabel, type BranchItem } from "@/lib/branch";
+import { STAFF_ROLE_TONE } from "@/lib/badge-tones";
+import { formatBranchCode, type BranchItem } from "@/lib/branch";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import {
   assignMerchantStaffBranch,
@@ -46,108 +43,63 @@ import {
   type MenuWaiterMember,
   type StaffRole,
 } from "@/lib/personnel-management-api";
-import { cn } from "@/lib/utils";
+import {
+  EMPTY_STAFF_FILTERS,
+  isStaffListNarrowed,
+  NO_BRANCH,
+  parseStaffFilters,
+  serializeStaffFilters,
+  STAFF_PAGE_SIZE,
+  STAFF_ROLES,
+  staffPageParams,
+  type StaffListFilters,
+  type StaffStatus,
+} from "@/lib/staff-list";
+import { type Tone } from "@/components/dashboard/tone";
 
-type AssignmentFilter = "all" | "assigned" | "unassigned";
-type ActivityFilter = "all" | "active" | "inactive";
-type RoleFilter = "all" | StaffRole;
-
-const ASSIGNMENT_OPTIONS: ReadonlyArray<{ value: AssignmentFilter; label: string }> = [
+const STATUS_CHIPS: ReadonlyArray<{ value: StaffStatus; label: string; tone?: Tone }> = [
   { value: "all", label: "Tümü" },
-  { value: "assigned", label: "Şubeli" },
-  { value: "unassigned", label: "Şubesiz" },
-];
-
-const ACTIVITY_OPTIONS: ReadonlyArray<{ value: ActivityFilter; label: string }> = [
-  { value: "all", label: "Tümü" },
-  { value: "active", label: "Aktif" },
+  { value: "active", label: "Aktif", tone: "green" },
   { value: "inactive", label: "Pasif" },
 ];
 
-const ROLE_FILTER_OPTIONS: ReadonlyArray<{ value: RoleFilter; label: string }> = [
-  { value: "all", label: "Tümü" },
-  { value: "WAITER", label: "Garson" },
-  { value: "KITCHEN", label: "Mutfak" },
-  { value: "COURIER", label: "Kurye" },
-];
+const CREATE_ROLE_OPTIONS = STAFF_ROLES.map((role) => ({
+  value: role,
+  label: STAFF_ROLE_LABEL[role],
+  tone: STAFF_ROLE_TONE[role],
+}));
 
-const CREATE_ROLE_OPTIONS: ReadonlyArray<{ value: StaffRole; label: string }> = [
-  { value: "WAITER", label: "Garson" },
-  { value: "KITCHEN", label: "Mutfak" },
-  { value: "COURIER", label: "Kurye" },
-];
-
-const STAFF_PAGE_SIZE = 20;
-
-function branchLabel(branches: BranchItem[], branchId?: number | null): string {
-  if (branchId == null) return "Şubesiz";
+function branchLabel(branches: BranchItem[], branchId?: number | null): string | null {
+  if (branchId == null) return null;
   const branch = branches.find((item) => item.id === branchId);
-  return branch ? formatBranchListLabel(branch) : formatBranchCode(branchId);
-}
-
-function StatusTag({ active }: { active: boolean }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex rounded-full px-2 py-0.5 text-xs font-medium uppercase tracking-wide",
-        active
-          ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
-          : "bg-muted text-muted-foreground",
-      )}
-    >
-      {active ? "Aktif" : "Pasif"}
-    </span>
-  );
+  return branch ? branch.name : formatBranchCode(branchId);
 }
 
 export default function MenuUsersView() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const branchFromQuery = Number(searchParams.get("branch"));
-  const initialBranchId =
-    Number.isFinite(branchFromQuery) && branchFromQuery > 0 ? branchFromQuery : null;
   const { notify } = useDashboardBanners();
   const queryClient = useQueryClient();
   const { accessLoading, accessError, retryAccess, canUseWaiterPanel } = useWaiterPanelAccess();
   const branchesQuery = useBranches(canUseWaiterPanel && !accessLoading);
-  const branches = branchesQuery.data?.content ?? [];
+  const branches = useMemo(() => branchesQuery.data?.content ?? [], [branchesQuery.data]);
 
-  const [search, setSearch] = useState("");
-  const [assignment, setAssignment] = useState<AssignmentFilter>(initialBranchId ? "assigned" : "all");
-  const [activity, setActivity] = useState<ActivityFilter>("all");
-  const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
-  const [branchFilter, setBranchFilter] = useState<number | "all">(initialBranchId ?? "all");
-  // Üst bardaki "Yeni → Personel" kısayolu ?yeni=1 ile gelir.
-  const [createOpen, setCreateOpen] = useState(() => searchParams.get("yeni") === "1");
+  // Filters live in the address, so a trip to a staff account and back lands on the same list.
+  const filters = useMemo(() => parseStaffFilters(new URLSearchParams(searchParams.toString())), [searchParams]);
+  const listTop = useRef<HTMLDivElement | null>(null);
+
+  // The top bar's "Yeni → Personel" shortcut arrives as ?yeni=1.
   const createRequested = searchParams.get("yeni") === "1";
-  useEffect(() => {
-    if (createRequested) setCreateOpen(true);
-  }, [createRequested]);
+  const [createClicked, setCreateOpen] = useState(false);
+  const createOpen = createClicked || createRequested;
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [staffRole, setStaffRole] = useState<StaffRole>("WAITER");
   const [assignTarget, setAssignTarget] = useState<MenuWaiterMember | null>(null);
-  const debouncedSearch = useDebouncedValue(search.trim(), 300);
-  const effectiveBranchId = assignment === "assigned" && branchFilter !== "all" ? branchFilter : null;
 
-  // Sayfa, filtre anahtarına bağlı: arama/filtre değişince otomatik ilk sayfaya döner.
-  const filterKey = [debouncedSearch, assignment, activity, roleFilter, effectiveBranchId ?? ""].join("|");
-  const [pageState, setPageState] = useState({ key: filterKey, page: 0 });
-  const page = pageState.key === filterKey ? pageState.page : 0;
-  const setPage = (next: number | ((current: number) => number)) =>
-    setPageState({ key: filterKey, page: typeof next === "function" ? next(page) : next });
-
-  const pageParams = {
-    page,
-    size: STAFF_PAGE_SIZE,
-    q: debouncedSearch,
-    assignment,
-    branchId: effectiveBranchId,
-    active: activity === "all" ? null : activity === "active",
-    role: roleFilter === "all" ? null : roleFilter,
-  };
-
+  const pageParams = staffPageParams(filters);
   const usersQuery = useQuery({
     queryKey: [...MERCHANT_STAFF_QUERY_KEY, "page", pageParams],
     enabled: canUseWaiterPanel && !accessLoading,
@@ -155,14 +107,28 @@ export default function MenuUsersView() {
     placeholderData: keepPreviousData,
   });
 
-  const totalPages = usersQuery.data?.totalPages ?? 0;
+  const staffPage = usersQuery.data;
+  const members = staffPage?.items ?? [];
+  const totalElements = staffPage?.totalElements ?? 0;
+  const totalPages = staffPage?.totalPages ?? 0;
+  const narrowed = isStaffListNarrowed(filters);
 
-  // Son sayfadaki kayıtlar azaldıysa geçerli sayfaya çek.
+  const update = (patch: Partial<StaffListFilters>) => {
+    const current = parseStaffFilters(new URLSearchParams(window.location.search));
+    const query = serializeStaffFilters({ ...current, page: 1, ...patch }).toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
+
+  const clearAll = () => update(EMPTY_STAFF_FILTERS);
+
+  // The last page can disappear after a delete or a filter change; step back to the real last one.
   useEffect(() => {
-    if (totalPages > 0 && page > totalPages - 1) {
-      setPageState({ key: filterKey, page: totalPages - 1 });
+    if (totalPages > 0 && filters.page > totalPages) {
+      const current = parseStaffFilters(new URLSearchParams(window.location.search));
+      const query = serializeStaffFilters({ ...current, page: totalPages }).toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
     }
-  }, [filterKey, page, totalPages]);
+  }, [filters.page, totalPages, pathname, router]);
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -178,15 +144,10 @@ export default function MenuUsersView() {
       setDisplayName("");
       setStaffRole("WAITER");
       setCreateOpen(false);
-      setAssignment("all");
-      setActivity("all");
-      setRoleFilter("all");
-      setBranchFilter("all");
-      setSearch("");
       await queryClient.invalidateQueries({ queryKey: MERCHANT_STAFF_QUERY_KEY });
       await queryClient.invalidateQueries({ queryKey: ["menu-users"] });
-      router.replace(DASHBOARD_ROUTES.menuUsers);
-      notify("info", "Personel eklendi. Şubeye atamak için Ata’yı kullanın.");
+      router.replace(pathname);
+      notify("info", "Personel eklendi. Şubeye atamak için listeden “Şubeye ata”yı kullanın.");
     },
     onError: (err) => {
       notify("danger", err instanceof WaiterApiError ? err.message : "Personel eklenemedi.");
@@ -208,13 +169,6 @@ export default function MenuUsersView() {
     },
   });
 
-  const staffPage = usersQuery.data;
-  const pagedStaff = staffPage?.items ?? [];
-  const totalElements = staffPage?.totalElements ?? 0;
-  const currentPage = staffPage?.page ?? page;
-  const rangeStart = totalElements === 0 ? 0 : currentPage * STAFF_PAGE_SIZE + 1;
-  const rangeEnd = Math.min(totalElements, currentPage * STAFF_PAGE_SIZE + pagedStaff.length);
-
   const resetCreateForm = () => {
     setUsername("");
     setPassword("");
@@ -222,12 +176,12 @@ export default function MenuUsersView() {
     setStaffRole("WAITER");
   };
 
-  const hasFilter =
-    Boolean(debouncedSearch) ||
-    assignment !== "all" ||
-    activity !== "all" ||
-    roleFilter !== "all";
-  const emptyLabel = hasFilter ? "Bu filtreyle eşleşen personel yok." : "Henüz personel yok.";
+  // ?yeni=1 keeps the dialog open on its own, so closing must drop it from the address too.
+  const closeCreate = () => {
+    setCreateOpen(false);
+    resetCreateForm();
+    if (createRequested) router.replace(pathname, { scroll: false });
+  };
 
   if (accessError) {
     return <AccessLoadError onRetry={() => void retryAccess()} />;
@@ -236,22 +190,28 @@ export default function MenuUsersView() {
   if (accessLoading || (canUseWaiterPanel && branchesQuery.isLoading && !branchesQuery.data)) {
     return (
       <div className="space-y-6 animate-fade-in pb-8">
-        <DashboardPageHeader title="Personeller" hint="Ana kullanıcı ve personel hesapları" />
+        <DashboardPageHeader title="Personeller" hint="Garson, mutfak ve kurye hesapları" />
         <DashboardLoadingState label="Personel hazırlanıyor..." />
       </div>
     );
   }
 
+  const branchOptions = [
+    ...branches.map((branch) => ({ value: String(branch.id), label: branch.name })),
+    { value: NO_BRANCH, label: "Şubesiz" },
+  ];
+  const roleOptions = STAFF_ROLES.map((role) => ({ value: role, label: STAFF_ROLE_LABEL[role], tone: STAFF_ROLE_TONE[role] }));
+
   return (
     <div className="space-y-6 animate-fade-in pb-8">
       <DashboardPageHeader
         title="Personeller"
-        hint="Personel önce eklenir, sonra şubeye atanır"
+        hint="Garson, mutfak ve kurye hesapları. Önce eklenir, sonra şubeye atanır."
         action={
           <Button
             type="button"
             size="sm"
-            className="shrink-0 gap-1.5"
+            className="h-9 w-full shrink-0 gap-1.5 sm:w-auto"
             disabled={!canUseWaiterPanel}
             onClick={() => setCreateOpen(true)}
           >
@@ -263,187 +223,103 @@ export default function MenuUsersView() {
 
       {!canUseWaiterPanel ? (
         <p className="text-sm text-muted-foreground">Personel paneli bu hesapta açık değil.</p>
-      ) : usersQuery.isPending ? (
-        <DashboardLoadingState label="Personel yükleniyor..." />
-      ) : usersQuery.isError ? (
-        <p className="text-sm text-destructive">
-          {usersQuery.error instanceof Error ? usersQuery.error.message : "Personel alınamadı."}
-        </p>
       ) : (
-        <div className="space-y-4">
-          <section className="space-y-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-base font-semibold">Personel</h2>
-              <div className="relative w-full sm:max-w-xs">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                {usersQuery.isFetching ? (
-                  <Loader2 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
-                ) : null}
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Personel ara…"
-                  className="h-9 pl-9"
-                  aria-label="Personel ara"
+        <ListCard label="Personel listesi">
+          <ListToolbar
+            query={filters.query}
+            onQueryChange={(query) => update({ query })}
+            searchPlaceholder="Ad veya kullanıcı adı ara"
+            searchLabel="Personel ara"
+            searching={usersQuery.isFetching && !usersQuery.isPending}
+            narrowed={narrowed}
+            onClear={clearAll}
+            filters={
+              <>
+                <FilterMenu
+                  label="Rol"
+                  icon={UserRoundCog}
+                  multiple
+                  values={filters.roles}
+                  options={roleOptions}
+                  onValuesChange={(roles) => update({ roles })}
                 />
-              </div>
-            </div>
+                <FilterMenu
+                  label="Şube"
+                  icon={Building2}
+                  tone="teal"
+                  multiple
+                  values={filters.branches}
+                  options={branchOptions}
+                  onValuesChange={(selected) => update({ branches: selected })}
+                />
+                <FilterMenu
+                  label="Durum"
+                  icon={CircleDot}
+                  value={filters.status}
+                  emptyValue="all"
+                  options={STATUS_CHIPS}
+                  onChange={(status) => update({ status })}
+                />
+              </>
+            }
+          />
 
-            <div className="space-y-2">
-              <ChoiceBadges
-                label="Şube"
-                value={assignment}
-                options={ASSIGNMENT_OPTIONS}
-                onChange={(value) => setAssignment(value)}
+          <div ref={listTop} className="scroll-mt-20" />
+          {usersQuery.isPending ? (
+            <ListSkeleton round />
+          ) : usersQuery.isError ? (
+            <ListMessage
+              title={usersQuery.error instanceof Error ? usersQuery.error.message : "Personel alınamadı."}
+              action={{ label: "Tekrar dene", onClick: () => void usersQuery.refetch() }}
+            />
+          ) : members.length === 0 ? (
+            narrowed ? (
+              <ListMessage
+                title="Bu filtrelerle eşleşen personel yok"
+                action={{ label: "Filtreleri temizle", onClick: clearAll }}
               />
-              {assignment === "assigned" && branches.length > 0 ? (
-                <div className="max-w-xs">
-                  <SearchableSelect
-                    value={branchFilter === "all" ? "all" : String(branchFilter)}
-                    onValueChange={(next) => {
-                      if (next === "all") {
-                        setBranchFilter("all");
-                        return;
-                      }
-                      const id = Number(next);
-                      if (Number.isFinite(id) && id > 0) setBranchFilter(id);
-                    }}
-                    options={[
-                      { value: "all", label: "Tüm şubeler" },
-                      ...branches.map((branch) => ({
-                        value: String(branch.id),
-                        label: formatBranchListLabel(branch),
-                      })),
-                    ]}
-                    placeholder="Şube seçin"
-                    searchPlaceholder="Şube ara..."
-                    emptyText="Şube bulunamadı."
-                    className="h-9"
-                  />
-                </div>
-              ) : null}
-              <ChoiceBadges
-                label="Durum"
-                value={activity}
-                options={ACTIVITY_OPTIONS}
-                onChange={(value) => setActivity(value)}
-              />
-              <ChoiceBadges
-                label="Rol"
-                value={roleFilter}
-                options={ROLE_FILTER_OPTIONS}
-                onChange={(value) => setRoleFilter(value)}
-              />
-            </div>
-
-            {pagedStaff.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                {emptyLabel}
-              </div>
             ) : (
-              <div className="overflow-hidden rounded-2xl border border-[#e5e7eb] bg-white shadow-none dark:border-border dark:bg-card">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Ad</TableHead>
-                      <TableHead>Kullanıcı adı</TableHead>
-                      <TableHead>Şube</TableHead>
-                      <TableHead>Rol</TableHead>
-                      <TableHead className="w-[90px]">Durum</TableHead>
-                      <TableHead className="w-[110px]" />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pagedStaff.map((member) => {
-                      const href = DASHBOARD_ROUTES.menuUserDetail(member.id, member.branchId);
-                      return (
-                        <TableRow
-                          key={member.id}
-                          className="cursor-pointer"
-                          onClick={() => router.push(href)}
-                        >
-                          <TableCell className="font-medium">{member.displayName}</TableCell>
-                          <TableCell className="text-muted-foreground">@{member.username}</TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {branchLabel(branches, member.branchId)}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {STAFF_ROLE_LABEL[parseStaffRole(member.staffRole)]}
-                          </TableCell>
-                          <TableCell>
-                            <StatusTag active={member.active} />
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center justify-end gap-1">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-8"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  setAssignTarget(member);
-                                }}
-                              >
-                                {member.branchId == null ? "Ata" : "Değiştir"}
-                              </Button>
-                              <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden />
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-
-            {totalElements > 0 ? (
-              <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-                <span>
-                  {rangeStart}–{rangeEnd} / {totalElements} personel
-                </span>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 gap-1"
-                    disabled={currentPage <= 0 || usersQuery.isFetching}
-                    onClick={() => setPage((current) => Math.max(0, current - 1))}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                    Önceki
-                  </Button>
-                  <span className="min-w-[72px] text-center">
-                    {currentPage + 1} / {Math.max(totalPages, 1)}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 gap-1"
-                    disabled={!staffPage?.hasNext || usersQuery.isFetching}
-                    onClick={() => setPage((current) => current + 1)}
-                  >
-                    Sonraki
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ) : null}
-          </section>
-        </div>
+              <ListMessage
+                icon={UsersRound}
+                title="Henüz personel yok"
+                description="Garson, mutfak veya kurye hesabı ekleyin; sonra bir şubeye atayın."
+                action={{ label: "Yeni personel", onClick: () => setCreateOpen(true), variant: "default" }}
+              />
+            )
+          ) : (
+            <>
+              <StaffListHead />
+              <ul className="divide-y divide-border">
+                {members.map((member) => (
+                  <StaffRow
+                    key={member.id}
+                    member={member}
+                    href={DASHBOARD_ROUTES.menuUserDetail(member.id, member.branchId)}
+                    branchName={branchLabel(branches, member.branchId)}
+                    onAssign={() => setAssignTarget(member)}
+                  />
+                ))}
+              </ul>
+              <ListPagination
+                page={Math.min(filters.page, Math.max(totalPages, 1))}
+                pageSize={STAFF_PAGE_SIZE}
+                total={totalElements}
+                unit="personel"
+                onPage={(next) => {
+                  update({ page: next });
+                  listTop.current?.scrollIntoView({ block: "start" });
+                }}
+              />
+            </>
+          )}
+        </ListCard>
       )}
 
       <Dialog
         open={createOpen}
         onOpenChange={(open) => {
-          setCreateOpen(open);
-          if (!open) {
-            resetCreateForm();
-            if (searchParams.get("yeni") === "1") router.replace(DASHBOARD_ROUTES.menuUsers, { scroll: false });
-          }
+          if (open) setCreateOpen(true);
+          else closeCreate();
         }}
       >
         <DialogContent className="max-w-sm">
@@ -463,12 +339,12 @@ export default function MenuUsersView() {
           >
             <div className="space-y-1.5">
               <Label>Rol</Label>
-              <ChoiceBadges
+              <FilterChips<StaffRole>
                 label="Rol"
-                showCaption={false}
+                showLabel={false}
                 value={staffRole}
                 options={CREATE_ROLE_OPTIONS}
-                onChange={(value) => setStaffRole(value)}
+                onChange={setStaffRole}
               />
               <p className="text-xs text-muted-foreground">
                 Mutfak ve kurye hesapları, bu özelliği açık olan şubelere atanabilir.
@@ -510,7 +386,7 @@ export default function MenuUsersView() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setCreateOpen(false)}
+                onClick={closeCreate}
                 disabled={createMutation.isPending}
               >
                 Vazgeç

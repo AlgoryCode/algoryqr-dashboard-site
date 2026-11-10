@@ -63,6 +63,10 @@ export const validateQrDetails = (type: QrTypeValue, details: Record<string, unk
   }
   if (type === "text") return field("text") ? null : "Metin zorunlu.";
   if (type === "location") {
+    if ("mapsUrl" in details) {
+      if (!field("mapsUrl")) return "Google Maps bağlantısı zorunlu.";
+      return isWebUrl(field("mapsUrl")) ? null : "Geçerli bir harita bağlantısı girin. Örn: https://maps.app.goo.gl/...";
+    }
     if (!isCoordinate(field("latitude"), 90)) return "Enlem -90 ile 90 arasında olmalı.";
     return isCoordinate(field("longitude"), 180) ? null : "Boylam -180 ile 180 arasında olmalı.";
   }
@@ -95,7 +99,7 @@ export const createInitialQrTypeData = (): QrTypeData => ({
   mail: { mail: "", subject: "", body: "" },
   contact: { fullName: "", phone: "", mail: "", company: "", title: "" },
   text: "",
-  location: { latitude: "", longitude: "", label: "" },
+  location: { mode: "coordinates", latitude: "", longitude: "", mapsUrl: "", label: "" },
   menu: createInitialMenuData(),
 });
 
@@ -118,8 +122,14 @@ export const getQrDetailsByType = (type: QrTypeValue, data: QrTypeData) => {
       publicOrigin: MENU_APP_ORIGIN,
     };
   }
-  return data.location;
+  return locationDetails(data.location);
 };
+
+/** Keeps only the fields of the chosen way, so a location holds coordinates or a map link, never both. */
+export const locationDetails = (location: QrTypeData["location"]) =>
+  location.mode === "url"
+    ? { mapsUrl: location.mapsUrl.trim(), label: location.label }
+    : { latitude: location.latitude, longitude: location.longitude, label: location.label };
 
 export const getBackendTypeFromDetails = (details: Record<string, unknown>): QrTypeValue => {
   if ("themeId" in details && "businessName" in details) return "menu";
@@ -196,8 +206,10 @@ export const mapDetailsToQrTypeData = (details: Record<string, unknown>): QrType
   return {
     ...base,
     location: {
+      mode: "mapsUrl" in details ? "url" : "coordinates",
       latitude: String(details.latitude ?? ""),
       longitude: String(details.longitude ?? ""),
+      mapsUrl: String(details.mapsUrl ?? ""),
       label: String(details.label ?? ""),
     },
   };
@@ -239,6 +251,12 @@ export const getReadableDetailRows = (details: Record<string, unknown>) => {
     ];
   }
   if ("text" in details) return [{ label: "Metin", value: String(details.text ?? "") }];
+  if ("mapsUrl" in details) {
+    return [
+      { label: "Harita bağlantısı", value: String(details.mapsUrl ?? "") },
+      { label: "Etiket", value: String(details.label ?? "") },
+    ];
+  }
   if ("latitude" in details && "longitude" in details) {
     return [
       { label: "Enlem", value: String(details.latitude ?? "") },
@@ -255,7 +273,7 @@ const formatQrType = (details: Record<string, unknown>) => {
   if ("url" in details) return "Link";
   if ("fullName" in details) return "İletişim";
   if ("mail" in details) return "E-Posta";
-  if ("latitude" in details) return "Konum";
+  if ("latitude" in details || "mapsUrl" in details) return "Konum";
   if ("text" in details) return "Metin";
   return "QR";
 };
@@ -267,6 +285,10 @@ const formatQrContent = (details: Record<string, unknown>) => {
   if ("mail" in details && !("fullName" in details)) return String(details.mail ?? "");
   if ("phone" in details && "fullName" in details) return String(details.phone ?? "");
   if ("text" in details) return String(details.text ?? "");
+  if ("mapsUrl" in details) {
+    const label = String(details.label ?? "");
+    return label ? `${label} (${String(details.mapsUrl ?? "")})` : String(details.mapsUrl ?? "");
+  }
   if ("latitude" in details && "longitude" in details) {
     const label = "label" in details ? String(details.label ?? "") : "";
     const coords = `${String(details.latitude ?? "")}, ${String(details.longitude ?? "")}`;

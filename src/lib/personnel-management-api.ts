@@ -44,8 +44,12 @@ export type MerchantStaffPageParams = {
   q?: string;
   assignment?: "all" | "assigned" | "unassigned";
   branchId?: number | null;
+  /** Branch ids and "none"; sent as one comma-separated `branches` parameter. */
+  branches?: readonly string[];
   active?: boolean | null;
   role?: StaffRole | null;
+  /** Sent as one comma-separated `roles` parameter. */
+  roles?: readonly StaffRole[];
 };
 
 export type MerchantStaffPage = {
@@ -160,6 +164,8 @@ export async function listMerchantStaffPage(params: MerchantStaffPageParams): Pr
   if (params.branchId != null && params.branchId > 0) search.set("branchId", String(params.branchId));
   if (params.active != null) search.set("active", String(params.active));
   if (params.role) search.set("role", params.role);
+  if (params.roles && params.roles.length > 0) search.set("roles", params.roles.join(","));
+  if (params.branches && params.branches.length > 0) search.set("branches", params.branches.join(","));
 
   const response = await ownerFetch(`/api/staff/panel/staff?${search.toString()}`, {
     headers: { Accept: "application/json" },

@@ -1,71 +1,32 @@
-import {
-  getMenuReservationsRequest,
-  type MenuReservationPageApiResponse,
-  type MenuReservationStatus,
-} from "@/lib/api";
-import type { BranchItem } from "@/lib/branch";
+import { getMenuReservationsRequest, type MenuReservationApiItem } from "@/lib/api";
 
-const EMPTY_PAGE: MenuReservationPageApiResponse = {
-  content: [],
-  page: 0,
-  size: 20,
-  totalElements: 0,
-  totalPages: 0,
-  hasNext: false,
-};
-
-export type BranchReservationsQuery = {
-  status?: MenuReservationStatus | "all";
-  page?: number;
-  size?: number;
-};
-
-function sortByReservationAtDesc(
-  a: { reservationAt: string },
-  b: { reservationAt: string },
-): number {
-  return new Date(b.reservationAt).getTime() - new Date(a.reservationAt).getTime();
-}
+const RANGE_PAGE_SIZE = 100;
+/** Safety cap: 20 pages × 100 per menu is far beyond a real time window. */
+const RANGE_MAX_PAGES = 20;
 
 /**
- * Şube rezervasyonları: şubedeki her menü için `/menu/{menuId}/reservations` çağrılır ve sonuçlar birleştirilir.
- * (Upstream henüz `GET /branches/:id/reservations` sunmuyor.)
+ * Every reservation of the given menus within the days, all statuses. The page filters, counts and pages
+ * them itself, so the tiles and filters stay instant and work across several branches at once.
  */
-export async function listBranchReservations(
-  branch: BranchItem,
-  params: BranchReservationsQuery = {},
-): Promise<MenuReservationPageApiResponse> {
-  const menus = branch.menus ?? [];
-  if (menus.length === 0) return { ...EMPTY_PAGE, size: params.size ?? 20 };
-
-  const size = params.size ?? 20;
-  const status = params.status ?? "all";
-  const fetchSize = 100;
-
-  const pages = await Promise.all(
-    menus.map((menu) =>
-      getMenuReservationsRequest(menu.menuId, {
-        status,
-        page: 0,
-        size: fetchSize,
-      }),
-    ),
+export async function listMenuReservationsInRange(
+  menuIds: number[],
+  range: { from?: string; to?: string },
+): Promise<MenuReservationApiItem[]> {
+  const perMenu = await Promise.all(
+    menuIds.map(async (menuId) => {
+      const items: MenuReservationApiItem[] = [];
+      for (let page = 0; page < RANGE_MAX_PAGES; page += 1) {
+        const result = await getMenuReservationsRequest(menuId, {
+          status: "all",
+          ...range,
+          page,
+          size: RANGE_PAGE_SIZE,
+        });
+        items.push(...result.content.map((item) => ({ ...item, menuId: item.menuId ?? menuId })));
+        if (!result.hasNext) break;
+      }
+      return items;
+    }),
   );
-
-  const merged = pages.flatMap((page) => page.content).sort(sortByReservationAtDesc);
-
-  const page = params.page ?? 0;
-  const start = page * size;
-  const content = merged.slice(start, start + size);
-  const totalElements = merged.length;
-  const totalPages = totalElements === 0 ? 0 : Math.ceil(totalElements / size);
-
-  return {
-    content,
-    page,
-    size,
-    totalElements,
-    totalPages,
-    hasNext: start + size < totalElements,
-  };
+  return perMenu.flat();
 }

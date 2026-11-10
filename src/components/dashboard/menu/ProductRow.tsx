@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { ImageIcon, ListPlus, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
+import { LIST_ROW, LIST_ROW_LINK, ListHead } from "@/components/dashboard/ListLayout";
+import { ToneBadge } from "@/components/dashboard/ToneBadge";
 import { TONE_ACTION } from "@/components/dashboard/tone";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { PRODUCT_FLAG_TONE } from "@/lib/badge-tones";
 import { cn } from "@/lib/utils";
 
 const COLUMNS_WITH_PLACEMENT =
@@ -41,18 +44,16 @@ function ProductThumb({ name, imageUrl }: { name: string; imageUrl?: string | nu
 
 export function ProductListHead({ showPlacement }: { showPlacement: boolean }) {
   return (
-    <div
-      className={cn(
-        "hidden border-b border-border bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground",
-        showPlacement ? COLUMNS_WITH_PLACEMENT : COLUMNS,
-      )}
-    >
-      <span>Ürün</span>
-      <span>Kategori</span>
-      {showPlacement ? <span>Menü ve şube</span> : null}
-      <span className="text-right">Fiyat</span>
-      <span className="sr-only">İşlemler</span>
-    </div>
+    <ListHead
+      columns={showPlacement ? COLUMNS_WITH_PLACEMENT : COLUMNS}
+      labels={[
+        "Ürün",
+        "Kategori",
+        ...(showPlacement ? ["Menü ve şube"] : []),
+        { right: "Fiyat" },
+        { srOnly: "İşlemler" },
+      ]}
+    />
   );
 }
 
@@ -82,10 +83,7 @@ export function ProductRow({
 
   return (
     <li
-      className={cn(
-        "relative flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/40 lg:items-center lg:px-4 lg:py-2",
-        placement ? COLUMNS_WITH_PLACEMENT : COLUMNS,
-      )}
+      className={cn(LIST_ROW, placement ? COLUMNS_WITH_PLACEMENT : COLUMNS)}
     >
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <ProductThumb key={imageUrl ?? "none"} name={name} imageUrl={imageUrl} />
@@ -93,12 +91,12 @@ export function ProductRow({
           <div className="flex min-w-0 items-center gap-2">
             <Link
               href={href}
-              className="truncate text-sm font-medium text-foreground after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:rounded-lg focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring"
+              className={cn("truncate text-sm font-medium text-foreground", LIST_ROW_LINK)}
             >
               {name}
             </Link>
             {!available ? (
-              <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">Satışta değil</span>
+              <ToneBadge tone={PRODUCT_FLAG_TONE.unavailable}>Satışta değil</ToneBadge>
             ) : null}
           </div>
           {category ? <p className="truncate text-xs text-muted-foreground lg:hidden">{category}</p> : null}

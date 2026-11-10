@@ -1,6 +1,7 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { FilterChips, type FilterChipOption } from "@/components/dashboard/FilterChips";
 import { SearchableSelect } from "@/components/dashboard/menu/SearchableSelect";
 import { MenuData, MenuDetails, createInitialMenuData } from "./MenuDetails";
 
@@ -18,11 +19,22 @@ export type MailData = {
   body: string;
 };
 
+/** How the place is given: map coordinates, or a link such as a Google Maps business profile. */
+export type LocationMode = "coordinates" | "url";
+
 export type LocationData = {
+  mode: LocationMode;
   latitude: string;
   longitude: string;
+  /** Google Maps (or another map) link; used only in "url" mode. */
+  mapsUrl: string;
   label: string;
 };
+
+const LOCATION_MODES: FilterChipOption<LocationMode>[] = [
+  { value: "coordinates", label: "Koordinat", tone: "red" },
+  { value: "url", label: "Google Maps bağlantısı", tone: "red" },
+];
 
 export type ContactData = {
   fullName: string;
@@ -232,26 +244,59 @@ export const TextDetails = ({ value, onChange }: TextDetailsProps) => (
 );
 
 export const LocationDetails = ({ value, onChange }: LocationDetailsProps) => (
-  <div className="grid gap-4 sm:grid-cols-2">
+  <div className="space-y-4">
     <div className="space-y-2">
-      <Label className="text-xs text-muted-foreground">Enlem</Label>
-      <Input
-        placeholder="41.0082"
-        className="bg-background"
-        value={value.latitude}
-        onChange={(e) => onChange({ ...value, latitude: e.target.value })}
+      <Label className="text-xs text-muted-foreground">Adres tarifini nasıl ekleyeceksiniz?</Label>
+      <FilterChips<LocationMode>
+        label="Adres tarifi türü"
+        showLabel={false}
+        options={LOCATION_MODES}
+        value={value.mode}
+        onChange={(mode) => onChange({ ...value, mode })}
       />
+      <p className="text-xs text-muted-foreground">
+        {value.mode === "url"
+          ? "Google Maps'te işletmenizi açın, Paylaş → Bağlantıyı kopyala ile aldığınız adresi yapıştırın. Müşteri işletme profilinize gider."
+          : "Haritada sağ tıklayıp ilk satırdaki enlem ve boylamı kopyalayın. Müşteri tam bu noktaya yol tarifi alır."}
+      </p>
     </div>
+    {value.mode === "url" ? (
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground">Google Maps bağlantısı</Label>
+        <Input
+          type="url"
+          inputMode="url"
+          placeholder="https://maps.app.goo.gl/..."
+          className="bg-background"
+          value={value.mapsUrl}
+          onChange={(e) => onChange({ ...value, mapsUrl: e.target.value })}
+        />
+      </div>
+    ) : (
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Enlem</Label>
+          <Input
+            inputMode="decimal"
+            placeholder="41.0082"
+            className="bg-background"
+            value={value.latitude}
+            onChange={(e) => onChange({ ...value, latitude: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Boylam</Label>
+          <Input
+            inputMode="decimal"
+            placeholder="28.9784"
+            className="bg-background"
+            value={value.longitude}
+            onChange={(e) => onChange({ ...value, longitude: e.target.value })}
+          />
+        </div>
+      </div>
+    )}
     <div className="space-y-2">
-      <Label className="text-xs text-muted-foreground">Boylam</Label>
-      <Input
-        placeholder="28.9784"
-        className="bg-background"
-        value={value.longitude}
-        onChange={(e) => onChange({ ...value, longitude: e.target.value })}
-      />
-    </div>
-    <div className="space-y-2 sm:col-span-2">
       <Label className="text-xs text-muted-foreground">Etiket</Label>
       <Input
         placeholder="Ofis"

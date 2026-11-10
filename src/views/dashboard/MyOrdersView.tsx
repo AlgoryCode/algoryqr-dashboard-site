@@ -5,36 +5,43 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Activity,
+  Building2,
+  CircleDot,
+  Banknote,
   Bell,
   BellOff,
   ChefHat,
+  ClipboardList,
   ConciergeBell,
   Globe,
+  Hourglass,
   Loader2,
   Phone,
   QrCode,
-  Search,
-  SlidersHorizontal,
   Store,
   TriangleAlert,
-  X,
 } from "lucide-react";
 
 import { DigitalMenuHubGate } from "@/components/dashboard/digital-menu/DigitalMenuHubGate";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { DateFilterMenu } from "@/components/dashboard/DateFilterMenu";
+import { FilterMenu } from "@/components/dashboard/FilterMenu";
 import { ListPagination } from "@/components/dashboard/ListPagination";
-import { SearchableSelect } from "@/components/dashboard/menu/SearchableSelect";
+import { ListCard, ListHead, ListMessage, ListSkeleton, LIST_ROW_LINK } from "@/components/dashboard/ListLayout";
+import { ListToolbar } from "@/components/dashboard/ListToolbar";
+import { StatTile } from "@/components/dashboard/StatTile";
+import { ToneBadge } from "@/components/dashboard/ToneBadge";
 import { PrintOrderButton } from "@/components/dashboard/PrintOrderButton";
-import { TONE_BUTTON, TONES, type Tone } from "@/components/dashboard/tone";
+import { TONE_BUTTON, TONES, ToneIcon, type Tone } from "@/components/dashboard/tone";
 import { OrderCancelDialog } from "@/components/orders/OrderCancelDialog";
 import { Button } from "@/components/ui/button";
-import { DateRangeFilter } from "@/components/ui/date-range-filter";
-import { Input } from "@/components/ui/input";
+import { todayDateRange } from "@/components/ui/date-range-filter";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
 import { useBranches } from "@/hooks/use-branches";
 import { useNewOrderAlert } from "@/hooks/use-new-order-alert";
+import { ORDER_CHANNEL_TONE, ORDER_TAB_TONE } from "@/lib/badge-tones";
 import type { BranchItem } from "@/lib/branch";
 import { formatBranchAmount } from "@/lib/branch-detail";
 import { menusInBranchScope } from "@/lib/branch-scope";
@@ -56,6 +63,7 @@ import {
   serializeOrderListFilters,
   visibleOrderTabs,
   type OrderListFilters,
+  type OrderTab,
 } from "@/lib/order-list";
 import {
   filterManagedOrders,
@@ -79,7 +87,9 @@ import { formatSelectedOptionLines } from "@/lib/receipt-ticket";
 import { cn } from "@/lib/utils";
 
 const QUERY_KEY = "my-orders";
-const SEARCH_DEBOUNCE_MS = 250;
+/** The age sits under the status badge, so the order column keeps its width on narrow screens. */
+const ROW_COLUMNS =
+  "lg:grid lg:grid-cols-[7rem_minmax(0,1.8fr)_minmax(0,1.2fr)_5.5rem_9rem] lg:items-center lg:gap-3 xl:gap-4";
 
 const CHANNEL_ICON: Record<OrderChannel, ComponentType<{ className?: string }>> = {
   QR: QrCode,
@@ -136,17 +146,7 @@ function OrderPrintButton({ order }: { order: OrderResponse }) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const tone = orderStatusTone(status);
-  return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-xs font-medium",
-        tone === "muted" ? "bg-muted text-muted-foreground" : TONES[tone],
-      )}
-    >
-      {orderStatusLabel(status)}
-    </span>
-  );
+  return <ToneBadge tone={orderStatusTone(status)}>{orderStatusLabel(status)}</ToneBadge>;
 }
 
 function AgeLabel({ order, now }: { order: OrderResponse; now: number }) {
@@ -212,25 +212,30 @@ function MyOrdersContent() {
 
   // Filters live in the address, so the list survives a trip to the kitchen screen and back.
   const filters = useMemo(() => parseOrderListFilters(new URLSearchParams(searchParams.toString())), [searchParams]);
-  const [search, setSearch] = useState(filters.query);
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [detailKey, setDetailKey] = useState<string | null>(null);
   const [cancelOrder, setCancelOrder] = useState<OrderResponse | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const searchTimer = useRef<number | null>(null);
   const listTop = useRef<HTMLDivElement | null>(null);
   const alert = useNewOrderAlert();
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 30_000);
-    return () => {
-      window.clearInterval(id);
-      if (searchTimer.current != null) window.clearTimeout(searchTimer.current);
-    };
+    return () => window.clearInterval(id);
   }, []);
 
-  const branchScope = filters.branch !== "all" && branchById.has(filters.branch) ? filters.branch : "all";
-  const menus = useMemo(() => menusInBranchScope(branches, branchScope), [branches, branchScope]);
+  const chosenBranches = useMemo(
+    () => filters.branches.filter((id) => branchById.has(id)),
+    [filters.branches, branchById],
+  );
+  // One branch keeps the kitchen screen link pointed at it; several fall back to all branches there.
+  const branchScope = chosenBranches.length === 1 ? chosenBranches[0] : "all";
+  const menus = useMemo(
+    () =>
+      chosenBranches.length === 0
+        ? menusInBranchScope(branches, "all")
+        : chosenBranches.flatMap((id) => menusInBranchScope(branches, id)),
+    [branches, chosenBranches],
+  );
   const menuIds = menus.map((menu) => menu.menuId);
   const listKey = JSON.stringify([menuIds, filters.range.from, filters.range.to]);
 
@@ -255,10 +260,14 @@ function MyOrdersContent() {
         to: filters.range.to,
         query: filters.query,
         status: "all",
-        channel: filters.channel,
-        branchId: branchScope,
-      }),
-    [orders, filters.range.from, filters.range.to, filters.query, filters.channel, branchScope],
+        channel: "all",
+        branchId: "all",
+      }).filter(
+        (order) =>
+          (filters.channels.length === 0 || filters.channels.includes(orderChannel(order))) &&
+          (chosenBranches.length === 0 || (order.branchId != null && chosenBranches.includes(order.branchId))),
+      ),
+    [orders, filters.range.from, filters.range.to, filters.query, filters.channels, chosenBranches],
   );
   const counts = useMemo(() => orderTabCounts(scoped, now), [scoped, now]);
   const visible = useMemo(() => scoped.filter((order) => matchesOrderTab(order, filters.tab, now)), [scoped, filters.tab, now]);
@@ -277,17 +286,7 @@ function MyOrdersContent() {
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
-  const onSearchChange = (value: string) => {
-    setSearch(value);
-    if (searchTimer.current != null) window.clearTimeout(searchTimer.current);
-    searchTimer.current = window.setTimeout(() => update({ query: value }), SEARCH_DEBOUNCE_MS);
-  };
-
-  const clearAll = () => {
-    if (searchTimer.current != null) window.clearTimeout(searchTimer.current);
-    setSearch("");
-    router.replace(pathname, { scroll: false });
-  };
+  const clearAll = () => router.replace(pathname, { scroll: false });
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
 
@@ -316,43 +315,38 @@ function MyOrdersContent() {
   const stepBusy = (order: OrderResponse) =>
     stepMutation.isPending && stepMutation.variables != null && managedOrderKey(stepMutation.variables.order) === managedOrderKey(order);
 
-  const branchOptions = [
-    { value: "all", label: "Tüm şubeler" },
-    ...branches.map((branch) => ({ value: String(branch.id), label: branch.name })),
-  ];
-  const channelOptions = [
-    { value: "all", label: "Tüm kaynaklar" },
-    ...ORDER_CHANNELS.map((channel) => ({ value: channel, label: ORDER_CHANNEL_LABEL[channel] })),
-  ];
+  const branchOptions = branches.map((branch) => ({ value: String(branch.id), label: branch.name }));
+  const channelOptions = ORDER_CHANNELS.map((channel) => ({
+    value: channel,
+    label: ORDER_CHANNEL_LABEL[channel],
+    tone: ORDER_CHANNEL_TONE[channel],
+  }));
 
-  const selectFields = (
-    <>
-      {branches.length > 1 ? (
-        <SearchableSelect
-          className="h-9 w-full"
-          value={String(branchScope)}
-          onValueChange={(value) => update({ branch: value && value !== "all" ? Number(value) : "all" })}
-          options={branchOptions}
-          placeholder="Tüm şubeler"
-          searchPlaceholder="Şube ara..."
-        />
-      ) : null}
-      <SearchableSelect
-        className="h-9 w-full"
-        value={filters.channel}
-        onValueChange={(value) => update({ channel: (value || "all") as OrderListFilters["channel"] })}
-        options={channelOptions}
-        placeholder="Tüm kaynaklar"
-        searchPlaceholder="Kaynak ara..."
-      />
-    </>
-  );
+  const tabOptions = visibleOrderTabs(counts, filters.tab).map((tab) => ({
+    value: tab,
+    label: ORDER_TAB_LABEL[tab],
+    count: counts[tab],
+    tone: ORDER_TAB_TONE[tab],
+  }));
 
-  const summary = [
-    { label: "Aktif", value: String(counts.open), tab: "open" as const },
-    { label: `Gecikmiş (${ORDER_LATE_MINUTES}+ dk)`, value: String(counts.late), tab: "late" as const, alert: counts.late > 0 },
-    { label: "Sipariş", value: String(counts.all), tab: "all" as const },
-    { label: "Ciro (teslim)", value: formatBranchAmount(revenue) },
+  const stats: Array<{
+    tab: OrderTab;
+    label: string;
+    value: string;
+    hint?: string;
+    icon: ComponentType<{ className?: string }>;
+    tone: Tone;
+  }> = [
+    { tab: "open", label: "Aktif", value: String(counts.open), icon: Activity, tone: ORDER_TAB_TONE.open ?? "blue" },
+    {
+      tab: "late",
+      label: "Gecikmiş",
+      value: String(counts.late),
+      hint: `${ORDER_LATE_MINUTES} dakikayı geçti`,
+      icon: Hourglass,
+      tone: ORDER_TAB_TONE.late ?? "red",
+    },
+    { tab: "all", label: "Sipariş", value: String(counts.all), hint: "Tüm durumlar", icon: ClipboardList, tone: "violet" },
   ];
 
   return (
@@ -384,112 +378,75 @@ function MyOrdersContent() {
         }
       />
 
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-4 sm:px-0">
-        {summary.map((item) => {
-          const content = (
-            <>
-              <span className="truncate text-xs text-muted-foreground">{item.label}</span>
-              <span
-                className={cn(
-                  "text-xl font-semibold tabular-nums tracking-tight",
-                  item.alert ? "text-[#F03245]" : "text-foreground",
-                )}
-              >
-                {item.value}
-              </span>
-            </>
-          );
-          const base = "flex min-w-[8.5rem] flex-col gap-0.5 rounded-2xl border border-border bg-card px-4 py-3 text-left";
-          return item.tab ? (
-            <button
-              key={item.label}
-              type="button"
-              onClick={() => update({ tab: item.tab })}
-              className={cn(
-                base,
-                "transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                filters.tab === item.tab && "border-foreground/20 bg-muted/40",
-              )}
-            >
-              {content}
-            </button>
-          ) : (
-            <div key={item.label} className={base}>
-              {content}
-            </div>
-          );
-        })}
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-4 sm:gap-3 sm:px-0">
+        {stats.map((stat) => (
+          <div key={stat.tab} className="min-w-[10.5rem] flex-1 sm:min-w-0">
+            <StatTile
+              label={stat.label}
+              value={stat.value}
+              hint={stat.hint}
+              icon={stat.icon}
+              tone={stat.tone}
+              selected={filters.tab === stat.tab}
+              onClick={() => update({ tab: filters.tab === stat.tab ? "all" : stat.tab })}
+            />
+          </div>
+        ))}
+        <div className="min-w-[10.5rem] flex-1 sm:min-w-0">
+          <StatTile label="Ciro" value={formatBranchAmount(revenue)} hint="Teslim edilenler" icon={Banknote} tone="green" />
+        </div>
       </div>
 
-      <section className="overflow-hidden rounded-2xl border border-border bg-card">
-        <div className="space-y-2.5 border-b border-border p-3 lg:p-4">
-          <div className={cn("flex gap-2 md:grid", branches.length > 1 ? "md:grid-cols-[minmax(0,1.6fr)_repeat(2,minmax(0,1fr))]" : "md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]")}>
-            <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="search"
-                className="h-9 w-full pl-9"
-                value={search}
-                onChange={(event) => onSearchChange(event.target.value)}
-                placeholder="Müşteri, masa veya sipariş no"
-                aria-label="Sipariş ara"
+      <ListCard label="Sipariş listesi">
+        <ListToolbar
+          query={filters.query}
+          onQueryChange={(query) => update({ query })}
+          searchPlaceholder="Müşteri, masa veya sipariş no"
+          searchLabel="Sipariş ara"
+          narrowed={narrowed}
+          onClear={clearAll}
+          filters={
+            <>
+              <FilterMenu<OrderTab>
+                label="Durum"
+                icon={CircleDot}
+                value={filters.tab}
+                emptyValue="open"
+                showIdleValue
+                options={tabOptions}
+                onChange={(tab) => update({ tab })}
               />
-            </div>
-            <Button type="button" variant="outline" className="h-9 shrink-0 gap-1.5 md:hidden" onClick={() => setFiltersOpen(true)}>
-              <SlidersHorizontal className="size-3.5" />
-              Filtre
-              {hiddenFilters > 0 ? (
-                <span className="flex size-4 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
-                  {hiddenFilters}
-                </span>
+              <FilterMenu
+                label="Kaynak"
+                icon={Store}
+                tone="green"
+                multiple
+                values={filters.channels}
+                options={channelOptions}
+                onValuesChange={(channels) => update({ channels })}
+              />
+              {branches.length > 1 ? (
+                <FilterMenu
+                  label="Şube"
+                  icon={Building2}
+                  tone="teal"
+                  multiple
+                  values={chosenBranches.map(String)}
+                  options={branchOptions}
+                  onValuesChange={(values) => update({ branches: values.map(Number) })}
+                />
               ) : null}
-            </Button>
-            <div className="hidden md:contents">{selectFields}</div>
-          </div>
-          <div className="hidden md:block">
-            <DateRangeFilter label="" value={filters.range} onChange={(range) => update({ range })} />
-          </div>
-          <div className="flex items-center gap-2">
-            <div role="tablist" aria-label="Sipariş durumu" className="-mx-3 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-3 [scrollbar-width:none] lg:mx-0 lg:px-0">
-              {visibleOrderTabs(counts, filters.tab).map((tab) => {
-                const selected = filters.tab === tab;
-                return (
-                  <button
-                    key={tab}
-                    type="button"
-                    role="tab"
-                    aria-selected={selected}
-                    onClick={() => update({ tab })}
-                    className={cn(
-                      "flex h-7 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                      selected
-                        ? "bg-foreground text-background"
-                        : tab === "late"
-                          ? "bg-[#FFF0F3] text-[#F03245] dark:bg-[#F03245]/15 dark:text-[#FB7185]"
-                          : "bg-muted text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    {ORDER_TAB_LABEL[tab]}
-                    <span className="tabular-nums opacity-70">{counts[tab]}</span>
-                  </button>
-                );
-              })}
-            </div>
-            {narrowed ? (
-              <button
-                type="button"
-                onClick={clearAll}
-                className="flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-              >
-                <X className="size-3" />
-                Temizle
-              </button>
-            ) : null}
-          </div>
-        </div>
+              <DateFilterMenu
+                value={filters.range}
+                emptyRange={todayDateRange()}
+                onChange={(range) => update({ range })}
+              />
+            </>
+          }
+        />
 
         {ordersQuery.data?.storeFailed ? (
-          <p className="flex items-center gap-2 border-b border-border bg-[#FFF4E8] px-4 py-2 text-xs text-[#C2410C] dark:bg-[#F97316]/15 dark:text-[#FB923C]">
+          <p className={cn("flex items-center gap-2 border-b border-border px-4 py-2 text-xs", TONES.orange)}>
             <TriangleAlert className="size-3.5 shrink-0" />
             Online mağaza siparişleri alınamadı; liste yalnızca menü siparişlerini gösteriyor.
           </p>
@@ -497,51 +454,32 @@ function MyOrdersContent() {
 
         <div ref={listTop} className="scroll-mt-20" />
         {ordersQuery.isLoading || branchesQuery.isLoading ? (
-          <ul aria-label="Siparişler yükleniyor" className="divide-y divide-border">
-            {Array.from({ length: 6 }, (_, index) => (
-              <li key={index} className="flex items-center gap-3 px-3 py-3 lg:px-4">
-                <Skeleton className="h-5 w-20 rounded-md" />
-                <div className="flex-1 space-y-2">
-                  <Skeleton className="h-3.5 w-1/3" />
-                  <Skeleton className="h-3 w-1/2" />
-                </div>
-                <Skeleton className="h-3.5 w-14" />
-              </li>
-            ))}
-          </ul>
+          <ListSkeleton />
         ) : ordersQuery.isError ? (
-          <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
-            <p className="text-sm text-muted-foreground">Siparişler alınamadı.</p>
-            <Button type="button" variant="outline" size="sm" onClick={() => void ordersQuery.refetch()}>
-              Tekrar dene
-            </Button>
-          </div>
+          <ListMessage
+            title="Siparişler alınamadı"
+            action={{ label: "Tekrar dene", onClick: () => void ordersQuery.refetch() }}
+          />
         ) : visible.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
-            <p className="text-sm font-medium">
-              {filters.tab === "open" ? "Şu an aktif sipariş yok" : "Bu filtrelerle sipariş yok"}
-            </p>
-            <p className="max-w-xs text-sm text-muted-foreground">
-              {filters.tab === "open"
+          <ListMessage
+            title={filters.tab === "open" ? "Şu an aktif sipariş yok" : "Bu filtrelerle sipariş yok"}
+            description={
+              filters.tab === "open"
                 ? "Yeni sipariş geldiğinde burada görünür ve ses çalar."
-                : "Durumu, tarihi veya kaynağı değiştirerek tekrar bakın."}
-            </p>
-            {filters.tab !== "all" && counts.all > 0 ? (
-              <Button type="button" variant="outline" size="sm" onClick={() => update({ tab: "all" })}>
-                Tüm siparişleri göster ({counts.all})
-              </Button>
-            ) : null}
-          </div>
+                : "Durumu, tarihi veya kaynağı değiştirerek tekrar bakın."
+            }
+            action={
+              filters.tab !== "all" && counts.all > 0
+                ? { label: `Tüm siparişleri göster (${counts.all})`, onClick: () => update({ tab: "all" }) }
+                : undefined
+            }
+          />
         ) : (
           <>
-            <div className="hidden border-b border-border bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground lg:grid lg:grid-cols-[7.5rem_minmax(0,1.6fr)_minmax(0,1.2fr)_5.5rem_6rem_9rem] lg:gap-4">
-              <span>Durum</span>
-              <span>Sipariş</span>
-              <span>Kaynak ve konum</span>
-              <span>Süre</span>
-              <span className="text-right">Tutar</span>
-              <span className="sr-only">İşlem</span>
-            </div>
+            <ListHead
+              columns={ROW_COLUMNS}
+              labels={["Durum", "Sipariş", "Kaynak ve konum", { right: "Tutar" }, { srOnly: "İşlem" }]}
+            />
             <ul className="divide-y divide-border">
               {pageOrders.map((order) => (
                 <OrderRow
@@ -568,27 +506,7 @@ function MyOrdersContent() {
             />
           </>
         )}
-      </section>
-
-      <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
-        <SheetContent side="bottom" className="rounded-t-2xl p-4">
-          <SheetHeader className="p-0 text-left">
-            <SheetTitle>Filtrele</SheetTitle>
-          </SheetHeader>
-          <div className="mt-4 grid gap-2.5">
-            <DateRangeFilter label="Tarih" value={filters.range} onChange={(range) => update({ range })} />
-            {selectFields}
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <Button type="button" variant="outline" onClick={clearAll} disabled={!narrowed}>
-              Temizle
-            </Button>
-            <Button type="button" onClick={() => setFiltersOpen(false)}>
-              {visible.length} siparişi göster
-            </Button>
-          </div>
-        </SheetContent>
-      </Sheet>
+      </ListCard>
 
       <OrderDetailSheet
         order={detail}
@@ -644,12 +562,16 @@ function OrderRow({
   return (
     <li
       className={cn(
-        "relative px-3 py-2.5 transition-colors hover:bg-muted/40 lg:grid lg:grid-cols-[7.5rem_minmax(0,1.6fr)_minmax(0,1.2fr)_5.5rem_6rem_9rem] lg:items-center lg:gap-4 lg:px-4",
+        "relative px-3 py-3 transition-colors hover:bg-muted/40 lg:px-4 lg:py-2.5",
+        ROW_COLUMNS,
         highlighted && "bg-[#E8FDF2] dark:bg-[#128C7E]/15",
       )}
     >
-      <div className="hidden lg:block">
+      <div className="hidden space-y-1 lg:block">
         <StatusBadge status={order.status} />
+        <p className="text-xs">
+          <AgeLabel order={order} now={now} />
+        </p>
       </div>
 
       <div className="min-w-0">
@@ -657,7 +579,7 @@ function OrderRow({
           <button
             type="button"
             onClick={onOpen}
-            className="truncate text-left text-sm font-semibold text-foreground after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:rounded-lg focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring"
+            className={cn("truncate text-left text-sm font-semibold text-foreground", LIST_ROW_LINK)}
           >
             {orderReference(order)} · {customer}
           </button>
@@ -666,8 +588,8 @@ function OrderRow({
         <p className="truncate text-xs text-muted-foreground">{items}</p>
         <div className="mt-1 flex items-center gap-2 text-xs lg:hidden">
           <StatusBadge status={order.status} />
-          <span className="flex min-w-0 items-center gap-1 truncate text-muted-foreground">
-            <ChannelIcon className="size-3 shrink-0" />
+          <span className="flex min-w-0 items-center gap-1.5 truncate text-muted-foreground">
+            <ToneIcon tone={ORDER_CHANNEL_TONE[channel]} icon={ChannelIcon} size="sm" />
             {location}
           </span>
           <span className="ml-auto shrink-0">
@@ -677,15 +599,11 @@ function OrderRow({
       </div>
 
       <div className="hidden min-w-0 lg:block">
-        <p className="flex items-center gap-1.5 truncate text-sm text-foreground">
-          <ChannelIcon className="size-3.5 shrink-0 text-muted-foreground" />
+        <p className="flex items-center gap-2 truncate text-sm text-foreground">
+          <ToneIcon tone={ORDER_CHANNEL_TONE[channel]} icon={ChannelIcon} size="sm" />
           {ORDER_CHANNEL_LABEL[channel]}
         </p>
         <p className="truncate text-xs text-muted-foreground">{location}</p>
-      </div>
-
-      <div className="hidden text-xs lg:block">
-        <AgeLabel order={order} now={now} />
       </div>
 
       <p className="hidden text-right text-sm font-semibold tabular-nums lg:block">{amount}</p>

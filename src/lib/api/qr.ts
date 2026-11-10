@@ -26,6 +26,10 @@ export type QrRequestDetails =
       latitude: string;
       longitude: string;
       label: string;
+    }
+  | {
+      mapsUrl: string;
+      label: string;
     };
 
 export interface CreateQrRequestBody {

@@ -100,28 +100,34 @@ describe("filterProducts", () => {
   });
 
   it("filters by branch, menu, category and status", () => {
-    expect(ids({ branch: "5" })).toEqual([1, 2]);
-    expect(ids({ menu: "16" })).toEqual([3]);
-    expect(ids({ category: "Izgara" })).toEqual([1]);
-    expect(ids({ status: "no-photo" })).toEqual([2]);
-    expect(ids({ status: "unavailable" })).toEqual([4]);
-    expect(ids({ status: "unassigned" })).toEqual([5]);
+    expect(ids({ branches: ["5"] })).toEqual([1, 2]);
+    expect(ids({ menus: ["16"] })).toEqual([3]);
+    expect(ids({ categories: ["Izgara"] })).toEqual([1]);
+    expect(ids({ statuses: ["no-photo"] })).toEqual([2]);
+    expect(ids({ statuses: ["unavailable"] })).toEqual([4]);
+    expect(ids({ statuses: ["unassigned"] })).toEqual([5]);
+  });
+
+  it("takes several values of one filter as either-or", () => {
+    expect(ids({ menus: ["8", "16"] })).toEqual([1, 2, 3]);
+    expect(ids({ statuses: ["no-photo", "unavailable"] })).toEqual([2, 4]);
+    // Products of menus without a branch, without a menu, or of an unknown menu all count as "none".
+    expect(ids({ branches: ["5", "none"] })).toEqual([1, 2, 4, 5, 6]);
+    // Different filters still narrow each other.
+    expect(ids({ menus: ["8", "16"], categories: ["Izgara"] })).toEqual([1]);
   });
 
   it("counts statuses inside the current scope", () => {
-    const counts = productStatusCounts(rows, { ...EMPTY_PRODUCT_FILTERS, branch: "5", status: "no-photo" });
+    const counts = productStatusCounts(rows, { ...EMPTY_PRODUCT_FILTERS, branches: ["5"], statuses: ["no-photo"] });
     expect(counts).toMatchObject({ all: 2, "no-photo": 1, unavailable: 0 });
   });
 });
 
 describe("productFilterOptions", () => {
   it("narrows menus by branch and categories by menu", () => {
-    const options = productFilterOptions(rows, { ...EMPTY_PRODUCT_FILTERS, branch: "5" });
-    expect(options.menus).toEqual([
-      { value: "all", label: "Tüm menüler" },
-      { value: "8", label: "İPEK KAFE (2)" },
-    ]);
-    expect(options.categories.map((option) => option.value)).toEqual(["all", "Izgara", "Tatlılar"]);
+    const options = productFilterOptions(rows, { ...EMPTY_PRODUCT_FILTERS, branches: ["5"] });
+    expect(options.menus).toEqual([{ value: "8", label: "İPEK KAFE", count: 2 }]);
+    expect(options.categories.map((option) => option.value)).toEqual(["Izgara", "Tatlılar"]);
   });
 
   it("offers a bucket for menus without a branch", () => {
@@ -136,7 +142,14 @@ describe("address round trip", () => {
   });
 
   it("restores the same filters after leaving the page", () => {
-    const filters = { query: "çay", branch: "5", menu: "8", category: "İçecek", status: "no-photo" as const, page: 3 };
+    const filters = {
+      query: "çay",
+      branches: ["5", "24"],
+      menus: ["8"],
+      categories: ["İçecek, Soğuk", "Tatlı"],
+      statuses: ["no-photo" as const, "unavailable" as const],
+      page: 3,
+    };
     expect(parseProductFilters(serializeProductFilters(filters))).toEqual(filters);
   });
 

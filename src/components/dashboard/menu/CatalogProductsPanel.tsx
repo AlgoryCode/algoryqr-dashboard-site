@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ImageOff, Loader2, Plus, Search, SlidersHorizontal, X } from "lucide-react";
+import { BookOpen, Building2, CircleDot, ImageOff, Layers, Loader2, Plus } from "lucide-react";
 
+import { FilterMenu } from "@/components/dashboard/FilterMenu";
 import { ListPagination } from "@/components/dashboard/ListPagination";
+import { ListCard, ListMessage, ListSkeleton } from "@/components/dashboard/ListLayout";
+import { ListToolbar } from "@/components/dashboard/ListToolbar";
 import { SearchableSelect } from "@/components/dashboard/menu/SearchableSelect";
 import { ProductListHead, ProductRow } from "@/components/dashboard/menu/ProductRow";
 import {
@@ -21,9 +24,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
 import { useBranches } from "@/hooks/use-branches";
 import { useMenuCategories } from "@/hooks/use-menu-categories";
@@ -36,12 +36,13 @@ import {
 } from "@/lib/api";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import {
-  activeProductFilterCount,
   EMPTY_PRODUCT_FILTERS,
   enrichProducts,
   filterProducts,
   formatProductPrice,
+  isProductListNarrowed,
   parseProductFilters,
+  PRODUCT_FLAGS,
   PRODUCT_PAGE_SIZE,
   productFilterOptions,
   productPlacement,
@@ -51,9 +52,7 @@ import {
   type ProductListRow,
   type ProductStatus,
 } from "@/lib/product-list";
-import { cn } from "@/lib/utils";
-
-const SEARCH_DEBOUNCE_MS = 250;
+import { PRODUCT_FLAG_TONE } from "@/lib/badge-tones";
 
 const STATUS_LABELS: Record<ProductStatus, string> = {
   all: "Tümü",
@@ -81,20 +80,10 @@ export function CatalogProductsPanel() {
 
   // Filters live in the address, so returning from a product lands on the same page of the same list.
   const filters = useMemo(() => parseProductFilters(new URLSearchParams(searchParams.toString())), [searchParams]);
-  const [search, setSearch] = useState(filters.query);
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [assignTarget, setAssignTarget] = useState<ProductListRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProductListRow | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const searchTimer = useRef<number | null>(null);
   const listTop = useRef<HTMLDivElement | null>(null);
-
-  useEffect(
-    () => () => {
-      if (searchTimer.current != null) window.clearTimeout(searchTimer.current);
-    },
-    [],
-  );
 
   const rows = useMemo(
     () => enrichProducts(productsQuery.data ?? [], menusQuery.data ?? [], branchesQuery.data?.content ?? []),
@@ -108,8 +97,17 @@ export function CatalogProductsPanel() {
   const page = Math.min(filters.page, totalPages);
   const firstIndex = (page - 1) * PRODUCT_PAGE_SIZE;
   const visible = filtered.slice(firstIndex, firstIndex + PRODUCT_PAGE_SIZE);
-  const activeCount = activeProductFilterCount(filters);
-  const narrowed = activeCount > 0 || filters.status !== "all" || filters.query.trim() !== "";
+  const narrowed = isProductListNarrowed(filters);
+
+  // A narrower branch or menu choice drops the menus and categories it no longer contains.
+  const withScope = (patch: Partial<ProductListFilters>): Partial<ProductListFilters> => {
+    const next = { ...filters, ...patch };
+    const nextOptions = productFilterOptions(rows, next);
+    const menus = next.menus.filter((menu) => nextOptions.menus.some((option) => option.value === menu));
+    const scoped = productFilterOptions(rows, { ...next, menus });
+    const categories = next.categories.filter((category) => scoped.categories.some((option) => option.value === category));
+    return { ...patch, menus, categories };
+  };
 
   const update = (patch: Partial<ProductListFilters>) => {
     const current = parseProductFilters(new URLSearchParams(window.location.search));
@@ -117,17 +115,7 @@ export function CatalogProductsPanel() {
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
-  const onSearchChange = (value: string) => {
-    setSearch(value);
-    if (searchTimer.current != null) window.clearTimeout(searchTimer.current);
-    searchTimer.current = window.setTimeout(() => update({ query: value }), SEARCH_DEBOUNCE_MS);
-  };
-
-  const clearAll = () => {
-    if (searchTimer.current != null) window.clearTimeout(searchTimer.current);
-    setSearch("");
-    update(EMPTY_PRODUCT_FILTERS);
-  };
+  const clearAll = () => update(EMPTY_PRODUCT_FILTERS);
 
   const goToPage = (next: number) => {
     update({ page: next });
@@ -156,126 +144,73 @@ export function CatalogProductsPanel() {
     }
   };
 
-  const filterFields = (
-    <>
-      <SearchableSelect
-        className="h-9 w-full"
-        value={filters.branch}
-        onValueChange={(value) => update({ branch: value || "all", menu: "all", category: "all" })}
-        options={options.branches}
-        placeholder="Tüm şubeler"
-        searchPlaceholder="Şube ara..."
-      />
-      <SearchableSelect
-        className="h-9 w-full"
-        value={filters.menu}
-        onValueChange={(value) => update({ menu: value || "all", category: "all" })}
-        options={options.menus}
-        placeholder="Tüm menüler"
-        searchPlaceholder="Menü ara..."
-      />
-      <SearchableSelect
-        className="h-9 w-full"
-        value={filters.category}
-        onValueChange={(value) => update({ category: value || "all" })}
-        options={options.categories}
-        placeholder="Tüm kategoriler"
-        searchPlaceholder="Kategori ara..."
-      />
-    </>
-  );
-
-  const statusChips = (["all", "no-photo", "unassigned", "unavailable"] as const).filter(
-    (status) => status === "all" || status === filters.status || statusCounts[status] > 0,
+  const statusOptions = PRODUCT_FLAGS.filter((flag) => filters.statuses.includes(flag) || statusCounts[flag] > 0).map(
+    (flag) => ({
+      value: flag,
+      label: STATUS_LABELS[flag],
+      count: statusCounts[flag],
+      tone: PRODUCT_FLAG_TONE[flag],
+    }),
   );
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-border bg-card">
-      <div className="space-y-2.5 border-b border-border p-3 lg:p-4">
-        <div className="flex gap-2 md:grid md:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))]">
-          <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
-              className="h-9 w-full pl-9"
-              value={search}
-              onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Ürün veya kategori ara"
-              aria-label="Ürün ara"
+    <ListCard label="Ürün listesi">
+      <ListToolbar
+        query={filters.query}
+        onQueryChange={(query) => update({ query })}
+        searchPlaceholder="Ürün veya kategori ara"
+        searchLabel="Ürün ara"
+        narrowed={narrowed}
+        onClear={clearAll}
+        filters={
+          <>
+            <FilterMenu
+              label="Şube"
+              icon={Building2}
+              tone="teal"
+              multiple
+              values={filters.branches}
+              options={options.branches}
+              onValuesChange={(branches) => update(withScope({ branches }))}
             />
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-9 shrink-0 gap-1.5 md:hidden"
-            onClick={() => setFiltersOpen(true)}
-          >
-            <SlidersHorizontal className="size-3.5" />
-            Filtre
-            {activeCount > 0 ? (
-              <span className="flex size-4 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
-                {activeCount}
-              </span>
-            ) : null}
-          </Button>
-          <div className="hidden md:contents">{filterFields}</div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div className="-mx-3 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-3 [scrollbar-width:none] lg:mx-0 lg:px-0">
-            {statusChips.map((status) => {
-              const selected = filters.status === status;
-              return (
-                <button
-                  key={status}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => update({ status })}
-                  className={cn(
-                    "flex h-7 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    selected ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {STATUS_LABELS[status]}
-                  <span className={cn("tabular-nums", selected ? "opacity-70" : "opacity-60")}>{statusCounts[status]}</span>
-                </button>
-              );
-            })}
-          </div>
-          {narrowed ? (
-            <button
-              type="button"
-              onClick={clearAll}
-              className="flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <X className="size-3" />
-              Temizle
-            </button>
-          ) : null}
-        </div>
-      </div>
+            <FilterMenu
+              label="Menü"
+              icon={BookOpen}
+              tone="orange"
+              multiple
+              values={filters.menus}
+              options={options.menus}
+              onValuesChange={(menus) => update(withScope({ menus }))}
+            />
+            <FilterMenu
+              label="Kategori"
+              icon={Layers}
+              tone="violet"
+              multiple
+              values={filters.categories}
+              options={options.categories}
+              onValuesChange={(categories) => update({ categories })}
+            />
+            <FilterMenu
+              label="Durum"
+              icon={CircleDot}
+              multiple
+              values={filters.statuses}
+              options={statusOptions}
+              onValuesChange={(statuses) => update({ statuses })}
+            />
+          </>
+        }
+      />
 
       <div ref={listTop} className="scroll-mt-20" />
       {productsQuery.isLoading ? (
-        <ul aria-label="Ürünler yükleniyor" className="divide-y divide-border">
-          {Array.from({ length: 8 }, (_, index) => (
-            <li key={index} className="flex items-center gap-3 px-3 py-2.5 lg:px-4">
-              <Skeleton className="size-14 rounded-[10px] lg:size-11" />
-              <div className="flex-1 space-y-2">
-                <Skeleton className="h-3.5 w-2/5" />
-                <Skeleton className="h-3 w-1/4" />
-              </div>
-              <Skeleton className="h-3.5 w-14" />
-            </li>
-          ))}
-        </ul>
+        <ListSkeleton rows={8} />
       ) : productsQuery.isError ? (
-        <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
-          <p className="text-sm text-muted-foreground">Ürünler yüklenemedi.</p>
-          <Button type="button" variant="outline" size="sm" onClick={() => void productsQuery.refetch()}>
-            Tekrar dene
-          </Button>
-        </div>
+        <ListMessage
+          title="Ürünler yüklenemedi"
+          action={{ label: "Tekrar dene", onClick: () => void productsQuery.refetch() }}
+        />
       ) : rows.length === 0 ? (
         <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
           <p className="text-sm font-medium">Henüz ürün yok</p>
@@ -290,13 +225,11 @@ export function CatalogProductsPanel() {
           </Button>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
-          <ImageOff className="size-5 text-muted-foreground/60" aria-hidden />
-          <p className="text-sm text-muted-foreground">Bu filtrelerle ürün bulunamadı.</p>
-          <Button type="button" variant="outline" size="sm" onClick={clearAll}>
-            Filtreleri temizle
-          </Button>
-        </div>
+        <ListMessage
+          icon={ImageOff}
+          title="Bu filtrelerle ürün bulunamadı"
+          action={{ label: "Filtreleri temizle", onClick: clearAll }}
+        />
       ) : (
         <>
           <ProductListHead showPlacement />
@@ -325,23 +258,6 @@ export function CatalogProductsPanel() {
           />
         </>
       )}
-
-      <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
-        <SheetContent side="bottom" className="rounded-t-2xl p-4">
-          <SheetHeader className="p-0 text-left">
-            <SheetTitle>Filtrele</SheetTitle>
-          </SheetHeader>
-          <div className="mt-4 grid gap-2.5">{filterFields}</div>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <Button type="button" variant="outline" onClick={clearAll} disabled={!narrowed}>
-              Temizle
-            </Button>
-            <Button type="button" onClick={() => setFiltersOpen(false)}>
-              {filtered.length} ürünü göster
-            </Button>
-          </div>
-        </SheetContent>
-      </Sheet>
 
       {assignTarget ? (
         <AssignProductDialog
@@ -385,7 +301,7 @@ export function CatalogProductsPanel() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </section>
+    </ListCard>
   );
 }
 

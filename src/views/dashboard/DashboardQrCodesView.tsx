@@ -66,7 +66,7 @@ const qrTypes = [
   { value: "mail", label: "E-Posta", icon: Mail, tone: "orange", desc: "E-posta şablonu" },
   { value: "contact", label: "İletişim", icon: Phone, tone: "green", desc: "vCard bilgileri" },
   { value: "text", label: "Metin", icon: FileText, tone: "blue", desc: "Düz metin içeriği" },
-  { value: "location", label: "Konum", icon: MapPin, tone: "red", desc: "GPS koordinatları" },
+  { value: "location", label: "Konum", icon: MapPin, tone: "red", desc: "Koordinat veya Google Maps" },
 ] as const;
 
 const qrModes = [

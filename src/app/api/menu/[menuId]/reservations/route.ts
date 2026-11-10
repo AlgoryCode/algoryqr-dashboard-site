@@ -7,3 +7,11 @@ export async function GET(
   const { menuId } = await context.params;
   return proxyAuthenticatedRequest(request, `/menu/${menuId}/reservations`, "GET");
 }
+
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ menuId: string }> },
+) {
+  const { menuId } = await context.params;
+  return proxyAuthenticatedRequest(request, `/menu/${menuId}/reservations`, "POST");
+}

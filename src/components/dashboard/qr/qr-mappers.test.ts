@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildScanChart,
+  getQrDetailsByType,
+  mapDetailsToQrTypeData,
   mapUserQrToDashboardItem,
   validateQrDetails,
 } from "@/components/dashboard/qr/qr-mappers";
@@ -24,6 +26,27 @@ describe("validateQrDetails", () => {
     expect(validateQrDetails("mail", { mail: "a@example.com" })).toBeNull();
     expect(validateQrDetails("wifi", { ssid: "Misafir", password: "", security: "NONE" })).toBeNull();
     expect(validateQrDetails("location", { latitude: "41,0082", longitude: "28.9784" })).toBeNull();
+  });
+});
+
+describe("location QR", () => {
+  const base = { mode: "coordinates" as const, latitude: "41", longitude: "28", mapsUrl: "https://maps.app.goo.gl/x", label: "Ofis" };
+
+  it("stores only the chosen way", () => {
+    const data = mapDetailsToQrTypeData({});
+    expect(getQrDetailsByType("location", { ...data, location: base })).toEqual({ latitude: "41", longitude: "28", label: "Ofis" });
+    expect(getQrDetailsByType("location", { ...data, location: { ...base, mode: "url" } })).toEqual({
+      mapsUrl: "https://maps.app.goo.gl/x",
+      label: "Ofis",
+    });
+  });
+
+  it("validates a map link and reopens it in link mode", () => {
+    expect(validateQrDetails("location", { mapsUrl: "" })).toContain("zorunlu");
+    expect(validateQrDetails("location", { mapsUrl: "nope" })).toContain("Geçerli");
+    expect(validateQrDetails("location", { mapsUrl: "maps.app.goo.gl/x" })).toBeNull();
+    expect(mapDetailsToQrTypeData({ mapsUrl: "https://maps.app.goo.gl/x", label: "" }).location.mode).toBe("url");
+    expect(mapDetailsToQrTypeData({ latitude: "41", longitude: "28" }).location.mode).toBe("coordinates");
   });
 });
 

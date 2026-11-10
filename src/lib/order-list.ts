@@ -1,4 +1,3 @@
-import type { Tone } from "@/components/dashboard/tone";
 import {
   dateRangeForPreset,
   detectDateRangePreset,
@@ -6,8 +5,8 @@ import {
   type DateRangePreset,
   type DateRangeValue,
 } from "@/components/ui/date-range-filter";
+import { readList, writeList } from "@/lib/filter-params";
 import { KITCHEN_KANBAN_SLA_MINUTES } from "@/lib/kitchen-queue";
-import { normalizeOrderStatus } from "@/lib/order-flow";
 import {
   isOpenOrderStatus,
   matchesStatusFilter,
@@ -41,15 +40,17 @@ const ALWAYS_VISIBLE_TABS = new Set<OrderTab>(["open", "served", "all"]);
 
 export type OrderListFilters = {
   tab: OrderTab;
-  branch: "all" | number;
+  /** Empty means every branch. */
+  branches: number[];
   range: DateRangeValue;
-  channel: "all" | OrderChannel;
+  /** Empty means every source. */
+  channels: OrderChannel[];
   query: string;
   page: number;
 };
 
 export function defaultOrderListFilters(now = new Date()): OrderListFilters {
-  return { tab: "open", branch: "all", range: dateRangeForPreset("today", now), channel: "all", query: "", page: 1 };
+  return { tab: "open", branches: [], range: dateRangeForPreset("today", now), channels: [], query: "", page: 1 };
 }
 
 export function orderAgeMinutes(order: OrderResponse, now = Date.now()): number | null {
@@ -83,27 +84,7 @@ export function visibleOrderTabs(counts: Record<OrderTab, number>, selected: Ord
   return ORDER_TABS.filter((tab) => ALWAYS_VISIBLE_TABS.has(tab) || tab === selected || counts[tab] > 0);
 }
 
-/** Colour of a status badge; finished orders stay neutral so open work stands out. */
-export function orderStatusTone(status: string | null | undefined): Tone | "muted" {
-  switch (normalizeOrderStatus(status)) {
-    case "PENDING":
-      return "orange";
-    case "CONFIRMED":
-      return "blue";
-    case "PREPARING":
-      return "violet";
-    case "READY":
-      return "green";
-    case "AWAITING_COURIER":
-    case "ON_THE_WAY":
-      return "teal";
-    case "CANCELLED":
-    case "REJECTED":
-      return "red";
-    default:
-      return "muted";
-  }
-}
+export { orderStatusTone } from "@/lib/badge-tones";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const PRESET_PARAM: Partial<Record<DateRangePreset, string>> = {
@@ -120,8 +101,6 @@ const PARAM_PRESET = Object.fromEntries(Object.entries(PRESET_PARAM).map(([prese
 export function parseOrderListFilters(params: URLSearchParams, now = new Date()): OrderListFilters {
   const defaults = defaultOrderListFilters(now);
   const tab = params.get("durum");
-  const branch = Number(params.get("sube"));
-  const channel = params.get("kaynak");
   const page = Number(params.get("sayfa"));
   const preset = PARAM_PRESET[params.get("tarih") ?? ""];
   const from = params.get("bas") ?? "";
@@ -133,9 +112,11 @@ export function parseOrderListFilters(params: URLSearchParams, now = new Date())
 
   return {
     tab: ORDER_TABS.includes(tab as OrderTab) ? (tab as OrderTab) : defaults.tab,
-    branch: Number.isSafeInteger(branch) && branch > 0 ? branch : "all",
+    branches: readList(params, "sube")
+      .map(Number)
+      .filter((id) => Number.isSafeInteger(id) && id > 0),
     range,
-    channel: ORDER_CHANNELS.includes(channel as OrderChannel) ? (channel as OrderChannel) : "all",
+    channels: readList(params, "kaynak", ORDER_CHANNELS),
     query: params.get("ara") ?? "",
     page: Number.isSafeInteger(page) && page > 0 ? page : 1,
   };
@@ -144,7 +125,7 @@ export function parseOrderListFilters(params: URLSearchParams, now = new Date())
 export function serializeOrderListFilters(filters: OrderListFilters, now = new Date()): URLSearchParams {
   const params = new URLSearchParams();
   if (filters.tab !== "open") params.set("durum", filters.tab);
-  if (filters.branch !== "all") params.set("sube", String(filters.branch));
+  writeList(params, "sube", filters.branches.map(String));
   const preset = detectDateRangePreset(filters.range, now);
   if (preset === "custom") {
     params.set("bas", filters.range.from);
@@ -152,7 +133,7 @@ export function serializeOrderListFilters(filters: OrderListFilters, now = new D
   } else if (preset !== "today") {
     params.set("tarih", PRESET_PARAM[preset] ?? "tumu");
   }
-  if (filters.channel !== "all") params.set("kaynak", filters.channel);
+  writeList(params, "kaynak", filters.channels);
   if (filters.query.trim()) params.set("ara", filters.query.trim());
   if (filters.page > 1) params.set("sayfa", String(filters.page));
   return params;
@@ -165,5 +146,5 @@ export function hiddenOrderFilterCount(filters: OrderListFilters, now = new Date
     detectDateRangePreset(filters.range, now) !== "today" ||
     filters.range.from !== today.from ||
     filters.range.to !== today.to;
-  return [filters.branch !== "all", filters.channel !== "all", dateChanged].filter(Boolean).length;
+  return [filters.branches.length > 0, filters.channels.length > 0, dateChanged].filter(Boolean).length;
 }

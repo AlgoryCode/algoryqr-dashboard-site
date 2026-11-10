@@ -76,6 +76,10 @@ export type QrRequestDetails =
       label: string;
     }
   | {
+      mapsUrl: string;
+      label: string;
+    }
+  | {
       businessName: string;
       slogan?: string;
       phone?: string;
@@ -2244,6 +2248,12 @@ export interface MenuReservationCreateBody {
 export interface MenuReservationUpdateBody {
   status?: MenuReservationStatus;
   reservationAt?: string;
+  /** Panel edits; an empty string clears phone, e-mail or note. */
+  customerName?: string;
+  phone?: string;
+  email?: string;
+  partySize?: number;
+  note?: string;
 }
 
 export interface MenuReservationPageApiResponse {
@@ -2294,6 +2304,15 @@ export async function getMenuReservationsRequest(
   const response = await api.get<MenuReservationPageApiResponse>(`/menu/${menuId}/reservations`, {
     params,
   });
+  return response.data;
+}
+
+/** A reservation the business enters itself; the server stores it as confirmed. */
+export async function createMenuReservationRequest(
+  menuId: number | string,
+  payload: MenuReservationCreateBody,
+): Promise<MenuReservationApiItem> {
+  const response = await api.post<MenuReservationApiItem>(`/menu/${menuId}/reservations`, payload);
   return response.data;
 }
 
@@ -2423,7 +2442,8 @@ export interface AccountingEntryCreateBody {
 }
 
 export async function listAccountingEntriesRequest(params?: {
-  type?: AccountingEntryType | "all";
+  /** "all", one type, or several joined with commas ("GELIR,GIDER"). */
+  type?: string;
   q?: string;
   from?: string;
   to?: string;
