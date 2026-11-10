@@ -2,7 +2,7 @@ export const DASHBOARD_CONTENT =
   "mx-auto w-full max-w-5xl";
 
 export const ACCOUNT_CARD =
-  "rounded-2xl border border-[#ececea] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06),0_2px_6px_rgba(15,23,42,0.05)]";
+  "rounded-2xl border border-[#ececea] bg-white dark:border-border dark:bg-card";
 
 export const DASHBOARD_SURFACE = ACCOUNT_CARD;
 

@@ -4,8 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, ImageOff, Loader2, Plus, Search, SlidersHorizontal, X } from "lucide-react";
+import { ImageOff, Loader2, Plus, Search, SlidersHorizontal, X } from "lucide-react";
 
+import { ListPagination } from "@/components/dashboard/ListPagination";
 import { SearchableSelect } from "@/components/dashboard/menu/SearchableSelect";
 import { ProductListHead, ProductRow } from "@/components/dashboard/menu/ProductRow";
 import {
@@ -43,7 +44,6 @@ import {
   parseProductFilters,
   PRODUCT_PAGE_SIZE,
   productFilterOptions,
-  productPageItems,
   productPlacement,
   productStatusCounts,
   serializeProductFilters,
@@ -61,8 +61,6 @@ const STATUS_LABELS: Record<ProductStatus, string> = {
   unassigned: "Menüsüz",
   unavailable: "Satışta değil",
 };
-
-const PAGE_BUTTON = "flex size-8 items-center justify-center rounded-lg text-sm tabular-nums transition-colors";
 
 function productHref(row: ProductListRow) {
   return row.menuId != null
@@ -318,57 +316,13 @@ export function CatalogProductsPanel() {
               />
             ))}
           </ul>
-          <div className="flex items-center justify-between gap-3 border-t border-border px-3 py-2.5 lg:px-4">
-            <p className="text-xs tabular-nums text-muted-foreground">
-              {firstIndex + 1}–{firstIndex + visible.length} / {filtered.length} ürün
-            </p>
-            {totalPages > 1 ? (
-              <nav aria-label="Sayfalar" className="flex items-center gap-1">
-                <button
-                  type="button"
-                  className={cn(PAGE_BUTTON, "hover:bg-muted disabled:opacity-40 disabled:hover:bg-transparent")}
-                  disabled={page <= 1}
-                  onClick={() => goToPage(page - 1)}
-                  aria-label="Önceki sayfa"
-                >
-                  <ChevronLeft className="size-4" />
-                </button>
-                <span className="px-1 text-xs tabular-nums text-muted-foreground sm:hidden">
-                  {page} / {totalPages}
-                </span>
-                {productPageItems(page, totalPages).map((item, index) =>
-                  item === "gap" ? (
-                    <span key={`gap-${index}`} className="hidden w-5 text-center text-muted-foreground sm:block">
-                      …
-                    </span>
-                  ) : (
-                    <button
-                      key={item}
-                      type="button"
-                      aria-current={item === page ? "page" : undefined}
-                      onClick={() => goToPage(item)}
-                      className={cn(
-                        PAGE_BUTTON,
-                        "hidden sm:flex",
-                        item === page ? "bg-foreground font-medium text-background" : "text-muted-foreground hover:bg-muted",
-                      )}
-                    >
-                      {item}
-                    </button>
-                  ),
-                )}
-                <button
-                  type="button"
-                  className={cn(PAGE_BUTTON, "hover:bg-muted disabled:opacity-40 disabled:hover:bg-transparent")}
-                  disabled={page >= totalPages}
-                  onClick={() => goToPage(page + 1)}
-                  aria-label="Sonraki sayfa"
-                >
-                  <ChevronRight className="size-4" />
-                </button>
-              </nav>
-            ) : null}
-          </div>
+          <ListPagination
+            page={page}
+            pageSize={PRODUCT_PAGE_SIZE}
+            total={filtered.length}
+            unit="ürün"
+            onPage={goToPage}
+          />
         </>
       )}
 

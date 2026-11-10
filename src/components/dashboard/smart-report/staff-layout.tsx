@@ -13,7 +13,7 @@ import { revenueShare, toAmount } from "@/reporting/numbers";
 
 import { CHART_COLORS } from "./chart-config";
 
-const CARD = "rounded-2xl border border-border/80 bg-card shadow-sm";
+const CARD = "rounded-2xl border border-border/80 bg-card";
 const PLOT_PX = 112;
 
 export function StaffPage({

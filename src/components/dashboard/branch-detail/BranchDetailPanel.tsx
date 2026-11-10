@@ -89,7 +89,7 @@ type BranchDetailPanelProps = {
 };
 
 const CARD =
-  "rounded-2xl border border-[#ececea] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06),0_2px_6px_rgba(15,23,42,0.05)] dark:border-border dark:bg-card";
+  "rounded-2xl border border-[#ececea] bg-white dark:border-border dark:bg-card";
 const RECORD_PREVIEW = 6;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -726,7 +726,7 @@ function Shortcut({ icon: Icon, label, href, external, disabled, disabledHint }:
     <>
       <span
         className={cn(
-          "flex size-12 shrink-0 items-center justify-center rounded-2xl border border-[#ececea] bg-white text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.06)] dark:border-border dark:bg-card",
+          "flex size-12 shrink-0 items-center justify-center rounded-2xl border border-[#ececea] bg-white text-foreground dark:border-border dark:bg-card",
           "sm:size-8 sm:rounded-lg sm:border-0 sm:bg-muted sm:shadow-none",
         )}
       >

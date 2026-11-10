@@ -85,7 +85,7 @@ type UpdatePayload = {
 };
 
 const CARD =
-  "rounded-2xl border border-[#ececea] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06),0_2px_6px_rgba(15,23,42,0.05)] dark:border-border dark:bg-card";
+  "rounded-2xl border border-[#ececea] bg-white dark:border-border dark:bg-card";
 
 const MIN_PASSWORD = 6;
 const MAX_DISPLAY_NAME = 120;

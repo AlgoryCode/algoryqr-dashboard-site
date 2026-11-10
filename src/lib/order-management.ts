@@ -256,7 +256,7 @@ export function matchesOrderSearch(order: OrderResponse, query: string): boolean
   return haystack.includes(needle);
 }
 
-function matchesStatusFilter(status: OrderStatus, filter: OrderStatusFilter): boolean {
+export function matchesStatusFilter(status: OrderStatus, filter: OrderStatusFilter): boolean {
   const s = normalizeOrderStatus(status);
   switch (filter) {
     case "open":
@@ -394,8 +394,13 @@ export function mergeManagedOrders(
   const storeById = new Map(storeOrders.map((order) => [order.id, order]));
   const consumedStoreIds = new Set<number>();
   const merged: OrderResponse[] = [];
+  // Marketplace orders come back from every menu of the merchant; count each one once.
+  const seenMenuKeys = new Set<string>();
 
   for (const order of menuOrders) {
+    const key = managedOrderKey(order);
+    if (seenMenuKeys.has(key)) continue;
+    seenMenuKeys.add(key);
     const storeMatch = storeById.get(order.id);
     if (storeMatch && orderChannel(order) === "ONLINE") {
       merged.push(storeMatch);

@@ -743,3 +743,12 @@ describe("order management panel links", () => {
     );
   });
 });
+
+describe("mergeManagedOrders duplicates", () => {
+  it("keeps one copy of a marketplace order returned by several menus", () => {
+    const uber = { id: 400, status: "READY", orderSource: "UBER_EATS" } as OrderResponse;
+    const merged = mergeManagedOrders([{ ...uber, menuId: 8 }, { ...uber, menuId: 16 }], []);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].menuId).toBe(8);
+  });
+});

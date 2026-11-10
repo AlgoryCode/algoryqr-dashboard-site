@@ -907,7 +907,7 @@ function KitchenOrderCard({
         onOpen(order);
       }}
       className={cn(
-        "flex cursor-pointer flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-4 transition-all hover:border-slate-300 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300",
+        "flex cursor-pointer flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-4 transition-all hover:border-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300",
         dragListeners && "cursor-grab select-none active:cursor-grabbing",
         dragging && "opacity-40",
         overlay && "cursor-grabbing border-slate-300 shadow-lg",

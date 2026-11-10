@@ -1,24 +1,22 @@
 "use client";
 
-import { useState, type MouseEvent } from "react";
+import { type MouseEvent } from "react";
 import { Printer } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { useDashboardBanners } from "@/contexts/dashboard-banners";
-import { ApiError } from "@/lib/api";
-import {
-  enqueueKitchenPrintJob,
-  enqueueMarketplacePrintJob,
-} from "@/lib/printer-api";
+import { useBranches } from "@/hooks/use-branches";
+import type { BranchItem } from "@/lib/branch";
 import {
   kitchenOrderToReceipt,
   marketplaceOrderToReceipt,
   printReceiptInBrowser,
+  receiptTemplateFromBranch,
+  withReceiptTemplate,
   type KitchenLikeOrder,
   type MarketplaceLikeOrder,
 } from "@/lib/receipt-ticket";
 
-type PrintOrderButtonProps =
+type PrintOrderButtonProps = (
   | {
       kind: "marketplace";
       source: "YEMEK_SEPETI" | "UBER_EATS";
@@ -27,43 +25,37 @@ type PrintOrderButtonProps =
   | {
       kind: "kitchen";
       order: KitchenLikeOrder;
-    };
+    }
+) & {
+  /** Branch whose receipt template is used; a merchant with one branch does not need it. */
+  branchId?: number | null;
+};
 
+function receiptBranch(branches: BranchItem[], branchId?: number | null): BranchItem | null {
+  if (branchId != null) return branches.find((branch) => branch.id === branchId) ?? null;
+  return branches.length === 1 ? branches[0] : null;
+}
+
+/**
+ * Prints one order receipt through the browser's print dialog, where the printer is picked.
+ * The branch template (heading, paragraph, footer) wraps the order details on every print.
+ */
 export function PrintOrderButton(props: PrintOrderButtonProps) {
-  const { notify } = useDashboardBanners();
-  const [busy, setBusy] = useState(false);
+  const branchesQuery = useBranches();
 
-  async function onPrint(event: MouseEvent) {
+  function onPrint(event: MouseEvent) {
     event.preventDefault();
     event.stopPropagation();
-    setBusy(true);
-    try {
-      if (props.kind === "marketplace") {
-        await enqueueMarketplacePrintJob(props.source, props.order);
-        notify("info", "Fiş kuyruğa alındı. Ajan bağlıysa yazıcı basacak.");
-      } else {
-        await enqueueKitchenPrintJob(props.order);
-        notify("info", "Fiş kuyruğa alındı. Ajan bağlıysa yazıcı basacak.");
-      }
-    } catch (error) {
-      const payload =
-        props.kind === "marketplace"
-          ? marketplaceOrderToReceipt(props.order, props.source)
-          : kitchenOrderToReceipt(props.order);
-      printReceiptInBrowser(payload);
-      notify(
-        "info",
-        error instanceof ApiError
-          ? `${error.message} Tarayıcı yazdırma açıldı.`
-          : "Kuyruk başarısız. Tarayıcı yazdırma açıldı.",
-      );
-    } finally {
-      setBusy(false);
-    }
+    const payload =
+      props.kind === "marketplace"
+        ? marketplaceOrderToReceipt(props.order, props.source)
+        : kitchenOrderToReceipt(props.order);
+    const branch = receiptBranch(branchesQuery.data?.content ?? [], props.branchId);
+    printReceiptInBrowser(withReceiptTemplate(payload, receiptTemplateFromBranch(branch)));
   }
 
   return (
-    <Button type="button" size="sm" variant="outline" disabled={busy} onClick={onPrint}>
+    <Button type="button" size="sm" variant="outline" onClick={onPrint}>
       <Printer className="mr-1.5 h-3.5 w-3.5" />
       Fiş bas
     </Button>

@@ -21,7 +21,9 @@ describe("dashboard-surface", () => {
     );
     expect(DASHBOARD_SURFACE).toBe(ACCOUNT_CARD);
     expect(DASHBOARD_HUB_GRID).toContain("grid-cols-2");
-    expect(ACCOUNT_CARD).toContain("shadow-[0_1px_2px_rgba(15,23,42,0.06),0_2px_6px_rgba(15,23,42,0.05)]");
+    // Cards are flat: white surface, grey border, no shadow.
+    expect(ACCOUNT_CARD).not.toMatch(/shadow/);
+    expect(ACCOUNT_CARD).toContain("bg-white");
     expect(ACCOUNT_CARD).toContain("border-[#ececea]");
   });
 

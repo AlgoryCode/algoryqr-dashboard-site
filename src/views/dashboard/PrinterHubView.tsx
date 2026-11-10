@@ -8,6 +8,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { PrintAgentApiKeySection } from "@/components/dashboard/PrintAgentApiKeySection";
+import { ReceiptTemplateSection } from "@/components/dashboard/ReceiptTemplateSection";
 import { useDigitalMenuAccess } from "@/components/dashboard/menu/DigitalMenuPicker";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -144,6 +145,8 @@ export default function PrinterHubView() {
           </Button>
         }
       />
+
+      <ReceiptTemplateSection onNotify={notify} />
 
       <PrintAgentApiKeySection onNotify={notify} />
 

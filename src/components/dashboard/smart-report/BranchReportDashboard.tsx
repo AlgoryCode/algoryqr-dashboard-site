@@ -367,7 +367,7 @@ function InsightsSection({
     return <ReportEmpty text="AI bölümleri henüz hazır değil." />;
   }
   return (
-    <Card className="rounded-2xl border-primary/30 bg-primary/5 shadow-sm">
+    <Card className="rounded-2xl border-primary/30 bg-primary/5">
       <CardHeader className="pb-2">
         <CardTitle className="text-base">{result.title || "Akıllı Rapor"}</CardTitle>
       </CardHeader>
