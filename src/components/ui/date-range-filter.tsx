@@ -230,7 +230,7 @@ export function DateRangeFilter({
 
   return (
     <div className={cn(DASHBOARD_FILTER_FIELD, className)}>
-      <label className={DASHBOARD_FILTER_LABEL}>{label}</label>
+      {label ? <label className={DASHBOARD_FILTER_LABEL}>{label}</label> : null}
       <div className="inline-flex h-10 max-w-full items-center gap-1 overflow-x-auto rounded-md border border-input bg-background p-1">
         {PRESETS.map((preset) => {
           const active = !customActive && !open && activePreset === preset.id;

@@ -38,14 +38,14 @@ export function buildEscPosBuffer(payload: ReceiptPayload, options?: { copies?: 
   };
 
   for (let copy = 0; copy < copies; copy += 1) {
+    // First row is the heading: the template header when set, otherwise the order type.
+    const [heading, ...body] = formatReceiptText(payload).split("\n");
     push(ESC, 0x40);
     push(ESC, 0x61, 1);
     push(ESC, 0x45, 1);
-    line(payload.platformLabel);
+    line(heading);
     push(ESC, 0x45, 0);
     push(ESC, 0x61, 0);
-    const rows = formatReceiptText(payload).split("\n");
-    const body = rows[0] === payload.platformLabel ? rows.slice(1) : rows;
     for (const row of body) {
       line(row);
     }

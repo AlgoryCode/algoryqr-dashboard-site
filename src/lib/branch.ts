@@ -21,6 +21,10 @@ export type BranchItem = {
   kitchenEnabled?: boolean;
   courierEnabled?: boolean;
   printKitchenEnabled?: boolean;
+  /** Receipt template; empty means the branch name and a thank-you line. */
+  receiptHeader?: string | null;
+  receiptIntro?: string | null;
+  receiptFooter?: string | null;
   menus: BranchMenuSummary[];
 };
 
@@ -55,6 +59,10 @@ export type BranchWritePayload = {
   kitchenEnabled?: boolean;
   courierEnabled?: boolean;
   printKitchenEnabled?: boolean;
+  /** An empty string clears the field; leaving it out keeps the saved value. */
+  receiptHeader?: string;
+  receiptIntro?: string;
+  receiptFooter?: string;
 };
 
 function normalizeBranchItem(raw: BranchItem & { userId?: number }): BranchItem {

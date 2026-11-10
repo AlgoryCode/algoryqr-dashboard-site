@@ -312,7 +312,7 @@ export function StoreDeliveryKanban({
               return (
                 <section
                   key={column.id}
-                  className="flex w-[330px] max-h-[calc(100svh-16rem)] shrink-0 snap-start flex-col rounded-md border border-slate-200 bg-slate-50 shadow-sm dark:border-slate-800 dark:bg-slate-900/60 md:w-[350px]"
+                  className="flex w-[330px] max-h-[calc(100svh-16rem)] shrink-0 snap-start flex-col rounded-md border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/60 md:w-[350px]"
                 >
                   <div className="flex items-center justify-between rounded-t-md border-b border-slate-200 bg-white px-3 py-2.5 dark:border-slate-800 dark:bg-slate-900">
                     <div className="flex items-center gap-2">
@@ -450,7 +450,7 @@ function KanbanCard({
   return (
     <article
       className={cn(
-        "flex flex-col gap-2 rounded border border-slate-200 bg-white p-3 shadow-sm transition-all hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600",
+        "flex flex-col gap-2 rounded border border-slate-200 bg-white p-3 transition-all hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600",
         columnId === "DONE" && "opacity-95",
         delayed && "border-amber-200 hover:border-amber-300 dark:border-amber-500/30",
       )}

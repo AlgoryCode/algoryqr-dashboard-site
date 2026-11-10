@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { DASHBOARD_NAV_ICONS } from "@/components/dashboard/nav-icons";
+import { OverviewCard } from "@/components/dashboard/overview/OverviewCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { invalidateBranches } from "@/hooks/use-branches";
@@ -11,7 +13,6 @@ import { useToast } from "@/hooks/use-toast";
 import { ApiError } from "@/lib/api";
 import { updateBranchRequest, type BranchItem } from "@/lib/branch";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
-import { DASHBOARD_PANEL } from "@/lib/dashboard-surface";
 
 export function OverviewBranchStatus({
   branches,
@@ -50,21 +51,14 @@ export function OverviewBranchStatus({
   const openCount = branches.filter((branch) => optimistic[branch.id] ?? branch.active).length;
 
   return (
-    <section className={DASHBOARD_PANEL} aria-label="Şube durumu">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">Şube durumu</h2>
-          <p className="text-xs text-muted-foreground">
-            {branches.length > 1 ? `${openCount}/${branches.length} şube açık` : "Siparişe açık/kapalı"}
-          </p>
-        </div>
-        <Link
-          href={DASHBOARD_ROUTES.myBranches}
-          className="text-xs font-medium text-foreground underline-offset-2 hover:underline"
-        >
-          Şube yönetimi
-        </Link>
-      </div>
+    <OverviewCard
+      title="Şube durumu"
+      description={branches.length > 1 ? `${openCount}/${branches.length} şube siparişe açık` : "Siparişe açık / kapalı"}
+      icon={DASHBOARD_NAV_ICONS.myBranches}
+      tone="teal"
+      action={{ label: "Şubeler", href: DASHBOARD_ROUTES.myBranches }}
+      className="h-full"
+    >
       {loading && branches.length === 0 ? (
         <div className="space-y-2">
           <Skeleton className="h-8 rounded-lg" />
@@ -75,7 +69,7 @@ export function OverviewBranchStatus({
           İlk şubeni oluştur
         </Link>
       ) : (
-        <ul className="max-h-56 divide-y divide-border overflow-y-auto">
+        <ul className="max-h-64 divide-y divide-border overflow-y-auto">
           {branches.map((branch) => {
             const active = optimistic[branch.id] ?? branch.active;
             return (
@@ -83,11 +77,12 @@ export function OverviewBranchStatus({
                 <Link
                   href={DASHBOARD_ROUTES.branchDetail(branch.id)}
                   className="min-w-0 truncate text-sm font-medium text-foreground hover:underline"
+                  title={branch.name}
                 >
                   {branch.name}
                 </Link>
                 <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
-                  <span className={active ? "text-emerald-600" : undefined}>{active ? "Açık" : "Kapalı"}</span>
+                  <span className={active ? "font-medium text-[#128C7E] dark:text-[#4ADE80]" : undefined}>{active ? "Açık" : "Kapalı"}</span>
                   <Switch
                     checked={active}
                     disabled={pending[branch.id]}
@@ -100,6 +95,6 @@ export function OverviewBranchStatus({
           })}
         </ul>
       )}
-    </section>
+    </OverviewCard>
   );
 }

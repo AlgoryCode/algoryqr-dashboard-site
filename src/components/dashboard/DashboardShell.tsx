@@ -44,21 +44,18 @@ import {
   useDashboardBannerState,
 } from "@/contexts/dashboard-banners";
 import { useTokenRefresh } from "@/hooks/use-token-refresh";
-import { useAccessProfile } from "@/hooks/use-access-profile";
+import { useVisibleNavItems } from "@/hooks/use-visible-nav-items";
 import { clearPackageAccess } from "@/lib/load-package-access";
-import { useAccessSession } from "@/hooks/use-commerce";
 import { SESSION_CONTEXT_QUERY_KEY } from "@/hooks/use-session-context";
 import { useQueryClient } from "@tanstack/react-query";
 import type { SessionContext } from "@/lib/session-context";
 import {
-  DASHBOARD_NAV_ITEMS,
   DASHBOARD_ROUTES,
   isDashboardNavActive,
   splitMobileDashboardNav,
   type DashboardNavItem,
 } from "@/lib/dashboard-routes";
 import { DASHBOARD_CONTENT } from "@/lib/dashboard-surface";
-import { hasScope } from "@/lib/auth-user";
 import type { StoredUser } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -116,25 +113,7 @@ function DashboardShellInner({ children, initialSession, initialUser }: Dashboar
   const [portalReady, setPortalReady] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   useTokenRefresh();
-  const { data: accessProfile } = useAccessProfile();
-  const accessSession = useAccessSession();
-  const hasAllowAccess = accessSession.data?.decision === "ALLOW";
-  const visibleNavItems = useMemo(
-    () =>
-      DASHBOARD_NAV_ITEMS.filter((item) => {
-        if (item.requiresAllowAccess && !hasAllowAccess) {
-          return false;
-        }
-        if (item.key === "reports") {
-          return (
-            hasScope(accessProfile, "SMART_REPORTING_OWNER") ||
-            hasScope(accessProfile, "WAITER_PANEL_OWNER")
-          );
-        }
-        return !item.requiredScope || hasScope(accessProfile, item.requiredScope);
-      }),
-    [accessProfile, hasAllowAccess],
-  );
+  const visibleNavItems = useVisibleNavItems();
   const menuNavItems = useMemo(
     () =>
       visibleNavItems.filter((item) => !item.excludeFromSidebar),

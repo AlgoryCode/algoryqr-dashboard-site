@@ -6,34 +6,15 @@ import { KitchenDisplayBoard } from "@/components/kitchen/KitchenDisplayBoard";
 import { isBranchCourierEnabled, isBranchKitchenEnabled, type BranchItem } from "@/lib/branch";
 import { listScopedKitchenOrders, menusInBranchScope, ordersForStaffBranch } from "@/lib/branch-scope";
 import { kitchenOrderKey } from "@/lib/kitchen-queue";
+import { cancelManagedOrder, revertManagedOrder, runOrderFlowAction } from "@/lib/order-actions";
 import {
   applyKitchenOrderFlow,
-  forgetOrderFlowStatus,
-  ORDER_FLOW_ACTION_STATUS,
-  serverReachedStatus,
   type KitchenRevertTarget,
   type OrderCancelRequest,
   type OrderFlowAction,
 } from "@/lib/order-flow";
-import {
-  cancelMerchantOrder,
-  markMerchantKitchenPreparing,
-  markMerchantKitchenReady,
-  markMerchantKitchenServed,
-  revertMerchantKitchenOrder,
-  updateMerchantKitchenNote,
-  type OrderResponse,
-} from "@/lib/ordering-api";
-import {
-  advanceStoreKitchenOrder,
-  cancelStoreKitchenOrder,
-  deliverStoreKitchenOrder,
-  handoverStoreOrderToCourier,
-  isOnlineKitchenSource,
-  listKitchenCouriers,
-  listStoreKitchenQueue,
-  revertStoreKitchenOrder,
-} from "@/lib/store-kitchen";
+import { updateMerchantKitchenNote, type OrderResponse } from "@/lib/ordering-api";
+import { handoverStoreOrderToCourier, listKitchenCouriers, listStoreKitchenQueue } from "@/lib/store-kitchen";
 
 import { OwnerScreenFrame, OwnerScreenNotice, useOwnerScreenBranch } from "./OwnerScreenFrame";
 
@@ -50,57 +31,6 @@ async function listOwnerKitchenQueue(branches: BranchItem[], branchId: number): 
     byKey.set(kitchenOrderKey(order), applyKitchenOrderFlow(order));
   }
   return [...byKey.values()];
-}
-
-async function runOwnerKitchenAction(order: OrderResponse, action: OrderFlowAction): Promise<OrderResponse> {
-  const target = ORDER_FLOW_ACTION_STATUS[action];
-  if (action === "markWaiterDeliveredToCustomer") {
-    if (isOnlineKitchenSource(order.orderSource)) return deliverStoreKitchenOrder(order.id);
-    if (order.menuId == null) throw new Error("Sipariş güncellenemedi");
-    const served = await markMerchantKitchenServed(order.menuId, order.id);
-    if (!serverReachedStatus(served.status, "DELIVERED")) throw new Error("Sipariş güncellenemedi");
-    forgetOrderFlowStatus(order.id);
-    return { ...served, id: order.id };
-  }
-  if (action !== "markKitchenPreparing" && action !== "markKitchenPrepared" && action !== "markReady") {
-    throw new Error("Bu adım kaydedilemedi");
-  }
-  const step = action === "markKitchenPreparing" ? "preparing" : "ready";
-  if (isOnlineKitchenSource(order.orderSource)) {
-    return advanceStoreKitchenOrder(order.id, step);
-  }
-  if (order.menuId == null) {
-    throw new Error("Sipariş güncellenemedi");
-  }
-  const next =
-    step === "preparing"
-      ? await markMerchantKitchenPreparing(order.menuId, order.id, order.orderSource)
-      : await markMerchantKitchenReady(order.menuId, order.id, order.orderSource);
-  if (!serverReachedStatus(next.status, target)) {
-    throw new Error("Sipariş güncellenemedi");
-  }
-  forgetOrderFlowStatus(order.id);
-  return { ...next, id: order.id };
-}
-
-async function cancelOwnerKitchenOrder(order: OrderResponse, request: OrderCancelRequest): Promise<OrderResponse> {
-  if (isOnlineKitchenSource(order.orderSource)) {
-    return cancelStoreKitchenOrder(order.id, request);
-  }
-  if (order.menuId == null) {
-    throw new Error("Sipariş iptal edilemedi");
-  }
-  return cancelMerchantOrder(order.menuId, order.id, request);
-}
-
-async function revertOwnerKitchenOrder(order: OrderResponse, to: KitchenRevertTarget): Promise<OrderResponse> {
-  if (isOnlineKitchenSource(order.orderSource)) {
-    return revertStoreKitchenOrder(order.id, to);
-  }
-  if (order.menuId == null) {
-    throw new Error("Sipariş geri alınamadı");
-  }
-  return revertMerchantKitchenOrder(order.menuId, order.id, to, order.orderSource);
 }
 
 export default function OwnerKitchenView({ initialBranchId }: { initialBranchId: number | null }) {
@@ -150,12 +80,12 @@ export default function OwnerKitchenView({ initialBranchId }: { initialBranchId:
         return updateMerchantKitchenNote(order.menuId, order.id, payload.note ?? "");
       }
       if (payload.kind === "revert") {
-        return revertOwnerKitchenOrder(order, payload.revertTo ?? "CONFIRMED");
+        return revertManagedOrder(order, payload.revertTo ?? "CONFIRMED");
       }
       if (payload.kind === "cancel") {
-        return cancelOwnerKitchenOrder(order, payload.cancel ?? { reason: "OTHER" });
+        return cancelManagedOrder(order, payload.cancel ?? { reason: "OTHER" });
       }
-      return runOwnerKitchenAction(order, payload.kind);
+      return runOrderFlowAction(order, payload.kind);
     },
     onSuccess: (_updated, payload) => {
       void queryClient.invalidateQueries({ queryKey: [OWNER_KITCHEN_QUEUE_KEY] });

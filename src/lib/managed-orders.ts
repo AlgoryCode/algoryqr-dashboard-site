@@ -22,21 +22,47 @@ export function orderDaysForRange(from: string | undefined, now = new Date()): n
   return Math.max(0, Math.round((today - start) / DAY_MS)) + 2;
 }
 
+const STORE_PAGE_SIZE = 200;
+/** Stops a runaway loop if the server keeps reporting another page. */
+const STORE_PAGE_LIMIT = 50;
+
+async function listAllStoreOrders(range?: { from?: string; to?: string }): Promise<OrderResponse[]> {
+  const orders: OrderResponse[] = [];
+  for (let page = 0; page < STORE_PAGE_LIMIT; page += 1) {
+    const result = await listStoreOrders({
+      from: range?.from || undefined,
+      to: range?.to || undefined,
+      page,
+      size: STORE_PAGE_SIZE,
+    });
+    orders.push(...(result.content ?? []).map(storeOrderToManagedOrder));
+    const more = result.hasNext ?? page + 1 < (result.totalPages ?? 0);
+    if (!more) break;
+  }
+  return orders;
+}
+
+export type ManagedOrdersResult = {
+  orders: OrderResponse[];
+  /** Online store orders could not be loaded; the list holds menu orders only. */
+  storeFailed: boolean;
+};
+
 export async function listAllManagedOrders(
   menus: DigitalMenuDirectoryItem[],
   range?: { from?: string; to?: string },
-): Promise<OrderResponse[]> {
-  const [menuOrders, storePage] = await Promise.all([
+): Promise<ManagedOrdersResult> {
+  const [menuOrders, store] = await Promise.all([
     menus.length > 0 ? listScopedMenuOrders(menus, orderDaysForRange(range?.from)) : Promise.resolve([] as OrderResponse[]),
-    listStoreOrders({
-      from: range?.from || undefined,
-      to: range?.to || undefined,
-      page: 0,
-      size: 200,
-    }).catch(() => null),
+    listAllStoreOrders(range).then(
+      (orders) => ({ orders, failed: false }),
+      () => ({ orders: [] as OrderResponse[], failed: true }),
+    ),
   ]);
-  const storeOrders = (storePage?.content ?? []).map(storeOrderToManagedOrder);
-  return sortOrdersNewestFirst(mergeManagedOrders(menuOrders, storeOrders));
+  return {
+    orders: sortOrdersNewestFirst(mergeManagedOrders(menuOrders, store.orders)),
+    storeFailed: store.failed,
+  };
 }
 
 export function orderReference(order: OrderResponse): string {
