@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import axios from "axios";
+import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { BrandLogo } from "@/components/BrandLogo";
 import {
@@ -45,7 +44,7 @@ import {
 } from "@/contexts/dashboard-banners";
 import { useTokenRefresh } from "@/hooks/use-token-refresh";
 import { useVisibleNavItems } from "@/hooks/use-visible-nav-items";
-import { clearPackageAccess } from "@/lib/load-package-access";
+import { logout as logoutSession } from "@/lib/site-session";
 import { SESSION_CONTEXT_QUERY_KEY } from "@/hooks/use-session-context";
 import { useQueryClient } from "@tanstack/react-query";
 import type { SessionContext } from "@/lib/session-context";
@@ -106,7 +105,6 @@ function SessionCacheHydrator({ session }: { session?: SessionContext | null }) 
 }
 
 function DashboardShellInner({ children, initialSession, initialUser }: DashboardShellProps) {
-  const router = useRouter();
   const pathname = usePathname();
   const isOnlineBoard = pathname === DASHBOARD_ROUTES.onlineOrderOrders;
   const { banners, addBanner, removeBanner } = useDashboardBannerState();
@@ -184,13 +182,7 @@ function DashboardShellInner({ children, initialSession, initialUser }: Dashboar
     pathname === DASHBOARD_ROUTES.trialExpired || pathname === DASHBOARD_ROUTES.trialStart;
 
   const logout = async () => {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("algory_user");
-    }
-    clearPackageAccess();
-    await axios.post("/api/auth/logout", undefined, { withCredentials: true }).catch(() => undefined);
-    router.push("/login");
-    router.refresh();
+    await logoutSession();
   };
 
   const bannerPortal =

@@ -9,6 +9,7 @@ import { setAuthCookies, setTokenExpiryCookies } from "@/lib/server/auth-cookies
 import { applyPersonalDemoTrialCookie } from "@/lib/server/apply-demo-onboarding-cookies";
 import { clientContextHeaders } from "@/lib/server/client-headers";
 import { resolveRefreshCookieExpiry } from "@/lib/server/session-expiry";
+import { toPublicAuthPayload } from "@/lib/server/public-auth-payload";
 
 /** POST /authservice/2fa/login/verify — Bearer pending JWT + { code }. */
 export async function POST(req: Request) {
@@ -67,7 +68,7 @@ export async function POST(req: Request) {
     );
 
     const response = NextResponse.json(
-      { ...data, merchantId, userId: undefined, accessTokenExpiresAt, refreshTokenExpiresAt },
+      { ...toPublicAuthPayload(data), merchantId, userId: undefined, accessTokenExpiresAt, refreshTokenExpiresAt },
       { status: 200 },
     );
 

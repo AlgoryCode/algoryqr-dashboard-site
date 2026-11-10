@@ -7,6 +7,7 @@ import { applyActivePackageCookie, resolveLoginMerchantId } from "@/lib/server/a
 import { setAuthCookies, setTokenExpiryCookies } from "@/lib/server/auth-cookies";
 import { applyPersonalDemoTrialCookie } from "@/lib/server/apply-demo-onboarding-cookies";
 import { clientContextHeaders } from "@/lib/server/client-headers";
+import { toPublicAuthPayload } from "@/lib/server/public-auth-payload";
 
 type DemoLoginBody = {
   username?: string;
@@ -77,7 +78,7 @@ export async function POST(req: Request) {
     );
 
     const response = NextResponse.json(
-      { ...data, merchantId, userId: undefined, accessTokenExpiresAt, refreshTokenExpiresAt },
+      { ...toPublicAuthPayload(data), merchantId, userId: undefined, accessTokenExpiresAt, refreshTokenExpiresAt },
       { status: 200 },
     );
     setAuthCookies(

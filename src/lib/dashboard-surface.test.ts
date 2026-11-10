@@ -33,7 +33,7 @@ describe("dashboard-surface", () => {
     expect(DASHBOARD_TYPE_HINT).toContain("text-sm");
     expect(DASHBOARD_TYPE_TILE).toContain("text-sm");
     expect(DASHBOARD_TYPE_META).toContain("text-xs");
-    expect(DASHBOARD_TYPE_KPI).toContain("text-3xl");
+    expect(DASHBOARD_TYPE_KPI).toContain("text-[1.75rem]");
     expect(DASHBOARD_PANEL_LG).toContain("border-[#ececea]");
     expect(DASHBOARD_PANEL_LG).toContain("p-6");
   });

@@ -2,9 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { ApiError } from "@/lib/api/errors";
-import { loadPackageAccess } from "@/lib/load-package-access";
 import { getSiteSameOriginAxios } from "@/lib/site-same-origin-axios";
+import { refreshSession } from "@/lib/site-session";
 
 const REFRESH_BUFFER_SECONDS = 30;
 
@@ -42,19 +41,12 @@ export function useTokenRefresh(accessTokenExpiresAt?: number) {
     const refreshInMs = Math.max(1000, (secondsUntilExp - REFRESH_BUFFER_SECONDS) * 1000);
 
     timeoutRef.current = setTimeout(() => {
-      getSiteSameOriginAxios()
-        .post<{ accessTokenExpiresAt?: number }>("/auth/refresh", {})
-        .then((res) => {
-          const nextExp = res.data?.accessTokenExpiresAt;
-          if (nextExp != null) setExpFromApi(nextExp);
-          void loadPackageAccess(true);
-        })
-        .catch((err: unknown) => {
-          const status = err instanceof ApiError ? err.status : 0;
-          if (status === 401 && typeof window !== "undefined") {
-            window.location.href = "/login";
-          }
-        });
+      // An expired session is handled (logout + redirect) inside refreshSession.
+      void refreshSession().then((result) => {
+        if (result.ok && result.accessTokenExpiresAt != null) {
+          setExpFromApi(result.accessTokenExpiresAt);
+        }
+      });
     }, refreshInMs);
 
     return () => {

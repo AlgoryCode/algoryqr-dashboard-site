@@ -16,13 +16,13 @@ type CookieStore = { get: (name: string) => { value?: string } | undefined };
 
 export function readAccessTokenFromCookies(cookieStore: CookieStore): string | null {
   const t =
-    cookieStore.get("accessToken")?.value?.trim() || cookieStore.get("algory_access_token")?.value?.trim();
+    cookieStore.get("accessToken")?.value?.trim();
   return t || null;
 }
 
 export function readRefreshTokenFromCookies(cookieStore: CookieStore): string | null {
   const t =
-    cookieStore.get("refreshToken")?.value?.trim() || cookieStore.get("algory_refresh_token")?.value?.trim();
+    cookieStore.get("refreshToken")?.value?.trim();
   return t || null;
 }
 
@@ -34,6 +34,7 @@ export function readMerchantIdFromCookies(cookieStore: CookieStore): number | nu
 }
 
 /** Eski `algory_*` auth çerezlerini kaldır (rent-fe ile aynı strateji). */
+/** Sweeps the pre-rename cookie names from old browsers; they are no longer read anywhere. */
 export function clearLegacyAlgoryAuthCookies(response: NextResponse) {
   const clear = { ...cookieOptions, maxAge: 0 };
   response.cookies.set("algory_access_token", "", clear);
