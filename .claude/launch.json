@@ -2,6 +2,15 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "qr-service-local-8055",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/tarikhamarat/Desktop/algory/qr-service && JAVA_HOME=/Library/Java/JavaVirtualMachines/amazon-corretto-21.jdk/Contents/Home SERVER_PORT=8055 bash ./mvnw -q spring-boot:run"
+      ],
+      "port": 8055
+    },
+    {
       "name": "dashboard-local-8055",
       "runtimeExecutable": "npx",
       "runtimeArgs": [
