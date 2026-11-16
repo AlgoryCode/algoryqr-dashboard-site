@@ -6,8 +6,14 @@ export type AccessDecision =
   | "REQUIRE_PAYMENT"
   | "ALLOW";
 
+/** Commercial state behind an ALLOW decision; drives the trial, past-due and free-plan banners. */
+export type BillingState = "NONE" | "TRIALING" | "ACTIVE" | "PAST_DUE" | "FREE" | "CLOSED";
+
+const BILLING_STATES: readonly BillingState[] = ["NONE", "TRIALING", "ACTIVE", "PAST_DUE", "FREE", "CLOSED"];
+
 export type AccessSession = {
   decision: AccessDecision;
+  billingState?: BillingState | null;
   packageCode?: string | null;
   endsAt?: string | null;
   debtDueAt?: string | null;
@@ -56,7 +62,7 @@ export function destinationForDecision(
     if (returnPath && isStartAllowlistedPath(pathname)) {
       return returnPath;
     }
-    return DASHBOARD_ROUTES.demoRegister;
+    return DASHBOARD_ROUTES.trialStart;
   }
   if (decision === "REQUIRE_PURCHASE") {
     return SHOP_PATH;
@@ -86,6 +92,9 @@ export function parseAccessSession(payload: unknown): AccessSession | null {
     debtDueAt: typeof record.debtDueAt === "string" ? record.debtDueAt : null,
     messageKey: typeof record.messageKey === "string" ? record.messageKey : null,
     code: typeof record.code === "string" ? record.code : null,
+    billingState: BILLING_STATES.includes(record.billingState as BillingState)
+      ? (record.billingState as BillingState)
+      : null,
   };
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  smartReportBadge,
   SMART_REPORT_POLL_INTERVAL_MS,
   findLatestSmartReportForScope,
   isSmartReportPending,
@@ -10,6 +11,12 @@ import {
   resolveSmartReportProcessId,
   smartReportStatusLabel,
   smartReportTitle,
+  smartReportPeriodRange,
+  isMerchantWideSmartReport,
+  summarizeSmartReportQuota,
+  formatSmartReportPeriod,
+  countSmartReportsByStatus,
+  smartReportStatusGroup,
   toSmartReportUiStatus,
   type SmartReportListItem,
 } from "./smart-report";
@@ -177,5 +184,90 @@ describe("smart-report helpers", () => {
   it("prefers branchName over menuName for titles", () => {
     expect(smartReportTitle({ branchName: "Kadikoy", menuName: "Aksam" })).toBe("Kadikoy");
     expect(smartReportTitle({ branchName: null, menuName: "Aksam" })).toBe("Aksam");
+  });
+});
+
+describe("smartReportPeriodRange", () => {
+  const today = new Date(2026, 10, 15);
+
+  it("returns inclusive ranges for each preset", () => {
+    expect(smartReportPeriodRange("last7", today)).toEqual({ from: "2026-11-09", to: "2026-11-15" });
+    expect(smartReportPeriodRange("last30", today)).toEqual({ from: "2026-10-17", to: "2026-11-15" });
+    expect(smartReportPeriodRange("thisMonth", today)).toEqual({ from: "2026-11-01", to: "2026-11-15" });
+    expect(smartReportPeriodRange("lastMonth", today)).toEqual({ from: "2026-10-01", to: "2026-10-31" });
+  });
+
+  it("handles a January last-month range across the year boundary", () => {
+    expect(smartReportPeriodRange("lastMonth", new Date(2027, 0, 3))).toEqual({
+      from: "2026-12-01",
+      to: "2026-12-31",
+    });
+  });
+});
+
+describe("isMerchantWideSmartReport", () => {
+  it("is true only when neither branch nor menu is set", () => {
+    expect(isMerchantWideSmartReport({ branchId: null, menuId: null })).toBe(true);
+    expect(isMerchantWideSmartReport({ branchId: 3, menuId: null })).toBe(false);
+    expect(isMerchantWideSmartReport({ branchId: null, menuId: 9 })).toBe(false);
+  });
+});
+
+describe("summarizeSmartReportQuota", () => {
+  const base = {
+    period: "WEEK",
+    limit: 1,
+    used: 0,
+    remaining: 1,
+    resetsAt: "2026-11-16T21:00:00Z",
+  };
+
+  it("spends free credits first", () => {
+    const summary = summarizeSmartReportQuota({ ...base, paidCredits: 2, addonUnitPrice: 200 });
+    expect(summary).toMatchObject({
+      freeRemaining: 1,
+      paidCredits: 2,
+      totalAvailable: 3,
+      exhausted: false,
+      nextSource: "free",
+      periodLabel: "haftalık",
+      addonPriceLabel: "200 TL",
+    });
+  });
+
+  it("falls back to purchased credits, then to exhausted", () => {
+    expect(summarizeSmartReportQuota({ ...base, used: 1, remaining: 0, paidCredits: 1 }).nextSource).toBe("paid");
+    const empty = summarizeSmartReportQuota({ ...base, used: 1, remaining: 0, period: "DAY" });
+    expect(empty).toMatchObject({ exhausted: true, nextSource: null, freeUsed: 1, periodLabel: "günlük" });
+  });
+});
+
+describe("formatSmartReportPeriod", () => {
+  it("shows the year once within one year and twice across years", () => {
+    expect(formatSmartReportPeriod("2026-10-17", "2026-11-15")).toBe("17 Eki – 15 Kas 2026");
+    expect(formatSmartReportPeriod("2026-12-20", "2027-01-05")).toBe("20 Ara 2026 – 5 Oca 2027");
+  });
+});
+
+describe("countSmartReportsByStatus", () => {
+  it("groups queued/processing as pending", () => {
+    const counts = countSmartReportsByStatus([
+      { status: "completed" },
+      { status: "queued" },
+      { status: "processing" },
+      { status: "failed" },
+    ]);
+    expect(counts).toEqual({ all: 4, ready: 1, pending: 2, failed: 1 });
+    expect(smartReportStatusGroup("running")).toBe("pending");
+  });
+});
+
+
+describe("smartReportBadge", () => {
+  it("maps job status and local download state to the list badge", () => {
+    expect(smartReportBadge("queued", false)).toBe("pending");
+    expect(smartReportBadge("completed", false)).toBe("ready");
+    expect(smartReportBadge("completed", true)).toBe("downloaded");
+    expect(smartReportBadge("failed", true)).toBe("failed");
   });
 });

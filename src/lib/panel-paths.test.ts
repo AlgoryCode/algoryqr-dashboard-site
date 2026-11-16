@@ -11,6 +11,9 @@ describe("legacyPanelPath", () => {
     expect(legacyPanelPath("/dashboard/dijital-menu/menuler")).toBe("/menuler");
     expect(legacyPanelPath("/dashboard/hesabim/abonelik")).toBe("/hesabim/abonelik");
     expect(legacyPanelPath("/dijital-menu/urunler/yeni")).toBe("/urunler/yeni");
+    expect(legacyPanelPath("/qr/38")).toBe("/menuler/38");
+    expect(legacyPanelPath("/qr/38/ayarlar")).toBe("/menuler/38/ayarlar");
+    expect(legacyPanelPath("/dashboard/dijital-menu/qr/38")).toBe("/menuler/38");
   });
 
   it("sends the old roots to their new pages", () => {

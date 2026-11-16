@@ -113,7 +113,7 @@ describe("labels and link", () => {
   });
 
   it("points at the public booking page", () => {
-    expect(reservationLink("tavsan-coffee", 9)).toBe("https://menu.algorycode.com/tavsan-coffee/menu/rezervasyon");
-    expect(reservationLink(null, 9)).toBe("https://menu.algorycode.com/9/menu/rezervasyon");
+    expect(reservationLink("tavsan-coffee", 9)).toBe("https://qr.algorycode.com/tavsan-coffee/menu/rezervasyon");
+    expect(reservationLink(null, 9)).toBe("https://qr.algorycode.com/9/menu/rezervasyon");
   });
 });

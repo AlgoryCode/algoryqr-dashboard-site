@@ -74,7 +74,7 @@ export function isKnownPath(pathname: string): boolean {
   return segment === "" || PANEL_ROOT_SEGMENTS.has(segment) || PUBLIC_ROOT_SEGMENTS.has(segment);
 }
 
-/** Maps a pre-flattening `/dashboard/...` or `/dijital-menu/...` address to its current one, or null if it is current. */
+/** Maps a pre-flattening `/dashboard/...`, `/dijital-menu/...` or old `/qr/:id` address to its current one, or null if it is current. */
 export function legacyPanelPath(pathname: string): string | null {
   let path = pathname;
   const hadDashboardPrefix = path === "/dashboard" || path.startsWith("/dashboard/");
@@ -82,6 +82,8 @@ export function legacyPanelPath(pathname: string): string | null {
     path = path.slice("/dashboard".length) || "/genel-bakis";
   }
   if (path === "/dijital-menu") return "/menu-yonetimi";
-  if (path.startsWith("/dijital-menu/")) return path.slice("/dijital-menu".length);
-  return hadDashboardPrefix ? path : null;
+  if (path.startsWith("/dijital-menu/")) path = path.slice("/dijital-menu".length);
+  // Menu editor moved from /qr/:id to /menuler/:id.
+  if (path.startsWith("/qr/")) path = `/menuler/${path.slice("/qr/".length)}`;
+  return path === pathname ? null : path;
 }

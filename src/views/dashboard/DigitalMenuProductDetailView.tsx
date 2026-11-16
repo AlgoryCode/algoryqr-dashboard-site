@@ -192,8 +192,8 @@ export default function DigitalMenuProductDetailView({ productId }: DigitalMenuP
     storeMenuId != null
       ? DASHBOARD_ROUTES.onlineOrderProducts
       : selection?.qr.id != null
-        ? `${DASHBOARD_ROUTES.digitalMenuProducts}?qr=${selection.qr.id}`
-        : DASHBOARD_ROUTES.digitalMenuProducts;
+        ? DASHBOARD_ROUTES.digitalMenuProductsForQr(selection.qr.id)
+        : DASHBOARD_ROUTES.digitalMenuCategories;
 
   const publicUrl =
     storeMenuId != null

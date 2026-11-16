@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { PurchaseApiItem } from "./api";
 import {
   getTrialReminderInfo,
+  getTrialReminderInfoFromSession,
   shouldAutoOpenTrialReminder,
 } from "./trial-reminder";
 
@@ -36,5 +37,27 @@ describe("trial-reminder", () => {
     expect(info).not.toBeNull();
     expect(shouldAutoOpenTrialReminder(info!)).toBe(false);
     expect(shouldAutoOpenTrialReminder(getTrialReminderInfo(trialPurchase(3))!)).toBe(true);
+  });
+});
+
+describe("getTrialReminderInfoFromSession", () => {
+  const now = new Date(2026, 10, 16, 15, 0, 0);
+
+  it("reads trial days from the session when billing state is TRIALING", () => {
+    const info = getTrialReminderInfoFromSession(
+      { billingState: "TRIALING", packageName: "Ultimate", endsAt: "2026-11-20T20:59:59Z", periodEnd: null },
+      now,
+    );
+    expect(info?.packageName).toBe("Ultimate");
+    expect(info?.daysUntilExpiry).toBe(4);
+  });
+
+  it("ignores sessions that are not trialing", () => {
+    expect(
+      getTrialReminderInfoFromSession(
+        { billingState: "ACTIVE", packageName: "Pro", endsAt: "2026-11-20", periodEnd: null },
+        now,
+      ),
+    ).toBeNull();
   });
 });

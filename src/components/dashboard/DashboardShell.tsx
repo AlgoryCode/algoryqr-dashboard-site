@@ -14,6 +14,7 @@ import {
   PanelLeft,
   PanelLeftClose,
   Menu,
+  Search,
 } from "lucide-react";
 
 import TrialReminderDialog from "@/components/dashboard/TrialReminderDialog";
@@ -26,7 +27,7 @@ import {
   useCommandPaletteHotkey,
 } from "@/components/dashboard/DashboardCommandPalette";
 import { DashboardMobileNav } from "@/components/dashboard/DashboardMobileNav";
-import { DashboardSidebarNav, sidebarLabelClass } from "@/components/dashboard/DashboardSidebarNav";
+import { DashboardSidebarNav, SIDEBAR_EASE, sidebarLabelClass } from "@/components/dashboard/DashboardSidebarNav";
 import {
   AccountMenu,
   DashboardTopBar,
@@ -35,9 +36,8 @@ import {
   useShortcutsHotkey,
 } from "@/components/dashboard/DashboardTopBar";
 import { DashboardPageLabelProvider, useDashboardPageLabelValue } from "@/contexts/dashboard-page-label";
-import { DashboardAssistantLauncher } from "@/components/dashboard/DashboardAssistantChat";
-import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { BillingStatusBanner } from "@/components/dashboard/BillingStatusBanner";
 import {
   DashboardBannersProvider,
   useDashboardBannerState,
@@ -53,6 +53,7 @@ import {
   isDashboardNavActive,
   splitMobileDashboardNav,
   type DashboardNavItem,
+  navChildren,
 } from "@/lib/dashboard-routes";
 import { DASHBOARD_CONTENT } from "@/lib/dashboard-surface";
 import type { StoredUser } from "@/lib/api";
@@ -71,19 +72,11 @@ const SIDEBAR_COLLAPSED_KEY = "algory-dashboard-sidebar-collapsed";
 const SIDEBAR_ITEM =
   "flex h-9 w-full items-center justify-start gap-2.5 overflow-hidden rounded-[10px] px-1.5 text-sm font-medium transition-colors";
 
-function sidebarItemClass(active: boolean) {
-  return cn(
-    SIDEBAR_ITEM,
-    active
-      ? "bg-primary/10 text-primary"
-      : "text-muted-foreground hover:bg-muted hover:text-foreground",
-  );
-}
 
 function navSectionActive(pathname: string, item: DashboardNavItem) {
   return (
     isDashboardNavActive(pathname, item.href, item.key) ||
-    (item.children ?? []).some((child) => isDashboardNavActive(pathname, child.href))
+    navChildren(item).some((child) => isDashboardNavActive(pathname, child.href))
   );
 }
 
@@ -104,9 +97,15 @@ function SessionCacheHydrator({ session }: { session?: SessionContext | null }) 
   return null;
 }
 
+const MOBILE_HEADER_ICON_BUTTON =
+  "inline-flex size-9 items-center justify-center rounded-xl text-foreground/80 transition-colors hover:bg-[#FFF0F3] hover:text-[#F03245] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
 function DashboardShellInner({ children, initialSession, initialUser }: DashboardShellProps) {
   const pathname = usePathname();
   const isOnlineBoard = pathname === DASHBOARD_ROUTES.onlineOrderOrders;
+  // Pages that lay out their own full-height panes (the Ürünler explorer's second sidebar).
+  const isFullBleed =
+    pathname === DASHBOARD_ROUTES.digitalMenuCategories || pathname === DASHBOARD_ROUTES.digitalMenuOptions;
   const { banners, addBanner, removeBanner } = useDashboardBannerState();
   const [portalReady, setPortalReady] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -129,8 +128,8 @@ function DashboardShellInner({ children, initialSession, initialUser }: Dashboar
   );
   const moreActive =
     mobileOverflow.some((item) => isDashboardNavActive(pathname, item.href, item.key)) ||
-    mobileNavItems.some((item) => navSectionActive(pathname, item) && (item.children?.length ?? 0) > 0 &&
-      (item.children ?? []).some((child) => isDashboardNavActive(pathname, child.href)));
+    mobileNavItems.some((item) => navSectionActive(pathname, item) && navChildren(item).length > 0 &&
+      navChildren(item).some((child) => isDashboardNavActive(pathname, child.href)));
   const toggleCommand = useCallback(() => setCommandOpen((open) => !open), []);
   const openCommand = useCallback(() => setCommandOpen(true), []);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -228,27 +227,47 @@ function DashboardShellInner({ children, initialSession, initialUser }: Dashboar
       <div className="flex h-svh overflow-hidden bg-background">
         <aside
           className={cn(
-            "hidden h-full shrink-0 flex-col overflow-hidden border-r border-border bg-card p-3 transition-[width] duration-300 ease-in-out dark:bg-card lg:flex",
-            collapsed ? "w-[4.5rem]" : "w-64",
+            "hidden h-full shrink-0 flex-col overflow-hidden border-r border-border bg-card px-2 py-3 transition-[width] duration-300 will-change-[width] motion-reduce:transition-none dark:bg-card lg:flex",
+            SIDEBAR_EASE,
+            collapsed ? "w-14" : "w-64",
           )}
         >
-          <div className="flex h-10 shrink-0 items-center">
-            <Tooltip open={collapsed ? undefined : false}>
+          {/* Expanded: logo, wordmark and a collapse button. Collapsed: only the expand
+              button stays here; the logo moves into the top bar. */}
+          <div className="relative flex h-10 shrink-0 items-center">
+            <Link
+              href={DASHBOARD_ROUTES.overview}
+              inert={collapsed}
+              aria-hidden={collapsed || undefined}
+              className={cn(
+                SIDEBAR_ITEM,
+                "min-w-0 flex-1 px-1 pr-10 text-foreground transition-opacity duration-200 hover:bg-muted hover:text-foreground motion-reduce:transition-none",
+                collapsed && "pointer-events-none opacity-0",
+              )}
+            >
+              <BrandLogo size="sm" className="h-8 max-w-none sm:h-8" />
+              <span className={cn(sidebarLabelClass(collapsed), "text-base font-bold")}>
+                Algory<span className="text-muted-foreground">QR</span>
+              </span>
+            </Link>
+            <Tooltip>
               <TooltipTrigger asChild>
-                <Link
-                  href={DASHBOARD_ROUTES.overview}
-                  className={cn(SIDEBAR_ITEM, "text-foreground hover:bg-muted hover:text-foreground", collapsed && "justify-center px-0")}
+                <button
+                  type="button"
+                  onClick={toggleCollapsed}
+                  aria-label={collapsed ? "Menüyü genişlet" : "Menüyü küçült"}
+                  aria-expanded={!collapsed}
+                  className={cn(
+                    "absolute top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground transition-[left,background-color,color] duration-300 hover:bg-[#FFF0F3] hover:text-[#F03245] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none dark:hover:bg-[#F03245]/15 dark:hover:text-[#FB7185]",
+                    SIDEBAR_EASE,
+                    collapsed ? "left-1" : "left-[calc(100%-2rem)]",
+                  )}
                 >
-                  <BrandLogo size="sm" />
-                  {!collapsed ? (
-                    <span className={cn(sidebarLabelClass(false), "text-base font-bold")}>
-                      Algory<span className="text-muted-foreground">QR</span>
-                    </span>
-                  ) : null}
-                </Link>
+                  {collapsed ? <PanelLeft className="size-[18px]" /> : <PanelLeftClose className="size-[18px]" />}
+                </button>
               </TooltipTrigger>
-              <TooltipContent side="right" sideOffset={12}>
-                AlgoryQR
+              <TooltipContent side={collapsed ? "right" : "bottom"} sideOffset={8}>
+                {collapsed ? "Menüyü genişlet" : "Menüyü küçült"}
               </TooltipContent>
             </Tooltip>
           </div>
@@ -260,33 +279,6 @@ function DashboardShellInner({ children, initialSession, initialUser }: Dashboar
             onOpenPalette={openCommand}
           />
 
-          <div className="mt-3 shrink-0 space-y-1 border-t border-border pt-3">
-            <DashboardAssistantLauncher
-              iconOnly={collapsed}
-              className={cn(collapsed ? "mx-auto flex h-9 w-9 min-w-0 px-0" : "h-9 w-full justify-start px-2")}
-            />
-            <Tooltip open={collapsed ? undefined : false}>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className={cn(sidebarItemClass(false), collapsed && "justify-center px-0")}
-                  onClick={toggleCollapsed}
-                  aria-label={collapsed ? "Menüyü genişlet" : "Menüyü küçült"}
-                  aria-expanded={!collapsed}
-                >
-                  <span className="flex size-6 shrink-0 items-center justify-center">
-                    {collapsed ? <PanelLeft className="size-4" /> : <PanelLeftClose className="size-4" />}
-                  </span>
-                  {!collapsed ? <span className={sidebarLabelClass(false)}>Küçült</span> : null}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right" sideOffset={12}>
-                {collapsed ? "Menüyü genişlet" : "Menüyü küçült"}
-              </TooltipContent>
-            </Tooltip>
-
-          </div>
         </aside>
 
         <main
@@ -294,29 +286,44 @@ function DashboardShellInner({ children, initialSession, initialUser }: Dashboar
             "relative min-h-0 flex-1 overflow-y-auto bg-background pb-20 lg:pb-0",
           )}
         >
-          <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-card px-4 py-3 lg:hidden">
-            <Link href={DASHBOARD_ROUTES.overview} className="flex items-center gap-2">
-              <BrandLogo size="md" />
-              <span className="text-base font-bold">
-                Algory<span className="text-muted-foreground">QR</span>
-              </span>
-            </Link>
-            <div className="flex items-center gap-1">
-              <TrialReminderHeaderBadge compact />
-              <QuickCreateMenu compact />
-              <AccountMenu user={initialUser} onLogout={logout} onShowShortcuts={openShortcuts} compact />
-              <button
-                type="button"
-                className={cn(
-                  "inline-flex size-9 items-center justify-center rounded-md",
-                  moreActive ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted",
-                )}
-                aria-expanded={moreOpen}
-                aria-label="Menü"
-                onClick={() => setMoreOpen(true)}
+          <header className="sticky top-0 z-30 border-b border-border/70 bg-card/90 backdrop-blur-md supports-[backdrop-filter]:bg-card/75 lg:hidden">
+            <div className="flex h-14 items-center gap-2 px-4">
+              <Link
+                href={DASHBOARD_ROUTES.overview}
+                className="flex min-w-0 items-center gap-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Genel bakışa git"
               >
-                <Menu className="size-5" />
-              </button>
+                <BrandLogo size="sm" className="h-8 sm:h-8" />
+                <span className="truncate text-[15px] font-bold tracking-tight">
+                  Algory<span className="text-muted-foreground">QR</span>
+                </span>
+              </Link>
+              <div className="ml-auto flex shrink-0 items-center gap-0.5">
+                <TrialReminderHeaderBadge compact />
+                <button
+                  type="button"
+                  className={MOBILE_HEADER_ICON_BUTTON}
+                  aria-label="Ara"
+                  onClick={openCommand}
+                >
+                  <Search className="size-[18px]" />
+                </button>
+                <QuickCreateMenu compact />
+                <button
+                  type="button"
+                  className={cn(
+                    MOBILE_HEADER_ICON_BUTTON,
+                    moreActive && "bg-[#FFF0F3] text-[#F03245] hover:bg-[#FFF0F3] dark:bg-[#F03245]/15",
+                  )}
+                  aria-expanded={moreOpen}
+                  aria-label="Menü"
+                  onClick={() => setMoreOpen(true)}
+                >
+                  <Menu className="size-[18px]" />
+                </button>
+                <span className="mx-1 h-6 w-px bg-border" aria-hidden />
+                <AccountMenu user={initialUser} onLogout={logout} onShowShortcuts={openShortcuts} />
+              </div>
             </div>
           </header>
 
@@ -329,14 +336,17 @@ function DashboardShellInner({ children, initialSession, initialUser }: Dashboar
           />
 
           <DashboardTopBar
-            pathname={pathname}
-            pageLabel={pageLabel}
+            collapsed={collapsed}
             user={initialUser}
             onOpenSearch={openCommand}
             onLogout={logout}
             onShowShortcuts={openShortcuts}
           />
+          <BillingStatusBanner />
 
+          {isFullBleed ? (
+            <div className="w-full">{children}</div>
+          ) : (
           <div
             className={cn(
               pathname === DASHBOARD_ROUTES.onlineOrderOrders ||
@@ -349,12 +359,11 @@ function DashboardShellInner({ children, initialSession, initialUser }: Dashboar
             )}
           >
             {isOnlineBoard ? null : (
-              <div className="lg:hidden">
-                <DashboardBreadcrumbs pathname={pathname} currentLabel={pageLabel} />
-              </div>
+              <DashboardBreadcrumbs pathname={pathname} currentLabel={pageLabel} />
             )}
             {children}
           </div>
+          )}
         </main>
       </div>
         )}

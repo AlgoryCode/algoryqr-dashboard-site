@@ -68,7 +68,7 @@ export function MoneyInput({ value, onChange, className, onBlur, ...props }: Mon
       type="text"
       inputMode="decimal"
       className={cn(
-        "flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm tabular-nums",
+        "flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm tabular-nums focus:outline-none focus:border-ring",
         className,
       )}
       value={value}

@@ -7,19 +7,26 @@ import { getMerchantIdFromAccessToken } from "@/lib/auth-user";
 import { API_BASE_URL } from "@/lib/config";
 import { readAccessTokenFromCookies } from "@/lib/server/auth-cookies";
 
-const bodySchema = z.object({
-  menuId: z.number().int().positive(),
-  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  locale: z.string().trim().min(2).max(16).optional(),
-  options: z
-    .object({
-      tone: z.string().optional(),
-      maxLength: z.number().int().positive().optional(),
-      focusAreas: z.array(z.string()).optional(),
-    })
-    .optional(),
-});
+const bodySchema = z
+  .object({
+    // Every report covers exactly one target; all-branches ("merchant") reports are no longer offered.
+    scope: z.literal("menu").optional(),
+    menuId: z.number().int().positive(),
+    from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    locale: z.string().trim().min(2).max(16).optional(),
+    options: z
+      .object({
+        tone: z.string().optional(),
+        maxLength: z.number().int().positive().optional(),
+        focusAreas: z.array(z.string()).optional(),
+      })
+      .optional(),
+  });
+
+function smartReportUpstreamPath(body: z.infer<typeof bodySchema>): string {
+  return `/features/SMART_REPORTING/menus/${body.menuId}/reports`;
+}
 
 export async function GET(request: Request) {
   try {
@@ -35,9 +42,19 @@ export async function GET(request: Request) {
     const size = searchParams.get("size") ?? "20";
     const sort = searchParams.get("sort") ?? "createdAt,desc";
     const status = searchParams.get("status") ?? "completed";
+    const isoDay = /^\d{4}-\d{2}-\d{2}$/;
+    const from = searchParams.get("from");
+    const to = searchParams.get("to");
 
     const upstream = await axios.get(`${API_BASE_URL}/analytics/smart-reports`, {
-      params: { page, size, sort, status },
+      params: {
+        page,
+        size,
+        sort,
+        status,
+        ...(from && isoDay.test(from) ? { from } : {}),
+        ...(to && isoDay.test(to) ? { to } : {}),
+      },
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/json",
@@ -95,11 +112,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const { menuId, from, to, locale, options } = parsed.data;
+    const { from, to, locale, options } = parsed.data;
     const merchantId = getMerchantIdFromAccessToken(accessToken);
 
     const upstream = await axios.post(
-      `${API_BASE_URL}/features/SMART_REPORTING/menus/${menuId}/reports`,
+      `${API_BASE_URL}${smartReportUpstreamPath(parsed.data)}`,
       {
         from,
         to,

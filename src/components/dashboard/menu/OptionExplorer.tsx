@@ -3,11 +3,30 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, Link2, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  ChevronRight,
+  ImageIcon,
+  Loader2,
+  Pencil,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  Trash2,
+} from "lucide-react";
 
+import { AddButton } from "@/components/dashboard/AddButton";
+import {
+  EXPLORER_DANGER_ICON_BUTTON,
+  EXPLORER_QUIET_BUTTON,
+  EXPLORER_ROW_SELECTED,
+  ExplorerDetailHeader,
+  ExplorerEmpty,
+  ExplorerListLoading,
+  type ExplorerParts,
+} from "@/components/dashboard/menu/ExplorerLayout";
+import { ToneBadge } from "@/components/dashboard/ToneBadge";
 import { AddProductsAsOptions } from "@/components/dashboard/menu/ProductOptionFields";
 import { SearchableSelect } from "@/components/dashboard/menu/SearchableSelect";
-import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,12 +38,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -53,10 +66,11 @@ import {
   listCatalogProductsRequest,
   updateCatalogOptionGroupRequest,
   type CatalogOptionGroupWriteBody,
+  type MenuProductApiItem,
   type MenuProductOptionGroupApiItem,
 } from "@/lib/api";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
-import { DASHBOARD_PANEL } from "@/lib/dashboard-surface";
+import { cn } from "@/lib/utils";
 import {
   OPTION_GROUP_KINDS,
   formatOptionGroupHeading,
@@ -72,41 +86,6 @@ type ChoiceDraft = {
   priceDelta: string;
   available: boolean;
 };
-
-function GroupActions({
-  onAssign,
-  onEdit,
-  onDelete,
-}: {
-  onAssign: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 shrink-0 gap-1">
-          İşlemler
-          <ChevronDown className="h-3.5 w-3.5" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onSelect={onAssign}>
-          <Link2 className="mr-2 h-3.5 w-3.5" />
-          Ürüne dahil et
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={onEdit}>
-          <Pencil className="mr-2 h-3.5 w-3.5" />
-          Düzenle
-        </DropdownMenuItem>
-        <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={onDelete}>
-          <Trash2 className="mr-2 h-3.5 w-3.5" />
-          Sil
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
 
 type GroupDraft = {
   mode: "create" | "edit";
@@ -169,7 +148,245 @@ function toWriteBody(draft: GroupDraft): CatalogOptionGroupWriteBody {
   };
 }
 
-export function CatalogOptionsPanel() {
+type OptionExplorerProps = {
+  groups: MenuProductOptionGroupApiItem[];
+  visibleGroups: MenuProductOptionGroupApiItem[];
+  loading: boolean;
+  failed: boolean;
+  onRetry: () => void;
+  query: string;
+  onQueryChange: (value: string) => void;
+  products: MenuProductApiItem[];
+  selectedId: number | null;
+  onSelect: (groupId: number | null) => void;
+  onCreate: () => void;
+  onEdit: (group: MenuProductOptionGroupApiItem) => void;
+  onAssign: (group: MenuProductOptionGroupApiItem) => void;
+  onDelete: (group: MenuProductOptionGroupApiItem) => void;
+  dialogs: React.ReactNode;
+};
+
+function ProductThumb({ imageUrl }: { imageUrl?: string }) {
+  const [failed, setFailed] = useState(false);
+  return (
+    <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted">
+      {imageUrl && !failed ? (
+        // eslint-disable-next-line @next/next/no-img-element -- product images come from arbitrary hosts
+        <img src={imageUrl} alt="" loading="lazy" onError={() => setFailed(true)} className="size-full object-cover" />
+      ) : (
+        <ImageIcon className="size-3.5 text-muted-foreground/60" aria-hidden />
+      )}
+    </span>
+  );
+}
+
+function optionExplorerParts(props: OptionExplorerProps): ExplorerParts {
+  const { groups, visibleGroups, products, selectedId } = props;
+  const selected = groups.find((group) => group.groupId === selectedId) ?? null;
+  const productById = new Map(products.map((product) => [product.productId, product]));
+
+  const sidebar = (
+    <>
+      <div className="border-b border-border px-3 pb-3">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+          <Input
+            value={props.query}
+            onChange={(event) => props.onQueryChange(event.target.value)}
+            placeholder="Opsiyon veya seçenek ara"
+            aria-label="Opsiyon ara"
+            className="h-10 rounded-xl pl-9 text-sm"
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-2 px-3 pb-1 pt-3">
+        <p className="text-xs font-medium text-muted-foreground">
+          Opsiyonlar{groups.length > 0 ? ` · ${groups.length}` : ""}
+        </p>
+        <AddButton className="h-8 px-2 text-xs" onClick={props.onCreate}>
+          Opsiyon ekle
+        </AddButton>
+      </div>
+
+      <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-3 [scrollbar-width:thin]">
+        {props.loading ? (
+          <ExplorerListLoading label="Opsiyonlar yükleniyor…" />
+        ) : props.failed ? (
+          <div className="flex flex-col items-center gap-2 px-2 py-6 text-center">
+            <p className="text-sm text-destructive">Opsiyonlar alınamadı.</p>
+            <Button type="button" variant="ghost" size="sm" onClick={props.onRetry}>
+              Tekrar dene
+            </Button>
+          </div>
+        ) : groups.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 px-2 py-8 text-center">
+            <p className="text-sm text-muted-foreground">Henüz opsiyon yok.</p>
+            <AddButton onClick={props.onCreate}>İlk opsiyonu ekle</AddButton>
+          </div>
+        ) : visibleGroups.length === 0 ? (
+          <p className="px-2 py-6 text-center text-sm text-muted-foreground">Bu aramayla opsiyon bulunamadı.</p>
+        ) : (
+          <ul className="space-y-0.5">
+            {visibleGroups.map((group) => {
+              const current = group.groupId === selectedId;
+              const productCount = group.productIds?.length ?? 0;
+              return (
+                <li key={group.groupId}>
+                  <button
+                    type="button"
+                    onClick={() => props.onSelect(group.groupId)}
+                    aria-current={current ? "true" : undefined}
+                    className={cn(
+                      "flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      current ? EXPLORER_ROW_SELECTED : "text-foreground hover:bg-muted",
+                    )}
+                  >
+                    <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+                      <SlidersHorizontal className="size-3.5 text-muted-foreground/70" aria-hidden />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{formatOptionGroupHeading(group)}</span>
+                      <span className="block truncate text-[11px] text-muted-foreground">
+                        {optionKindLabel(group.kind)} · {group.options.length} seçenek
+                      </span>
+                    </span>
+                    <span
+                      className="shrink-0 text-[11px] tabular-nums text-muted-foreground"
+                      title={`${productCount} ürüne dahil`}
+                    >
+                      {productCount}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </nav>
+    </>
+  );
+
+  let detail: React.ReactNode;
+  if (!selected) {
+    detail = (
+      <ExplorerEmpty
+        icon={<SlidersHorizontal className="size-5" />}
+        title="Bir opsiyon seçin"
+        text="Soldaki listeden bir opsiyon seçin; seçenekleri ve dahil olduğu ürünler burada görünür."
+      />
+    );
+  } else {
+    const heading = formatOptionGroupHeading(selected);
+    const assigned = (selected.productIds ?? []).map((productId) => ({
+      productId,
+      product: productById.get(productId) ?? null,
+    }));
+    detail = (
+      <>
+        <ExplorerDetailHeader
+          title={heading}
+          badge={<ToneBadge tone="muted">{optionKindLabel(selected.kind)}</ToneBadge>}
+          subtitle={`${selected.options.length} seçenek · ${assigned.length} ürüne dahil`}
+          icon={
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-muted">
+              <SlidersHorizontal className="size-4 text-muted-foreground/70" aria-hidden />
+            </span>
+          }
+          onBack={() => props.onSelect(null)}
+          backLabel="Opsiyonlara dön"
+          actions={
+            <>
+              <button
+                type="button"
+                className={cn(EXPLORER_QUIET_BUTTON, "w-9 px-0 sm:w-auto sm:px-2.5")}
+                onClick={() => props.onEdit(selected)}
+                aria-label="Opsiyonu düzenle"
+              >
+                <Pencil className="size-3.5" />
+                <span className="hidden sm:inline">Düzenle</span>
+              </button>
+              <button
+                type="button"
+                className={EXPLORER_DANGER_ICON_BUTTON}
+                onClick={() => props.onDelete(selected)}
+                aria-label="Opsiyonu sil"
+              >
+                <Trash2 className="size-4" />
+              </button>
+            </>
+          }
+        />
+
+        <div className="border-b border-border">
+          <h3 className="px-4 pb-1 pt-3 text-xs font-medium text-muted-foreground">Seçenekler</h3>
+          {selected.options.length === 0 ? (
+            <p className="px-4 pb-4 pt-1 text-sm text-muted-foreground">Seçenek yok.</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {selected.options.map((option) => (
+                <li key={option.optionId} className="flex items-center gap-3 px-4 py-2.5">
+                  <span className={cn("min-w-0 flex-1 truncate text-sm", !option.available && "text-muted-foreground line-through")}>
+                    {option.name}
+                  </span>
+                  {!option.available ? <ToneBadge tone="muted">Kapalı</ToneBadge> : null}
+                  <span className="w-20 shrink-0 text-right text-sm tabular-nums text-muted-foreground">
+                    {formatPriceDelta(option.priceDelta) ?? "Ücretsiz"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between gap-2 px-4 pb-1 pt-2">
+            <h3 className="text-xs font-medium text-muted-foreground">Dahil olduğu ürünler</h3>
+            <AddButton className="h-8 px-2 text-xs" onClick={() => props.onAssign(selected)}>
+              Ürüne dahil et
+            </AddButton>
+          </div>
+          {assigned.length === 0 ? (
+            <p className="px-4 pb-4 pt-1 text-sm text-muted-foreground">Bu opsiyon henüz bir ürüne dahil değil.</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {assigned.map(({ productId, product }) => (
+                <li key={productId}>
+                  {product ? (
+                    <Link
+                      href={productHref(product)}
+                      className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                    >
+                      <ProductThumb imageUrl={product.imageUrl} />
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{product.name}</span>
+                      <ChevronRight className="size-4 shrink-0 text-muted-foreground/50" aria-hidden />
+                    </Link>
+                  ) : (
+                    <span className="flex items-center gap-3 px-4 py-2.5 text-sm text-muted-foreground">
+                      <ProductThumb />
+                      Ürün #{productId}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </>
+    );
+  }
+
+  return { sidebar, detail, hasSelection: selected != null, dialogs: props.dialogs };
+}
+
+function productHref(product: MenuProductApiItem): string {
+  return product.menuId != null
+    ? DASHBOARD_ROUTES.digitalMenuProductDetailForMenu(product.productId, product.menuId)
+    : `${DASHBOARD_ROUTES.digitalMenuProducts}/${product.productId}`;
+}
+
+/** The Opsiyonlar side of the Ürünler explorer: option groups in the second sidebar, the picked one on the right. */
+export function useOptionExplorer(): ExplorerParts {
   const queryClient = useQueryClient();
   const { notify } = useDashboardBanners();
   const groupsQuery = useQuery({
@@ -180,14 +397,15 @@ export function CatalogOptionsPanel() {
     queryKey: ["catalog-products"],
     queryFn: listCatalogProductsRequest,
   });
-  const groups = groupsQuery.data ?? [];
-  const products = productsQuery.data ?? [];
+  const groups = useMemo(() => groupsQuery.data ?? [], [groupsQuery.data]);
+  const products = useMemo(() => productsQuery.data ?? [], [productsQuery.data]);
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState<GroupDraft | null>(null);
   const [assignGroupId, setAssignGroupId] = useState<number | null>(null);
   const [assignProductId, setAssignProductId] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<MenuProductOptionGroupApiItem | null>(null);
   const [saving, setSaving] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
 
   const productNameById = useMemo(() => {
     const names = new Map<number, string>();
@@ -312,161 +530,13 @@ export function CatalogOptionsPanel() {
     });
   };
 
-  return (
+  const openAssign = (group: MenuProductOptionGroupApiItem) => {
+    setAssignProductId("");
+    setAssignGroupId(group.groupId);
+  };
+
+  const dialogs = (
     <>
-      <DashboardPageHeader
-        title="Opsiyonlar"
-        hint="Opsiyonları tek başına oluşturun. İstediğiniz zaman bir ürüne dahil edin."
-        action={
-          <Button size="sm" className="gap-1.5" onClick={() => setDraft(emptyDraft())}>
-            <Plus className="h-3.5 w-3.5" />
-            Opsiyon ekle
-          </Button>
-        }
-      />
-
-      {groupsQuery.isLoading ? (
-        <div className={`${DASHBOARD_PANEL} flex items-center gap-2 text-sm text-muted-foreground`}>
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Opsiyonlar yükleniyor…
-        </div>
-      ) : groupsQuery.isError ? (
-        <p className="text-sm text-destructive">Opsiyonlar yüklenemedi.</p>
-      ) : (
-        <div className="space-y-3">
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Opsiyon veya seçenek ara"
-            aria-label="Opsiyon ara"
-          />
-          {visibleGroups.length === 0 ? (
-            <div className={DASHBOARD_PANEL}>
-              <p className="text-sm text-muted-foreground">
-                {query.trim()
-                  ? "Bu aramaya uygun opsiyon yok."
-                  : "Henüz opsiyon yok. Opsiyon ekle ile başlayın."}
-              </p>
-            </div>
-          ) : (
-            <>
-            <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card md:hidden">
-              {visibleGroups.map((group) => {
-                const assignedNames = (group.productIds ?? []).map(
-                  (productId) => productNameById.get(productId) ?? `Ürün #${productId}`,
-                );
-                return (
-                  <article key={group.groupId} className="space-y-3 px-3 py-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate font-medium">{formatOptionGroupHeading(group)}</p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {optionKindLabel(group.kind)}
-                          {assignedNames.length > 0 ? ` · ${assignedNames.join(", ")}` : ""}
-                        </p>
-                      </div>
-                      <GroupActions
-                        onAssign={() => {
-                          setAssignProductId("");
-                          setAssignGroupId(group.groupId);
-                        }}
-                        onEdit={() => openEdit(group)}
-                        onDelete={() => setDeleteTarget(group)}
-                      />
-                    </div>
-                    <ul className="space-y-2">
-                      {group.options.length === 0 ? (
-                        <li className="text-sm text-muted-foreground">Seçenek yok</li>
-                      ) : (
-                        group.options.map((option) => (
-                          <li key={option.optionId} className="flex items-baseline justify-between gap-3 text-sm">
-                            <span className={option.available ? "min-w-0 truncate" : "min-w-0 truncate text-muted-foreground line-through"}>
-                              {option.name}
-                            </span>
-                            <span className="shrink-0 text-xs text-muted-foreground">
-                              {formatPriceDelta(option.priceDelta) ?? "—"} · {option.available ? "Aktif" : "Kapalı"}
-                            </span>
-                          </li>
-                        ))
-                      )}
-                    </ul>
-                  </article>
-                );
-              })}
-            </div>
-            <div className="hidden overflow-x-auto rounded-xl border border-border bg-card md:block">
-              <table className="w-full min-w-[880px] border-collapse text-sm">
-                <thead>
-                  <tr>
-                    {["Grup", "Tür", "Seçenek", "Fiyat farkı", "Durum", "Ürünler", "İşlem"].map((label) => (
-                      <th
-                        key={label}
-                        className="border border-border bg-muted/50 px-3 py-2 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground"
-                      >
-                        {label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleGroups.map((group) => {
-                    const assignedNames = (group.productIds ?? []).map(
-                      (productId) => productNameById.get(productId) ?? `Ürün #${productId}`,
-                    );
-                    const rows = group.options.length > 0 ? group.options : [null];
-                    return rows.map((option, index) => (
-                      <tr key={option ? option.optionId : `${group.groupId}-empty`} className="hover:bg-muted/30">
-                        {index === 0 ? (
-                          <>
-                            <td rowSpan={rows.length} className="border border-border px-3 py-2.5 align-top font-medium">
-                              {formatOptionGroupHeading(group)}
-                            </td>
-                            <td rowSpan={rows.length} className="border border-border px-3 py-2.5 align-top text-muted-foreground">
-                              {optionKindLabel(group.kind)}
-                            </td>
-                          </>
-                        ) : null}
-                        <td
-                          className={`border border-border px-3 py-2.5 ${
-                            option && !option.available ? "text-muted-foreground line-through" : ""
-                          }`}
-                        >
-                          {option?.name || "—"}
-                        </td>
-                        <td className="border border-border px-3 py-2.5 tabular-nums text-muted-foreground">
-                          {option ? formatPriceDelta(option.priceDelta) ?? "—" : "—"}
-                        </td>
-                        <td className="border border-border px-3 py-2.5 text-muted-foreground">
-                          {option ? (option.available ? "Aktif" : "Kapalı") : "—"}
-                        </td>
-                        {index === 0 ? (
-                          <>
-                            <td rowSpan={rows.length} className="border border-border px-3 py-2.5 align-top text-muted-foreground">
-                              {assignedNames.length > 0 ? assignedNames.join(", ") : "—"}
-                            </td>
-                            <td rowSpan={rows.length} className="border border-border px-2 py-2 text-right align-top">
-                              <GroupActions
-                                onAssign={() => {
-                                  setAssignProductId("");
-                                  setAssignGroupId(group.groupId);
-                                }}
-                                onEdit={() => openEdit(group)}
-                                onDelete={() => setDeleteTarget(group)}
-                              />
-                            </td>
-                          </>
-                        ) : null}
-                      </tr>
-                    ));
-                  })}
-                </tbody>
-              </table>
-            </div>
-            </>
-          )}
-        </div>
-      )}
-
       <Dialog open={draft != null} onOpenChange={(open) => !open && !saving && setDraft(null)}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -674,6 +744,7 @@ export function CatalogOptionsPanel() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={saving}>Vazgeç</AlertDialogCancel>
             <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={saving}
               onClick={(event) => {
                 event.preventDefault();
@@ -687,4 +758,22 @@ export function CatalogOptionsPanel() {
       </AlertDialog>
     </>
   );
+
+  return optionExplorerParts({
+    groups,
+    visibleGroups,
+    loading: groupsQuery.isLoading,
+    failed: groupsQuery.isError,
+    onRetry: () => void groupsQuery.refetch(),
+    query,
+    onQueryChange: setQuery,
+    products,
+    selectedId,
+    onSelect: setSelectedId,
+    onCreate: () => setDraft(emptyDraft()),
+    onEdit: openEdit,
+    onAssign: openAssign,
+    onDelete: setDeleteTarget,
+    dialogs,
+  });
 }

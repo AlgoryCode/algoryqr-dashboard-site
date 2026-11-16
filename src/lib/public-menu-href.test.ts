@@ -13,7 +13,7 @@ describe("resolvePublicMenuHref", () => {
         publicUrl: "https://stage.dashboard.algorycode.com/menu/abc123",
         publicId: "abc123",
       }),
-    ).toBe("https://menu.algorycode.com/menu/abc123/content");
+    ).toBe("https://qr.algorycode.com/menu/abc123/content");
   });
 
   it("rewrites stage.qr publicUrl to the fixed menu origin", () => {
@@ -22,7 +22,7 @@ describe("resolvePublicMenuHref", () => {
         publicUrl: "https://stage.qr.algorycode.com/menu/scxtG9KR5FrK0RlLjcYPUw",
         publicId: "scxtG9KR5FrK0RlLjcYPUw",
       }),
-    ).toBe("https://menu.algorycode.com/menu/scxtG9KR5FrK0RlLjcYPUw/content");
+    ).toBe("https://qr.algorycode.com/menu/scxtG9KR5FrK0RlLjcYPUw/content");
   });
 
   it("rewrites legacy qr.algorycode.com publicUrl to the fixed menu origin", () => {
@@ -31,7 +31,7 @@ describe("resolvePublicMenuHref", () => {
         publicUrl: "https://qr.algorycode.com/menu/pub-1",
         publicId: "pub-1",
       }),
-    ).toBe("https://menu.algorycode.com/menu/pub-1/content");
+    ).toBe("https://qr.algorycode.com/menu/pub-1/content");
   });
 
   it("rewrites localhost publicUrl to the fixed menu origin", () => {
@@ -40,7 +40,7 @@ describe("resolvePublicMenuHref", () => {
         publicUrl: "http://localhost:3000/menu/pub-1",
         publicId: "pub-1",
       }),
-    ).toBe("https://menu.algorycode.com/menu/pub-1/content");
+    ).toBe("https://qr.algorycode.com/menu/pub-1/content");
   });
 
   it("ignores runtime menu origin overrides", () => {
@@ -50,6 +50,6 @@ describe("resolvePublicMenuHref", () => {
         publicUrl: "https://stage.qr.algorycode.com/menu/pub-1",
         publicId: "pub-1",
       }),
-    ).toBe("https://menu.algorycode.com/menu/pub-1/content");
+    ).toBe("https://qr.algorycode.com/menu/pub-1/content");
   });
 });

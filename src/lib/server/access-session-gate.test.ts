@@ -48,13 +48,13 @@ describe("resolveDashboardPathForRequest", () => {
     expect(next).toBe(SHOP_PATH);
   });
 
-  it("redirects to demo register when START_PACKAGE", async () => {
+  it("redirects to the trial wizard when START_PACKAGE", async () => {
     mockFetchOk({ decision: "START_PACKAGE" });
     const next = await resolveDashboardPathForRequest(
       DASHBOARD_ROUTES.overview,
       accessToken(),
     );
-    expect(next).toBe(DASHBOARD_ROUTES.demoRegister);
+    expect(next).toBe(DASHBOARD_ROUTES.trialStart);
   });
 
   it("keeps overview when ALLOW", async () => {
@@ -100,6 +100,7 @@ describe("fetchAccessSessionWithToken", () => {
       debtDueAt: null,
       messageKey: null,
       code: null,
+      billingState: null,
     });
   });
 });

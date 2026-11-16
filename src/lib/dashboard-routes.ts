@@ -53,11 +53,12 @@ export const DASHBOARD_ROUTES = {
   branchSettings: (branchId: number | string) => `/subedetay/${branchId}/ayarlar`,
   catalogProductCheckout: (code: string) =>
     `/urun-satin-al/${encodeURIComponent(code)}`,
-  digitalMenuEdit: (qrId: number | string) => `/qr/${qrId}`,
+  digitalMenuEdit: (qrId: number | string) => `/menuler/${qrId}`,
   digitalMenuSettings: (qrId: number | string) =>
-    `/qr/${qrId}/ayarlar`,
+    `/menuler/${qrId}/ayarlar`,
+  /** The Ürünler explorer (categories and their products) opened on one menu. */
   digitalMenuProductsForQr: (qrId: number | string) =>
-    `/urunler?qr=${qrId}`,
+    `/kategoriler?qr=${qrId}`,
   digitalMenuCategoriesForQr: (qrId: number | string) =>
     `/kategoriler?qr=${qrId}`,
   digitalMenuAnalytics: (qrId: number | string) =>
@@ -72,6 +73,8 @@ export const DASHBOARD_ROUTES = {
     return `${DASHBOARD_ROUTES.reportsHub}?${params.toString()}`;
   },
   smartReports: "/akilli-raporlar",
+  smartReportNew: "/akilli-raporlar/yeni",
+  smartReportHistory: "/akilli-raporlar/gecmis",
   smartReportDetail: (jobId: string) =>
     `/akilli-raporlar/${jobId}`,
   feedback: "/geri-bildirimler",
@@ -80,8 +83,6 @@ export const DASHBOARD_ROUTES = {
   reservations: "/rezervasyonlar",
   reservationsForBranch: (branchId: number | string) =>
     `/rezervasyonlar?branch=${branchId}`,
-  reservationsForQr: (qrId: number | string) =>
-    `/rezervasyonlar?qr=${qrId}`,
   restaurantLayout: "/restaurant-layout",
   restaurantLayoutForQr: (qrId: number | string) =>
     `/restaurant-layout?qr=${qrId}`,
@@ -213,7 +214,14 @@ export type DashboardNavChild = {
   key: string;
   label: string;
   href: string;
+  /** Reachable from search (Ctrl K) but not listed under its parent in the sidebar or mobile menu. */
+  hiddenInNav?: boolean;
 };
+
+/** The sub pages listed under a nav item in the sidebar and the mobile menu. */
+export function navChildren(item: Pick<DashboardNavItem, "children">): DashboardNavChild[] {
+  return (item.children ?? []).filter((child) => !child.hiddenInNav);
+}
 
 export type DashboardNavItem = {
   key: DashboardNavKey;
@@ -259,9 +267,9 @@ export const DASHBOARD_NAV_GROUPS: DashboardNavGroup[] = [
 
 export const DASHBOARD_MOBILE_PRIMARY_KEYS: DashboardNavKey[] = [
   "overview",
+  "myMenus",
   "myBranches",
   "reports",
-  "reservations",
 ];
 
 export function splitMobileDashboardNav(items: DashboardNavItem[]): {
@@ -332,18 +340,22 @@ export const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
     key: "products",
     label: "Ürünler",
     mobileLabel: "Ürünler",
-    href: DASHBOARD_ROUTES.digitalMenuProducts,
+    // The Ürünler explorer: categories (or options) in a second sidebar, their products beside it.
+    href: DASHBOARD_ROUTES.digitalMenuCategories,
     requiredScope: "QR_MENU_OWNER",
+    // Switched between inside the explorer itself; kept here so search still finds them.
     children: [
       {
         key: "categories",
         label: "Kategoriler",
         href: DASHBOARD_ROUTES.digitalMenuCategories,
+        hiddenInNav: true,
       },
       {
         key: "options",
         label: "Opsiyonlar",
         href: DASHBOARD_ROUTES.digitalMenuOptions,
+        hiddenInNav: true,
       },
     ],
   },
@@ -537,7 +549,14 @@ export function buildDashboardBreadcrumbs(
     }
     if (pathname.startsWith(`${DASHBOARD_ROUTES.smartReports}/`)) {
       crumbs.push({ label: "Akıllı Raporlar", href: DASHBOARD_ROUTES.smartReports });
-      crumbs.push({ label: currentLabel ?? "Rapor Detayı" });
+      crumbs.push({
+        label:
+          pathname === DASHBOARD_ROUTES.smartReportNew
+            ? "Yeni Rapor"
+            : pathname === DASHBOARD_ROUTES.smartReportHistory
+              ? "Geçmiş Raporlar"
+              : currentLabel ?? "Rapor Detayı",
+      });
       return crumbs;
     }
     return crumbs;
@@ -615,21 +634,21 @@ export function buildDashboardBreadcrumbs(
       return crumbs;
     }
     if (pathname === DASHBOARD_ROUTES.digitalMenuMenus) {
-      crumbs.push({ label: "Şubeler" });
+      crumbs.push({ label: "Menülerim" });
       return crumbs;
     }
     if (pathname === DASHBOARD_ROUTES.digitalMenuProductCreate) {
-      crumbs.push({ label: "Ürünler", href: DASHBOARD_ROUTES.digitalMenuProducts });
+      crumbs.push({ label: "Ürünler", href: DASHBOARD_ROUTES.digitalMenuCategories });
       crumbs.push({ label: "Yeni ürün" });
       return crumbs;
     }
     if (pathname === DASHBOARD_ROUTES.digitalMenuAiImport) {
-      crumbs.push({ label: "Ürünler", href: DASHBOARD_ROUTES.digitalMenuProducts });
+      crumbs.push({ label: "Ürünler", href: DASHBOARD_ROUTES.digitalMenuCategories });
       crumbs.push({ label: "AI ile ekle" });
       return crumbs;
     }
     if (pathname.startsWith(`${DASHBOARD_ROUTES.digitalMenuProducts}/`)) {
-      crumbs.push({ label: "Ürünler", href: DASHBOARD_ROUTES.digitalMenuProducts });
+      crumbs.push({ label: "Ürünler", href: DASHBOARD_ROUTES.digitalMenuCategories });
       crumbs.push({ label: currentLabel ?? "Ürün" });
       return crumbs;
     }
@@ -638,12 +657,11 @@ export function buildDashboardBreadcrumbs(
       return crumbs;
     }
     if (pathname === DASHBOARD_ROUTES.digitalMenuCategories) {
-      crumbs.push({ label: "Ürünler", href: DASHBOARD_ROUTES.digitalMenuProducts });
-      crumbs.push({ label: "Kategoriler" });
+      crumbs.push({ label: "Ürünler" });
       return crumbs;
     }
     if (pathname === DASHBOARD_ROUTES.digitalMenuOptions) {
-      crumbs.push({ label: "Ürünler", href: DASHBOARD_ROUTES.digitalMenuProducts });
+      crumbs.push({ label: "Ürünler", href: DASHBOARD_ROUTES.digitalMenuCategories });
       crumbs.push({ label: "Opsiyonlar" });
       return crumbs;
     }
@@ -659,7 +677,7 @@ export function buildDashboardBreadcrumbs(
       crumbs.push({ label: "Menü Oluşturma Sihirbazı" });
       return crumbs;
     }
-    if (pathname.startsWith(`/qr/`)) {
+    if (pathname.startsWith(`${DASHBOARD_ROUTES.digitalMenuMenus}/`)) {
       if (pathname.endsWith("/ayarlar")) {
         crumbs.push({ label: currentLabel ?? "Menü", href: pathname.replace(/\/ayarlar$/, "") });
         crumbs.push({ label: "Ayarlar" });
@@ -781,6 +799,14 @@ export function isDashboardNavActive(
   }
   if (navKey === "myMenus") {
     return isMenusNavActive(pathname);
+  }
+  if (navKey === "products") {
+    return (
+      pathname === DASHBOARD_ROUTES.digitalMenuProducts ||
+      pathname.startsWith(`${DASHBOARD_ROUTES.digitalMenuProducts}/`) ||
+      pathname === DASHBOARD_ROUTES.digitalMenuCategories ||
+      pathname === DASHBOARD_ROUTES.digitalMenuOptions
+    );
   }
   if (navKey === "restaurantLayout") {
     return isRestaurantLayoutPath(pathname);

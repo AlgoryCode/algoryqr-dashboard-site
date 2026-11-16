@@ -17,9 +17,7 @@ import {
   RefreshCw,
   ShoppingBag,
   SlidersHorizontal,
-  UserRound,
   Users,
-  X,
 } from "lucide-react";
 
 import {
@@ -35,7 +33,8 @@ import {
   REPORT_CARD,
   ReportLoadingSkeleton,
   ReportStateCard,
-  ReportTypeNav,
+  ReportFilterField,
+  ReportTypeTabs,
   ResponsiveSheet,
   formatReportRange,
   type ReportTypeItem,
@@ -340,6 +339,24 @@ export default function AnalyticsTab() {
     />
   );
 
+  const labeledPicker = (
+    <BranchReportPicker
+      branches={branches}
+      selectedBranchId={branchId}
+      selectedQrId={qrId}
+      waiters={waiterOptions}
+      selectedWaiterId={waiterId}
+      showMenuFilter={activeReportView === "menu"}
+      showWaiterFilter={activeReportView === "personnel" && canUseRevenue}
+      onBranchSelect={handleBranchSelect}
+      onMenuSelect={handleMenuSelect}
+      onWaiterSelect={setWaiterId}
+      labeled
+    />
+  );
+
+  const activeReportType = reportTypes.find((item) => item.value === activeReportView);
+
   const refreshButton = (
     <Button
       type="button"
@@ -388,19 +405,8 @@ export default function AnalyticsTab() {
           </Link>
           <div className="min-w-0">
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">Raporlar</h1>
-            <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
-              {branchLabel ? <span className="font-medium text-foreground">{branchLabel}</span> : null}
-              {branchLabel ? <span aria-hidden>·</span> : null}
-              <span className="inline-flex items-center gap-1">
-                <CalendarDays className="h-3.5 w-3.5" />
-                {rangeLabel}
-              </span>
-              {lastUpdatedLabel ? (
-                <>
-                  <span aria-hidden>·</span>
-                  <span>Güncellendi {lastUpdatedLabel}</span>
-                </>
-              ) : null}
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {activeReportType?.description ?? "Şube bazında satış, sipariş, personel ve menü raporları"}
             </p>
           </div>
         </div>
@@ -414,41 +420,55 @@ export default function AnalyticsTab() {
           action={{ label: "Şube oluştur", href: DASHBOARD_ROUTES.branchCreate }}
         />
       ) : (
-        <div className="space-y-3">
-          {!accessPending ? (
-            <ReportTypeNav items={reportTypes} value={activeReportView} onChange={changeReportView} />
-          ) : null}
-
-          {/* Filtreler */}
-          <div className="sticky top-0 z-10 -mx-1 bg-background/95 px-1 py-1 backdrop-blur">
-            {isMobile ? (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setFiltersOpen(true)}
-                  className={cn(
-                    REPORT_CARD,
-                    "flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  )}
-                  aria-label="Filtreleri aç"
-                >
-                  <SlidersHorizontal className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-foreground">
-                      {branchLabel ?? "Şube seçin"}
-                    </span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {periodLabel}
-                      {selectedWaiterName ? ` · ${selectedWaiterName}` : ""}
-                    </span>
-                  </span>
-                  <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                </button>
+        <section
+          aria-label="Rapor seçimi ve filtreler"
+          className={cn(
+            REPORT_CARD,
+            "sticky top-0 z-10 overflow-hidden bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/85 dark:bg-card/95",
+          )}
+        >
+          {/* Rapor türü + yenile */}
+          <div className="flex items-center gap-2 border-b border-[#ececea] px-3 py-2.5 dark:border-border">
+            {!accessPending ? (
+              <ReportTypeTabs items={reportTypes} value={activeReportView} onChange={changeReportView} />
+            ) : (
+              <div className="h-11 flex-1 animate-pulse rounded-xl bg-muted/70" />
+            )}
+            {!isMobile ? (
+              <div className="ml-auto flex shrink-0 items-center gap-2">
+                {lastUpdatedLabel ? (
+                  <span className="hidden text-xs text-muted-foreground lg:inline">Güncellendi {lastUpdatedLabel}</span>
+                ) : null}
                 {refreshButton}
               </div>
-            ) : (
-              <div className={cn(REPORT_CARD, "flex flex-wrap items-center gap-3 p-2.5")}>
-                <div className="min-w-0 flex-1">{picker}</div>
+            ) : null}
+          </div>
+
+          {/* Şube, menü/personel, dönem */}
+          {isMobile ? (
+            <div className="flex items-center gap-2 pr-3">
+              <button
+                type="button"
+                onClick={() => setFiltersOpen(true)}
+                className="flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                aria-label="Filtreleri aç"
+              >
+                <SlidersHorizontal className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-foreground">{branchLabel ?? "Şube seçin"}</span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {periodLabel} · {rangeLabel}
+                    {selectedWaiterName ? ` · ${selectedWaiterName}` : ""}
+                  </span>
+                </span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </button>
+              {refreshButton}
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-end gap-x-4 gap-y-3 px-3 py-3">
+              {labeledPicker}
+              <ReportFilterField label="Dönem" className="shrink-0">
                 <SlidingTabSelect
                   variant="soft"
                   ariaLabel="Rapor dönemi"
@@ -456,29 +476,16 @@ export default function AnalyticsTab() {
                   onValueChange={(next) => setPeriod(next as AnalyticsPeriod)}
                   items={PERIOD_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
                 />
-                {refreshButton}
-              </div>
-            )}
-          </div>
-
-          {selectedWaiterName && activeReportView === "personnel" ? (
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-muted-foreground">Filtre:</span>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 py-1 pl-3 pr-1 text-xs font-medium text-primary">
-                <UserRound className="h-3 w-3" />
-                {selectedWaiterName}
-                <button
-                  type="button"
-                  onClick={() => setWaiterId(null)}
-                  className="rounded-full p-0.5 hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  aria-label="Personel filtresini kaldır"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </span>
+              </ReportFilterField>
+              <ReportFilterField label="Tarih aralığı" className="shrink-0">
+                <span className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-muted/60 px-3 text-xs font-medium text-foreground">
+                  <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
+                  {rangeLabel}
+                </span>
+              </ReportFilterField>
             </div>
-          ) : null}
-        </div>
+          )}
+        </section>
       )}
 
       {showLoading ? <ReportLoadingSkeleton /> : null}

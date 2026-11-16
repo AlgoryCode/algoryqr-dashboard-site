@@ -12,18 +12,12 @@ export function DigitalMenuMenusPanel() {
   const createHref = resolveCreateMenuHref();
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-5 animate-fade-in">
       <DashboardPageHeader
         title="Menülerim"
-        hint="Menüler şubeden bağımsız oluşturulur. İsterseniz bir şubeye atayabilirsiniz."
         action={
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9 shrink-0 gap-1.5 border-border bg-white px-3 text-xs font-medium shadow-none dark:bg-card"
-            onClick={() => router.push(createHref)}
-          >
-            <Plus className="h-3.5 w-3.5" />
+          <Button size="sm" className="h-9 shrink-0 gap-1.5 rounded-xl px-3.5 shadow-sm" onClick={() => router.push(createHref)}>
+            <Plus className="h-4 w-4" />
             Menü oluştur
           </Button>
         }

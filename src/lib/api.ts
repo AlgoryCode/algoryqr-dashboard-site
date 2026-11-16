@@ -2223,7 +2223,10 @@ export type MenuReservationStatus = "PENDING" | "ACTIVE" | "CANCELED";
 
 export interface MenuReservationApiItem {
   id: number;
-  menuId: number;
+  /** The menu the guest booked from; null when the business entered it for a branch. */
+  menuId: number | null;
+  /** The branch (venue) the reservation is for. */
+  branchId?: number | null;
   customerName: string;
   phone?: string | null;
   email?: string | null;
@@ -2304,6 +2307,42 @@ export async function getMenuReservationsRequest(
   const response = await api.get<MenuReservationPageApiResponse>(`/menu/${menuId}/reservations`, {
     params,
   });
+  return response.data;
+}
+
+type ReservationListParams = {
+  status?: MenuReservationStatus | "all";
+  from?: string;
+  to?: string;
+  q?: string;
+  page?: number;
+  size?: number;
+};
+
+/** Every reservation of a branch, whichever of its menus (or the panel) it came from. */
+export async function getBranchReservationsRequest(
+  branchId: number | string,
+  params: ReservationListParams = {},
+): Promise<MenuReservationPageApiResponse> {
+  const response = await api.get<MenuReservationPageApiResponse>(`/branches/${branchId}/reservations`, { params });
+  return response.data;
+}
+
+/** A reservation the business enters for a branch; the server stores it as confirmed. */
+export async function createBranchReservationRequest(
+  branchId: number | string,
+  payload: MenuReservationCreateBody,
+): Promise<MenuReservationApiItem> {
+  const response = await api.post<MenuReservationApiItem>(`/branches/${branchId}/reservations`, payload);
+  return response.data;
+}
+
+export async function updateBranchReservationRequest(
+  branchId: number | string,
+  reservationId: number | string,
+  payload: MenuReservationUpdateBody,
+): Promise<MenuReservationApiItem> {
+  const response = await api.patch<MenuReservationApiItem>(`/branches/${branchId}/reservations/${reservationId}`, payload);
   return response.data;
 }
 

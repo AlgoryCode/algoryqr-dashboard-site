@@ -56,13 +56,13 @@ import { useDashboardBanners } from "@/contexts/dashboard-banners";
 import { useBranches } from "@/hooks/use-branches";
 import {
   ApiError,
-  createMenuReservationRequest,
-  updateMenuReservationRequest,
+  createBranchReservationRequest,
+  updateBranchReservationRequest,
   type MenuReservationApiItem,
   type MenuReservationStatus,
 } from "@/lib/api";
 import { RESERVATION_SOURCE_TONE, RESERVATION_STATUS_TONE } from "@/lib/badge-tones";
-import { listMenuReservationsInRange } from "@/lib/branch-reservations";
+import { listBranchReservationsInRange } from "@/lib/branch-reservations";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import {
   EMPTY_RESERVATION_FILTERS,
@@ -136,16 +136,17 @@ function ReservationsPanel() {
       ),
     [branches],
   );
-  const menuById = useMemo(() => new Map(menus.map((menu) => [menu.menuId, menu])), [menus]);
+  // Reservations belong to a branch (the venue); menus only matter for the online booking link.
+  const branchNameById = useMemo(() => new Map(branches.map((branch) => [branch.id, branch.name])), [branches]);
   const chosenBranches = filters.branches.filter((id) => branches.some((branch) => branch.id === id));
-  const scopeMenus = chosenBranches.length ? menus.filter((menu) => chosenBranches.includes(menu.branchId)) : menus;
-  const scopeMenuIds = scopeMenus.map((menu) => menu.menuId);
+  const scopeBranches = chosenBranches.length ? branches.filter((branch) => chosenBranches.includes(branch.id)) : branches;
+  const scopeBranchIds = scopeBranches.map((branch) => branch.id);
   const range = reservationDateRange(filters);
 
   const listQuery = useQuery({
-    queryKey: [QUERY_KEY, scopeMenuIds, range.from ?? "", range.to ?? ""],
-    queryFn: () => listMenuReservationsInRange(scopeMenuIds, range),
-    enabled: scopeMenuIds.length > 0,
+    queryKey: [QUERY_KEY, scopeBranchIds, range.from ?? "", range.to ?? ""],
+    queryFn: () => listBranchReservationsInRange(scopeBranchIds, range),
+    enabled: scopeBranchIds.length > 0,
     placeholderData: keepPreviousData,
     refetchInterval: 60_000,
   });
@@ -161,7 +162,7 @@ function ReservationsPanel() {
   const page = Math.min(filters.page, totalPages);
   const pageItems = visible.slice((page - 1) * RESERVATION_PAGE_SIZE, page * RESERVATION_PAGE_SIZE);
   const narrowed = isReservationListNarrowed(filters);
-  const showMenu = scopeMenus.length > 1;
+  const showBranch = scopeBranches.length > 1;
 
   const update = (patch: Partial<ReservationListFilters>) => {
     const current = parseReservationFilters(new URLSearchParams(window.location.search));
@@ -174,7 +175,7 @@ function ReservationsPanel() {
 
   const statusMutation = useMutation({
     mutationFn: ({ item, status }: { item: MenuReservationApiItem; status: MenuReservationStatus }) =>
-      updateMenuReservationRequest(item.menuId, item.id, { status }),
+      updateBranchReservationRequest(requireBranchId(item), item.id, { status }),
     onSuccess: async (_saved, { status }) => {
       await refresh();
       setCancelTarget(null);
@@ -186,7 +187,7 @@ function ReservationsPanel() {
   const saveMutation = useMutation({
     mutationFn: async ({ item, values }: { item: MenuReservationApiItem | null; values: ReservationFormValues }) => {
       if (!item) {
-        return createMenuReservationRequest(values.menuId, {
+        return createBranchReservationRequest(values.branchId, {
           customerName: values.customerName,
           phone: values.phone || undefined,
           email: values.email || undefined,
@@ -195,7 +196,7 @@ function ReservationsPanel() {
           note: values.note || undefined,
         });
       }
-      return updateMenuReservationRequest(item.menuId, item.id, {
+      return updateBranchReservationRequest(requireBranchId(item), item.id, {
         customerName: values.customerName,
         phone: values.phone,
         email: values.email,
@@ -222,12 +223,14 @@ function ReservationsPanel() {
       title="Rezervasyonlar"
       hint="Gelen talepleri onaylayın, telefonla alınanları ekleyin ve rezervasyon linkinizi paylaşın."
       action={
-        menus.length > 0 ? (
+        branches.length > 0 ? (
           <div className="flex w-full gap-2 sm:w-auto">
-            <Button type="button" size="sm" variant="outline" className="h-9 flex-1 gap-1.5 sm:flex-none" onClick={() => setLinkOpen(true)}>
-              <Link2 className="size-4" />
-              Rezervasyon linki
-            </Button>
+            {menus.length > 0 ? (
+              <Button type="button" size="sm" variant="outline" className="h-9 flex-1 gap-1.5 sm:flex-none" onClick={() => setLinkOpen(true)}>
+                <Link2 className="size-4" />
+                Rezervasyon linki
+              </Button>
+            ) : null}
             <Button type="button" size="sm" className="h-9 flex-1 gap-1.5 sm:flex-none" onClick={openCreate}>
               <Plus className="size-4" />
               Rezervasyon oluştur
@@ -238,31 +241,19 @@ function ReservationsPanel() {
     />
   );
 
-  if (branches.length === 0 || menus.length === 0) {
+  if (branches.length === 0) {
     return (
       <div className="space-y-4 animate-fade-in">
         {header}
-        {branches.length === 0 ? (
-          <EmptyState
-            title="Önce bir şube oluşturun"
-            description="Rezervasyonlar şubedeki dijital menü üzerinden alınır."
-            action={
-              <Button asChild variant="outline">
-                <Link href={DASHBOARD_ROUTES.branchCreate}>Şube oluştur</Link>
-              </Button>
-            }
-          />
-        ) : (
-          <EmptyState
-            title="Yayında bir menü yok"
-            description="Rezervasyon linki ve talepler bir dijital menüye bağlıdır."
-            action={
-              <Button asChild variant="outline">
-                <Link href={DASHBOARD_ROUTES.digitalMenu}>Menü oluştur</Link>
-              </Button>
-            }
-          />
-        )}
+        <EmptyState
+          title="Önce bir şube oluşturun"
+          description="Rezervasyonlar şube bazında tutulur."
+          action={
+            <Button asChild variant="outline">
+              <Link href={DASHBOARD_ROUTES.branchCreate}>Şube oluştur</Link>
+            </Button>
+          }
+        />
       </div>
     );
   }
@@ -388,14 +379,14 @@ function ReservationsPanel() {
           )
         ) : (
           <>
-            <ListHead columns={ROW_COLUMNS} labels={["Misafir", "Kişi", "Durum", showMenu ? "Menü" : "Kaynak", { srOnly: "İşlemler" }]} />
+            <ListHead columns={ROW_COLUMNS} labels={["Misafir", "Kişi", "Durum", showBranch ? "Şube" : "Kaynak", { srOnly: "İşlemler" }]} />
             <ul className="divide-y divide-border">
               {pageItems.map((item, index) => {
                 const day = dayOf(item);
                 const dayHeader = index === 0 || day !== dayOf(pageItems[index - 1]);
                 const dayCount = dayCounts.get(day) ?? 0;
                 return (
-                  <Fragment key={`${item.menuId}-${item.id}`}>
+                  <Fragment key={item.id}>
                     {dayHeader ? (
                       <li className="flex items-center justify-between bg-muted/40 px-3 py-1.5 text-xs font-medium text-muted-foreground lg:px-4">
                         <span className="first-letter:uppercase">{reservationDayLabel(item.reservationAt)}</span>
@@ -404,8 +395,8 @@ function ReservationsPanel() {
                     ) : null}
                     <ReservationRow
                       item={item}
-                      menu={menuById.get(item.menuId)}
-                      showMenu={showMenu}
+                      branchName={item.branchId != null ? branchNameById.get(item.branchId) : undefined}
+                      showBranch={showBranch}
                       busy={busyId === item.id}
                       onEdit={() => setDialog({ item, key: Date.now() })}
                       onConfirm={() => statusMutation.mutate({ item, status: "ACTIVE" })}
@@ -426,11 +417,8 @@ function ReservationsPanel() {
           open
           onOpenChange={(open) => (open ? null : setDialog(null))}
           item={dialog.item}
-          menus={scopeMenus.map((menu) => ({
-            menuId: menu.menuId,
-            label: branches.length > 1 ? `${menu.branchName} · ${menu.menuName}` : menu.menuName,
-          }))}
-          defaultMenuId={scopeMenus[0]?.menuId ?? null}
+          branches={scopeBranches.map((branch) => ({ branchId: branch.id, label: branch.name }))}
+          defaultBranchId={scopeBranches[0]?.id ?? null}
           saving={saveMutation.isPending}
           onSubmit={(values) => saveMutation.mutate({ item: dialog.item, values })}
         />
@@ -476,18 +464,24 @@ function ReservationsPanel() {
   );
 }
 
+/** Every listed reservation came from a branch query, so it carries its branch. */
+function requireBranchId(item: MenuReservationApiItem): number {
+  if (item.branchId == null) throw new Error("Rezervasyonun şubesi bilinmiyor.");
+  return item.branchId;
+}
+
 function ReservationRow({
   item,
-  menu,
-  showMenu,
+  branchName,
+  showBranch,
   busy,
   onEdit,
   onConfirm,
   onCancel,
 }: {
   item: MenuReservationApiItem;
-  menu?: MenuInfo;
-  showMenu: boolean;
+  branchName?: string;
+  showBranch: boolean;
   busy: boolean;
   onEdit: () => void;
   onConfirm: () => void;
@@ -535,7 +529,7 @@ function ReservationRow({
               <Users className="size-3" aria-hidden />
               {item.partySize}
             </span>
-            {showMenu && menu ? <span className="truncate text-xs text-muted-foreground">{menu.menuName}</span> : sourceBadge}
+            {showBranch && branchName ? <span className="truncate text-xs text-muted-foreground">{branchName}</span> : sourceBadge}
           </div>
         </div>
       </div>
@@ -550,9 +544,9 @@ function ReservationRow({
         </ToneBadge>
       </div>
       <div className="hidden min-w-0 lg:block">
-        {showMenu ? (
-          <p className="truncate text-sm text-muted-foreground" title={menu ? `${menu.branchName} · ${menu.menuName}` : undefined}>
-            {menu?.menuName ?? `Menü #${item.menuId}`}
+        {showBranch ? (
+          <p className="truncate text-sm text-muted-foreground" title={branchName}>
+            {branchName ?? "Şube"}
           </p>
         ) : (
           sourceBadge

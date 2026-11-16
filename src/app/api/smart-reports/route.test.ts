@@ -79,6 +79,38 @@ describe("smart-reports BFF", () => {
     );
   });
 
+  it("POST with merchant scope is rejected: reports must target one branch", async () => {
+    const { POST } = await import("@/app/api/smart-reports/route");
+    const response = await POST(
+      new Request("http://localhost/api/smart-reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scope: "merchant",
+          from: "2026-11-01",
+          to: "2026-11-14",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(axiosPost).not.toHaveBeenCalled();
+  });
+
+  it("POST without menuId is rejected", async () => {
+    const { POST } = await import("@/app/api/smart-reports/route");
+    const response = await POST(
+      new Request("http://localhost/api/smart-reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ from: "2026-11-01", to: "2026-11-14" }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(axiosPost).not.toHaveBeenCalled();
+  });
+
   it("GET proxies job status", async () => {
     axiosGet.mockResolvedValue({
       status: 200,
@@ -122,4 +154,19 @@ describe("smart-reports BFF", () => {
       }),
     );
   });
+
+  it("GET list forwards a created-date range and drops malformed dates", async () => {
+    axiosGet.mockResolvedValue({
+      status: 200,
+      data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 10 },
+    });
+
+    const { GET } = await import("@/app/api/smart-reports/route");
+    await GET(new Request("http://localhost/api/smart-reports?status=all&from=2026-11-01&to=bad"));
+
+    const params = axiosGet.mock.calls.at(-1)?.[1]?.params;
+    expect(params).toMatchObject({ status: "all", from: "2026-11-01" });
+    expect(params).not.toHaveProperty("to");
+  });
+
 });

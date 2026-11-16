@@ -36,12 +36,10 @@ import DigitalMenuMenusView from "@/views/dashboard/DigitalMenuMenusView";
 import DigitalMenuCreateView from "@/views/dashboard/DigitalMenuCreateView";
 import DigitalMenuEditorView from "@/views/dashboard/DigitalMenuEditorView";
 import DigitalMenuSettingsView from "@/views/dashboard/DigitalMenuSettingsView";
-import DigitalMenuProductsView from "@/views/dashboard/DigitalMenuProductsView";
 import DigitalMenuProductCreateView from "@/views/dashboard/DigitalMenuProductCreateView";
 import DigitalMenuProductDetailView from "@/views/dashboard/DigitalMenuProductDetailView";
 import AiMenuImportView from "@/views/dashboard/AiMenuImportView";
 import DigitalMenuCategoriesView from "@/views/dashboard/DigitalMenuCategoriesView";
-import DigitalMenuOptionsView from "@/views/dashboard/DigitalMenuOptionsView";
 import PackageComparisonView from "@/views/dashboard/PackageComparisonView";
 import ModulesCatalogView from "@/views/dashboard/ModulesCatalogView";
 import PaymentHistoryDetailView from "@/views/dashboard/PaymentHistoryDetailView";
@@ -72,6 +70,8 @@ import YemekSepetiOrdersView from "@/views/dashboard/YemekSepetiOrdersView";
 import PrinterHubView from "@/views/dashboard/PrinterHubView";
 import RestaurantLayoutView from "@/views/dashboard/RestaurantLayoutView";
 import SmartReportDetailView from "@/views/dashboard/SmartReportDetailView";
+import SmartReportHistoryView from "@/views/dashboard/SmartReportHistoryView";
+import SmartReportNewView from "@/views/dashboard/SmartReportNewView";
 import SmartReportsView from "@/views/dashboard/SmartReportsView";
 import MenuCustomersView from "@/views/dashboard/MenuCustomersView";
 import CampaignsView from "@/views/dashboard/CampaignsView";
@@ -84,6 +84,19 @@ import MyOrdersView from "@/views/dashboard/MyOrdersView";
 
 interface DashboardPageClientProps {
   initialUser?: StoredUser | null;
+}
+
+function ProductsListRedirect() {
+  const router = useRouter();
+  useEffect(() => {
+    const qr = Number(new URLSearchParams(window.location.search).get("qr"));
+    router.replace(
+      Number.isSafeInteger(qr) && qr > 0
+        ? DASHBOARD_ROUTES.digitalMenuProductsForQr(qr)
+        : DASHBOARD_ROUTES.digitalMenuCategories,
+    );
+  }, [router]);
+  return null;
 }
 
 export default function DashboardPageClient({ initialUser = null }: DashboardPageClientProps) {
@@ -203,7 +216,7 @@ export default function DashboardPageClient({ initialUser = null }: DashboardPag
   }, [pathname]);
 
   const digitalMenuSettingsQrId = useMemo(() => {
-    const prefix = `/qr/`;
+    const prefix = `${DASHBOARD_ROUTES.digitalMenuMenus}/`;
     if (!pathname.startsWith(prefix)) return null;
     const rest = pathname.slice(prefix.length);
     const [qrSlug, settingsSlug] = rest.split("/");
@@ -213,7 +226,7 @@ export default function DashboardPageClient({ initialUser = null }: DashboardPag
   }, [pathname]);
 
   const digitalMenuEditQrId = useMemo(() => {
-    const prefix = `/qr/`;
+    const prefix = `${DASHBOARD_ROUTES.digitalMenuMenus}/`;
     if (!pathname.startsWith(prefix)) return null;
     const rest = pathname.slice(prefix.length);
     if (rest.includes("/")) return null;
@@ -276,6 +289,14 @@ export default function DashboardPageClient({ initialUser = null }: DashboardPag
 
   if (pathname === DASHBOARD_ROUTES.smartReports) {
     return <SmartReportsView />;
+  }
+
+  if (pathname === DASHBOARD_ROUTES.smartReportNew) {
+    return <SmartReportNewView />;
+  }
+
+  if (pathname === DASHBOARD_ROUTES.smartReportHistory) {
+    return <SmartReportHistoryView />;
   }
 
   if (pathname === DASHBOARD_ROUTES.feedback) {
@@ -513,24 +534,18 @@ export default function DashboardPageClient({ initialUser = null }: DashboardPag
     );
   }
 
+  // The all-products list is gone: old /urunler links open the Ürünler explorer (keeping ?qr=).
   if (pathname === DASHBOARD_ROUTES.digitalMenuProducts) {
-    return (
-      <Suspense fallback={null}>
-        <DigitalMenuProductsView />
-      </Suspense>
-    );
+    return <ProductsListRedirect />;
   }
 
-  if (pathname === DASHBOARD_ROUTES.digitalMenuCategories) {
+  // One branch for both paths, so switching between them keeps the explorer mounted.
+  if (pathname === DASHBOARD_ROUTES.digitalMenuCategories || pathname === DASHBOARD_ROUTES.digitalMenuOptions) {
     return (
       <Suspense fallback={null}>
         <DigitalMenuCategoriesView />
       </Suspense>
     );
-  }
-
-  if (pathname === DASHBOARD_ROUTES.digitalMenuOptions) {
-    return <DigitalMenuOptionsView />;
   }
 
   if (digitalMenuSettingsQrId != null) {

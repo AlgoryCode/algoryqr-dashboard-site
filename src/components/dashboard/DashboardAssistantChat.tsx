@@ -264,7 +264,7 @@ export function DashboardAssistantChat({ open, onOpenChange }: DashboardAssistan
               onChange={(event) => setDraft(event.target.value)}
               rows={2}
               placeholder="Ciro, ürün veya yoğunluk sor…"
-              className="min-h-[2.75rem] flex-1 resize-none rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+              className="min-h-[2.75rem] flex-1 resize-none rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-ring"
               disabled={sending}
             />
             <Button type="submit" size="icon" className="h-10 w-10 shrink-0" disabled={sending || !draft.trim()}>

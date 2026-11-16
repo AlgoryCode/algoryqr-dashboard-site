@@ -18,7 +18,10 @@ export type SessionEntitlement = {
   quantity: number | null;
   unlimited: boolean;
   usedQuantity: number | null;
+  /** Left to use; null when unlimited or unknown. */
+  remaining: number | null;
   source: string | null;
+  expiresAt: string | null;
 };
 
 export type SessionContext = AccessSession & {
@@ -96,7 +99,9 @@ function parseEntitlements(value: unknown): SessionEntitlement[] {
       quantity: numberOrNull(record.quantity),
       unlimited: record.unlimited === true,
       usedQuantity: numberOrNull(record.usedQuantity),
+      remaining: numberOrNull(record.remaining),
       source: stringOrNull(record.source),
+      expiresAt: stringOrNull(record.expiresAt),
     }];
   });
 }
