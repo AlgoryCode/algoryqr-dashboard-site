@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { SearchableSelect } from "@/components/dashboard/menu/SearchableSelect";
@@ -9,6 +9,7 @@ import { getMenuByQrIdRequest } from "@/lib/api";
 import type { BranchItem, BranchMenuSummary } from "@/lib/branch";
 import { formatBranchListLabel } from "@/lib/branch";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
+import { cn } from "@/lib/utils";
 
 const BRANCH_STORAGE_KEY = "algory_selected_report_branch_id";
 const MENU_QR_STORAGE_KEY = "algory_selected_report_menu_qr_id";
@@ -182,6 +183,7 @@ export function BranchReportPicker({
   onMenuSelect,
   onWaiterSelect,
   disabled,
+  labeled = false,
 }: {
   branches: BranchItem[];
   selectedBranchId: number | null;
@@ -194,6 +196,8 @@ export function BranchReportPicker({
   onMenuSelect?: (qrId: number) => void;
   onWaiterSelect?: (waiterId: number | null) => void;
   disabled?: boolean;
+  /** Each select gets a small caption ("Şube", "Menü", "Personel") for use inside the report filter panel. */
+  labeled?: boolean;
 }) {
   const selectedBranch = useMemo(
     () =>
@@ -230,55 +234,76 @@ export function BranchReportPicker({
   ];
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+    <div
+      className={cn(
+        "flex min-w-0 flex-col gap-2 sm:flex-row",
+        labeled ? "sm:items-end sm:gap-3" : "flex-1 sm:items-center",
+      )}
+    >
       <span className="sr-only">Şube seçin</span>
-      <SearchableSelect
-        className="h-9 min-w-[12rem] max-w-xs text-xs"
-        value={selectedBranchId != null ? String(selectedBranchId) : ""}
-        onValueChange={(next) => {
-          const id = Number(next);
-          if (Number.isFinite(id) && id > 0) onBranchSelect(id);
-        }}
-        options={branches.map((item) => ({ value: String(item.id), label: formatBranchListLabel(item) }))}
-        placeholder="Şube seçin"
-        searchPlaceholder="Şube ara..."
-        emptyText="Şube bulunamadı."
-        disabled={disabled}
-      />
-      {showMenuFilter && selectedBranchId != null && menuOptions.length > 0 ? (
+      <PickerField label="Şube" labeled={labeled}>
         <SearchableSelect
           className="h-9 min-w-[12rem] max-w-xs text-xs"
-          value={selectedQrId != null ? String(selectedQrId) : menuOptions[0]?.value ?? ""}
+          value={selectedBranchId != null ? String(selectedBranchId) : ""}
           onValueChange={(next) => {
             const id = Number(next);
-            if (Number.isFinite(id) && id > 0) onMenuSelect?.(id);
+            if (Number.isFinite(id) && id > 0) onBranchSelect(id);
           }}
-          options={menuOptions}
-          placeholder="Menü seçin"
-          searchPlaceholder="Menü ara..."
-          emptyText="Menü bulunamadı."
+          options={branches.map((item) => ({ value: String(item.id), label: formatBranchListLabel(item) }))}
+          placeholder="Şube seçin"
+          searchPlaceholder="Şube ara..."
+          emptyText="Şube bulunamadı."
           disabled={disabled}
         />
+      </PickerField>
+      {showMenuFilter && selectedBranchId != null && menuOptions.length > 0 ? (
+        <PickerField label="Menü" labeled={labeled}>
+          <SearchableSelect
+            className="h-9 min-w-[12rem] max-w-xs text-xs"
+            value={selectedQrId != null ? String(selectedQrId) : menuOptions[0]?.value ?? ""}
+            onValueChange={(next) => {
+              const id = Number(next);
+              if (Number.isFinite(id) && id > 0) onMenuSelect?.(id);
+            }}
+            options={menuOptions}
+            placeholder="Menü seçin"
+            searchPlaceholder="Menü ara..."
+            emptyText="Menü bulunamadı."
+            disabled={disabled}
+          />
+        </PickerField>
       ) : null}
       {showWaiterFilter && selectedBranchId != null ? (
-        <SearchableSelect
-          className="h-9 min-w-[12rem] max-w-xs text-xs"
-          value={selectedWaiterId != null ? String(selectedWaiterId) : ALL_WAITERS_VALUE}
-          onValueChange={(next) => {
-            if (next === ALL_WAITERS_VALUE) {
-              onWaiterSelect?.(null);
-              return;
-            }
-            const id = Number(next);
-            if (Number.isFinite(id) && id > 0) onWaiterSelect?.(id);
-          }}
-          options={waiterOptions}
-          placeholder="Tüm personel"
-          searchPlaceholder="Personel ara..."
-          emptyText="Personel bulunamadı."
-          disabled={disabled}
-        />
+        <PickerField label="Personel" labeled={labeled}>
+          <SearchableSelect
+            className="h-9 min-w-[12rem] max-w-xs text-xs"
+            value={selectedWaiterId != null ? String(selectedWaiterId) : ALL_WAITERS_VALUE}
+            onValueChange={(next) => {
+              if (next === ALL_WAITERS_VALUE) {
+                onWaiterSelect?.(null);
+                return;
+              }
+              const id = Number(next);
+              if (Number.isFinite(id) && id > 0) onWaiterSelect?.(id);
+            }}
+            options={waiterOptions}
+            placeholder="Tüm personel"
+            searchPlaceholder="Personel ara..."
+            emptyText="Personel bulunamadı."
+            disabled={disabled}
+          />
+        </PickerField>
       ) : null}
+    </div>
+  );
+}
+
+function PickerField({ label, labeled, children }: { label: string; labeled: boolean; children: ReactNode }) {
+  if (!labeled) return <>{children}</>;
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+      {children}
     </div>
   );
 }

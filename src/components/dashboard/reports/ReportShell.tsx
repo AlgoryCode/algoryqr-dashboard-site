@@ -37,6 +37,79 @@ export type ReportTypeItem<T extends string> = {
   locked?: boolean;
 };
 
+/**
+ * Rapor türü seçimi, filtre panelinin başlığında duran tek parça segment kontrolü.
+ * Kilitli türler görünür kalır (kilit ikonu ile); açıklama, ipucu olarak gösterilir.
+ */
+export function ReportTypeTabs<T extends string>({
+  items,
+  value,
+  onChange,
+  className,
+}: {
+  items: ReadonlyArray<ReportTypeItem<T>>;
+  value: T;
+  onChange: (value: T) => void;
+  className?: string;
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label="Rapor türü"
+      className={cn(
+        "grid w-full min-w-0 grid-cols-4 gap-1 rounded-xl bg-muted/70 p-1 sm:flex sm:w-auto",
+        className,
+      )}
+    >
+      {items.map((item) => {
+        const selected = item.value === value;
+        const Icon = item.icon;
+        return (
+          <button
+            key={item.value}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            aria-label={item.locked ? `${item.label} (paket gerekli)` : item.label}
+            title={item.description}
+            onClick={() => onChange(item.value)}
+            className={cn(
+              "inline-flex min-w-0 flex-col items-center justify-center gap-0.5 whitespace-nowrap rounded-lg px-1 py-1.5 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 sm:flex-row sm:gap-1.5 sm:px-4 sm:py-0 sm:text-sm",
+              selected
+                ? "bg-white text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.08)] dark:bg-card"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Icon className={cn("h-4 w-4", selected ? "text-primary" : undefined)} />
+            <span className="inline-flex max-w-full items-center gap-1 truncate">
+              {item.label}
+              {item.locked ? <Lock className="h-3 w-3 shrink-0 opacity-70" aria-hidden /> : null}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Filtre panelindeki her alanın üstündeki küçük etiket. */
+export function ReportFilterField({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex min-w-0 flex-col gap-1.5", className)}>
+      <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+      {children}
+    </div>
+  );
+}
+
 /** Rapor türü seçimi: ikonlu, açıklamalı kartlar. Kilitli türler görünür kalır, seçilince paket bilgisi gösterilir. */
 export function ReportTypeNav<T extends string>({
   items,

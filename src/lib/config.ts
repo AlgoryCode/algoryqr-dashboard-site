@@ -135,7 +135,7 @@ export const STORE_APP_ORIGIN = trimTrailingSlash(
  * Public menu links intentionally use one stable host in every environment.
  * The menu site owns this hostname; it must not follow the dashboard/API host.
  */
-export const MENU_APP_ORIGIN = "https://menu.algorycode.com";
+export const MENU_APP_ORIGIN = "https://qr.algorycode.com";
 
 export const MARKETING_APP_ORIGIN = trimTrailingSlash(
   process.env.NEXT_PUBLIC_MARKETING_APP_ORIGIN?.trim() ||

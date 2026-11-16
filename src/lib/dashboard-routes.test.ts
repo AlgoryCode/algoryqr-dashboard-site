@@ -5,6 +5,7 @@ import {
   DASHBOARD_NAV_ITEMS,
   DASHBOARD_ROUTES,
   isDashboardNavActive,
+  navChildren,
   isIntegrationsSectionActive,
   isOnlineOrderSectionActive,
   isRestaurantLayoutPath,
@@ -148,23 +149,23 @@ describe("splitMobileDashboardNav", () => {
     const { primary, overflow } = splitMobileDashboardNav(mobileItems);
     expect(primary.map((item) => item.key)).toEqual([
       "overview",
+      "myMenus",
       "myBranches",
       "reports",
-      "reservations",
     ]);
-    expect(overflow.map((item) => item.key)).toContain("myMenus");
+    expect(overflow.map((item) => item.key)).toContain("reservations");
     expect(overflow.map((item) => item.key)).toContain("account");
     expect(overflow.map((item) => item.key)).not.toContain("overview");
   });
 
   it("fills primary slots when a scoped item is missing", () => {
     const items = DASHBOARD_NAV_ITEMS.filter(
-      (item) => !item.excludeFromMobileNav && item.key !== "reservations",
+      (item) => !item.excludeFromMobileNav && item.key !== "myMenus",
     );
     const { primary } = splitMobileDashboardNav(items);
     expect(primary).toHaveLength(4);
     expect(primary[0].key).toBe("overview");
-    expect(primary.map((item) => item.key)).not.toContain("reservations");
+    expect(primary.map((item) => item.key)).not.toContain("myMenus");
   });
 });
 
@@ -173,7 +174,7 @@ describe("module sidebar active state", () => {
     DASHBOARD_NAV_ITEMS.filter((item) => !item.excludeFromSidebar).flatMap((item) => {
       const keys: string[] = [];
       if (isDashboardNavActive(pathname, item.href, item.key)) keys.push(item.key);
-      for (const child of item.children ?? []) {
+      for (const child of navChildren(item)) {
         if (isDashboardNavActive(pathname, child.href)) keys.push(child.key);
       }
       return keys;
@@ -181,8 +182,9 @@ describe("module sidebar active state", () => {
 
   it("highlights exactly one module entry per page", () => {
     expect(activeKeys(DASHBOARD_ROUTES.digitalMenuProducts)).toEqual(["products"]);
-    expect(activeKeys(DASHBOARD_ROUTES.digitalMenuCategories)).toEqual(["categories"]);
-    expect(activeKeys(DASHBOARD_ROUTES.digitalMenuOptions)).toEqual(["options"]);
+    expect(activeKeys(DASHBOARD_ROUTES.digitalMenuCategories)).toEqual(["products"]);
+    expect(activeKeys(DASHBOARD_ROUTES.digitalMenuOptions)).toEqual(["products"]);
+    expect(activeKeys(DASHBOARD_ROUTES.digitalMenuProductDetail(3, 9).split("?")[0]!)).toEqual(["products"]);
     expect(activeKeys(DASHBOARD_ROUTES.feedback)).toEqual(["feedback"]);
     expect(activeKeys(DASHBOARD_ROUTES.digitalMenuMenus)).toEqual(["myMenus"]);
     expect(activeKeys(DASHBOARD_ROUTES.digitalMenu)).toEqual(["myBranches"]);

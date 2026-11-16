@@ -998,7 +998,7 @@ function BranchSwitcher({
               onKeyDown={(event) => event.stopPropagation()}
               placeholder="Şube ara"
               aria-label="Şube ara"
-              className="h-8 w-full rounded-md border border-border bg-background pl-7 pr-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="h-8 w-full rounded-md border border-border bg-background pl-7 pr-2 text-sm focus:outline-none focus:border-ring"
             />
           </div>
         ) : null}

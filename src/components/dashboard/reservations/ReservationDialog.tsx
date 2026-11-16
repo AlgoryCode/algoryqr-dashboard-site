@@ -20,10 +20,10 @@ import type { MenuReservationApiItem } from "@/lib/api";
 import { localDay } from "@/lib/reservation-list";
 import { cn } from "@/lib/utils";
 
-export type ReservationMenuOption = { menuId: number; label: string };
+export type ReservationBranchOption = { branchId: number; label: string };
 
 export type ReservationFormValues = {
-  menuId: number;
+  branchId: number;
   customerName: string;
   phone: string;
   email: string;
@@ -57,8 +57,8 @@ export function ReservationDialog({
   open,
   onOpenChange,
   item,
-  menus,
-  defaultMenuId,
+  branches,
+  defaultBranchId,
   saving,
   onSubmit,
 }: {
@@ -66,13 +66,15 @@ export function ReservationDialog({
   onOpenChange: (open: boolean) => void;
   /** The reservation being edited; null creates a new one. */
   item: MenuReservationApiItem | null;
-  menus: ReservationMenuOption[];
-  defaultMenuId: number | null;
+  branches: ReservationBranchOption[];
+  defaultBranchId: number | null;
   saving: boolean;
   onSubmit: (values: ReservationFormValues) => void;
 }) {
   const initial = item ? splitDateTime(item.reservationAt) : nextHalfHour();
-  const [menuId, setMenuId] = useState<number | null>(item?.menuId ?? defaultMenuId ?? menus[0]?.menuId ?? null);
+  const [branchId, setBranchId] = useState<number | null>(
+    item?.branchId ?? defaultBranchId ?? branches[0]?.branchId ?? null,
+  );
   const [customerName, setCustomerName] = useState(item?.customerName ?? "");
   const [phone, setPhone] = useState(item?.phone ?? "");
   const [email, setEmail] = useState(item?.email ?? "");
@@ -89,13 +91,13 @@ export function ReservationDialog({
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (menuId == null) return setError("Menü seçin.");
+    if (branchId == null) return setError("Şube seçin.");
     if (!customerName.trim()) return setError("Ad soyad zorunlu.");
     if (!date || !time) return setError("Tarih ve saat seçin.");
     if (email.trim() && !email.includes("@")) return setError("Geçerli bir e-posta girin.");
     setError(null);
     onSubmit({
-      menuId,
+      branchId,
       customerName: customerName.trim(),
       phone: phone.trim(),
       email: email.trim(),
@@ -118,15 +120,15 @@ export function ReservationDialog({
             </DialogDescription>
           </DialogHeader>
 
-          {menus.length > 1 && !item ? (
+          {branches.length > 1 && !item ? (
             <div className="space-y-2">
-              <Label>Menü / şube</Label>
+              <Label>Şube</Label>
               <SearchableSelect
-                value={menuId == null ? "" : String(menuId)}
-                onValueChange={(value) => setMenuId(Number(value))}
-                options={menus.map((menu) => ({ value: String(menu.menuId), label: menu.label }))}
-                placeholder="Menü seçin"
-                searchPlaceholder="Menü ara..."
+                value={branchId == null ? "" : String(branchId)}
+                onValueChange={(value) => setBranchId(Number(value))}
+                options={branches.map((branch) => ({ value: String(branch.branchId), label: branch.label }))}
+                placeholder="Şube seçin"
+                searchPlaceholder="Şube ara..."
               />
             </div>
           ) : null}

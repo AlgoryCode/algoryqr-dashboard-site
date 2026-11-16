@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Pin, Search, X } from "lucide-react";
+import { ChevronRight, Pin, Search, Sparkles, X } from "lucide-react";
 
-import { DashboardAssistantLauncher } from "@/components/dashboard/DashboardAssistantChat";
+import { DashboardAssistantChat } from "@/components/dashboard/DashboardAssistantChat";
 import { NavBadge } from "@/components/dashboard/NavBadge";
-import { DASHBOARD_NAV_ICONS as NAV_ICONS, DASHBOARD_NAV_TONES as NAV_TONES } from "@/components/dashboard/nav-icons";
-import { TONE_ROW, ToneIcon } from "@/components/dashboard/tone";
+import { DASHBOARD_NAV_ICONS as NAV_ICONS } from "@/components/dashboard/nav-icons";
+import { TONE_ROW, ToneIcon, type Tone } from "@/components/dashboard/tone";
+
 import { useDashboardNavPrefs } from "@/hooks/use-dashboard-nav-prefs";
 import { buildNavTargets, searchNavTargets, type NavTarget } from "@/lib/dashboard-nav-prefs";
 import {
@@ -21,8 +22,12 @@ import {
   isDashboardNavActive,
   splitMobileDashboardNav,
   type DashboardNavItem,
+  navChildren,
 } from "@/lib/dashboard-routes";
 import { cn } from "@/lib/utils";
+
+/** The "Daha fazla" sheet shows every page icon in one rose tone (#FFF0F3 / #F03245). */
+const SHEET_TONE: Tone = "red";
 
 
 type DashboardMobileNavProps = {
@@ -50,10 +55,12 @@ export function DashboardMobileNav({
   const pathname = usePathname();
   const { primary, overflow } = splitMobileDashboardNav(items);
   const primaryChildren = primary.flatMap((item) =>
-    (item.children ?? []).map((child) => ({ ...child, tone: NAV_TONES[item.key] })),
+    navChildren(item).map((child) => ({ ...child, tone: SHEET_TONE })),
   );
   const columns = Math.max(primary.length, 1);
   const [query, setQuery] = useState("");
+  // Chat state lives here, not in the sheet, so closing the sheet does not close the chat.
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const { pinned, togglePinned } = useDashboardNavPrefs();
   const targets = useMemo(() => buildNavTargets(items), [items]);
   const results = useMemo(() => searchNavTargets(targets, query), [query, targets]);
@@ -75,7 +82,7 @@ export function DashboardMobileNav({
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden"
       aria-label="Mobil gezinme"
     >
-      <div className="flex items-stretch gap-0 pl-1">
+      <div className="flex items-stretch gap-0">
       <div
         className="grid min-w-0 flex-1"
         style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
@@ -84,7 +91,7 @@ export function DashboardMobileNav({
           const Icon = NAV_ICONS[item.key];
           const active =
             isDashboardNavActive(pathname, item.href, item.key) ||
-            (item.children ?? []).some((child) => isDashboardNavActive(pathname, child.href));
+            navChildren(item).some((child) => isDashboardNavActive(pathname, child.href));
           const badgeCount = item.badgeKey === "pendingOrders" ? pendingOrderCount : 0;
           return (
             <Link key={item.key} href={item.href} className={tabClass(active)}>
@@ -101,9 +108,6 @@ export function DashboardMobileNav({
           );
         })}
       </div>
-        <div className="-mt-px flex items-stretch self-stretch border-l border-border">
-          <DashboardAssistantLauncher appearance="bar" />
-        </div>
       </div>
 
       <Sheet open={moreOpen} onOpenChange={onMoreOpenChange}>
@@ -122,7 +126,7 @@ export function DashboardMobileNav({
               placeholder="Sayfa ara"
               aria-label="Sayfa ara"
               enterKeyHint="go"
-              className="h-10 w-full rounded-xl border border-border bg-muted/40 pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/40 focus:bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="h-10 w-full rounded-xl border border-border bg-muted/40 pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:bg-background focus:outline-none"
             />
             {query ? (
               <button
@@ -136,6 +140,28 @@ export function DashboardMobileNav({
             ) : null}
           </div>
 
+          <button
+            type="button"
+            onClick={() => {
+              onMoreOpenChange(false);
+              setAssistantOpen(true);
+            }}
+            className={cn(
+              "mt-3 flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-foreground transition-colors",
+              TONE_ROW[SHEET_TONE].selected,
+              "hover:brightness-[0.98]",
+            )}
+          >
+            <ToneIcon tone={SHEET_TONE} icon={Sparkles} solid />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate">Asistan Danış</span>
+              <span className="block truncate text-[11px] font-normal text-muted-foreground">
+                Menün ve raporların hakkında sor
+              </span>
+            </span>
+            <ChevronRight className="size-4 shrink-0 text-[#F03245]/70" aria-hidden />
+          </button>
+
           {query.trim() ? (
             <div className="mt-3 grid gap-1" role="list" aria-label="Arama sonuçları">
               {results.map((target) => {
@@ -148,7 +174,7 @@ export function DashboardMobileNav({
                     role="listitem"
                     className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-foreground hover:bg-muted/60"
                   >
-                    <ToneIcon tone={NAV_TONES[target.parentKey]} icon={Icon} />
+                    <ToneIcon tone={SHEET_TONE} icon={Icon} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate">{target.label}</span>
                       <span className="block truncate text-[11px] text-muted-foreground">
@@ -197,11 +223,11 @@ export function DashboardMobileNav({
                         className={cn(
                           "flex min-w-0 items-center gap-2 rounded-xl border px-2.5 py-2 text-sm",
                           active
-                            ? cn("border-transparent font-semibold text-foreground", TONE_ROW[NAV_TONES[target.parentKey]].selected)
+                            ? cn("border-transparent font-semibold text-foreground", TONE_ROW[SHEET_TONE].selected)
                             : "border-border text-foreground hover:bg-muted/60",
                         )}
                       >
-                        <ToneIcon tone={NAV_TONES[target.parentKey]} icon={Icon} solid={active} />
+                        <ToneIcon tone={SHEET_TONE} icon={Icon} solid={active} />
                         <span className="truncate">{target.label}</span>
                       </Link>
                     );
@@ -222,11 +248,11 @@ export function DashboardMobileNav({
                       className={cn(
                         "flex items-center gap-3 rounded-lg py-2.5 pl-3 pr-11 text-sm",
                         active
-                          ? cn("font-semibold text-foreground", TONE_ROW[NAV_TONES[item.key]].selected)
+                          ? cn("font-semibold text-foreground", TONE_ROW[SHEET_TONE].selected)
                           : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                       )}
                     >
-                      <ToneIcon tone={NAV_TONES[item.key]} icon={Icon} solid={active} />
+                      <ToneIcon tone={SHEET_TONE} icon={Icon} solid={active} />
                       <span className="flex-1">{item.label}</span>
                       <NavBadge count={badgeCount} />
                     </Link>
@@ -237,13 +263,13 @@ export function DashboardMobileNav({
                         aria-label={pinned.includes(item.key) ? `${item.label} sabitlemesini kaldır` : `${item.label} sayfasını sabitle`}
                         className={cn(
                           "absolute right-1.5 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md",
-                          pinned.includes(item.key) ? "text-primary" : "text-muted-foreground/60",
+                          pinned.includes(item.key) ? "text-[#F03245] dark:text-[#FB7185]" : "text-muted-foreground/60",
                         )}
                       >
                         <Pin className={cn("size-3.5", pinned.includes(item.key) && "fill-current")} />
                       </button>
                   </div>
-                  {(item.children ?? []).map((child) => {
+                  {navChildren(item).map((child) => {
                     const childActive = isDashboardNavActive(pathname, child.href);
                     return (
                       <Link
@@ -253,7 +279,7 @@ export function DashboardMobileNav({
                         className={cn(
                           "flex items-center rounded-lg py-2 pl-10 pr-3 text-sm",
                           childActive
-                            ? cn("font-semibold text-foreground", TONE_ROW[NAV_TONES[item.key]].selected)
+                            ? cn("font-semibold text-foreground", TONE_ROW[SHEET_TONE].selected)
                             : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                         )}
                       >
@@ -286,6 +312,7 @@ export function DashboardMobileNav({
           )}
         </SheetContent>
       </Sheet>
+      <DashboardAssistantChat open={assistantOpen} onOpenChange={setAssistantOpen} />
     </nav>
   );
 }

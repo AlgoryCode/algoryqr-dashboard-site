@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, type ComponentType, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Pin, PinOff } from "lucide-react";
+import { ChevronDown, Pin, PinOff } from "lucide-react";
 
-import { DASHBOARD_NAV_ICONS, DASHBOARD_NAV_TONES } from "@/components/dashboard/nav-icons";
+import { DASHBOARD_NAV_ICONS } from "@/components/dashboard/nav-icons";
 import { TONE_ROW, TONE_SOLID, ToneIcon, type Tone } from "@/components/dashboard/tone";
 import {
   DropdownMenu,
@@ -20,15 +20,23 @@ import {
   getVisibleDashboardNavGroups,
   isDashboardNavActive,
   type DashboardNavItem,
+  navChildren,
 } from "@/lib/dashboard-routes";
 import { cn } from "@/lib/utils";
 
 const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
-function rowClass(tone: Tone, selected: boolean, collapsed = false) {
+/** Shared easing for the rail: quick start, long soft settle. */
+export const SIDEBAR_EASE = "ease-[cubic-bezier(0.32,0.72,0,1)]";
+
+// The icon keeps the same left offset in both states, so collapsing only clips the
+// label: nothing re-centres or jumps while the width animates.
+/** Every sidebar icon uses the brand rose, matching the mobile "Daha fazla" sheet. */
+const NAV_TONE: Tone = "red";
+
+function rowClass(tone: Tone, selected: boolean) {
   return cn(
-    "relative flex h-9 w-full items-center gap-2.5 overflow-hidden rounded-[10px] text-sm transition-colors",
-    collapsed ? "justify-center" : "px-1.5",
+    "relative flex h-9 w-full items-center gap-2.5 overflow-hidden rounded-[10px] px-2 text-sm transition-colors",
     FOCUS_RING,
     selected
       ? cn(TONE_ROW[tone].selected, "font-semibold text-foreground")
@@ -38,8 +46,11 @@ function rowClass(tone: Tone, selected: boolean, collapsed = false) {
 
 export function sidebarLabelClass(collapsed: boolean) {
   return cn(
-    "min-w-0 truncate whitespace-nowrap transition-opacity duration-200 ease-in-out",
-    collapsed ? "pointer-events-none opacity-0 duration-150" : "opacity-100 delay-100",
+    "min-w-0 truncate whitespace-nowrap transition-[opacity,transform] motion-reduce:transition-none",
+    SIDEBAR_EASE,
+    collapsed
+      ? "pointer-events-none -translate-x-1 opacity-0 duration-150"
+      : "translate-x-0 opacity-100 duration-300 delay-75",
   );
 }
 
@@ -119,10 +130,12 @@ function NavRow({
           href={href}
           aria-label={collapsed ? label : undefined}
           aria-current={selected ? "page" : undefined}
-          className={cn(rowClass(tone, selected, collapsed), !collapsed && "pr-8")}
+          className={cn(rowClass(tone, selected), !collapsed && "pr-8")}
         >
           <ToneIcon tone={tone} icon={icon} solid={selected} />
-          {!collapsed ? <span className={sidebarLabelClass(false)}>{label}</span> : null}
+          <span className={sidebarLabelClass(collapsed)} aria-hidden={collapsed}>
+            {label}
+          </span>
         </Link>
         {!collapsed ? pin : null}
       </div>
@@ -154,6 +167,36 @@ export function DashboardSidebarNav({
   );
   const activeId = useMemo(() => activeNavTargetId(pathname, targets), [pathname, targets]);
   const pinnedSet = useMemo(() => new Set(pinned), [pinned]);
+  const [moreBelow, setMoreBelow] = useState(false);
+
+  // Shows the "more below" hint while part of the list is hidden under the fold.
+  const updateMoreBelow = useCallback(() => {
+    const el = navRef.current;
+    if (!el) return;
+    setMoreBelow(el.scrollHeight - el.scrollTop - el.clientHeight > 8);
+  }, []);
+
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    updateMoreBelow();
+    // The list grows after first paint (access profile, pins, sub-items), so re-measure on
+    // size changes of the box and on any change to its content.
+    const resize = new ResizeObserver(updateMoreBelow);
+    resize.observe(el);
+    const mutation = new MutationObserver(updateMoreBelow);
+    mutation.observe(el, { childList: true, subtree: true });
+    return () => {
+      resize.disconnect();
+      mutation.disconnect();
+    };
+  }, [updateMoreBelow]);
+
+  const scrollDown = () => {
+    const el = navRef.current;
+    if (!el) return;
+    el.scrollBy({ top: Math.max(el.clientHeight * 0.6, 160), behavior: "smooth" });
+  };
 
   // Ziyaret geçmişi (komut paletindeki "Son kullanılanlar" için).
   useEffect(() => {
@@ -186,9 +229,11 @@ export function DashboardSidebarNav({
   }, [onOpenPalette, pinnedTargets, router]);
 
   return (
+    <div className="relative mt-4 flex min-h-0 flex-1 flex-col">
     <nav
       ref={navRef}
-      className="-mx-1 mt-4 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden px-1 pb-1 [scrollbar-width:thin]"
+      onScroll={updateMoreBelow}
+      className="-mx-1 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       aria-label="Ana menü"
     >
       {pinnedTargets.length > 0 ? (
@@ -197,7 +242,7 @@ export function DashboardSidebarNav({
             <NavRow
               key={target.id}
               href={target.href}
-              tone={DASHBOARD_NAV_TONES[target.parentKey]}
+              tone={NAV_TONE}
               icon={DASHBOARD_NAV_ICONS[target.parentKey]}
               label={target.label}
               selected={target.id === activeId}
@@ -224,6 +269,27 @@ export function DashboardSidebarNav({
         </NavGroup>
       ))}
     </nav>
+      <div
+        className={cn(
+          "pointer-events-none absolute inset-x-0 bottom-0 flex h-16 items-end justify-center bg-gradient-to-t from-card via-card/90 to-transparent pb-1 transition-opacity duration-200",
+          moreBelow ? "opacity-100" : "opacity-0",
+        )}
+        aria-hidden={!moreBelow}
+      >
+        <button
+          type="button"
+          onClick={scrollDown}
+          tabIndex={moreBelow ? 0 : -1}
+          aria-label="Menüde aşağı kaydır"
+          className={cn(
+            "flex size-7 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:bg-[#FFF0F3] hover:text-[#F03245]",
+            moreBelow ? "pointer-events-auto animate-bounce [animation-duration:2s]" : "",
+          )}
+        >
+          <ChevronDown className="size-4" />
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -238,10 +304,23 @@ function NavGroup({
 }) {
   return (
     <div className="space-y-0.5">
-      {label && !collapsed ? (
-        <p className="truncate px-1.5 pb-1 text-xs font-medium text-muted-foreground">{label}</p>
+      {label ? (
+        // Same height in both states: the title fades out and a divider fades in, so the
+        // rows below never move vertically.
+        <div className="relative h-6">
+          <p className={cn("absolute inset-x-2 top-0 text-xs font-medium text-muted-foreground", sidebarLabelClass(collapsed))}>
+            {label}
+          </p>
+          <div
+            role="presentation"
+            className={cn(
+              "absolute left-2 right-2 top-2.5 border-t border-border transition-opacity duration-300 motion-reduce:transition-none",
+              SIDEBAR_EASE,
+              collapsed ? "opacity-100 delay-100" : "opacity-0",
+            )}
+          />
+        </div>
       ) : null}
-      {label && collapsed ? <div className="mx-2 mb-2 border-t border-border" role="presentation" /> : null}
       {children}
     </div>
   );
@@ -263,37 +342,39 @@ function SidebarNavItem({
   onTogglePin: (id: string) => void;
 }) {
   const icon = DASHBOARD_NAV_ICONS[item.key];
-  const tone = DASHBOARD_NAV_TONES[item.key];
-  const children = item.children ?? [];
+  const tone = NAV_TONE;
+  const children = navChildren(item);
   const parentActive = isDashboardNavActive(pathname, item.href, item.key);
   const childActive = children.some((child) => isDashboardNavActive(pathname, child.href));
 
-  if (collapsed && children.length > 0) {
-    return (
-      <DropdownMenu>
-        <RailTooltip collapsed label={item.label}>
-          <DropdownMenuTrigger asChild>
-            <button type="button" className={rowClass(tone, parentActive || childActive, true)} aria-label={item.label}>
-              <ToneIcon tone={tone} icon={icon} solid={parentActive || childActive} />
-            </button>
-          </DropdownMenuTrigger>
-        </RailTooltip>
-        <DropdownMenuContent side="right" align="start" sideOffset={12} className="min-w-44">
-          <DropdownMenuItem asChild>
-            <Link href={item.href}>{item.label}</Link>
-          </DropdownMenuItem>
-          {children.map((child) => (
-            <DropdownMenuItem key={child.key} asChild>
-              <Link href={child.href}>{child.label}</Link>
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    );
-  }
+  const showChildren = !collapsed && (parentActive || childActive) && children.length > 0;
 
   return (
     <div className="space-y-0.5">
+      {collapsed && children.length > 0 ? (
+        <DropdownMenu>
+          <RailTooltip collapsed label={item.label}>
+            <DropdownMenuTrigger asChild>
+              <button type="button" className={rowClass(tone, parentActive || childActive)} aria-label={item.label}>
+                <ToneIcon tone={tone} icon={icon} solid={parentActive || childActive} />
+                <span className={sidebarLabelClass(true)} aria-hidden>
+                  {item.label}
+                </span>
+              </button>
+            </DropdownMenuTrigger>
+          </RailTooltip>
+          <DropdownMenuContent side="right" align="start" sideOffset={12} className="min-w-44">
+            <DropdownMenuItem asChild>
+              <Link href={item.href}>{item.label}</Link>
+            </DropdownMenuItem>
+            {children.map((child) => (
+              <DropdownMenuItem key={child.key} asChild>
+                <Link href={child.href}>{child.label}</Link>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : (
       <NavRow
         href={item.href}
         tone={tone}
@@ -310,8 +391,19 @@ function SidebarNavItem({
           />
         }
       />
+      )}
       {/* Alt sayfalar yalnızca o bölümdeyken görünür; menü kısa kalır, ayrıca açıp kapatmak gerekmez. */}
-      {!collapsed && (parentActive || childActive) && children.length > 0 ? (
+      {(parentActive || childActive) && children.length > 0 ? (
+        // Height animates through grid rows (0fr ↔ 1fr), so the rows below glide instead of jumping.
+        <div
+          className={cn(
+            "grid transition-[grid-template-rows,opacity] duration-300 motion-reduce:transition-none",
+            SIDEBAR_EASE,
+            showChildren ? "grid-rows-[1fr] opacity-100" : "pointer-events-none grid-rows-[0fr] opacity-0",
+          )}
+          inert={!showChildren}
+        >
+        <div className="min-h-0 overflow-hidden">
         <div className="ml-[1.125rem] space-y-0.5 border-l border-border pl-2.5">
           {children.map((child) => {
             const active = isDashboardNavActive(pathname, child.href);
@@ -341,6 +433,8 @@ function SidebarNavItem({
               </div>
             );
           })}
+        </div>
+        </div>
         </div>
       ) : null}
     </div>

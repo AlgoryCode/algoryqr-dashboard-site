@@ -59,3 +59,11 @@ export const DASHBOARD_TYPE_HINT = "text-sm text-muted-foreground";
 export const DASHBOARD_TYPE_TILE = "text-sm font-medium text-foreground";
 export const DASHBOARD_TYPE_META = "text-xs text-muted-foreground";
 export const DASHBOARD_TYPE_KPI = DASHBOARD_METRIC_VALUE;
+
+/** Soft rose badge (matches the "Sağlık" mini icon: #FFF0F3 fill, #F03245 ink). */
+export const DASHBOARD_BADGE_ROSE =
+  "inline-flex items-center gap-1 rounded-full bg-[#FFF0F3] px-2 py-0.5 text-[11px] font-medium text-[#F03245] dark:bg-[#F03245]/15 dark:text-[#ff7a87]";
+
+/** Outlined variant of the rose badge, for a muted / secondary state. */
+export const DASHBOARD_BADGE_ROSE_OUTLINE =
+  "inline-flex items-center gap-1 rounded-full border border-[#F03245]/25 bg-white px-2 py-0.5 text-[11px] font-medium text-[#F03245]/80 dark:bg-transparent dark:text-[#ff7a87]/80";

@@ -7,7 +7,7 @@ import {
   getBranchFullAnalyticsRequest,
   getBranchRevenueReportRequest,
   getMenuFeedbackRequest,
-  getMenuReservationsRequest,
+  getBranchReservationsRequest,
   listAccountingEntriesRequest,
 } from "@/lib/api";
 import type { BranchItem } from "@/lib/branch";
@@ -93,9 +93,9 @@ export function useOverviewDashboard(
   });
 
   const reservations = useQueries({
-    queries: scopedMenus.map((menu) => ({
-      queryKey: ["overview-pending-reservations", menu.menuId],
-      queryFn: () => getMenuReservationsRequest(menu.menuId, { status: "PENDING", size: 1 }),
+    queries: scopedBranches.map((branch) => ({
+      queryKey: ["overview-pending-reservations", branch.id],
+      queryFn: () => getBranchReservationsRequest(branch.id, { status: "PENDING", size: 1 }),
       enabled: access.menus,
       staleTime: 60_000,
       retry: false,

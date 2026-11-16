@@ -444,10 +444,10 @@ export default function PlanChangeView({ onNotify }: PlanChangeViewProps) {
                 />
                 <span>
                   {preview.warnings[0] ??
-                    "Önceki paketten hak devri yoktur; yeni paketin hakları sıfırdan tanımlanır."}
+                    "Yeni paketin hakları geçerli olur; mevcut kullanımınız (şube, menü, ürün sayıları) yeni pakete taşınır."}
                   {selectedOption?.timing === "IMMEDIATE" && (
                     <span className="mt-1 block text-xs text-muted-foreground">
-                      Hemen geçişte kalan haklarınız silinir.
+                      Hemen geçişte fark ücreti kalan gün sayısına göre hesaplanır; fatura tarihiniz değişmez.
                     </span>
                   )}
                 </span>

@@ -1,5 +1,6 @@
 "use client";
 
+import { SubscriptionHistoryCard } from "@/components/dashboard/SubscriptionHistoryCard";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -824,6 +825,8 @@ export default function SubscriptionSection({ onNotify }: SubscriptionSectionPro
               </CardContent>
             </Card>
           )}
+
+          <SubscriptionHistoryCard />
         </>
       ) : null}
     </div>

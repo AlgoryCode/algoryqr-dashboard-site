@@ -584,7 +584,7 @@ function SummaryStep({
 }
 
 const INPUT_CLASS =
-  "flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring";
+  "flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-ring";
 
 const SELECT_CLASS = INPUT_CLASS;
 

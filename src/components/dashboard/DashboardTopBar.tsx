@@ -1,11 +1,11 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, type ComponentType } from "react";
+import { Fragment, useEffect, useState, type ComponentType } from "react";
 import Link from "next/link";
 import {
   Building2,
   ChefHat,
-  ChevronRight,
+  ChevronDown,
   CreditCard,
   ExternalLink,
   Keyboard,
@@ -13,19 +13,21 @@ import {
   LogOut,
   Megaphone,
   Package,
-  Plus,
   QrCode,
   Search,
+  Sparkles,
   User,
   UserPlus,
   Bike,
   ConciergeBell,
+  Zap,
 } from "lucide-react";
 
+import { DashboardAssistantChat } from "@/components/dashboard/DashboardAssistantChat";
 import { DigitalMenuIcon } from "@/components/icons/DigitalMenuIcon";
-import { DASHBOARD_NAV_ICONS } from "@/components/dashboard/nav-icons";
+import { BrandLogo } from "@/components/BrandLogo";
+import { SIDEBAR_EASE } from "@/components/dashboard/DashboardSidebarNav";
 import TrialReminderHeaderBadge from "@/components/dashboard/TrialReminderHeaderBadge";
-import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -35,15 +37,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAccessProfile } from "@/hooks/use-access-profile";
+import { useMyProfile } from "@/hooks/use-my-profile";
 import type { StoredUser } from "@/lib/api";
 import { hasScope, type ProductScope } from "@/lib/auth-user";
-import { activeNavTargetId, buildNavTargets } from "@/lib/dashboard-nav-prefs";
 import {
-  DASHBOARD_NAV_ITEMS,
   DASHBOARD_ROUTES,
-  buildDashboardBreadcrumbs,
 } from "@/lib/dashboard-routes";
 import { cn } from "@/lib/utils";
 import { ToneIcon, type Tone } from "@/components/dashboard/tone";
@@ -61,16 +60,16 @@ type QuickAction = {
 };
 
 const QUICK_CREATE: QuickAction[] = [
-  { id: "product", tone: "green", label: "Ürün", hint: "Menüye yeni ürün ekle", href: DASHBOARD_ROUTES.digitalMenuProductCreate, icon: Package, scope: "QR_MENU_OWNER" },
-  { id: "menu", tone: "orange", label: "Menü", hint: "Yeni dijital menü oluştur", href: DASHBOARD_ROUTES.digitalMenuCreate, icon: DigitalMenuIcon, scope: "QR_MENU_OWNER" },
-  { id: "staff", tone: "teal", label: "Personel", hint: "Garson, mutfak ya da kurye hesabı", href: `${DASHBOARD_ROUTES.menuUsers}?yeni=1`, icon: UserPlus, scope: "WAITER_PANEL_OWNER" },
-  { id: "campaign", tone: "red", label: "Kampanya", hint: "İndirim veya duyuru başlat", href: DASHBOARD_ROUTES.campaignsCreate, icon: Megaphone, scope: "QR_MENU_OWNER" },
-  { id: "branch", tone: "blue", label: "Şube", hint: "Yeni şube ekle", href: DASHBOARD_ROUTES.branchCreate, icon: Building2, scope: "QR_MENU_OWNER" },
-  { id: "qr", tone: "violet", label: "QR kod", hint: "Masa veya menü için QR oluştur", href: DASHBOARD_ROUTES.qrCodesNew, icon: QrCode, scope: "QR_CREATE_OWNER" },
+  { id: "product", tone: "green", label: "Ürün ekle", hint: "Menüye yeni ürün", href: DASHBOARD_ROUTES.digitalMenuProductCreate, icon: Package, scope: "QR_MENU_OWNER" },
+  { id: "menu", tone: "red", label: "Menü oluştur", hint: "Yeni dijital menü", href: DASHBOARD_ROUTES.digitalMenuCreate, icon: DigitalMenuIcon, scope: "QR_MENU_OWNER" },
+  { id: "staff", tone: "teal", label: "Personel ekle", hint: "Garson, mutfak, kurye", href: `${DASHBOARD_ROUTES.menuUsers}?yeni=1`, icon: UserPlus, scope: "WAITER_PANEL_OWNER" },
+  { id: "campaign", tone: "red", label: "Kampanya başlat", hint: "İndirim veya duyuru", href: DASHBOARD_ROUTES.campaignsCreate, icon: Megaphone, scope: "QR_MENU_OWNER" },
+  { id: "branch", tone: "blue", label: "Şube ekle", hint: "Yeni işletme noktası", href: DASHBOARD_ROUTES.branchCreate, icon: Building2, scope: "QR_MENU_OWNER" },
+  { id: "qr", tone: "violet", label: "QR kod oluştur", hint: "Masa veya menü için", href: DASHBOARD_ROUTES.qrCodesNew, icon: QrCode, scope: "QR_CREATE_OWNER" },
 ];
 
 const STAFF_APPS: { id: string; label: string; hint: string; href: string; icon: Icon; tone: Tone }[] = [
-  { id: "waiter", tone: "orange", label: "Garson uygulaması", hint: "Sipariş ve masa takibi", href: DASHBOARD_ROUTES.waiterPanel, icon: ConciergeBell },
+  { id: "waiter", tone: "red", label: "Garson uygulaması", hint: "Sipariş ve masa takibi", href: DASHBOARD_ROUTES.waiterPanel, icon: ConciergeBell },
   { id: "kitchen", tone: "red", label: "Mutfak uygulaması", hint: "Hazırlık ekranı", href: DASHBOARD_ROUTES.kitchenPanel, icon: ChefHat },
   { id: "courier", tone: "teal", label: "Kurye uygulaması", hint: "Teslimat takibi", href: DASHBOARD_ROUTES.courierPanel, icon: Bike },
 ];
@@ -158,38 +157,39 @@ export function AccountMenu({
   user,
   onLogout,
   onShowShortcuts,
-  compact,
 }: {
   user?: StoredUser | null;
   onLogout: () => void;
   onShowShortcuts: () => void;
-  compact?: boolean;
 }) {
+  // The stored user can be empty (e.g. after an admin "login as"); fall back to the profile API.
+  const needsProfile = !user?.first_name?.trim() && !user?.email?.trim();
+  const { data: profile } = useMyProfile(needsProfile);
+  const effectiveUser: StoredUser | null =
+    needsProfile && profile
+      ? {
+          email: profile.email ?? "",
+          first_name: profile.firstName ?? undefined,
+          last_name: profile.lastName ?? undefined,
+        }
+      : user ?? null;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
           aria-label="Hesap menüsü"
-          className={cn(
-            "flex shrink-0 items-center gap-2 rounded-full border border-border bg-card p-0.5 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            !compact && "pr-2.5",
-          )}
+          title={userDisplayName(effectiveUser)}
+          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#FFF0F3] text-xs font-semibold text-[#F03245] transition-shadow hover:ring-2 hover:ring-[#F03245]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:ring-2 data-[state=open]:ring-[#F03245]/40 dark:bg-[#F03245]/15 dark:text-[#FB7185]"
         >
-          <span className="flex size-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-            {userInitials(user)}
-          </span>
-          {!compact ? (
-            <span className="hidden max-w-[9rem] truncate text-sm font-medium text-foreground xl:inline">
-              {userDisplayName(user)}
-            </span>
-          ) : null}
+          {userInitials(effectiveUser)}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" sideOffset={8} className="w-60">
         <DropdownMenuLabel className="font-normal">
-          <span className="block truncate text-sm font-medium text-foreground">{userDisplayName(user)}</span>
-          {user?.email ? <span className="block truncate text-xs text-muted-foreground">{user.email}</span> : null}
+          <span className="block truncate text-sm font-medium text-foreground">{userDisplayName(effectiveUser)}</span>
+          {effectiveUser?.email ? <span className="block truncate text-xs text-muted-foreground">{effectiveUser.email}</span> : null}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
@@ -225,169 +225,174 @@ export function AccountMenu({
   );
 }
 
-/** "+ Yeni" menüsü: en sık oluşturulan kayıtlara tek tıkla ulaşım. */
+/** "Hızlı işlemler" menüsü: en sık yapılan işlemlere (ürün, menü, personel…) tek tıkla ulaşım. */
 export function QuickCreateMenu({ compact }: { compact?: boolean }) {
   const { data: accessProfile } = useAccessProfile();
   const actions = QUICK_CREATE.filter((action) => !action.scope || hasScope(accessProfile, action.scope));
-  if (actions.length === 0) return null;
+  const staffApps = hasScope(accessProfile, "WAITER_PANEL_OWNER") ? STAFF_APPS : [];
+  if (actions.length === 0 && staffApps.length === 0) return null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         {compact ? (
           <button
             type="button"
-            aria-label="Yeni oluştur"
-            className="inline-flex size-9 items-center justify-center rounded-md text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="Hızlı işlemler"
+            className="inline-flex size-9 items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-muted"
           >
-            <Plus className="size-5" />
+            <Zap className="size-[18px]" />
           </button>
         ) : (
-          <Button size="sm" className="h-9 gap-1.5 rounded-full px-3.5">
-            <Plus className="size-4" />
-            Yeni
-          </Button>
+          <button
+            type="button"
+            className="group inline-flex h-9 items-center gap-2 rounded-xl border border-border bg-card pl-2 pr-2.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-muted/60"
+          >
+            <span className="flex size-6 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <Zap className="size-3.5" strokeWidth={2.25} />
+            </span>
+            Hızlı işlemler
+            <ChevronDown className="size-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+          </button>
         )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" sideOffset={8} className="w-64">
-        <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">Hızlı oluştur</DropdownMenuLabel>
-        {actions.map((action) => {
-          const ActionIcon = action.icon;
-          return (
-            <DropdownMenuItem key={action.id} asChild>
-              <Link href={action.href} className="gap-2.5 py-2">
-                <ToneIcon tone={action.tone} icon={ActionIcon} size="lg" />
-                <span className="min-w-0">
-                  <span className="block text-sm font-medium text-foreground">{action.label}</span>
-                  <span className="block truncate text-xs text-muted-foreground">{action.hint}</span>
-                </span>
-              </Link>
-            </DropdownMenuItem>
-          );
-        })}
+      <DropdownMenuContent align="end" sideOffset={8} className="w-[22rem] p-2">
+        <div className="px-1.5 pb-2 pt-1">
+          <p className="text-sm font-semibold text-foreground">Hızlı işlemler</p>
+          <p className="text-xs text-muted-foreground">Sık yaptığınız işlemleri buradan tek tıkla başlatın.</p>
+        </div>
+        <div className="grid grid-cols-2 gap-1">
+          {actions.map((action) => {
+            const ActionIcon = action.icon;
+            return (
+              <DropdownMenuItem
+                key={action.id}
+                asChild
+                className="flex-col items-start gap-2 rounded-xl border border-transparent p-2.5 focus:border-border focus:bg-muted/60"
+              >
+                <Link href={action.href}>
+                  <ToneIcon tone={action.tone} icon={ActionIcon} size="lg" />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-foreground">{action.label}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{action.hint}</span>
+                  </span>
+                </Link>
+              </DropdownMenuItem>
+            );
+          })}
+        </div>
+        {staffApps.length > 0 ? (
+          <>
+            <DropdownMenuSeparator className="my-2" />
+            <div className="flex items-baseline justify-between gap-2 px-1.5 pb-1">
+              <p className="text-xs font-semibold text-foreground">Personel uygulamaları</p>
+              <p className="text-[11px] text-muted-foreground">Yeni sekmede açılır</p>
+            </div>
+            {staffApps.map((app) => {
+              const AppIcon = app.icon;
+              return (
+                <DropdownMenuItem key={app.id} asChild className="gap-2.5 rounded-xl py-2 focus:bg-muted/60">
+                  <a href={app.href} target="_blank" rel="noopener noreferrer">
+                    <ToneIcon tone={app.tone} icon={AppIcon} size="lg" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium text-foreground">{app.label}</span>
+                      <span className="block truncate text-xs text-muted-foreground">{app.hint}</span>
+                    </span>
+                    <ExternalLink className="size-3.5 shrink-0 text-muted-foreground" />
+                  </a>
+                </DropdownMenuItem>
+              );
+            })}
+          </>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
 
-function StaffAppsMenu() {
-  const { data: accessProfile } = useAccessProfile();
-  if (!hasScope(accessProfile, "WAITER_PANEL_OWNER")) return null;
-  return (
-    <DropdownMenu>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label="Personel uygulamaları"
-              className="inline-flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <LayoutGrid className="size-[18px]" />
-            </button>
-          </DropdownMenuTrigger>
-        </TooltipTrigger>
-        <TooltipContent side="bottom">Personel uygulamaları</TooltipContent>
-      </Tooltip>
-      <DropdownMenuContent align="end" sideOffset={8} className="w-64">
-        <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">Yeni sekmede açılır</DropdownMenuLabel>
-        {STAFF_APPS.map((app) => {
-          const AppIcon = app.icon;
-          return (
-            <DropdownMenuItem key={app.id} asChild>
-              <a href={app.href} target="_blank" rel="noopener noreferrer" className="gap-2.5 py-2">
-                <ToneIcon tone={app.tone} icon={AppIcon} size="lg" />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium text-foreground">{app.label}</span>
-                  <span className="block truncate text-xs text-muted-foreground">{app.hint}</span>
-                </span>
-                <ExternalLink className="size-3.5 shrink-0 text-muted-foreground" />
-              </a>
-            </DropdownMenuItem>
-          );
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
+/** Shared look for the round icon buttons in the desktop and mobile top bars. */
+export const TOPBAR_ICON_BUTTON =
+  "inline-flex size-9 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-[#FFF0F3] hover:text-[#F03245] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-[#FFF0F3] data-[state=open]:text-[#F03245] dark:hover:bg-[#F03245]/15 dark:hover:text-[#FB7185] dark:data-[state=open]:bg-[#F03245]/15 dark:data-[state=open]:text-[#FB7185]";
 
-/** Masaüstü üst bar: konum (breadcrumb) solda, eylemler sağda. Eski geniş arama kutusunun yerini alır. */
+/**
+ * Desktop top bar: brand (only while the sidebar is collapsed) and search on the left,
+ * actions on the right. Breadcrumbs live in the page content instead.
+ */
 export function DashboardTopBar({
-  pathname,
-  pageLabel,
+  collapsed = false,
   user,
   onOpenSearch,
   onLogout,
   onShowShortcuts,
 }: {
-  pathname: string;
-  pageLabel?: string;
+  collapsed?: boolean;
   user?: StoredUser | null;
   onOpenSearch: () => void;
   onLogout: () => void;
   onShowShortcuts: () => void;
 }) {
-  const targets = useMemo(() => buildNavTargets(DASHBOARD_NAV_ITEMS), []);
-  const active = useMemo(() => {
-    const id = activeNavTargetId(pathname, targets);
-    return id ? targets.find((target) => target.id === id) ?? null : null;
-  }, [pathname, targets]);
-  const crumbs = buildDashboardBreadcrumbs(pathname, pageLabel);
-  const trail = crumbs.length > 1 ? crumbs : [{ label: active?.label ?? crumbs[0]?.label ?? "Panel" }];
-  const ActiveIcon = active ? DASHBOARD_NAV_ICONS[active.parentKey] : null;
+  const [assistantOpen, setAssistantOpen] = useState(false);
 
   return (
     // Yapışkan değil: sayfalardaki kendi "sticky top-0" filtre çubuklarının altında kalmasın.
-    <div className="relative z-20 hidden border-b border-border bg-background lg:block">
-      <div className="flex h-14 items-center gap-3 px-8">
-        <nav aria-label="Konum" className="flex min-w-0 flex-1 items-center gap-2">
-          {ActiveIcon ? (
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <ActiveIcon className="size-4" />
-            </span>
-          ) : null}
-          <ol className="flex min-w-0 items-center gap-1 text-sm">
-            {trail.map((crumb, index) => {
-              const last = index === trail.length - 1;
-              const href = "href" in crumb ? crumb.href : undefined;
-              return (
-                <li key={`${crumb.label}-${index}`} className={cn("flex min-w-0 items-center gap-1", !last && "hidden xl:flex")}>
-                  {index > 0 ? <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/60" aria-hidden /> : null}
-                  {last || !href ? (
-                    <span className={cn("truncate", last ? "font-semibold text-foreground" : "text-muted-foreground")} aria-current={last ? "page" : undefined}>
-                      {crumb.label}
-                    </span>
-                  ) : (
-                    <Link href={href} className="truncate text-muted-foreground transition-colors hover:text-foreground">
-                      {crumb.label}
-                    </Link>
-                  )}
-                </li>
-              );
-            })}
-          </ol>
-        </nav>
+    <div className="relative z-20 hidden border-b border-border bg-card lg:block">
+      <div className="flex h-16 items-center gap-3 px-6 xl:px-8">
+        {/* The logo slides in here when the sidebar collapses, and out again when it opens. */}
+        <div
+          inert={!collapsed}
+          aria-hidden={!collapsed || undefined}
+          className={cn(
+            "grid shrink-0 transition-[grid-template-columns,opacity] duration-300 motion-reduce:transition-none",
+            SIDEBAR_EASE,
+            collapsed ? "grid-cols-[1fr] opacity-100" : "grid-cols-[0fr] opacity-0",
+          )}
+        >
+          <div className="flex items-center overflow-hidden">
+            <Link
+              href={DASHBOARD_ROUTES.overview}
+              className="flex shrink-0 items-center gap-2 rounded-xl py-1 pr-2 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <BrandLogo size="sm" className="h-8 max-w-none sm:h-8" />
+              <span className="whitespace-nowrap text-base font-bold">
+                Algory<span className="text-muted-foreground">QR</span>
+              </span>
+            </Link>
+            <span className="mx-2 h-6 w-px shrink-0 bg-border" aria-hidden />
+          </div>
+        </div>
 
-        <div className="flex shrink-0 items-center gap-1.5">
+        <button
+          type="button"
+          onClick={onOpenSearch}
+          className="group flex h-10 w-full max-w-md min-w-0 items-center gap-2.5 rounded-xl border border-border bg-muted/40 pl-3 pr-2 text-sm text-muted-foreground transition-colors hover:border-[#F03245]/30 hover:bg-card hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Sayfa veya işlem ara"
+        >
+          <Search className="size-4 shrink-0 transition-colors group-hover:text-[#F03245]" />
+          <span className="min-w-0 flex-1 truncate text-left">Sayfa veya işlem ara…</span>
+          <span className="hidden shrink-0 items-center gap-0.5 xl:flex">
+            <Kbd>Ctrl</Kbd>
+            <Kbd>K</Kbd>
+          </span>
+        </button>
+
+        <div className="ml-auto flex shrink-0 items-center gap-1">
           <TrialReminderHeaderBadge />
           <button
             type="button"
-            onClick={onOpenSearch}
-            className="flex h-9 items-center gap-2 rounded-full border border-border bg-muted/40 pl-3 pr-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label="Sayfa veya işlem ara"
+            onClick={() => setAssistantOpen(true)}
+            className="group inline-flex h-9 items-center gap-2 rounded-xl bg-[#FFF0F3] pl-1.5 pr-3 text-sm font-medium text-[#F03245] transition-colors hover:bg-[#FFE3E9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F03245]/40 dark:bg-[#F03245]/15 dark:text-[#FB7185] dark:hover:bg-[#F03245]/25"
+            aria-label="Asistan Danış"
           >
-            <Search className="size-4" />
-            <span className="hidden xl:inline">Ara</span>
-            <span className="flex items-center gap-0.5">
-              <Kbd>Ctrl</Kbd>
-              <Kbd>K</Kbd>
+            <span className="flex size-6 items-center justify-center rounded-lg bg-[#F03245] text-white">
+              <Sparkles className="size-3.5 transition-transform duration-300 group-hover:rotate-12" strokeWidth={2.25} />
             </span>
+            Asistan
           </button>
-          <StaffAppsMenu />
           <QuickCreateMenu />
-          <span className="mx-1 h-6 w-px bg-border" aria-hidden />
+          <span className="mx-2 h-6 w-px bg-border" aria-hidden />
           <AccountMenu user={user} onLogout={onLogout} onShowShortcuts={onShowShortcuts} />
         </div>
       </div>
+      <DashboardAssistantChat open={assistantOpen} onOpenChange={setAssistantOpen} />
     </div>
   );
 }

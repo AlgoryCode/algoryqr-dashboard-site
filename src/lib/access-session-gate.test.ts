@@ -5,7 +5,7 @@ import { DASHBOARD_ROUTES } from "./dashboard-routes";
 
 describe("access-session-gate", () => {
   it("maps decisions to dashboard paths", () => {
-    expect(destinationForDecision("START_PACKAGE", null)).toBe(DASHBOARD_ROUTES.demoRegister);
+    expect(destinationForDecision("START_PACKAGE", null)).toBe(DASHBOARD_ROUTES.trialStart);
     expect(destinationForDecision("REQUIRE_PURCHASE", null)).toBe(SHOP_PATH);
     expect(destinationForDecision("REQUIRE_PAYMENT", null)).toBe(DASHBOARD_ROUTES.accountPackages);
     expect(destinationForDecision("ALLOW", "/menu-yonetimi")).toBe("/menu-yonetimi");
@@ -32,6 +32,7 @@ describe("access-session-gate", () => {
       debtDueAt: null,
       messageKey: null,
       code: null,
+      billingState: null,
     });
     expect(parseAccessSession({ decision: "NOPE" })).toBeNull();
   });
