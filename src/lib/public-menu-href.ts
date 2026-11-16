@@ -17,7 +17,7 @@ function absoluteMenuHref(path: string): string {
 
 /**
  * Builds the stable "Menüyü aç" href. The API may return a dashboard, localhost,
- * or legacy QR host, but public menu links always point at menu.algorycode.com.
+ * or legacy QR host, but public menu links always point at qr.algorycode.com.
  */
 export function resolvePublicMenuHref(options: {
   publicUrl?: string | null;

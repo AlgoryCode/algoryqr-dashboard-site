@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Loader2, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { AddButton } from "@/components/dashboard/AddButton";
 
 import { AddExistingProductDialog } from "@/components/dashboard/menu/AddExistingProductDialog";
 
@@ -173,9 +174,8 @@ export default function MenuProductsPanel({
           </div>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-          <Button
-            size="sm"
-            className="w-full shrink-0 gap-1.5 sm:w-auto"
+          <AddButton
+            className="w-full sm:w-auto"
             onClick={() => {
               const categoryId = filterCategoryId === "all" ? null : filterCategoryId;
               router.push(
@@ -185,9 +185,8 @@ export default function MenuProductsPanel({
               );
             }}
           >
-            <Plus className="h-3.5 w-3.5" />
-            Ürün Ekle
-          </Button>
+            Ürün ekle
+          </AddButton>
           {resolvedMenuId > 0 ? (
             <Button
               size="sm"

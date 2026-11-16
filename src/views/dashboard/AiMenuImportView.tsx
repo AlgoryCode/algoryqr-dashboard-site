@@ -112,7 +112,7 @@ export default function AiMenuImportView() {
           title="AI ile ürün ekle"
           hint={PRODUCT_HINTS.AI_MENU_IMPORT.description}
           back={
-            <Link href={DASHBOARD_ROUTES.digitalMenuProducts} aria-label="Ürünlere dön" className={DASHBOARD_BACK}>
+            <Link href={DASHBOARD_ROUTES.digitalMenuCategories} aria-label="Ürünlere dön" className={DASHBOARD_BACK}>
               <ArrowLeft className="h-4 w-4" />
             </Link>
           }
@@ -142,7 +142,7 @@ export default function AiMenuImportView() {
         title="AI ile ürün ekle"
         hint="Menü fotoğrafı yükleyin. AI ürünleri çıkarır, zenginleştirir ve menünüze yazar."
         back={
-          <Link href={DASHBOARD_ROUTES.digitalMenuProducts} aria-label="Ürünlere dön" className={DASHBOARD_BACK}>
+          <Link href={DASHBOARD_ROUTES.digitalMenuCategories} aria-label="Ürünlere dön" className={DASHBOARD_BACK}>
             <ArrowLeft className="h-4 w-4" />
           </Link>
         }
@@ -191,7 +191,7 @@ export default function AiMenuImportView() {
             {jobDone ? (
               <p>
                 Tamamlandı. {jobQuery.data?.publishedCount ?? 0} ürün menüye eklendi.{" "}
-                <Link className="underline" href={DASHBOARD_ROUTES.digitalMenuProducts}>
+                <Link className="underline" href={DASHBOARD_ROUTES.digitalMenuCategories}>
                   Ürünlere git
                 </Link>
               </p>

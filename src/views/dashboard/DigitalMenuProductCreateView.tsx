@@ -184,7 +184,7 @@ export default function DigitalMenuProductCreateView() {
       ? DASHBOARD_ROUTES.onlineOrderProducts
       : qrId != null
         ? DASHBOARD_ROUTES.digitalMenuProductsForQr(qrId)
-        : DASHBOARD_ROUTES.digitalMenuProducts;
+        : DASHBOARD_ROUTES.digitalMenuCategories;
 
   const resolveNutritionPayload = (): NutritionFacts | null => {
     const kcal = Number(String(nutritionForm.energyKcal).replace(",", "."));

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
@@ -19,16 +19,10 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ChevronDown, CirclePlus, GripVertical, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { CirclePlus, FolderTree, GripVertical, Pencil, Plus, Search, Trash2 } from "lucide-react";
 
 import { CategoryCoverField } from "@/components/dashboard/menu/CategoryCoverField";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -122,59 +116,41 @@ function DragHandle({
   attributes,
   listeners,
   disabled,
+  label,
 }: {
   attributes: ReturnType<typeof useSortable>["attributes"];
   listeners: ReturnType<typeof useSortable>["listeners"];
   disabled?: boolean;
+  label: string;
 }) {
   return (
     <button
       type="button"
       className={cn(
-        "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground",
-        disabled ? "cursor-not-allowed opacity-40" : "cursor-grab active:cursor-grabbing hover:bg-muted/60",
+        "inline-flex size-8 shrink-0 touch-none items-center justify-center rounded-lg text-muted-foreground/70",
+        disabled ? "cursor-not-allowed opacity-40" : "cursor-grab hover:bg-muted hover:text-foreground active:cursor-grabbing",
       )}
       disabled={disabled}
-      aria-label="Sürükleyerek sırala"
+      aria-label={label}
       {...(disabled ? {} : attributes)}
       {...(disabled ? {} : listeners)}
     >
-      <GripVertical className="h-4 w-4" />
+      <GripVertical className="size-4" />
     </button>
   );
 }
 
-const HEAD_CELL =
-  "border border-border bg-muted/50 px-3 py-2 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground";
-const BODY_CELL =
-  "border-0 p-0 align-middle md:table-cell md:border md:border-border md:px-3 md:py-2.5";
-const DATA_ROW =
-  "grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-2 border-b border-border px-3 py-3 last:border-b-0 hover:bg-muted/30 md:table-row md:border-0 md:p-0";
-const DESKTOP_CELL = "hidden md:table-cell";
-
-function RowActions({
-  busy,
-  children,
-}: {
-  busy: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 gap-1" disabled={busy}>
-          İşlemler
-          <ChevronDown className="h-3.5 w-3.5" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">{children}</DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
+/** Small labeled action; the label hides on phones only where an icon is self-explanatory. */
+const ACTION_BUTTON =
+  "inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-foreground/75 transition-colors hover:bg-[#FFF0F3] hover:text-[#F03245] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 dark:hover:bg-[#F03245]/15 dark:hover:text-[#FB7185]";
+/** Minimal red "add" text button, shared by "Kategori ekle" and "Alt kategori ekle". */
+const ADD_BUTTON =
+  "inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-[#F03245] transition-colors hover:bg-[#FFF0F3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 dark:text-[#FB7185] dark:hover:bg-[#F03245]/15";
+const DANGER_BUTTON =
+  "inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
 
 function SortableSubRow({
   sub,
-  parentName,
   busy,
   dragDisabled,
   onRename,
@@ -182,7 +158,6 @@ function SortableSubRow({
   onAddProduct,
 }: {
   sub: SubCategoryApiItem;
-  parentName: string;
   busy: boolean;
   dragDisabled: boolean;
   onRename: () => void;
@@ -196,44 +171,54 @@ function SortableSubRow({
   });
 
   return (
-    <tr
+    <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn(DATA_ROW, "bg-muted/20 pl-6 md:bg-transparent md:pl-0", isDragging && "relative z-10 bg-background")}
+      className={cn(
+        "flex items-center gap-1 py-1.5 pl-1 pr-1.5 sm:gap-2 sm:pr-2",
+        isDragging && "relative z-10 rounded-xl bg-card shadow-lg ring-1 ring-border",
+      )}
     >
-      <td className={`${BODY_CELL} w-10 md:px-1`}>
-        <DragHandle attributes={attributes} listeners={listeners} disabled={dragDisabled || busy} />
-      </td>
-      <td className={BODY_CELL}>
-        <span className="block truncate font-medium">{sub.name}</span>
-        <p className="truncate text-xs text-muted-foreground md:hidden">{parentName}</p>
-      </td>
-      <td className={`${BODY_CELL} ${DESKTOP_CELL} text-muted-foreground`}>{parentName}</td>
-      <td className={`${BODY_CELL} ${DESKTOP_CELL} text-muted-foreground`}>{sub.slug}</td>
-      <td className={`${BODY_CELL} ${DESKTOP_CELL} text-muted-foreground`}>Alt</td>
-      <td className={`${BODY_CELL} col-span-2 text-right md:col-auto`}>
-        <RowActions busy={busy}>
-          {onAddProduct ? (
-            <DropdownMenuItem onSelect={() => onAddProduct(sub.id)}>
-              <Plus className="mr-2 h-3.5 w-3.5" />
-              Ürün ekle
-            </DropdownMenuItem>
-          ) : null}
-          <DropdownMenuItem onSelect={onRename}>
-            <Pencil className="mr-2 h-3.5 w-3.5" />
-            Yeniden adlandır
-          </DropdownMenuItem>
-          <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={onDelete}>
-            <Trash2 className="mr-2 h-3.5 w-3.5" />
-            Sil
-          </DropdownMenuItem>
-        </RowActions>
-      </td>
-    </tr>
+      <DragHandle
+        attributes={attributes}
+        listeners={listeners}
+        disabled={dragDisabled || busy}
+        label={`${sub.name} alt kategorisini sürükleyerek sırala`}
+      />
+      <button
+        type="button"
+        onClick={onRename}
+        disabled={busy}
+        className="min-w-0 flex-1 truncate rounded-md py-1 text-left text-sm text-foreground hover:text-[#F03245] disabled:pointer-events-none"
+        title="Adını değiştir"
+      >
+        {sub.name}
+      </button>
+      {onAddProduct ? (
+        <button type="button" className={ACTION_BUTTON} disabled={busy} onClick={() => onAddProduct(sub.id)}>
+          <Plus className="size-4" />
+          <span className="hidden sm:inline">Ürün ekle</span>
+          <span className="sm:hidden">Ürün</span>
+        </button>
+      ) : null}
+      <button
+        type="button"
+        className={cn(ACTION_BUTTON, "w-9 px-0 sm:w-auto sm:px-2.5")}
+        disabled={busy}
+        onClick={onRename}
+        aria-label={`${sub.name} adını değiştir`}
+      >
+        <Pencil className="size-4 sm:size-3.5" />
+        <span className="hidden sm:inline">Düzenle</span>
+      </button>
+      <button type="button" className={DANGER_BUTTON} disabled={busy} onClick={onDelete} aria-label={`${sub.name} sil`}>
+        <Trash2 className="size-4" />
+      </button>
+    </li>
   );
 }
 
-function SortableCategoryRows({
+function SortableCategoryCard({
   main,
   menuId,
   catalog,
@@ -269,74 +254,84 @@ function SortableCategoryRows({
   const subIds = subs.map((sub) => `sub-${sub.id}`);
 
   return (
-    <>
-      <tr
-        ref={setNodeRef}
-        style={{ transform: CSS.Transform.toString(transform), transition }}
-        className={cn(DATA_ROW, isDragging && "relative z-10 bg-background")}
-      >
-        <td className={`${BODY_CELL} w-10 md:px-1`}>
-          <DragHandle attributes={attributes} listeners={listeners} disabled={dragDisabled || busy} />
-        </td>
-        <td className={BODY_CELL}>
-          <div className="flex min-w-0 items-center gap-2">
-            <CategoryCoverField
-              menuId={menuId}
-              categoryId={main.id}
-              value={main.imageUrl}
-              disabled={busy || (!catalog && menuId <= 0)}
-              catalog={catalog}
-              compact
-              onChange={(imageUrl) => onCoverChange(main.id, imageUrl)}
-            />
-            <div className="min-w-0">
-              <span className="block truncate font-medium">{main.name}</span>
-              <p className="truncate text-xs text-muted-foreground md:hidden">Ana kategori</p>
-            </div>
+    <article
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn(
+        "overflow-hidden rounded-2xl border border-[#ececea] bg-card dark:border-border",
+        isDragging && "relative z-10 shadow-xl",
+      )}
+    >
+      <header className="flex flex-wrap items-center gap-x-2 gap-y-1 p-3 sm:flex-nowrap sm:gap-3 sm:p-4">
+        <div className="flex min-w-0 flex-1 basis-full items-center gap-2 sm:basis-auto sm:gap-3">
+          <DragHandle
+            attributes={attributes}
+            listeners={listeners}
+            disabled={dragDisabled || busy}
+            label={`${main.name} kategorisini sürükleyerek sırala`}
+          />
+          <CategoryCoverField
+            menuId={menuId}
+            categoryId={main.id}
+            value={main.imageUrl}
+            disabled={busy || (!catalog && menuId <= 0)}
+            catalog={catalog}
+            compact
+            onChange={(imageUrl) => onCoverChange(main.id, imageUrl)}
+          />
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate text-[15px] font-semibold text-foreground">{main.name}</h3>
+            <p className="text-xs text-muted-foreground">
+              {subs.length > 0 ? `${subs.length} alt kategori` : "Alt kategori yok"}
+            </p>
           </div>
-        </td>
-        <td className={`${BODY_CELL} ${DESKTOP_CELL} text-muted-foreground`}>—</td>
-        <td className={`${BODY_CELL} ${DESKTOP_CELL} text-muted-foreground`}>{main.slug}</td>
-        <td className={`${BODY_CELL} ${DESKTOP_CELL} text-muted-foreground`}>Ana</td>
-        <td className={`${BODY_CELL} col-span-2 text-right md:col-auto`}>
-          <div className="flex items-center justify-between gap-3 md:justify-end">
-          <button
-            type="button"
-            className="inline-flex items-center gap-1.5 whitespace-nowrap text-sm font-medium text-primary hover:underline disabled:pointer-events-none disabled:opacity-50"
-            disabled={busy}
-            onClick={onAddSub}
-          >
-            <CirclePlus className="h-4 w-4" />
+        </div>
+        <div className="ml-auto flex shrink-0 items-center gap-0.5">
+          <button type="button" className={ADD_BUTTON} disabled={busy} onClick={onAddSub}>
+            <CirclePlus className="size-4" />
             Alt kategori ekle
           </button>
-          <RowActions busy={busy}>
-            <DropdownMenuItem onSelect={onRename}>
-              <Pencil className="mr-2 h-3.5 w-3.5" />
-              Yeniden adlandır
-            </DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={onDelete}>
-              <Trash2 className="mr-2 h-3.5 w-3.5" />
-              Sil
-            </DropdownMenuItem>
-          </RowActions>
-          </div>
-        </td>
-      </tr>
-      <SortableContext items={subIds} strategy={verticalListSortingStrategy}>
-        {subs.map((sub) => (
-          <SortableSubRow
-            key={sub.id}
-            sub={sub}
-            parentName={main.name}
-            busy={busy}
-            dragDisabled={dragDisabled}
-            onRename={() => onRenameSub(sub)}
-            onDelete={() => onDeleteSub(sub)}
-            onAddProduct={onAddProduct}
-          />
-        ))}
-      </SortableContext>
-    </>
+          <button
+            type="button"
+            className={cn(ACTION_BUTTON, "w-9 px-0 sm:w-auto sm:px-2.5")}
+            disabled={busy}
+            onClick={onRename}
+            aria-label={`${main.name} adını değiştir`}
+          >
+            <Pencil className="size-4 sm:size-3.5" />
+            <span className="hidden sm:inline">Düzenle</span>
+          </button>
+          <button
+            type="button"
+            className={DANGER_BUTTON}
+            disabled={busy}
+            onClick={onDelete}
+            aria-label={`${main.name} kategorisini sil`}
+          >
+            <Trash2 className="size-4" />
+          </button>
+        </div>
+      </header>
+
+      {subs.length > 0 ? (
+        <SortableContext items={subIds} strategy={verticalListSortingStrategy}>
+          <ul className="mx-2 mb-2 divide-y divide-[#f1f1ef] rounded-xl bg-muted/30 px-1 dark:divide-border sm:mx-4 sm:mb-4">
+            {subs.map((sub) => (
+              <SortableSubRow
+                key={sub.id}
+                sub={sub}
+                busy={busy}
+                dragDisabled={dragDisabled}
+                onRename={() => onRenameSub(sub)}
+                onDelete={() => onDeleteSub(sub)}
+                onAddProduct={onAddProduct}
+              />
+            ))}
+          </ul>
+        </SortableContext>
+      ) : null}
+
+    </article>
   );
 }
 
@@ -629,85 +624,109 @@ export default function MenuCategoriesPanel({
   };
 
   const busy = saving || deleting || reordering;
+  const subCount = orderedCategories.reduce((total, main) => total + (main.subs?.length ?? 0), 0);
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Kategori ara…"
-            className="pl-9"
+            placeholder="Kategori veya alt kategori ara"
+            className="h-10 pl-9"
+            aria-label="Kategori ara"
           />
         </div>
-        <Button
+        <button
           type="button"
-          size="sm"
-          className="gap-1"
+          className={cn(ADD_BUTTON, "h-10 self-end text-sm sm:self-auto")}
           disabled={busy || !canEdit}
           onClick={() => openNameDialog({ kind: "create-main" })}
         >
-          <Plus className="h-3.5 w-3.5" />
+          <CirclePlus className="size-4" />
           Kategori ekle
-        </Button>
+        </button>
       </div>
 
-      {debouncedSearch ? (
-        <p className="text-xs text-muted-foreground">Arama açıkken sürükle-bırak kapalıdır.</p>
-      ) : orderedCategories.length > 1 || orderedCategories.some((main) => (main.subs?.length ?? 0) > 1) ? (
-        <p className="text-xs text-muted-foreground">
-          Sıralamak için sol taraftaki tutamacı sürükleyin.
-        </p>
+      {orderedCategories.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <span>
+            <span className="font-medium text-foreground">{orderedCategories.length}</span> kategori ·{" "}
+            <span className="font-medium text-foreground">{subCount}</span> alt kategori
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <GripVertical className="size-3.5" aria-hidden />
+            {debouncedSearch ? "Arama açıkken sıralama kapalı" : "Sıralamak için tutup sürükleyin"}
+          </span>
+        </div>
       ) : null}
 
       {categoriesQuery.isLoading || (!catalog && menuId <= 0 && menuByQr.isLoading) ? (
-        <p className="text-sm text-muted-foreground">Kategoriler yükleniyor…</p>
+        <div className="space-y-3">
+          {[0, 1, 2].map((index) => (
+            <div key={index} className="h-28 animate-pulse rounded-2xl bg-muted/60" />
+          ))}
+        </div>
       ) : categoriesQuery.isError ? (
-        <p className="text-sm text-destructive">Kategori listesi alınamadı.</p>
-      ) : filtered.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          {debouncedSearch
-            ? "Aramayla eşleşen kategori bulunamadı."
-            : "Henüz kategori yok. Yeni kategori ekleyin."}
+        <p className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+          Kategori listesi alınamadı.
         </p>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border px-6 py-12 text-center">
+          <span className="flex size-12 items-center justify-center rounded-2xl bg-[#FFF0F3] text-[#F03245] dark:bg-[#F03245]/15">
+            <FolderTree className="size-5" />
+          </span>
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-foreground">
+              {debouncedSearch ? "Eşleşen kategori yok" : "Henüz kategori yok"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {debouncedSearch
+                ? "Farklı bir kelimeyle aramayı deneyin."
+                : "Ürünlerinizi gruplamak için ilk kategorinizi ekleyin."}
+            </p>
+          </div>
+          {debouncedSearch ? (
+            <Button variant="outline" size="sm" className="rounded-xl" onClick={() => setSearch("")}>
+              Aramayı temizle
+            </Button>
+          ) : (
+            <button
+              type="button"
+              className={cn(ADD_BUTTON, "text-sm")}
+              disabled={busy || !canEdit}
+              onClick={() => openNameDialog({ kind: "create-main" })}
+            >
+              <CirclePlus className="size-4" />
+              Kategori ekle
+            </button>
+          )}
+        </div>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <div className="overflow-hidden rounded-xl border border-border bg-card md:overflow-x-auto">
-            <table className="block w-full text-sm md:table md:min-w-[760px] md:border-collapse">
-              <thead className="hidden md:table-header-group">
-                <tr>
-                  {["", "Kategori", "Üst kategori", "Kod", "Tür", "İşlem"].map((label) => (
-                    <th key={label || "sıra"} className={HEAD_CELL}>
-                      {label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="block md:table-row-group">
-                <SortableContext items={mainIds} strategy={verticalListSortingStrategy}>
-                  {filtered.map((main) => (
-                    <SortableCategoryRows
-                      key={main.id}
-                      main={main}
-                      menuId={resolvedMenuId}
-                      catalog={catalog}
-                      busy={busy}
-                      dragDisabled={dragDisabled}
-                      onRename={() => openNameDialog({ kind: "rename-main", main })}
-                      onDelete={() => setDeleteTarget({ kind: "main", id: main.id, name: main.name })}
-                      onAddSub={() => openNameDialog({ kind: "create-sub", main })}
-                      onRenameSub={(sub) => openNameDialog({ kind: "rename-sub", sub })}
-                      onDeleteSub={(sub) => setDeleteTarget({ kind: "sub", id: sub.id, name: sub.name })}
-                      onAddProduct={onAddProduct}
-                      onCoverChange={handleCoverChange}
-                    />
-                  ))}
-                </SortableContext>
-              </tbody>
-            </table>
-          </div>
+          <SortableContext items={mainIds} strategy={verticalListSortingStrategy}>
+            <div className="space-y-3">
+              {filtered.map((main) => (
+                <SortableCategoryCard
+                  key={main.id}
+                  main={main}
+                  menuId={resolvedMenuId}
+                  catalog={catalog}
+                  busy={busy}
+                  dragDisabled={dragDisabled}
+                  onRename={() => openNameDialog({ kind: "rename-main", main })}
+                  onDelete={() => setDeleteTarget({ kind: "main", id: main.id, name: main.name })}
+                  onAddSub={() => openNameDialog({ kind: "create-sub", main })}
+                  onRenameSub={(sub) => openNameDialog({ kind: "rename-sub", sub })}
+                  onDeleteSub={(sub) => setDeleteTarget({ kind: "sub", id: sub.id, name: sub.name })}
+                  onAddProduct={onAddProduct}
+                  onCoverChange={handleCoverChange}
+                />
+              ))}
+            </div>
+          </SortableContext>
         </DndContext>
       )}
 
@@ -772,6 +791,7 @@ export default function MenuCategoriesPanel({
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>Vazgeç</AlertDialogCancel>
             <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={deleting}
               onClick={(event) => {
                 event.preventDefault();

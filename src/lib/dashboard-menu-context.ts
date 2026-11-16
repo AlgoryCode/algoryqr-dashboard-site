@@ -12,7 +12,7 @@ export function resolveDigitalMenuProductsHref(qrId?: number | null): string {
   const resolved = qrId ?? readStoredMenuQrId();
   return resolved != null
     ? DASHBOARD_ROUTES.digitalMenuProductsForQr(resolved)
-    : DASHBOARD_ROUTES.digitalMenuProducts;
+    : DASHBOARD_ROUTES.digitalMenuCategories;
 }
 
 export function resolveDigitalMenuMenusHref(): string {
