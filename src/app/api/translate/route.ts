@@ -12,13 +12,27 @@ import {
   type GoogleTranslatePayload,
   type TranslateResponseBody,
 } from "@/lib/google-translate";
+import { createRateLimiter, isSameOriginRequest, rateLimitKey } from "@/lib/server/request-guards";
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const CACHE_MAX_ENTRIES = 20_000;
 
+/** Longest single string we will send to Google (menu descriptions fit comfortably). */
+const MAX_TEXT_LENGTH = 2_000;
+/** Upper bound on characters in one request body. */
+const MAX_REQUEST_CHARS = 100_000;
+/** Characters per client sent to Google (cache misses only) per window. */
+const BILLABLE_CHARS_PER_WINDOW = 200_000;
+const RATE_WINDOW_MS = 10 * 60 * 1000;
+
+const consumeBillableChars = createRateLimiter({
+  windowMs: RATE_WINDOW_MS,
+  budget: BILLABLE_CHARS_PER_WINDOW,
+});
+
 const bodySchema = z.object({
-  target: z.string(),
-  texts: z.array(z.string()).max(TRANSLATE_MAX_TEXTS_PER_REQUEST),
+  target: z.string().max(16),
+  texts: z.array(z.string().max(MAX_TEXT_LENGTH)).max(TRANSLATE_MAX_TEXTS_PER_REQUEST),
 });
 
 type CacheEntry = {
@@ -88,6 +102,10 @@ async function translateChunk(
 }
 
 export async function POST(request: Request) {
+  if (!isSameOriginRequest(request)) {
+    return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  }
+
   const apiKey = process.env.Google_Cloud_Translate_API_KEY?.trim();
   if (!apiKey) {
     return NextResponse.json({ message: "Translation service unavailable" }, { status: 503 });
@@ -111,6 +129,10 @@ export async function POST(request: Request) {
   }
 
   const texts = uniqueTexts(parsed.data.texts);
+  const requestChars = texts.reduce((sum, text) => sum + text.length, 0);
+  if (requestChars > MAX_REQUEST_CHARS) {
+    return NextResponse.json({ message: "Translate request too large" }, { status: 413 });
+  }
   if (texts.length === 0) {
     const empty: TranslateResponseBody = { target, translations: {} };
     return NextResponse.json(empty);
@@ -125,6 +147,14 @@ export async function POST(request: Request) {
     } else {
       missing.push(text);
     }
+  }
+
+  const billableChars = missing.reduce((sum, text) => sum + text.length, 0);
+  if (billableChars > 0 && !consumeBillableChars(rateLimitKey(request), billableChars)) {
+    return NextResponse.json(
+      { message: "Too many translate requests" },
+      { status: 429, headers: { "Retry-After": String(Math.ceil(RATE_WINDOW_MS / 1000)) } },
+    );
   }
 
   try {

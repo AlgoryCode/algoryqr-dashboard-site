@@ -21,6 +21,7 @@ import {
 } from "@/lib/server/demo-onboarding-gate";
 import { setDemoSetupDoneCookie } from "@/lib/server/demo-onboarding-cookies";
 import { isKnownPath, isPanelPath, legacyPanelPath, NOT_FOUND_PATH } from "@/lib/panel-paths";
+import { hasUnsafeApiPath } from "@/lib/server/upstream-path-guard";
 
 const DEMO_SETUP_PATH = "/demo-kurulum";
 
@@ -52,6 +53,9 @@ export async function proxy(request: NextRequest) {
 
   // ── API requests: block non-allowlisted while demo setup pending ──
   if (pathname.startsWith("/api/")) {
+    if (hasUnsafeApiPath(pathname)) {
+      return NextResponse.json({ message: "Geçersiz istek yolu" }, { status: 400 });
+    }
     if (requiresDemoOnboardingGate(request) && !isDemoOnboardingApiAllowed(pathname, request.method)) {
       return demoOnboardingApiBlockedResponse();
     }
@@ -172,5 +176,6 @@ async function gateShop(request: NextRequest) {
 
 export const config = {
   // Panel addresses have no shared prefix; only assets (anything with a dot) and Next internals are left out.
-  matcher: ["/((?!_next/|.*\\.).*)"],
+  // Every /api path is matched, dots included, so traversal attempts like `..%2F` reach the guard.
+  matcher: ["/api/:path*", "/((?!_next/|.*\\.).*)"],
 };
