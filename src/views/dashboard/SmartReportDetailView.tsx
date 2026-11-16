@@ -10,13 +10,18 @@ import BranchSmartReportStory from "@/components/dashboard/BranchSmartReportStor
 import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { SmartReportFeedbackCard } from "@/components/dashboard/smart-report/SmartReportFeedbackCard";
+import { SmartReportGeneratingAnimation } from "@/components/dashboard/smart-report/SmartReportGeneratingAnimation";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import {
   buildChannelComparisonHtml,
+  buildMerchantKpiHtml,
   buildSmartReportMarkdown,
+  getMerchantDetailedReportRequest,
   getSmartReportJobRequest,
+  isMerchantWideSmartReport,
   isSmartReportFailed,
   isSmartReportPending,
   normalizeSmartReportResult,
@@ -24,6 +29,7 @@ import {
   smartReportStatusLabel,
   smartReportTitle,
   type SmartReportDetailResponse,
+  markSmartReportDownloaded,
 } from "@/lib/smart-report";
 import { getBranchRevenueReportRequest } from "@/lib/api";
 import { DASHBOARD_BACK, DASHBOARD_SURFACE } from "@/lib/dashboard-surface";
@@ -101,10 +107,19 @@ export default function SmartReportDetailView({ jobId }: Props) {
       const remoteUrl = detail?.pdfUrl?.trim();
       if (remoteUrl) {
         window.open(remoteUrl, "_blank", "noopener,noreferrer");
+        markSmartReportDownloaded(jobId);
         return;
       }
       let prefixHtml = "";
-      if (detail?.branchId != null && detail.from && detail.to) {
+      if (detail && isMerchantWideSmartReport(detail) && detail.from && detail.to) {
+        try {
+          const report = await getMerchantDetailedReportRequest(detail.from, detail.to);
+          prefixHtml =
+            buildMerchantKpiHtml(report) +
+            buildChannelComparisonHtml(report.revenue?.channels ?? []);
+        } catch {
+        }
+      } else if (detail?.branchId != null && detail.from && detail.to) {
         try {
           const revenue = await getBranchRevenueReportRequest(
             detail.branchId,
@@ -120,8 +135,12 @@ export default function SmartReportDetailView({ jobId }: Props) {
         title: result.title || (detail ? smartReportTitle(detail) : "Akilli Rapor"),
         markdown,
         prefixHtml,
-        fileName: `akilli-rapor-${detail?.branchId ?? detail?.menuId ?? "rapor"}-${detail?.from ?? ""}-${detail?.to ?? ""}.pdf`,
+        subtitle: detail
+          ? `${smartReportTitle(detail)} · ${detail.from} – ${detail.to} · Oluşturulma: ${formatDateTime(detail.completedAt || detail.createdAt)}`
+          : undefined,
+        fileName: `akilli-rapor-${detail?.branchId ?? detail?.menuId ?? "tum-subeler"}-${detail?.from ?? ""}-${detail?.to ?? ""}.pdf`,
       });
+      markSmartReportDownloaded(jobId);
     } catch {
       toast({
         title: "PDF indirilemedi",
@@ -155,7 +174,7 @@ export default function SmartReportDetailView({ jobId }: Props) {
               ) : (
                 <Download className="mr-2 h-4 w-4" />
               )}
-              PDF indir
+              PDF olarak indir
             </Button>
           ) : null
         }
@@ -184,15 +203,18 @@ export default function SmartReportDetailView({ jobId }: Props) {
             </div>
           </div>
 
+          {detail?.status === "completed" && result ? (
+            <SmartReportFeedbackCard
+              jobId={jobId}
+              sectionHeadings={result.sections
+                .map((section) => section.heading?.trim())
+                .filter((heading): heading is string => Boolean(heading))}
+            />
+          ) : null}
+
           {pending ? (
-            <div className={`${DASHBOARD_SURFACE} flex flex-col items-center gap-3 px-4 py-10 text-center`}>
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-foreground">Henüz hazır değil</p>
-                <p className="text-sm text-muted-foreground">
-                  Rapor hazırlanıyor. Bu sayfa tamamlanınca otomatik güncellenir.
-                </p>
-              </div>
+            <div className={DASHBOARD_SURFACE}>
+              <SmartReportGeneratingAnimation />
             </div>
           ) : null}
 

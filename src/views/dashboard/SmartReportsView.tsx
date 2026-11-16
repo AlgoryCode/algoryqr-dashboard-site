@@ -1,143 +1,54 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Clock, FileText, RefreshCw } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, ArrowRight, Plus } from "lucide-react";
 
 import { useRequireScope } from "@/components/auth/RequireScope";
 import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
 import { DashboardLoadingState } from "@/components/dashboard/DashboardLoadingState";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
-import { EmptyState } from "@/components/dashboard/EmptyState";
+import { SmartReportCreditDonut } from "@/components/dashboard/smart-report/SmartReportCreditDonut";
+import { SmartReportRows } from "@/components/dashboard/smart-report/SmartReportList";
+import { SmartReportUsageCard } from "@/components/dashboard/smart-report/SmartReportUsageCard";
+import { Button } from "@/components/ui/button";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { DASHBOARD_BACK, DASHBOARD_SURFACE } from "@/lib/dashboard-surface";
 import {
   getSmartReportQuotaRequest,
-  isSmartReportCompleted,
   isSmartReportPending,
-  isSmartReportQuotaExhausted,
   listSmartReportsRequest,
-  resolveSmartReportProcessId,
   smartReportAddonCheckoutCode,
-  smartReportStatusLabel,
-  smartReportTitle,
-  type SmartReportQuota,
+  summarizeSmartReportQuota,
 } from "@/lib/smart-report";
 
-function formatDateTime(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("tr-TR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+const RECENT_COUNT = 5;
 
-function formatCountdown(ms: number): string {
-  const totalSec = Math.max(0, Math.floor(ms / 1000));
-  const days = Math.floor(totalSec / 86_400);
-  const hours = Math.floor((totalSec % 86_400) / 3600);
-  const minutes = Math.floor((totalSec % 3600) / 60);
-  const seconds = totalSec % 60;
-  if (days > 0) {
-    return `${days}g ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-  }
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-}
-
-function QuotaCountdownCard({
-  quota,
-  lastUsedAt,
-}: {
-  quota: SmartReportQuota;
-  lastUsedAt: string | null;
-}) {
-  const queryClient = useQueryClient();
-  const [now, setNow] = useState(() => Date.now());
-  const resetsAtMs = new Date(quota.resetsAt).getTime();
-  const remainingMs = Number.isFinite(resetsAtMs) ? resetsAtMs - now : 0;
-  const exhausted = isSmartReportQuotaExhausted(quota);
-  const countdownDone = remainingMs <= 0;
-
-  useEffect(() => {
-    if (!exhausted || !Number.isFinite(resetsAtMs)) return;
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, [exhausted, resetsAtMs]);
-
-  useEffect(() => {
-    if (!exhausted || !countdownDone) return;
-    void queryClient.invalidateQueries({ queryKey: ["smart-reports", "quota"] });
-  }, [countdownDone, exhausted, queryClient]);
-
+function BackLink() {
   return (
-    <div className={`${DASHBOARD_SURFACE} px-3 py-3`}>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="flex items-start gap-2.5">
-          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-            <Clock className="h-3.5 w-3.5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Son kullanım
-            </p>
-            <p className="mt-0.5 text-sm font-medium text-foreground">
-              {lastUsedAt ? formatDateTime(lastUsedAt) : "Henüz yok"}
-            </p>
-          </div>
-        </div>
+    <Link href={DASHBOARD_ROUTES.reportsHub} aria-label="Raporlara dön" className={DASHBOARD_BACK}>
+      <ArrowLeft className="h-4 w-4" />
+    </Link>
+  );
+}
 
-        <div className="flex items-start gap-2.5">
-          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-            <RefreshCw className="h-3.5 w-3.5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              {exhausted ? "Yenilenmeye" : "Kalan hak"}
-            </p>
-            {exhausted ? (
-              <div className="mt-0.5 space-y-2">
-                <p className="font-mono text-sm font-semibold tracking-tight text-foreground tabular-nums">
-                  {countdownDone ? "Yenileniyor…" : formatCountdown(remainingMs)}
-                </p>
-                <Link
-                  href={DASHBOARD_ROUTES.catalogProductCheckout(
-                    smartReportAddonCheckoutCode(quota),
-                  )}
-                  className="inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline"
-                >
-                  Ek rapor al (200 TL)
-                </Link>
-              </div>
-            ) : (
-              <p className="mt-0.5 text-sm font-medium text-foreground">
-                {quota.remaining}/{quota.limit} ücretsiz
-                {(quota.paidCredits ?? 0) > 0
-                  ? ` · ${quota.paidCredits} satın alınan`
-                  : ""}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
+function Metric({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="text-lg font-semibold tabular-nums text-foreground">{value}</span>
     </div>
   );
 }
 
 export default function SmartReportsView() {
   const { allowed, isLoading: accessLoading, isError, retry } = useRequireScope("SMART_REPORTING_OWNER");
-  const listQuery = useQuery({
-    queryKey: ["smart-reports", "list", "all"],
-    queryFn: () => listSmartReportsRequest({ page: 0, size: 50, status: "all" }),
+  const recentQuery = useQuery({
+    queryKey: ["smart-reports", "list", "recent"],
+    queryFn: () => listSmartReportsRequest({ page: 0, size: RECENT_COUNT, status: "all" }),
     enabled: allowed,
-    refetchInterval: (query) => {
-      const items = query.state.data?.content ?? [];
-      return items.some((item) => isSmartReportPending(item.status)) ? 5_000 : false;
-    },
+    refetchInterval: (query) =>
+      (query.state.data?.content ?? []).some((item) => isSmartReportPending(item.status)) ? 5_000 : false,
   });
   const quotaQuery = useQuery({
     queryKey: ["smart-reports", "quota"],
@@ -145,97 +56,88 @@ export default function SmartReportsView() {
     enabled: allowed,
   });
 
-  if (isError) {
-    return <AccessLoadError onRetry={() => void retry()} />;
-  }
+  if (isError) return <AccessLoadError onRetry={() => void retry()} />;
+
+  const header = (
+    <DashboardPageHeader
+      title="Akıllı raporlar"
+      back={<BackLink />}
+      action={
+        <Button asChild>
+          <Link href={DASHBOARD_ROUTES.smartReportNew}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            Rapor oluştur
+          </Link>
+        </Button>
+      }
+    />
+  );
 
   if (accessLoading) {
     return (
       <div className="space-y-6 animate-fade-in">
-        <DashboardPageHeader
-          title="Akıllı raporlar"
-          hint="Oluşturduğunuz raporların geçmişi"
-          back={
-            <Link href={DASHBOARD_ROUTES.reportsHub} aria-label="Raporlara dön" className={DASHBOARD_BACK}>
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          }
-        />
+        {header}
         <DashboardLoadingState label="Akıllı raporlar yükleniyor…" />
       </div>
     );
   }
 
-  const items = listQuery.data?.content ?? [];
   const quota = quotaQuery.data;
-  const lastUsedAt =
-    quota?.lastUsage ??
-    items.find((item) => isSmartReportCompleted(item.status))?.completedAt ??
-    items[0]?.completedAt ??
-    items[0]?.createdAt ??
-    null;
+  const summary = quota ? summarizeSmartReportQuota(quota) : null;
+  const total = recentQuery.data?.totalElements;
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <DashboardPageHeader
-        title="Akıllı raporlar"
-        hint="Oluşturduğunuz raporların geçmişi"
-        back={
-          <Link href={DASHBOARD_ROUTES.reportsHub} aria-label="Raporlara dön" className={DASHBOARD_BACK}>
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        }
-      />
+      {header}
 
-      {quota ? <QuotaCountdownCard quota={quota} lastUsedAt={lastUsedAt} /> : null}
-
-      {listQuery.isLoading ? (
-        <DashboardLoadingState label="Rapor listesi yükleniyor…" />
-      ) : listQuery.isError ? (
-        <p className="text-sm text-destructive">Rapor listesi yüklenemedi.</p>
-      ) : items.length === 0 ? (
-        <EmptyState
-          title="Henüz akıllı rapor yok"
-          description="Analitik sayfasından ilk akıllı raporunuzu oluşturabilirsiniz."
-          action={
+      <div className="grid items-start gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <aside className={`${DASHBOARD_SURFACE} space-y-3 p-4`} aria-label="Rapor özeti">
+          <SmartReportCreditDonut />
+          <div className="border-t border-border" />
+          <Metric label="Oluşturulan" value={total ?? "–"} />
+          <Metric
+            label="Kalan hak"
+            value={
+              <span className={summary?.exhausted ? "text-red-600 dark:text-red-400" : undefined}>
+                {summary ? summary.totalAvailable : "–"}
+              </span>
+            }
+          />
+          {summary?.exhausted ? (
             <Link
-              href={DASHBOARD_ROUTES.reportsHub}
-              className="text-sm font-medium text-primary hover:underline"
+              href={DASHBOARD_ROUTES.catalogProductCheckout(smartReportAddonCheckoutCode(quota))}
+              className="block border-t border-border pt-3 text-xs font-medium text-primary hover:underline"
             >
-              Raporlardan akıllı rapor oluştur
+              Hakkınız bitti · Ek rapor al
             </Link>
-          }
-        />
-      ) : (
-        <div className={`${DASHBOARD_SURFACE} overflow-hidden divide-y divide-border`}>
-          {items.map((item) => {
-            const id = resolveSmartReportProcessId(item);
-            if (!id) return null;
-            const pending = isSmartReportPending(item.status);
-            return (
+          ) : null}
+        </aside>
+
+        <section className={`${DASHBOARD_SURFACE} overflow-hidden`} aria-labelledby="recent-reports-title">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <h2 id="recent-reports-title" className="text-sm font-semibold text-foreground">
+              Son raporlar
+            </h2>
+            {(total ?? 0) > 0 ? (
               <Link
-                key={id}
-                href={DASHBOARD_ROUTES.smartReportDetail(id)}
-                className="flex items-center justify-between gap-3 bg-white px-3 py-2.5 transition-colors hover:bg-muted/50 dark:bg-card"
+                href={DASHBOARD_ROUTES.smartReportHistory}
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
               >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-foreground">{smartReportTitle(item)}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDateTime(item.completedAt ?? item.createdAt)}
-                    {" · "}
-                    {smartReportStatusLabel(item.status)}
-                  </p>
-                </div>
-                {pending ? (
-                  <RefreshCw className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
-                ) : (
-                  <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                )}
+                Tümünü gör
+                <ArrowRight className="h-3 w-3" />
               </Link>
-            );
-          })}
-        </div>
-      )}
+            ) : null}
+          </div>
+          <SmartReportRows
+            items={recentQuery.data?.content ?? []}
+            isLoading={recentQuery.isLoading}
+            isError={recentQuery.isError}
+            emptyText="Henüz rapor yok. “Rapor oluştur” ile ilk raporunuzu başlatın."
+          />
+        </section>
+      </div>
+
+      <SmartReportUsageCard />
     </div>
   );
 }
