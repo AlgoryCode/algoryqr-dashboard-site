@@ -11,10 +11,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:chef-golden": "vitest run src/lib/chef/chef-golden-scenarios.test.ts",
-    "test:chef-quality": "vitest run src/lib/chef/evaluate-chef-recommendation-quality.test.ts",
-    "design": "npm run dev --prefix ../qr-storybook",
-    "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "test:chef-quality": "vitest run src/lib/chef/evaluate-chef-recommendation-quality.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -76,8 +73,6 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
-    "@storybook/addon-docs": "^10.6.0",
-    "@storybook/nextjs-vite": "^10.6.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -85,12 +80,9 @@
     "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
-    "eslint-plugin-storybook": "^10.6.0",
     "postcss": "^8.5.8",
-    "storybook": "^10.6.0",
     "tailwindcss": "^3.4.19",
     "typescript": "^5",
-    "vite": "latest",
     "vitest": "^4.1.10"
   }
 }

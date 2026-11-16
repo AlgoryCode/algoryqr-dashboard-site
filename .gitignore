@@ -42,5 +42,3 @@ print-agent/config.json
 *.tsbuildinfo
 next-env.d.ts
 
-*storybook.log
-storybook-static
