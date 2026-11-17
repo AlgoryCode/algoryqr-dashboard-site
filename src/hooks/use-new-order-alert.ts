@@ -6,10 +6,14 @@ import { isFreshOrder, managedOrderKey } from "@/lib/order-management";
 import type { OrderResponse } from "@/lib/ordering-api";
 import {
   DEFAULT_ORDER_SOUND_VOLUME,
+  DEFAULT_ORDER_TONE,
+  type OrderToneId,
   playOrderChime,
+  readOrderSoundTone,
   readOrderSoundVolume,
   subscribeOrderSoundVolume,
   unlockOrderSound,
+  writeOrderSoundTone,
   writeOrderSoundVolume,
 } from "@/lib/order-sound";
 
@@ -55,12 +59,15 @@ export function useNewOrderAlert() {
     () => DEFAULT_ORDER_SOUND_VOLUME,
   );
 
-  const setVolume = useCallback((next: number) => writeOrderSoundVolume(next), []);
+  const tone = useSyncExternalStore(subscribeOrderSoundVolume, readOrderSoundTone, () => DEFAULT_ORDER_TONE);
 
-  /** Plays the chime once so the volume can be judged; this is a click, so it may also unlock audio. */
-  const previewSound = useCallback((level?: number) => {
+  const setVolume = useCallback((next: number) => writeOrderSoundVolume(next), []);
+  const setTone = useCallback((next: OrderToneId) => writeOrderSoundTone(next), []);
+
+  /** Plays a ringtone once so it can be judged; this is a click, so it may also unlock audio. */
+  const previewSound = useCallback((sample?: OrderToneId) => {
     unlockOrderSound();
-    playOrderChime(level);
+    playOrderChime(undefined, sample);
   }, []);
 
   const setSoundOn = useCallback((next: boolean) => {
@@ -127,5 +134,5 @@ export function useNewOrderAlert() {
     [],
   );
 
-  return { observe, highlighted, soundOn, setSoundOn, volume, setVolume, previewSound };
+  return { observe, highlighted, soundOn, setSoundOn, volume, setVolume, tone, setTone, previewSound };
 }
