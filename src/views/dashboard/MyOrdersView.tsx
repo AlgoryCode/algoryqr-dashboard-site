@@ -360,6 +360,8 @@ function MyOrdersContent() {
               onSoundOnChange={alert.setSoundOn}
               volume={alert.volume}
               onVolumeChange={alert.setVolume}
+              tone={alert.tone}
+              onToneChange={alert.setTone}
               onPreview={alert.previewSound}
             />
             <Button asChild variant="outline" className="h-9 flex-1 gap-1.5 sm:flex-none">
