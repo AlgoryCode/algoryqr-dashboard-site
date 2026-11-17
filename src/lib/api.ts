@@ -5,6 +5,7 @@ import { ApiError } from "@/lib/api/errors";
 import { MENU_APP_ORIGIN } from "@/lib/config";
 import { isDateUsablePurchase, pickActivePurchase } from "@/lib/product-access";
 import { resolvePublicMenuHref } from "@/lib/public-menu-href";
+import type { AssistantReportResponse } from "@/reporting/assistant";
 
 export { ApiError, getApiErrorCode, getEntitlementDenial } from "@/lib/api/errors";
 export type { EntitlementDenial, EntitlementUpgrade } from "@/lib/api/errors";
@@ -1869,6 +1870,18 @@ export async function getBranchRevenueReportRequest(
   const response = await api.get<MenuRevenueReportResponse>(
     `/analytics/branch/${branchId}/revenue`,
     { params: branchReportParams(from, to, menuId) },
+  );
+  return response.data;
+}
+
+export async function getBranchAssistantReportRequest(
+  branchId: number | string,
+  from: string,
+  to: string,
+): Promise<AssistantReportResponse> {
+  const response = await api.get<AssistantReportResponse>(
+    `/analytics/branch/${branchId}/assistant`,
+    { params: branchReportParams(from, to) },
   );
   return response.data;
 }
