@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   Banknote,
+  Bot,
   Building2,
   CalendarDays,
   Check,
@@ -26,6 +27,7 @@ import {
   useBranchReportSelection,
 } from "@/components/dashboard/BranchReportPicker";
 import BranchReportDashboard from "@/components/dashboard/smart-report/BranchReportDashboard";
+import { AssistantReportSection } from "@/components/dashboard/smart-report/AssistantReportSection";
 import { MenuReportSection } from "@/components/dashboard/smart-report/MenuReportSection";
 import { OrdersPage } from "@/components/dashboard/smart-report/orders-layout";
 import AnalyticsWaiterPerformancePanel from "@/components/dashboard/AnalyticsWaiterPerformancePanel";
@@ -44,6 +46,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { formatBranchListLabel } from "@/lib/branch";
 import { cn } from "@/lib/utils";
 import { useBranchAnalyticsReport } from "@/hooks/use-branch-analytics-report";
+import { useBranchAssistantReport } from "@/hooks/use-branch-assistant-report";
 import { useBranchRevenueReport } from "@/hooks/use-branch-revenue-report";
 import { useBranchWaiterPerformanceReport } from "@/hooks/use-branch-waiter-performance-report";
 import { useAccessProfile } from "@/hooks/use-access-profile";
@@ -80,7 +83,7 @@ function useTooltipStyle() {
   };
 }
 
-type ReportView = "menu" | "revenue" | "orders" | "personnel";
+type ReportView = "menu" | "revenue" | "orders" | "personnel" | "assistant";
 
 const PERIOD_OPTIONS: ReadonlyArray<{ value: AnalyticsPeriod; label: string }> = [
   { value: "1d", label: "Bugün" },
@@ -90,7 +93,13 @@ const PERIOD_OPTIONS: ReadonlyArray<{ value: AnalyticsPeriod; label: string }> =
 ];
 
 function parseReportView(value: string | null): ReportView | null {
-  return value === "menu" || value === "revenue" || value === "orders" || value === "personnel" ? value : null;
+  return value === "menu" ||
+    value === "revenue" ||
+    value === "orders" ||
+    value === "personnel" ||
+    value === "assistant"
+    ? value
+    : null;
 }
 
 export default function AnalyticsTab() {
@@ -167,6 +176,12 @@ export default function AnalyticsTab() {
     range.from,
     range.to,
     canUseRevenue && branchId != null && activeReportView === "personnel",
+  );
+  const assistantQuery = useBranchAssistantReport(
+    branchId,
+    range.from,
+    range.to,
+    branchId != null && activeReportView === "assistant",
   );
   const waitersQuery = useQuery({
     queryKey: ["menu-users", branchId],
@@ -258,6 +273,7 @@ export default function AnalyticsTab() {
   const revenueLoading = selectionLoading || revenueQuery.isLoading;
   const ordersLoading = revenueLoading;
   const personnelLoading = selectionLoading || personnelQuery.isLoading;
+  const assistantLoading = selectionLoading || assistantQuery.isLoading;
   const loading = accessPending
     ? activeReportView !== "menu"
     : activeReportView === "revenue"
@@ -266,7 +282,9 @@ export default function AnalyticsTab() {
         ? ordersLoading
         : activeReportView === "personnel"
           ? personnelLoading
-          : menuLoading;
+          : activeReportView === "assistant"
+            ? assistantLoading
+            : menuLoading;
   const menuOrderCount = revenueQuery.data?.kpis?.orderCount ?? null;
 
   const activeQueries = [
@@ -275,6 +293,7 @@ export default function AnalyticsTab() {
       : null,
     canUseRevenue ? revenueQuery : null,
     activeReportView === "personnel" && canUseRevenue ? personnelQuery : null,
+    activeReportView === "assistant" ? assistantQuery : null,
   ].filter((query): query is NonNullable<typeof query> => query != null);
   const refreshing = activeQueries.some((query) => query.isFetching);
   const lastUpdatedAt = Math.max(0, ...activeQueries.map((query) => query.dataUpdatedAt ?? 0));
@@ -292,12 +311,14 @@ export default function AnalyticsTab() {
   const selectedWaiterName =
     waiterId != null ? waiterOptions.find((row) => row.id === waiterId)?.name ?? null : null;
 
-  const locked = !accessPending && !canUseRevenue && activeReportView !== "menu";
+  const locked =
+    !accessPending && !canUseRevenue && activeReportView !== "menu" && activeReportView !== "assistant";
   const reportTypes: ReportTypeItem<ReportView>[] = [
     { value: "revenue", label: "Ciro", description: "Satış, tahsilat, kanal ve kategori", icon: Banknote, locked: !accessPending && !canUseRevenue },
     { value: "orders", label: "Sipariş", description: "Günlük ve saatlik sipariş akışı", icon: ShoppingBag, locked: !accessPending && !canUseRevenue },
     { value: "personnel", label: "Personel", description: "Satılan ürün, ciro, bahşiş, komisyon", icon: Users, locked: !accessPending && !canUseRevenue },
     { value: "menu", label: "Menü", description: "Ziyaret, ilgi ve ürün görüntülenme", icon: QrCode },
+    { value: "assistant", label: "Asistan", description: "Asistanın getirdiği satış ve kazandırdığı zaman", icon: Bot },
   ];
 
   const changeReportView = (next: ReportView) => {
@@ -549,6 +570,14 @@ export default function AnalyticsTab() {
         ) : (
           <AnalyticsWaiterPerformancePanel report={staffReport ?? personnelQuery.data} tooltipStyle={tooltipStyle} />
         )
+      ) : null}
+
+      {/* Asistan */}
+      {activeReportView === "assistant" && branchId != null && assistantQuery.isError
+        ? loadError("Asistan raporu yüklenemedi", () => void assistantQuery.refetch())
+        : null}
+      {activeReportView === "assistant" && branchId != null && !assistantLoading && !assistantQuery.isError && assistantQuery.data ? (
+        <AssistantReportSection report={assistantQuery.data} />
       ) : null}
 
       {/* Mobil filtre penceresi */}
