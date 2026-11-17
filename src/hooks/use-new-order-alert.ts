@@ -4,6 +4,14 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 
 import { isFreshOrder, managedOrderKey } from "@/lib/order-management";
 import type { OrderResponse } from "@/lib/ordering-api";
+import {
+  DEFAULT_ORDER_SOUND_VOLUME,
+  playOrderChime,
+  readOrderSoundVolume,
+  subscribeOrderSoundVolume,
+  unlockOrderSound,
+  writeOrderSoundVolume,
+} from "@/lib/order-sound";
 
 const SOUND_KEY = "algory-orders-sound";
 const SOUND_EVENT = "algory-orders-sound-change";
@@ -26,40 +34,6 @@ function subscribeSound(onChange: () => void) {
   };
 }
 
-let audio: AudioContext | null = null;
-
-/** Browsers only allow sound after the user has interacted with the page, so the context is made on the first click. */
-function unlockAudio() {
-  if (audio) {
-    void audio.resume().catch(() => undefined);
-    return;
-  }
-  try {
-    const Context = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (Context) audio = new Context();
-  } catch {
-    audio = null;
-  }
-}
-
-function playChime() {
-  if (!audio || audio.state !== "running") return;
-  const start = audio.currentTime;
-  [880, 1320].forEach((frequency, index) => {
-    const oscillator = audio!.createOscillator();
-    const gain = audio!.createGain();
-    oscillator.type = "sine";
-    oscillator.frequency.value = frequency;
-    const at = start + index * 0.16;
-    gain.gain.setValueAtTime(0.0001, at);
-    gain.gain.exponentialRampToValueAtTime(0.18, at + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.3);
-    oscillator.connect(gain).connect(audio!.destination);
-    oscillator.start(at);
-    oscillator.stop(at + 0.32);
-  });
-}
-
 function pageInView() {
   return document.visibilityState === "visible" && document.hasFocus();
 }
@@ -75,6 +49,19 @@ export function useNewOrderAlert() {
   const [highlighted, setHighlighted] = useState<ReadonlySet<string>>(() => new Set());
   const [unseen, setUnseen] = useState(0);
   const soundOn = useSyncExternalStore(subscribeSound, readSound, () => true);
+  const volume = useSyncExternalStore(
+    subscribeOrderSoundVolume,
+    readOrderSoundVolume,
+    () => DEFAULT_ORDER_SOUND_VOLUME,
+  );
+
+  const setVolume = useCallback((next: number) => writeOrderSoundVolume(next), []);
+
+  /** Plays the chime once so the volume can be judged; this is a click, so it may also unlock audio. */
+  const previewSound = useCallback((level?: number) => {
+    unlockOrderSound();
+    playOrderChime(level);
+  }, []);
 
   const setSoundOn = useCallback((next: boolean) => {
     try {
@@ -83,7 +70,7 @@ export function useNewOrderAlert() {
       /* the choice then lasts until the page closes */
     }
     window.dispatchEvent(new Event(SOUND_EVENT));
-    if (next) unlockAudio();
+    if (next) unlockOrderSound();
   }, []);
 
   /** Call with each freshly fetched list; `listKey` identifies the filter the list was fetched for. */
@@ -104,14 +91,14 @@ export function useNewOrderAlert() {
         }, HIGHLIGHT_MS),
       );
       if (!pageInView()) setUnseen((count) => count + added.length);
-      if (readSound()) playChime();
+      if (readSound()) playOrderChime();
     },
     [],
   );
 
   useEffect(() => {
     const onInteract = () => {
-      if (readSound()) unlockAudio();
+      if (readSound()) unlockOrderSound();
     };
     const onFocus = () => setUnseen(0);
     window.addEventListener("pointerdown", onInteract);
@@ -140,5 +127,5 @@ export function useNewOrderAlert() {
     [],
   );
 
-  return { observe, highlighted, soundOn, setSoundOn };
+  return { observe, highlighted, soundOn, setSoundOn, volume, setVolume, previewSound };
 }
