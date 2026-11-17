@@ -15,7 +15,7 @@ import {
   Package,
   QrCode,
   Search,
-  Sparkles,
+  Bot,
   User,
   UserPlus,
   Bike,
@@ -379,13 +379,11 @@ export function DashboardTopBar({
           <button
             type="button"
             onClick={() => setAssistantOpen(true)}
-            className="group inline-flex h-9 items-center gap-2 rounded-xl bg-[#FFF0F3] pl-1.5 pr-3 text-sm font-medium text-[#F03245] transition-colors hover:bg-[#FFE3E9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F03245]/40 dark:bg-[#F03245]/15 dark:text-[#FB7185] dark:hover:bg-[#F03245]/25"
-            aria-label="Asistan Danış"
+            className="group inline-flex h-9 items-center gap-2 rounded-xl bg-[#FFF0F3] pl-2.5 pr-3 text-sm font-medium text-[#F03245] transition-colors hover:bg-[#FFE3E9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F03245]/40 dark:bg-[#F03245]/15 dark:text-[#FB7185] dark:hover:bg-[#F03245]/25"
+            aria-label="Asistana sor"
           >
-            <span className="flex size-6 items-center justify-center rounded-lg bg-[#F03245] text-white">
-              <Sparkles className="size-3.5 transition-transform duration-300 group-hover:rotate-12" strokeWidth={2.25} />
-            </span>
-            Asistan
+            <Bot className="size-4 text-primary transition-transform duration-300 group-hover:rotate-12" aria-hidden />
+            Asistana sor
           </button>
           <QuickCreateMenu />
           <span className="mx-2 h-6 w-px bg-border" aria-hidden />

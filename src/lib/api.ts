@@ -6,7 +6,8 @@ import { MENU_APP_ORIGIN } from "@/lib/config";
 import { isDateUsablePurchase, pickActivePurchase } from "@/lib/product-access";
 import { resolvePublicMenuHref } from "@/lib/public-menu-href";
 
-export { ApiError, getApiErrorCode } from "@/lib/api/errors";
+export { ApiError, getApiErrorCode, getEntitlementDenial } from "@/lib/api/errors";
+export type { EntitlementDenial, EntitlementUpgrade } from "@/lib/api/errors";
 export {
   hasActiveProductAccess,
   hasExpiredProductAccess,
@@ -402,6 +403,10 @@ export interface PlanPackageModuleApi {
   vatRate: number | string;
   billingType?: ProductBillingType | null;
   consumable?: boolean;
+  /** Store presentation set in the admin panel. */
+  tagline?: string | null;
+  badge?: "NEW" | "POPULAR" | "DEAL" | null;
+  featured?: boolean;
 }
 
 export interface PlanPackageApiItem {
@@ -422,6 +427,9 @@ export interface PlanPackageApiItem {
   priority?: number | null;
   items: PlanPackageItemApi[];
   availableModules?: PlanPackageModuleApi[];
+  /** Discount campaign running on this package now. */
+  campaignLabel?: string | null;
+  campaignEndsAt?: string | null;
   allowedPaymentModes?: Array<"DIRECT" | "THREE_DS" | "CHECKOUT_FORM">;
   installmentOptions?: InstallmentOptionApiItem[];
   allowedInstallments?: number[];

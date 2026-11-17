@@ -4,6 +4,7 @@ import axios, { AxiosError, type AxiosInstance, type InternalAxiosRequestConfig 
 
 import { getJsonErrorText } from "@/lib/api-error-text";
 import { ApiError } from "@/lib/api/errors";
+import { ENTITLEMENT_VERSION_HEADER, noteEntitlementVersion } from "@/lib/entitlement-version";
 import { recordFlow } from "@/lib/flow-log";
 import { endSession, refreshSession } from "@/lib/site-session";
 
@@ -73,6 +74,7 @@ export function getSiteSameOriginAxios(): AxiosInstance {
         request: config.data,
         body: response.data,
       });
+      noteEntitlementVersion(response.headers?.[ENTITLEMENT_VERSION_HEADER.toLowerCase()]);
       return response;
     },
     async (error: AxiosError) => {

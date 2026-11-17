@@ -1,5 +1,6 @@
 "use client";
 
+import { onEntitlementVersionChange, resetEntitlementVersion } from "@/lib/entitlement-version";
 import { recordFlow } from "@/lib/flow-log";
 import { readPackageSnapshot } from "@/lib/package-access";
 import { isServerStatus } from "@/lib/server-failure";
@@ -8,6 +9,11 @@ import type { AccessProfile } from "@/lib/auth-user";
 
 let generation = 0;
 let inflight: Promise<AccessProfile | null> | null = null;
+let loadedAt = 0;
+let watching = false;
+
+/** A plan can change without this tab doing anything (renewal, expiry, an admin, another device). */
+export const PACKAGE_ACCESS_MAX_AGE_MS = 5 * 60 * 1000;
 
 export function loadPackageAccess(force = false): Promise<AccessProfile | null> {
   const current = usePackageStore.getState();
@@ -23,6 +29,7 @@ export function loadPackageAccess(force = false): Promise<AccessProfile | null> 
   const run = fetchPackageAccess()
     .then((result) => {
       if (ticket !== generation) return usePackageStore.getState().profile;
+      loadedAt = Date.now();
       if (result.status === "ready" && result.snapshot) {
         usePackageStore.getState().setSnapshot(result.snapshot);
         return result.snapshot.profile;
@@ -42,9 +49,35 @@ export function loadPackageAccess(force = false): Promise<AccessProfile | null> 
   return inflight;
 }
 
+/**
+ * Reloads the plan when the tab comes back into view or stays open past the max age, so a plan
+ * that renewed, lapsed or changed elsewhere shows up without a page reload. Safe to call often.
+ */
+export function watchPackageAccess(): void {
+  if (watching || typeof window === "undefined") return;
+  watching = true;
+  // The backend says the plan changed: reload now instead of waiting for the max age.
+  onEntitlementVersionChange(() => {
+    const status = usePackageStore.getState().status;
+    if (status === "ready" || status === "error") void loadPackageAccess(true);
+  });
+  const refreshIfStale = () => {
+    if (document.visibilityState !== "visible") return;
+    const status = usePackageStore.getState().status;
+    if (status !== "ready" && status !== "error") return;
+    if (Date.now() - loadedAt < PACKAGE_ACCESS_MAX_AGE_MS) return;
+    void loadPackageAccess(true);
+  };
+  document.addEventListener("visibilitychange", refreshIfStale);
+  window.addEventListener("focus", refreshIfStale);
+  window.setInterval(refreshIfStale, PACKAGE_ACCESS_MAX_AGE_MS);
+}
+
 export function clearPackageAccess() {
+  resetEntitlementVersion();
   generation += 1;
   inflight = null;
+  loadedAt = 0;
   usePackageStore.getState().clear();
 }
 

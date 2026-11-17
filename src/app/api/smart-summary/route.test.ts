@@ -22,14 +22,16 @@ vi.mock("@/lib/config", () => ({
   AI_SERVICE_API_KEY: "test-key",
 }));
 
-vi.mock("@/lib/server/auth-cookies", () => ({
-  readAccessTokenFromCookies: () => "access-token",
+const gate = vi.fn();
+vi.mock("@/lib/server/product-gate", () => ({
+  requireProduct: (...args: unknown[]) => gate(...args),
 }));
 
 describe("smart-summary BFF", () => {
   beforeEach(() => {
     cookiesMock.mockResolvedValue({});
     axiosPost.mockReset();
+    gate.mockResolvedValue({ ok: true, accessToken: "access-token", profile: {} });
   });
 
   it("POST proxies product object to ai-service and returns description", async () => {
@@ -82,6 +84,22 @@ describe("smart-summary BFF", () => {
       }),
     );
     expect(response.status).toBe(400);
+    expect(axiosPost).not.toHaveBeenCalled();
+  });
+  it("refuses callers whose plan lacks SMART_SUMMARY without calling the AI", async () => {
+    gate.mockResolvedValue({ ok: false, status: 403, message: "Bu özellik paketinizde yok." });
+
+    const { POST } = await import("@/app/api/smart-summary/route");
+    const response = await POST(
+      new Request("http://localhost/api/smart-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product: { name: "Lahmacun" } }),
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    expect(gate).toHaveBeenCalledWith("SMART_SUMMARY");
     expect(axiosPost).not.toHaveBeenCalled();
   });
 });

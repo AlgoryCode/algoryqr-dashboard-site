@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
 import { invalidateBranches } from "@/hooks/use-branches";
-import { ApiError, getApiErrorCode } from "@/lib/api";
+import { ApiError, getEntitlementDenial } from "@/lib/api";
 import { createBranchRequest } from "@/lib/branch";
 import Link from "next/link";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
@@ -87,8 +87,11 @@ export default function BranchCreateView() {
       notify("info", "Şube oluşturuldu.");
       router.push(DASHBOARD_ROUTES.digitalMenuCreateForBranch(created.id));
     } catch (error) {
-      if (getApiErrorCode(error) === "EXTRA_BRANCH_REQUIRED") {
-        router.push(DASHBOARD_ROUTES.catalogProductCheckout("QR_BRANCH"));
+      const denial = getEntitlementDenial(error);
+      if (denial?.code === "LIMIT_REACHED" && denial.feature === "QR_BRANCH") {
+        const addon = denial.upgrades.find((option) => option.kind === "ADDON");
+        notify("info", denial.message);
+        router.push(DASHBOARD_ROUTES.catalogProductCheckout(addon?.code ?? "QR_BRANCH"));
         return;
       }
       notify("danger", error instanceof ApiError ? error.message : "Şube oluşturulamadı.");

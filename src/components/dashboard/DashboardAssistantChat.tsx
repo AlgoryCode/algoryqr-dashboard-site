@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Send, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Loader2, Lock, Send, Sparkles } from "lucide-react";
 
 import {
   BranchReportPicker,
@@ -11,8 +13,14 @@ import { AskAssistantButton } from "@/components/ui/ask-assistant-button";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useAccessProfile } from "@/hooks/use-access-profile";
+import { isAllowanceExhausted, type AssistantAllowance } from "@/lib/assistant-usage";
 import { hasProduct } from "@/lib/auth-user";
-import { postDashboardAssistantMessage } from "@/lib/dashboard-assistant/client";
+import {
+  AssistantLimitError,
+  getDashboardAssistantAllowance,
+  postDashboardAssistantMessage,
+} from "@/lib/dashboard-assistant/client";
+import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { prefetchAssistantSalesReports } from "@/lib/dashboard-assistant/prefetch-sales";
 import { readAssistantSalesCache } from "@/lib/dashboard-assistant/sales-cache";
 import { cn } from "@/lib/utils";
@@ -46,6 +54,24 @@ export function DashboardAssistantChat({ open, onOpenChange }: DashboardAssistan
   const profile = profileQuery.data;
   const entitled =
     hasProduct(profile, "SMART_ASSISTANT") || hasProduct(profile, "QR_AGENT");
+  const queryClient = useQueryClient();
+  // Plans without the assistant get a few free questions a day; the server holds the count.
+  const allowanceQuery = useQuery({
+    queryKey: ["dashboardAssistantAllowance"],
+    queryFn: getDashboardAssistantAllowance,
+    enabled: open && profileQuery.isSuccess && !entitled,
+    staleTime: 30_000,
+    retry: 1,
+  });
+  const allowance: AssistantAllowance | null = entitled ? null : allowanceQuery.data?.allowance ?? null;
+  const limitReached = isAllowanceExhausted(allowance);
+  const setAllowance = useCallback(
+    (next: AssistantAllowance | null) => {
+      if (!next) return;
+      queryClient.setQueryData(["dashboardAssistantAllowance"], { entitled: false, allowance: next });
+    },
+    [queryClient],
+  );
 
   const {
     branches,
@@ -115,13 +141,7 @@ export function DashboardAssistantChat({ open, onOpenChange }: DashboardAssistan
     const value = text.trim();
     if (!value || sending) return;
 
-    if (!entitled) {
-      setMessages((prev) => [
-        ...prev,
-        { id: nextMessageId(), role: "assistant", text: "Akıllı asistan paketi bu hesapta aktif değil." },
-      ]);
-      return;
-    }
+    if (limitReached) return;
 
     if (branchId == null) {
       setMessages((prev) => [
@@ -153,12 +173,14 @@ export function DashboardAssistantChat({ open, onOpenChange }: DashboardAssistan
         conversationId,
       });
       setConversationId(result.conversationId);
+      if (!entitled) setAllowance(result.allowance);
       setMessages((prev) =>
         prev.map((message) =>
           message.id === pendingId ? { ...message, text: result.reply } : message,
         ),
       );
     } catch (error) {
+      if (error instanceof AssistantLimitError) setAllowance(error.allowance);
       setMessages((prev) =>
         prev.map((message) =>
           message.id === pendingId
@@ -221,7 +243,7 @@ export function DashboardAssistantChat({ open, onOpenChange }: DashboardAssistan
                   <button
                     key={prompt}
                     type="button"
-                    disabled={sending || prefetching}
+                    disabled={sending || prefetching || limitReached}
                     onClick={() => void send(prompt)}
                     className="rounded-full border border-border bg-muted/40 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-50"
                   >
@@ -251,6 +273,30 @@ export function DashboardAssistantChat({ open, onOpenChange }: DashboardAssistan
           )}
         </div>
 
+        {allowance?.limit != null ? (
+          <div
+            className={cn(
+              "flex items-center gap-2 border-t border-border px-4 py-2.5 text-xs",
+              limitReached ? "bg-amber-500/10 text-amber-800 dark:text-amber-200" : "text-muted-foreground",
+            )}
+            role="status"
+          >
+            {limitReached ? <Lock className="h-3.5 w-3.5 shrink-0" /> : <Sparkles className="h-3.5 w-3.5 shrink-0" />}
+            <span className="min-w-0 flex-1">
+              {limitReached
+                ? `Bugünkü ${allowance.limit} ücretsiz sorunuzu kullandınız. Yarın yenilenir.`
+                : `Ücretsiz pakette günde ${allowance.limit} soru · bugün ${allowance.remaining} hakkınız kaldı`}
+            </span>
+            <Link
+              href={DASHBOARD_ROUTES.accountPackagesHighlight("SMART_ASSISTANT")}
+              onClick={() => onOpenChange(false)}
+              className="shrink-0 font-medium text-primary underline-offset-2 hover:underline"
+            >
+              {limitReached ? "Sınırsız kullan" : "Paketleri incele"}
+            </Link>
+          </div>
+        ) : null}
+
         <form
           className="border-t border-border p-4"
           onSubmit={(event) => {
@@ -265,9 +311,14 @@ export function DashboardAssistantChat({ open, onOpenChange }: DashboardAssistan
               rows={2}
               placeholder="Ciro, ürün veya yoğunluk sor…"
               className="min-h-[2.75rem] flex-1 resize-none rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-ring"
-              disabled={sending}
+              disabled={sending || limitReached}
             />
-            <Button type="submit" size="icon" className="h-10 w-10 shrink-0" disabled={sending || !draft.trim()}>
+            <Button
+              type="submit"
+              size="icon"
+              className="h-10 w-10 shrink-0"
+              disabled={sending || limitReached || !draft.trim()}
+            >
               {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
           </div>
@@ -287,7 +338,7 @@ type DashboardAssistantLauncherProps = {
 export function DashboardAssistantLauncher({
   className,
   iconOnly,
-  label = "Asistan Danış",
+  label = "Asistana sor",
   appearance = "default",
 }: DashboardAssistantLauncherProps) {
   const [open, setOpen] = useState(false);

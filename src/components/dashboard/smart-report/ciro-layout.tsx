@@ -1,41 +1,31 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Clock, Crown, Layers, Package, Radio, ShoppingBag } from "lucide-react";
+import { Layers, Package, Radio } from "lucide-react";
 
-import {
-  InsightStrip,
-  RankedListCard,
-  ReportSection,
-  formatPercent,
-  hourRangeLabel,
-  type ReportInsight,
-} from "@/components/dashboard/reports/ReportData";
+import { RankedListCard, ReportSection } from "@/components/dashboard/reports/ReportData";
 import type { MenuRevenueReportResponse } from "@/lib/api";
 import { useBranchRevenueReport } from "@/hooks/use-branch-revenue-report";
 import { comparePeriodRange } from "@/reporting";
-import { toAmount } from "@/reporting/numbers";
 
 import { cn } from "@/lib/utils";
 
 import { activeWindow, CHART_COLORS, pctDelta } from "./chart-config";
-import { CategorySalesCard } from "./charts/CategorySalesCard";
+import { buildBalanceSummary } from "./balance-series";
+import { BalanceAreaCard } from "./charts/BalanceAreaCard";
 import { CiroWorthCard } from "./charts/CiroWorthCard";
-import { RemainSplitCard } from "./charts/RemainSplitCard";
 import { RetentionStepChart } from "./charts/ZentraOverview";
 import { SparkKpiStrip } from "./charts/SparkKpiStrip";
-import { fillHourlyPoints, readCiroMetrics, readProfitMix, readVolumeValue } from "./ciro-metrics";
+import { fillHourlyPoints, readCiroMetrics, readVolumeValue } from "./ciro-metrics";
 import {
   RevenueDetailSheets,
   categoryRankedRows,
   channelRankedRows,
   productRankedRowsByMode,
-  readChannelStats,
-  readProductStats,
   type RevenueDetailSelection,
 } from "./revenue-details";
 import { buildCiroWorthSeries } from "./shadcn-charts";
-import { buildCategorySales, buildCiroSparkKpis } from "./shadcn-spark";
+import { buildCiroSparkKpis } from "./shadcn-spark";
 
 export function CiroPage({
   revenue,
@@ -59,8 +49,8 @@ export function CiroPage({
   );
   const metrics = readCiroMetrics(revenue);
   const volume = readVolumeValue(revenue);
-  const profit = readProfitMix(revenue, metrics);
-  const categories = buildCategorySales(revenue, compareQuery.data, formatMoney);
+  const balance = buildBalanceSummary(revenue);
+  const priorBalance = compareQuery.data ? buildBalanceSummary(compareQuery.data) : null;
   const hourly = hourlyRevenue(revenue);
 
   const productRows = useMemo(() => productRankedRowsByMode(revenue, formatMoney), [formatMoney, revenue]);
@@ -73,51 +63,13 @@ export function CiroPage({
     [formatMoney, revenue],
   );
 
-  const insights = useMemo((): ReportInsight[] => {
-    const products = readProductStats(revenue);
-    const topRevenue = [...products].sort((a, b) => b.revenue - a.revenue)[0];
-    const topQuantity = [...products].sort((a, b) => b.quantity - a.quantity)[0];
-    const channels = readChannelStats(revenue).filter((row) => row.revenue > 0);
-    const leader = [...channels].sort((a, b) => b.revenue - a.revenue)[0];
-    const peakHour = [...(revenue.hourly ?? [])].sort((a, b) => toAmount(b.revenue) - toAmount(a.revenue))[0];
-    return [
-      {
-        icon: Crown,
-        label: "En çok kazandıran",
-        value: topRevenue?.name ?? "",
-        hint: topRevenue ? formatMoney(topRevenue.revenue) : undefined,
-        onClick: topRevenue ? () => setDetail({ kind: "product", key: topRevenue.key }) : undefined,
-      },
-      {
-        icon: ShoppingBag,
-        label: "En çok satan",
-        value: topQuantity?.name ?? "",
-        hint: topQuantity ? `${topQuantity.quantity.toLocaleString("tr-TR")} adet` : undefined,
-        onClick: topQuantity ? () => setDetail({ kind: "product", key: topQuantity.key }) : undefined,
-      },
-      {
-        icon: Clock,
-        label: "En yoğun saat",
-        value: peakHour && toAmount(peakHour.revenue) > 0 ? hourRangeLabel(peakHour.hour) : "",
-        hint: peakHour ? formatMoney(toAmount(peakHour.revenue)) : undefined,
-      },
-      {
-        icon: Radio,
-        label: "Lider kanal",
-        value: leader?.name ?? "",
-        hint: leader ? `${formatPercent(leader.share)} ciro payı` : undefined,
-        onClick: leader ? () => setDetail({ kind: "channel", key: leader.key }) : undefined,
-      },
-    ];
-  }, [formatMoney, revenue]);
-
   const priorTotal = compareQuery.data ? readCiroMetrics(compareQuery.data).total : null;
 
   return (
     <div className="space-y-6">
       <ReportSection title="Genel bakış" description="Dönem cirosu ve önceki eşit dönemle karşılaştırma">
-        <div className="space-y-3 lg:grid lg:grid-cols-12 lg:items-start lg:gap-4 lg:space-y-0">
-          <div className="lg:col-span-7">
+        <div className="space-y-3 lg:grid lg:grid-cols-12 lg:items-stretch lg:gap-4 lg:space-y-0">
+          <div className={metrics.orders > 0 ? "lg:col-span-7" : "lg:col-span-12"}>
             <CiroWorthCard
               total={formatMoney(metrics.total)}
               delta={priorTotal == null ? null : pctDelta(metrics.total, priorTotal)}
@@ -126,38 +78,21 @@ export function CiroPage({
               split={{ cash: metrics.cash, card: metrics.card }}
             />
           </div>
-          <SparkKpiStrip
-            className="lg:col-span-5 lg:grid-cols-2 xl:grid-cols-2"
-            items={buildCiroSparkKpis(revenue, compareQuery.data, formatMoney)}
-          />
+          {metrics.orders > 0 ? (
+            <SparkKpiStrip
+              className="sm:grid-cols-2 lg:col-span-5 lg:grid-cols-1 xl:grid-cols-1"
+              items={buildCiroSparkKpis(revenue, compareQuery.data, formatMoney)}
+            />
+          ) : null}
         </div>
-        <InsightStrip items={insights} />
       </ReportSection>
 
-      <ReportSection title="Tahsilat ve kâr" description="Ödeme dağılımı ve sabit giderler sonrası kalan">
-        <div className="grid gap-3 lg:grid-cols-2">
-          <RemainSplitCard
-            title="Tahsilat"
-            percent={metrics.cashShare}
-            center={formatMoney(metrics.paymentTotal)}
-            caption="nakit payı"
-            rows={[
-              { name: "Nakit", value: metrics.cash, display: formatMoney(metrics.cash) },
-              { name: "Kart", value: metrics.card, display: formatMoney(metrics.card) },
-            ]}
-          />
-          <RemainSplitCard
-            title="Kasada kalan"
-            percent={profit.netShare}
-            center={formatMoney(profit.net)}
-            caption="kasada kalan"
-            rows={[
-              { name: "Brüt satış", value: profit.gross, display: formatMoney(profit.gross) },
-              { name: "Sabit gider", value: profit.expense, display: formatMoney(profit.expense) },
-              { name: "Kasada kalan", value: profit.net, display: formatMoney(profit.net) },
-            ]}
-          />
-        </div>
+      <ReportSection title="Kârlılık" description="Biriken gelirin sabit giderleri ne zaman karşıladığı">
+        <BalanceAreaCard
+          summary={balance}
+          delta={priorBalance && priorBalance.expense > 0 ? pctDelta(balance.net, priorBalance.net) : null}
+          formatValue={formatMoney}
+        />
       </ReportSection>
 
       <ReportSection title="Zaman ve kanal" description="Gün içi yoğunluk ve satış kanallarının payı">
@@ -200,13 +135,6 @@ export function CiroPage({
             footer={volumeFooter(volume)}
             onRowClick={(row) => setDetail({ kind: "product", key: row.key })}
           />
-          <div className="space-y-3">
-            <CategorySalesCard
-              title="Kategori cirosu"
-              compact={categories.compact}
-              delta={categories.delta}
-              slices={categories.slices}
-            />
             <RankedListCard
               title="Kategoriler"
               icon={Layers}
@@ -215,13 +143,12 @@ export function CiroPage({
                 { key: "revenue", label: "Ciro" },
                 { key: "quantity", label: "Adet" },
               ]}
-              limit={4}
+              limit={6}
               accent={CHART_COLORS.c3}
               emptyText="Bu dönemde kategori satışı yok."
               searchPlaceholder="Kategori ara…"
               onRowClick={(row) => setDetail({ kind: "category", key: row.key })}
             />
-          </div>
         </div>
       </ReportSection>
 

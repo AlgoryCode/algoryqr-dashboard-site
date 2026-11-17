@@ -1,8 +1,8 @@
 import type { MenuAnalyticsReportResponse, MenuRevenueReportResponse } from "@/lib/api";
 import { toAmount } from "@/reporting/numbers";
 
-import { pctDelta } from "./chart-config";
-import { readCiroMetrics, readProfitMix, readSoldMix, type CiroMetrics } from "./ciro-metrics";
+import { dayLabel, pctDelta } from "./chart-config";
+import { readCiroMetrics, readSoldMix, type CiroMetrics } from "./ciro-metrics";
 import { compactAmount } from "./shadcn-charts";
 
 export type TwinSeries = {
@@ -47,22 +47,40 @@ export function buildCiroSparkKpis(
     const count = orders[index] ?? 0;
     return count > 0 ? (revenue[index] ?? 0) / count : 0;
   });
-  const profit = readProfitMix(current, metrics);
-  const priorProfit = previous && prior ? readProfitMix(previous, prior) : null;
   const perOrder = itemsPerOrder(metrics);
   const priorPerOrder = prior ? itemsPerOrder(prior) : 0;
-  return [
-    spark("Kasada kalan", money(profit.net), pctDelta(profit.net, priorProfit?.net ?? 0), "wallet", []),
-    spark("Sabit gider", money(profit.expense), pctDelta(profit.expense, priorProfit?.expense ?? 0), "card", []),
-    spark("Ort. sepet", money(metrics.aov), pctDelta(metrics.aov, prior?.aov ?? 0), "wallet", aov),
-    spark(
-      "Kalem / sipariş",
-      perOrder.toLocaleString("tr-TR", { maximumFractionDigits: 1 }),
-      pctDelta(perOrder, priorPerOrder),
-      "repeat",
-      [],
-    ),
+  const busiest = daily.reduce<(typeof daily)[number] | null>(
+    (best, row) => ((row.orderCount ?? 0) > (best?.orderCount ?? 0) ? row : best),
+    null,
+  );
+  // Ciro, nakit/kart ve kâr kendi kartlarında, bahşiş Personel sekmesinde; burada yalnızca sipariş davranışı var.
+  const orderSplits: SparkSplit[] = [
+    {
+      label: "Kalem / sipariş",
+      value: `${perOrder.toLocaleString("tr-TR", { maximumFractionDigits: 1 })}${deltaSuffix(pctDelta(perOrder, priorPerOrder))}`,
+    },
   ];
+  if (busiest && daily.length > 1) {
+    orderSplits.push({ label: "En yoğun gün", value: `${dayLabel(busiest.date)} · ${busiest.orderCount} sipariş` });
+  }
+  return [
+    {
+      ...spark("Sipariş", metrics.orders.toLocaleString("tr-TR"), pctDelta(metrics.orders, prior?.orders ?? 0), "users", trend(orders)),
+      splits: orderSplits,
+    },
+    spark("Ort. sepet", money(metrics.aov), pctDelta(metrics.aov, prior?.aov ?? 0), "wallet", trend(aov)),
+  ];
+}
+
+/** Tek noktalı ya da tamamen sıfır seride çizgi anlamsız. */
+function trend(values: number[]): number[] {
+  return values.length > 1 && values.some((value) => value > 0) ? values : [];
+}
+
+function deltaSuffix(delta: number | null): string {
+  if (delta == null || Math.round(delta) === 0) return "";
+  const rounded = Math.round(delta);
+  return ` (${rounded > 0 ? "+" : ""}${rounded}%)`;
 }
 
 export function buildTrafficSparkKpis(visits: MenuAnalyticsReportResponse): SparkKpi[] {

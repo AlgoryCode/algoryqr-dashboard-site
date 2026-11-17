@@ -45,6 +45,7 @@ export function MenuChefProductDetailPane({ item }: MenuChefProductDetailPanePro
       const failure = await ordering.beginAddProduct(sourceProduct, 1, {
         openCart: false,
         deferOptions: true,
+        origin: "assistant",
       });
       if (failure) {
         setError(failure);
@@ -84,6 +85,7 @@ export function MenuChefProductDetailPane({ item }: MenuChefProductDetailPanePro
       const failure = await ordering.beginAddProduct(sourceProduct, 1, {
         openCart: false,
         deferOptions: true,
+        origin: "assistant",
       });
       if (failure) {
         setError(failure);

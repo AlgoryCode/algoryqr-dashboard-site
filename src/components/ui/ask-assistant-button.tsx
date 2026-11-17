@@ -1,7 +1,7 @@
 "use client";
 
 import type { ButtonHTMLAttributes } from "react";
-import { Sparkles } from "lucide-react";
+import { Bot } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -17,7 +17,7 @@ export function AskAssistantButton({
   appearance = "default",
   ...props
 }: AskAssistantButtonProps) {
-  const label = children ?? "Asistana Sor";
+  const label = children ?? "Asistana sor";
 
   if (appearance === "bar") {
     return (
@@ -31,9 +31,7 @@ export function AskAssistantButton({
         )}
         {...props}
       >
-        <span className="flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_6px_14px_-6px_hsl(var(--primary)/0.55)]">
-          <Sparkles className="size-4" strokeWidth={2.25} aria-hidden />
-        </span>
+        <Bot className="size-5 text-primary" aria-hidden />
         <span className="text-[11px] font-semibold leading-none">Asistan</span>
       </button>
     );
@@ -59,13 +57,10 @@ export function AskAssistantButton({
         aria-hidden
         className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-primary/10 to-transparent opacity-0 transition-[left,opacity] duration-700 group-hover:left-full group-hover:opacity-100 motion-reduce:hidden"
       />
-      <span className="relative flex size-6 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-        <Sparkles
-          className="size-3.5 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110 motion-reduce:transition-none"
-          strokeWidth={2.25}
-          aria-hidden
-        />
-      </span>
+      <Bot
+        className="relative size-4 shrink-0 text-primary transition-transform duration-300 group-hover:rotate-12 motion-reduce:transition-none"
+        aria-hidden
+      />
       {!iconOnly ? (
         <span className={cn("relative", children != null ? undefined : "hidden min-[421px]:inline")}>{label}</span>
       ) : null}

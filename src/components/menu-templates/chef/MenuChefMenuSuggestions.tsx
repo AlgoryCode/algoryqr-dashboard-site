@@ -50,6 +50,7 @@ function MenuChefMenuSuggestionCard({
         const sourceProduct = catalog.find((entry) => entry.productId === line.product.productId) ?? chefItemToMenuProduct(line.product);
         const failure = await ordering.beginAddProduct(sourceProduct, 1, {
           deferOptions: true,
+          origin: "assistant",
         });
         if (failure) {
           setError(failure);

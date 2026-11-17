@@ -202,7 +202,7 @@ function SeriesToggles({
   );
 }
 
-function DeltaCaption({ value }: { value: number | null }) {
+export function DeltaCaption({ value }: { value: number | null }) {
   if (value == null || Number.isNaN(value)) return null;
   const rounded = Math.round(value);
   if (rounded === 0) {

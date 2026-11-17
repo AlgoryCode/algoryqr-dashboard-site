@@ -1,10 +1,10 @@
 import axios, { AxiosError } from "axios";
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { AI_SERVICE_API_KEY, AI_SERVICE_BASE_URL } from "@/lib/config";
-import { readAccessTokenFromCookies } from "@/lib/server/auth-cookies";
+import { CAMPAIGN_IMAGE_HOSTS, isAllowedImageUrl } from "@/lib/server/campaign-image-hosts";
+import { requireProduct } from "@/lib/server/product-gate";
 
 const bodySchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -25,10 +25,10 @@ type UpstreamResponse = {
 
 export async function POST(request: Request) {
   try {
-    const cookieStore = await cookies();
-    const accessToken = readAccessTokenFromCookies(cookieStore);
-    if (!accessToken) {
-      return NextResponse.json({ message: "Oturum gerekli" }, { status: 401 });
+    // Campaigns are run from the waiter panel; the image generator belongs to the same plan.
+    const gate = await requireProduct("WAITER_PANEL");
+    if (!gate.ok) {
+      return NextResponse.json({ message: gate.message }, { status: gate.status });
     }
 
     if (!AI_SERVICE_API_KEY) {
@@ -54,7 +54,8 @@ export async function POST(request: Request) {
         slogan: parsed.data.slogan,
         brief: parsed.data.brief,
         productNames: parsed.data.productNames,
-        productImageUrls: parsed.data.productImageUrls,
+        // The AI service downloads these, so only our own image hosts are passed on.
+        productImageUrls: parsed.data.productImageUrls.filter((url) => isAllowedImageUrl(url, CAMPAIGN_IMAGE_HOSTS)),
       },
       {
         headers: {

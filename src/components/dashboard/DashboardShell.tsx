@@ -37,6 +37,8 @@ import {
 } from "@/components/dashboard/DashboardTopBar";
 import { DashboardPageLabelProvider, useDashboardPageLabelValue } from "@/contexts/dashboard-page-label";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { BranchCapacityNotice } from "@/components/dashboard/BranchCapacityNotice";
+import { PlatformAnnouncements } from "@/components/dashboard/PlatformAnnouncements";
 import { BillingStatusBanner } from "@/components/dashboard/BillingStatusBanner";
 import {
   DashboardBannersProvider,
@@ -343,6 +345,8 @@ function DashboardShellInner({ children, initialSession, initialUser }: Dashboar
             onShowShortcuts={openShortcuts}
           />
           <BillingStatusBanner />
+          <BranchCapacityNotice />
+          <PlatformAnnouncements />
 
           {isFullBleed ? (
             <div className="w-full">{children}</div>
