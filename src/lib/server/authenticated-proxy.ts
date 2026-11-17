@@ -6,6 +6,7 @@ import { getMerchantIdFromAccessToken } from "@/lib/auth-user";
 import { API_BASE_URL } from "@/lib/config";
 import { readAccessTokenFromCookies } from "@/lib/server/auth-cookies";
 import { clientContextHeaders } from "@/lib/server/client-headers";
+import { ENTITLEMENT_VERSION_HEADER } from "@/lib/entitlement-version";
 
 export async function proxyAuthenticatedRequest(
   request: Request,
@@ -52,10 +53,13 @@ export async function proxyAuthenticatedRequest(
       timeout: options?.timeoutMs ?? 20_000,
     });
 
+    // Passed on so the browser can tell its plan changed (see noteEntitlementVersion).
+    const version = upstream.headers[ENTITLEMENT_VERSION_HEADER.toLowerCase()];
+    const headers = typeof version === "string" ? { [ENTITLEMENT_VERSION_HEADER]: version } : undefined;
     if (upstream.status === 204 || upstream.data == null || upstream.data === "") {
-      return new NextResponse(null, { status: upstream.status });
+      return new NextResponse(null, { status: upstream.status, headers });
     }
-    return NextResponse.json(upstream.data, { status: upstream.status });
+    return NextResponse.json(upstream.data, { status: upstream.status, headers });
   } catch (error) {
     if (error instanceof AxiosError) {
       if (error.code === "ECONNABORTED") {

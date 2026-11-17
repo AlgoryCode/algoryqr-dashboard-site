@@ -1,12 +1,16 @@
 import axios, { AxiosError } from "axios";
-import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getAccessProfileFromToken, hasProduct, toAccessProfile } from "@/lib/auth-user";
+import {
+  ASSISTANT_DAILY_LIMIT_CODE,
+  classifyAssistantTopic,
+  type AssistantUsageOutcome,
+} from "@/lib/assistant-usage";
 import { QR_AGENT_BASE_URL } from "@/lib/config";
-import { readAccessTokenFromCookies } from "@/lib/server/auth-cookies";
-import { fetchDashboardSessionContext } from "@/lib/server/session-context-fetch";
+import { resolveAssistantCaller } from "@/lib/server/assistant-access";
+import { chargeAssistantQuestion, refundAssistantQuestion } from "@/lib/server/assistant-meter";
+import { logAssistantUsage } from "@/lib/server/assistant-usage-log";
 
 const postBodySchema = z.object({
   message: z.string().trim().min(1).max(1_000),
@@ -23,32 +27,51 @@ type AgentChatResponse = {
 };
 
 export async function POST(request: Request) {
-  const cookieStore = await cookies();
-  const accessToken = readAccessTokenFromCookies(cookieStore);
-  if (!accessToken) {
-    return NextResponse.json({ message: "Oturum gerekli" }, { status: 401 });
+  const caller = await resolveAssistantCaller();
+  if (!caller.ok) {
+    return NextResponse.json({ message: caller.message }, { status: caller.status });
   }
-
-  const tokenProfile = getAccessProfileFromToken(accessToken);
-  const session = await fetchDashboardSessionContext();
-  const profile = session
-    ? toAccessProfile({
-        packageCode: session.packageCode ?? null,
-        products: session.products,
-        scopes: session.scopes,
-        roles: session.user.role ? [session.user.role] : [],
-        provider: session.user.provider,
-      })
-    : tokenProfile;
-  if (!hasProduct(profile, "SMART_ASSISTANT") && !hasProduct(profile, "QR_AGENT")) {
-    return NextResponse.json({ message: "Akıllı asistan paketi gerekli" }, { status: 403 });
-  }
+  const { accessToken, merchantId } = caller;
 
   const json = await request.json().catch(() => null);
   const parsed = postBodySchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json({ message: "Geçersiz istek" }, { status: 400 });
   }
+
+  // qr-service charges the question first; one that is not answered is given back below.
+  const chargeKey = crypto.randomUUID();
+  const charge = await chargeAssistantQuestion(caller, chargeKey);
+  if (charge.kind === "limit") {
+    return NextResponse.json(
+      { message: charge.message, code: ASSISTANT_DAILY_LIMIT_CODE, allowance: charge.allowance },
+      { status: 429 },
+    );
+  }
+  if (charge.kind === "unavailable") {
+    // Without the meter the free limit cannot be held, so the question is refused.
+    return NextResponse.json(
+      { message: "Asistan şu an kullanılamıyor, biraz sonra tekrar deneyin." },
+      { status: 503 },
+    );
+  }
+  const refund = () => refundAssistantQuestion(caller, chargeKey);
+
+  const startedAt = Date.now();
+  // Logged after the response is sent, so the chat never waits on it.
+  const logUsage = (outcome: AssistantUsageOutcome) => {
+    const responseMs = Date.now() - startedAt;
+    after(() =>
+      logAssistantUsage({
+        accessToken,
+        merchantId,
+        branchId: parsed.data.branchId,
+        topic: classifyAssistantTopic(parsed.data.message),
+        outcome,
+        responseMs,
+      }),
+    );
+  };
 
   try {
     const upstream = await axios.post<AgentChatResponse>(
@@ -67,6 +90,8 @@ export async function POST(request: Request) {
     );
 
     if (upstream.status >= 400) {
+      logUsage("FAILED");
+      await refund();
       const message =
         upstream.data?.message ||
         (typeof upstream.data === "string" ? upstream.data : "") ||
@@ -77,11 +102,18 @@ export async function POST(request: Request) {
       );
     }
 
+    const reply = upstream.data.reply ?? "";
+    const answered = reply.trim().length > 0;
+    logUsage(answered ? "ANSWERED" : "FAILED");
+    const allowance = answered ? charge.allowance : ((await refund()) ?? charge.allowance);
     return NextResponse.json({
-      reply: upstream.data.reply ?? "",
+      reply,
       conversationId: upstream.data.conversationId,
+      allowance,
     });
   } catch (error) {
+    logUsage("FAILED");
+    await refund();
     if (error instanceof AxiosError && error.code === "ECONNABORTED") {
       return NextResponse.json({ message: "Gateway timeout" }, { status: 504 });
     }

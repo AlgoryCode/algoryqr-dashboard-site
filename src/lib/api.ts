@@ -5,8 +5,10 @@ import { ApiError } from "@/lib/api/errors";
 import { MENU_APP_ORIGIN } from "@/lib/config";
 import { isDateUsablePurchase, pickActivePurchase } from "@/lib/product-access";
 import { resolvePublicMenuHref } from "@/lib/public-menu-href";
+import type { AssistantReportResponse } from "@/reporting/assistant";
 
-export { ApiError, getApiErrorCode } from "@/lib/api/errors";
+export { ApiError, getApiErrorCode, getEntitlementDenial } from "@/lib/api/errors";
+export type { EntitlementDenial, EntitlementUpgrade } from "@/lib/api/errors";
 export {
   hasActiveProductAccess,
   hasExpiredProductAccess,
@@ -402,6 +404,10 @@ export interface PlanPackageModuleApi {
   vatRate: number | string;
   billingType?: ProductBillingType | null;
   consumable?: boolean;
+  /** Store presentation set in the admin panel. */
+  tagline?: string | null;
+  badge?: "NEW" | "POPULAR" | "DEAL" | null;
+  featured?: boolean;
 }
 
 export interface PlanPackageApiItem {
@@ -422,6 +428,9 @@ export interface PlanPackageApiItem {
   priority?: number | null;
   items: PlanPackageItemApi[];
   availableModules?: PlanPackageModuleApi[];
+  /** Discount campaign running on this package now. */
+  campaignLabel?: string | null;
+  campaignEndsAt?: string | null;
   allowedPaymentModes?: Array<"DIRECT" | "THREE_DS" | "CHECKOUT_FORM">;
   installmentOptions?: InstallmentOptionApiItem[];
   allowedInstallments?: number[];
@@ -1861,6 +1870,18 @@ export async function getBranchRevenueReportRequest(
   const response = await api.get<MenuRevenueReportResponse>(
     `/analytics/branch/${branchId}/revenue`,
     { params: branchReportParams(from, to, menuId) },
+  );
+  return response.data;
+}
+
+export async function getBranchAssistantReportRequest(
+  branchId: number | string,
+  from: string,
+  to: string,
+): Promise<AssistantReportResponse> {
+  const response = await api.get<AssistantReportResponse>(
+    `/analytics/branch/${branchId}/assistant`,
+    { params: branchReportParams(from, to) },
   );
   return response.data;
 }

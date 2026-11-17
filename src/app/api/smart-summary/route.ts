@@ -1,10 +1,9 @@
 import axios, { AxiosError } from "axios";
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { AI_SERVICE_API_KEY, AI_SERVICE_BASE_URL } from "@/lib/config";
-import { readAccessTokenFromCookies } from "@/lib/server/auth-cookies";
+import { requireProduct } from "@/lib/server/product-gate";
 
 const bodySchema = z.object({
   product: z.record(z.string(), z.unknown()),
@@ -27,10 +26,9 @@ type UpstreamResponse = {
 
 export async function POST(request: Request) {
   try {
-    const cookieStore = await cookies();
-    const accessToken = readAccessTokenFromCookies(cookieStore);
-    if (!accessToken) {
-      return NextResponse.json({ message: "Oturum gerekli" }, { status: 401 });
+    const gate = await requireProduct("SMART_SUMMARY");
+    if (!gate.ok) {
+      return NextResponse.json({ message: gate.message }, { status: gate.status });
     }
 
     if (!AI_SERVICE_API_KEY) {

@@ -198,11 +198,13 @@ describe("spark and category helpers", () => {
       revenue({ kpis: { totalRevenue: 100, orderCount: 2, itemCount: 4, avgOrderValue: 50 } }),
       (value) => `₺${value}`,
     );
-    expect(items.map((item) => item.title)).toEqual(["Kasada kalan", "Sabit gider", "Ort. sepet", "Kalem / sipariş"]);
-    expect(items[0]?.value).toBe("₺200");
+    expect(items.map((item) => item.title)).toEqual(["Sipariş", "Ort. sepet"]);
+    expect(items[0]?.value).toBe("4");
     expect(items[0]?.delta).toBe(100);
-    expect(items[2]?.series).toEqual([40, 60]);
-    expect(items[3]?.value).toBe("2");
+    expect(items[0]?.series).toEqual([2, 2]);
+    expect(items[0]?.splits?.[0]).toEqual({ label: "Kalem / sipariş", value: "2" });
+    expect(items[0]?.splits?.[1]?.label).toBe("En yoğun gün");
+    expect(items[1]?.series).toEqual([40, 60]);
   });
 
   it("buildCategorySales_rollsExtraSlicesIntoDiger", () => {

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronRight, Pin, Search, Sparkles, X } from "lucide-react";
+import { Bot, ChevronRight, Pin, Search, X } from "lucide-react";
 
 import { DashboardAssistantChat } from "@/components/dashboard/DashboardAssistantChat";
 import { NavBadge } from "@/components/dashboard/NavBadge";
@@ -152,9 +152,9 @@ export function DashboardMobileNav({
               "hover:brightness-[0.98]",
             )}
           >
-            <ToneIcon tone={SHEET_TONE} icon={Sparkles} solid />
+            <ToneIcon tone={SHEET_TONE} icon={Bot} />
             <span className="min-w-0 flex-1">
-              <span className="block truncate">Asistan Danış</span>
+              <span className="block truncate">Asistana sor</span>
               <span className="block truncate text-[11px] font-normal text-muted-foreground">
                 Menün ve raporların hakkında sor
               </span>

@@ -22,6 +22,8 @@ export type OrderItemResponse = {
   quantity: number;
   note?: string | null;
   lineTotal?: number | string;
+  /** Units of this line the guest added from a menu assistant suggestion. */
+  assistantQuantity?: number;
   selectedOptions?: Array<{
     groupId?: number;
     groupName?: string;
@@ -122,6 +124,7 @@ export type CartItemRequest = {
   quantity: number;
   note?: string;
   selectedOptionIds?: number[];
+  assistantQuantity?: number;
 };
 
 export type UpdateCartRequest = {

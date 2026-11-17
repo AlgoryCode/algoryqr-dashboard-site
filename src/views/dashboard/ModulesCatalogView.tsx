@@ -135,6 +135,14 @@ export default function ModulesCatalogView() {
                     <p className="mt-1 text-sm text-muted-foreground">
                       {formatCartMoney(packagePrice.amount, pkg.currency)} {packagePrice.suffix}
                     </p>
+                    {pkg.campaignLabel ? (
+                      <p className="mt-1 text-xs font-medium text-rose-600 dark:text-rose-400">
+                        {pkg.campaignLabel}
+                        {pkg.campaignEndsAt
+                          ? ` · ${new Date(pkg.campaignEndsAt).toLocaleDateString("tr-TR", { day: "numeric", month: "long" })} tarihine kadar`
+                          : ""}
+                      </p>
+                    ) : null}
                   </div>
                   {selected ? <Check className="h-4 w-4 text-primary" /> : null}
                 </div>

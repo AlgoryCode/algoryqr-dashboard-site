@@ -8,6 +8,12 @@ import { DASHBOARD_SURFACE } from "@/lib/dashboard-surface";
 import { MAX_MODULE_QUANTITY, formatCartMoney } from "@/lib/package-cart";
 import { cn } from "@/lib/utils";
 
+const BADGE: Record<NonNullable<PlanPackageModuleApi["badge"]>, { label: string; className: string }> = {
+  NEW: { label: "Yeni", className: "bg-sky-600/15 text-sky-700 dark:text-sky-300" },
+  POPULAR: { label: "Popüler", className: "bg-amber-500/15 text-amber-700 dark:text-amber-300" },
+  DEAL: { label: "Fırsat", className: "bg-rose-600/15 text-rose-700 dark:text-rose-300" },
+};
+
 function moduleUnitLabel(module: PlanPackageModuleApi): number {
   const unitPrice = Number(module.unitPrice ?? 0);
   const vatRate = Number(module.vatRate ?? 0);
@@ -31,17 +37,24 @@ export function ModuleCard({
   onQuantity: (quantity: number) => void;
 }) {
   return (
-    <div className={cn(DASHBOARD_SURFACE, "flex h-full flex-col p-4", quantity > 0 && "ring-2 ring-primary/30")}>
+    <div className={cn(DASHBOARD_SURFACE, "flex h-full flex-col p-4",
+        module.featured && quantity <= 0 && "ring-1 ring-amber-400/40",
+        quantity > 0 && "ring-2 ring-primary/30",
+      )}>
       <div className="flex items-start justify-between gap-2">
         <h2 className="font-medium text-foreground">{module.productName}</h2>
         {included ? (
           <span className="rounded-full bg-emerald-600/15 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
             Pakette var
           </span>
+        ) : module.badge ? (
+          <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", BADGE[module.badge].className)}>
+            {BADGE[module.badge].label}
+          </span>
         ) : null}
       </div>
-      {module.description ? (
-        <p className="mt-2 flex-1 text-sm text-muted-foreground">{module.description}</p>
+      {module.tagline || module.description ? (
+        <p className="mt-2 flex-1 text-sm text-muted-foreground">{module.tagline || module.description}</p>
       ) : (
         <div className="flex-1" />
       )}

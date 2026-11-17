@@ -67,6 +67,7 @@ export function MenuChefProductCard({
       const failure = await ordering.beginAddProduct(sourceProduct, 1, {
         openCart: false,
         deferOptions: true,
+        origin: "assistant",
       });
       if (failure) {
         setLocalError(failure);

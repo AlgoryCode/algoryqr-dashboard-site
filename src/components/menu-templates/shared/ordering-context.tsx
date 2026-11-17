@@ -45,7 +45,12 @@ type LocalCartItem = {
   selectedOptions?: SelectedOrderOption[];
   optionGroups?: MenuProductApiItem["optionGroups"];
   optionsRequired?: boolean;
+  /** Units added from a menu assistant suggestion, never above quantity. */
+  assistantQuantity?: number;
 };
+
+/** Where an add-to-cart came from; "assistant" counts the units as menu assistant sales. */
+export type CartAddOrigin = "menu" | "assistant";
 
 export const TABLE_INACTIVE_MESSAGE = "Bu masa şu anda hizmet vermemektedir";
 
@@ -68,13 +73,14 @@ type OrderingContextValue = {
   beginAddProduct: (
     product: MenuProductApiItem,
     quantity?: number,
-    options?: { openCart?: boolean; deferOptions?: boolean },
+    options?: { openCart?: boolean; deferOptions?: boolean; origin?: CartAddOrigin },
   ) => Promise<string | null>;
   addProduct: (
     product: MenuProductApiItem,
     quantity?: number,
     selectedOptionIds?: number[],
     lineNote?: string,
+    origin?: CartAddOrigin,
   ) => Promise<string | null>;
   updateQty: (lineKey: string, quantity: number) => Promise<void>;
   submitOrder: () => Promise<OrderResponse | null>;
@@ -85,6 +91,12 @@ type OrderingContextValue = {
 };
 
 const OrderingContext = createContext<OrderingContextValue | null>(null);
+
+/** Assistant units of a cart line: a whole number between 0 and the line quantity. */
+export function clampAssistantQuantity(value: number | null | undefined, quantity: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return 0;
+  return Math.min(Math.floor(value), Math.max(0, Math.floor(quantity)));
+}
 
 function sessionStorageKey(identifier: string) {
   return `${SESSION_STORAGE_PREFIX}${identifier}`;
@@ -182,6 +194,10 @@ export function OrderingProvider({ identifier, publicId, children }: OrderingPro
         selectedOptions,
         optionGroups: fallback?.optionGroups,
         optionsRequired: fallback?.optionsRequired,
+        assistantQuantity: clampAssistantQuantity(
+          item.assistantQuantity ?? fallback?.assistantQuantity,
+          item.quantity,
+        ),
       };
     });
     setLocalItems(items);
@@ -298,6 +314,9 @@ export function OrderingProvider({ identifier, publicId, children }: OrderingPro
             ...(item.selectedOptionIds.length
               ? { selectedOptionIds: item.selectedOptionIds }
               : {}),
+            ...(clampAssistantQuantity(item.assistantQuantity, item.quantity) > 0
+              ? { assistantQuantity: clampAssistantQuantity(item.assistantQuantity, item.quantity) }
+              : {}),
           })),
         ...(nextNote.trim() ? { note: nextNote.trim() } : {}),
       };
@@ -315,8 +334,10 @@ export function OrderingProvider({ identifier, publicId, children }: OrderingPro
       quantity = 1,
       selectedOptionIds: number[] = [],
       lineNote?: string,
+      origin: CartAddOrigin = "menu",
     ): Promise<string | null> => {
       setError(null);
+      const addedByAssistant = origin === "assistant" ? quantity : 0;
       if (!Number.isFinite(product.productId) || product.productId <= 0) {
         const message = "Ürün bilgisi eksik";
         setError(message);
@@ -332,6 +353,7 @@ export function OrderingProvider({ identifier, publicId, children }: OrderingPro
               ? {
                   ...item,
                   quantity: item.quantity + quantity,
+                  assistantQuantity: (item.assistantQuantity ?? 0) + addedByAssistant,
                   selectedOptions,
                   ...(lineNote ? { note: lineNote } : {}),
                 }
@@ -351,6 +373,7 @@ export function OrderingProvider({ identifier, publicId, children }: OrderingPro
               optionGroups: product.optionGroups,
               optionsRequired: productHasOptions(product),
               note: lineNote,
+              assistantQuantity: addedByAssistant,
             },
           ];
 
@@ -426,6 +449,7 @@ export function OrderingProvider({ identifier, publicId, children }: OrderingPro
         optionGroups: product.optionGroups,
         optionsRequired: existing.optionsRequired || productHasOptions(product),
         note: lineNote,
+        assistantQuantity: clampAssistantQuantity(existing.assistantQuantity, quantity),
       };
       const nextItems = localItems
         .filter((item) => item.lineKey !== lineKey && item.lineKey !== nextLine.lineKey)
@@ -462,7 +486,7 @@ export function OrderingProvider({ identifier, publicId, children }: OrderingPro
     async (
       product: MenuProductApiItem,
       quantity = 1,
-      options?: { openCart?: boolean; deferOptions?: boolean },
+      options?: { openCart?: boolean; deferOptions?: boolean; origin?: CartAddOrigin },
     ): Promise<string | null> => {
       const openCart = options?.openCart ?? true;
       if (productHasOptions(product) && !options?.deferOptions) {
@@ -471,7 +495,7 @@ export function OrderingProvider({ identifier, publicId, children }: OrderingPro
         setOptionsOpen(true);
         return null;
       }
-      const failure = await addProduct(product, quantity);
+      const failure = await addProduct(product, quantity, [], undefined, options?.origin);
       if (!failure && openCart) setCartOpen(true);
       return failure;
     },
@@ -523,7 +547,13 @@ export function OrderingProvider({ identifier, publicId, children }: OrderingPro
         quantity <= 0
           ? localItems.filter((item) => item.lineKey !== lineKey)
           : localItems.map((item) =>
-              item.lineKey === lineKey ? { ...item, quantity } : item,
+              item.lineKey === lineKey
+                ? {
+                    ...item,
+                    quantity,
+                    assistantQuantity: clampAssistantQuantity(item.assistantQuantity, quantity),
+                  }
+                : item,
             );
       if (!tableToken) {
         setLocalItems(nextItems);

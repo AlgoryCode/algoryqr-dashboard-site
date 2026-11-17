@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { loadPackageAccess } from "@/lib/load-package-access";
+import { loadPackageAccess, watchPackageAccess } from "@/lib/load-package-access";
 import { usePackageStore } from "@/stores/package-access-store";
 
 export function useAccessProfile(enabled = true) {
@@ -10,7 +10,9 @@ export function useAccessProfile(enabled = true) {
   const status = usePackageStore((state) => state.status);
 
   useEffect(() => {
-    if (!enabled || status !== "idle") return;
+    if (!enabled) return;
+    watchPackageAccess();
+    if (status !== "idle") return;
     void loadPackageAccess();
   }, [enabled, status]);
 
