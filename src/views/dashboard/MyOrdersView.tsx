@@ -9,8 +9,6 @@ import {
   Building2,
   CircleDot,
   Banknote,
-  Bell,
-  BellOff,
   ChefHat,
   ClipboardList,
   ConciergeBell,
@@ -35,6 +33,7 @@ import { ToneBadge } from "@/components/dashboard/ToneBadge";
 import { PrintOrderButton } from "@/components/dashboard/PrintOrderButton";
 import { TONE_BUTTON, TONES, ToneIcon, type Tone } from "@/components/dashboard/tone";
 import { OrderCancelDialog } from "@/components/orders/OrderCancelDialog";
+import { OrderSoundControl } from "@/components/orders/OrderSoundControl";
 import { Button } from "@/components/ui/button";
 import { todayDateRange } from "@/components/ui/date-range-filter";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -356,18 +355,15 @@ function MyOrdersContent() {
         hint="QR, garson, online ve pazaryeri siparişleri tek listede."
         action={
           <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="size-9 shrink-0"
-              onClick={() => alert.setSoundOn(!alert.soundOn)}
-              aria-pressed={alert.soundOn}
-              aria-label={alert.soundOn ? "Yeni sipariş sesini kapat" : "Yeni sipariş sesini aç"}
-              title={alert.soundOn ? "Yeni siparişte ses çalar" : "Ses kapalı"}
-            >
-              {alert.soundOn ? <Bell className="size-4" /> : <BellOff className="size-4" />}
-            </Button>
+            <OrderSoundControl
+              soundOn={alert.soundOn}
+              onSoundOnChange={alert.setSoundOn}
+              volume={alert.volume}
+              onVolumeChange={alert.setVolume}
+              tone={alert.tone}
+              onToneChange={alert.setTone}
+              onPreview={alert.previewSound}
+            />
             <Button asChild variant="outline" className="h-9 flex-1 gap-1.5 sm:flex-none">
               <Link href={DASHBOARD_ROUTES.kitchenScreen(branchScope === "all" ? null : branchScope)}>
                 <ChefHat className="size-4" />
