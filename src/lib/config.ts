@@ -163,6 +163,9 @@ function resolveQrAgentBaseUrl(): string {
 
 export const QR_AGENT_BASE_URL = resolveQrAgentBaseUrl();
 
+/** Sent to qr-agent as X-Agent-Key on the owner assistant; must equal its BUSINESS_CHAT_KEY. Server only. */
+export const QR_AGENT_API_KEY = process.env.QR_AGENT_API_KEY?.trim() ?? "";
+
 function resolveAiServiceBaseUrl(): string {
   const fromEnv = process.env.AI_SERVICE_BASE_URL?.trim();
   if (fromEnv) return trimTrailingSlash(fromEnv);

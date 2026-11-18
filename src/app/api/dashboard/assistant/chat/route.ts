@@ -7,8 +7,15 @@ import {
   classifyAssistantTopic,
   type AssistantUsageOutcome,
 } from "@/lib/assistant-usage";
-import { QR_AGENT_BASE_URL } from "@/lib/config";
+import { QR_AGENT_API_KEY, QR_AGENT_BASE_URL } from "@/lib/config";
+import {
+  answerQuickPrompt,
+  QUICK_PROMPT_IDS,
+  type QuickPromptId,
+} from "@/lib/dashboard-assistant/quick-answers";
+import { formatSalesContextForAgent } from "@/lib/dashboard-assistant/sales-snapshot";
 import { resolveAssistantCaller } from "@/lib/server/assistant-access";
+import { AssistantSalesError, loadAssistantSales } from "@/lib/server/assistant-sales";
 import { chargeAssistantQuestion, refundAssistantQuestion } from "@/lib/server/assistant-meter";
 import { logAssistantUsage } from "@/lib/server/assistant-usage-log";
 
@@ -17,7 +24,8 @@ const postBodySchema = z.object({
   branchId: z.number().int().positive(),
   menuId: z.number().int().positive().nullable().optional(),
   conversationId: z.string().trim().min(1).max(100).optional(),
-  salesContext: z.string().trim().min(1).max(48_000),
+  /** A ready-made chip; answered from the sales summary without the agent or a question charge. */
+  promptId: z.enum(QUICK_PROMPT_IDS as [QuickPromptId, ...QuickPromptId[]]).optional(),
 });
 
 type AgentChatResponse = {
@@ -39,6 +47,41 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Geçersiz istek" }, { status: 400 });
   }
 
+  const { branchId } = parsed.data;
+  const menuId = parsed.data.menuId ?? null;
+  const startedAt = Date.now();
+  const logUsage = (outcome: AssistantUsageOutcome) => {
+    const responseMs = Date.now() - startedAt;
+    // Logged after the response is sent, so the chat never waits on it.
+    after(() =>
+      logAssistantUsage({
+        accessToken,
+        merchantId,
+        branchId,
+        topic: classifyAssistantTopic(parsed.data.message),
+        outcome,
+        responseMs,
+      }),
+    );
+  };
+
+  if (parsed.data.promptId) {
+    try {
+      const sales = await loadAssistantSales(caller, branchId, menuId);
+      const reply = answerQuickPrompt(parsed.data.promptId, sales);
+      if (reply) {
+        logUsage("ANSWERED");
+        return NextResponse.json({ reply, conversationId: parsed.data.conversationId ?? null, allowance: null });
+      }
+    } catch (error) {
+      if (error instanceof AssistantSalesError) {
+        return NextResponse.json({ message: error.message }, { status: error.status === 401 ? 401 : 502 });
+      }
+      return NextResponse.json({ message: "Satış raporu alınamadı" }, { status: 502 });
+    }
+    // Not enough data for the ready answer: the agent takes it as a normal question.
+  }
+
   // qr-service charges the question first; one that is not answered is given back below.
   const chargeKey = crypto.randomUUID();
   const charge = await chargeAssistantQuestion(caller, chargeKey);
@@ -57,35 +100,28 @@ export async function POST(request: Request) {
   }
   const refund = () => refundAssistantQuestion(caller, chargeKey);
 
-  const startedAt = Date.now();
-  // Logged after the response is sent, so the chat never waits on it.
-  const logUsage = (outcome: AssistantUsageOutcome) => {
-    const responseMs = Date.now() - startedAt;
-    after(() =>
-      logAssistantUsage({
-        accessToken,
-        merchantId,
-        branchId: parsed.data.branchId,
-        topic: classifyAssistantTopic(parsed.data.message),
-        outcome,
-        responseMs,
-      }),
-    );
-  };
-
   try {
+    // Built here with the owner's token; the agent also reads qr-service itself with the same token.
+    const salesContext = await loadAssistantSales(caller, branchId, menuId)
+      .then(formatSalesContextForAgent)
+      .catch(() => "");
     const upstream = await axios.post<AgentChatResponse>(
       `${QR_AGENT_BASE_URL}/api/v1/business/chat`,
       {
-        branchId: parsed.data.branchId,
+        branchId,
+        menuId,
         message: parsed.data.message,
         conversationId: parsed.data.conversationId,
-        salesContext: parsed.data.salesContext,
+        ...(salesContext ? { salesContext } : {}),
       },
       {
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Owner-Token": accessToken,
+          ...(QR_AGENT_API_KEY ? { "X-Agent-Key": QR_AGENT_API_KEY } : {}),
+        },
         validateStatus: () => true,
-        timeout: 60_000,
+        timeout: 90_000,
       },
     );
 

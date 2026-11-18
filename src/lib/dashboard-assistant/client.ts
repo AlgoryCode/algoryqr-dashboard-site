@@ -1,10 +1,10 @@
 import { ASSISTANT_DAILY_LIMIT_CODE, type AssistantAllowance } from "@/lib/assistant-usage";
-import { readAssistantSalesCache } from "@/lib/dashboard-assistant/sales-cache";
-import { formatSalesContextForAgent } from "@/lib/dashboard-assistant/sales-snapshot";
+import type { QuickPrompt, QuickPromptId } from "@/lib/dashboard-assistant/quick-answers";
 
 export type DashboardAssistantReply = {
   reply: string;
-  conversationId: string;
+  /** Null after an instant chip answer that did not open a conversation yet. */
+  conversationId: string | null;
   allowance: AssistantAllowance | null;
 };
 
@@ -50,20 +50,35 @@ export async function getDashboardAssistantAllowance(): Promise<{
   return { entitled: data?.entitled === true, allowance: readAllowance(data?.allowance) };
 }
 
-export function salesContextFromCache(branchId: number, menuId: number | null): string {
-  const cache = readAssistantSalesCache(branchId, menuId);
-  if (!cache) return "";
-  return formatSalesContextForAgent(cache);
+export type AssistantSalesChips = { prompts: QuickPrompt[]; branchName: string | null };
+
+/** The chips for a branch; the server reads the sales summary and adds the ones the data suggests. */
+export async function getDashboardAssistantChips(
+  branchId: number,
+  menuId: number | null,
+): Promise<AssistantSalesChips> {
+  const params = new URLSearchParams({ branchId: String(branchId) });
+  if (menuId != null) params.set("menuId", String(menuId));
+  const response = await fetch(`/api/dashboard/assistant/sales?${params}`, {
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+  const data = (await response.json().catch(() => null)) as
+    | { prompts?: QuickPrompt[]; branchName?: string | null; message?: unknown }
+    | null;
+  if (!response.ok) {
+    throw new Error(typeof data?.message === "string" ? data.message : "Satış raporu alınamadı");
+  }
+  return { prompts: data?.prompts ?? [], branchName: data?.branchName ?? null };
 }
 
 export async function postDashboardAssistantMessage(
   message: string,
   branchId: number,
   menuId: number | null,
-  options?: { conversationId?: string; salesContext?: string },
+  options?: { conversationId?: string; promptId?: QuickPromptId },
 ): Promise<DashboardAssistantReply> {
-  const salesContext =
-    options?.salesContext?.trim() || salesContextFromCache(branchId, menuId);
   const response = await fetch("/api/dashboard/assistant/chat", {
     method: "POST",
     credentials: "same-origin",
@@ -76,7 +91,7 @@ export async function postDashboardAssistantMessage(
       branchId,
       menuId,
       conversationId: options?.conversationId,
-      salesContext,
+      promptId: options?.promptId,
     }),
   });
 
@@ -99,13 +114,13 @@ export async function postDashboardAssistantMessage(
     throw new Error(err);
   }
 
-  if (!data || !("reply" in data) || typeof data.reply !== "string" || !data.conversationId) {
+  if (!data || !("reply" in data) || typeof data.reply !== "string") {
     throw new Error("Asistan yanıt veremedi");
   }
 
   return {
     reply: data.reply,
-    conversationId: data.conversationId,
+    conversationId: typeof data.conversationId === "string" ? data.conversationId : null,
     allowance: readAllowance(data.allowance),
   };
 }

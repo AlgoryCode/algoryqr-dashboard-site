@@ -1,9 +1,7 @@
 import type { MenuRevenueReportResponse } from "@/lib/api";
 import {
   averageBasket,
-  comparePeriodRange,
   confirmedOrderCount,
-  reportingPeriodRange,
   soldItemCount,
   toAmount,
   totalRevenue,
@@ -31,6 +29,11 @@ export type AssistantSalesPeriodSnapshot = {
   basket: number;
   previousRevenue: number | null;
   revenueDeltaPercent: number | null;
+  previousOrders: number | null;
+  previousBasket: number | null;
+  /** Products whose revenue moved most against the previous equal period. */
+  movers: { name: string; revenue: number; previousRevenue: number; quantity: number; previousQuantity: number }[];
+  unsold: { count: number; names: string[] };
   topProducts: { name: string; quantity: number; revenue: number }[];
   channels: { label: string; revenue: number; orders: number }[];
   peakHour: { hour: number; revenue: number } | null;
@@ -82,6 +85,9 @@ export function buildSalesPeriodSnapshot(
     .slice(0, 6);
 
   const peakHour = peakHourFromReport(current);
+  const previousOrders = previous ? confirmedOrderCount(previous.kpis?.orderCount) : null;
+  const previousBasket =
+    previous && previousRevenue != null && previousOrders ? averageBasket(previousRevenue, previousOrders) : null;
 
   return {
     period,
@@ -95,10 +101,45 @@ export function buildSalesPeriodSnapshot(
     basket,
     previousRevenue,
     revenueDeltaPercent,
+    previousOrders,
+    previousBasket,
+    movers: previous ? productMovers(current, previous) : [],
+    unsold: {
+      count: current.unsold?.count ?? current.unsold?.products?.length ?? 0,
+      names: (current.unsold?.products ?? []).map((row) => row.name).slice(0, 8),
+    },
     topProducts,
     channels,
     peakHour,
   };
+}
+
+const MOVER_LIMIT = 6;
+
+function productMovers(current: MenuRevenueReportResponse, previous: MenuRevenueReportResponse) {
+  const rows = new Map<string, AssistantSalesPeriodSnapshot["movers"][number]>();
+  const row = (name: string) => {
+    let value = rows.get(name);
+    if (!value) {
+      value = { name, revenue: 0, previousRevenue: 0, quantity: 0, previousQuantity: 0 };
+      rows.set(name, value);
+    }
+    return value;
+  };
+  for (const product of current.products ?? []) {
+    const value = row(product.name);
+    value.revenue += toAmount(product.revenue);
+    value.quantity += product.quantity ?? 0;
+  }
+  for (const product of previous.products ?? []) {
+    const value = row(product.name);
+    value.previousRevenue += toAmount(product.revenue);
+    value.previousQuantity += product.quantity ?? 0;
+  }
+  return [...rows.values()]
+    .filter((value) => value.revenue !== value.previousRevenue)
+    .sort((a, b) => Math.abs(b.revenue - b.previousRevenue) - Math.abs(a.revenue - a.previousRevenue))
+    .slice(0, MOVER_LIMIT);
 }
 
 function peakHourFromReport(report: MenuRevenueReportResponse): { hour: number; revenue: number } | null {
@@ -114,10 +155,26 @@ function peakHourFromReport(report: MenuRevenueReportResponse): { hour: number; 
   return best && best.revenue > 0 ? best : null;
 }
 
-export function periodRangesForAssistant() {
+const MS_PER_DAY = 86_400_000;
+
+function shiftIsoDay(value: string, days: number): string {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(Date.UTC(year!, month! - 1, day!) + days * MS_PER_DAY).toISOString().slice(0, 10);
+}
+
+/** Today in the business time zone (YYYY-MM-DD), so a UTC server still means Turkish "bugün". */
+export function businessToday(timeZone = "Europe/Istanbul", now: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+}
+
+/** Bugün, son 7 ve 30 gün with the equal period before each, counted back from `today`. */
+export function assistantRangesFrom(today: string) {
+  const spans: Record<string, number> = { "1d": 0, "7d": 6, "30d": 29 };
   return ASSISTANT_SALES_PERIODS.map((period) => {
-    const current = reportingPeriodRange(period);
-    const previous = comparePeriodRange(current.from, current.to, "previous");
+    const span = spans[period] ?? 0;
+    const current = { from: shiftIsoDay(today, -span), to: today };
+    const previousTo = shiftIsoDay(current.from, -1);
+    const previous = { from: shiftIsoDay(previousTo, -span), to: previousTo };
     return { period, current, previous };
   });
 }
