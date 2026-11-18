@@ -2,13 +2,14 @@ import axios, { AxiosError } from "axios";
 import { NextResponse } from "next/server";
 
 import { API_BASE_URL } from "@/lib/config";
+import { packagesUpstreamUrl } from "@/lib/server/packages-upstream";
 import {
   fetchProductServicePackages,
   isProductServiceConfigured,
 } from "@/lib/server/product-service-catalog";
 
 async function fetchQrServicePackages() {
-  const upstream = await axios.get(`${API_BASE_URL}/packages`, {
+  const upstream = await axios.get(packagesUpstreamUrl(API_BASE_URL), {
     validateStatus: () => true,
     timeout: 20_000,
   });

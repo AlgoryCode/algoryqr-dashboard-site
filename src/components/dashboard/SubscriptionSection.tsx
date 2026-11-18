@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Sparkles, Zap } from "lucide-react";
+import { ArrowLeft, Check, Sparkles } from "lucide-react";
 
 import RefundConfirmDialog from "@/components/dashboard/RefundConfirmDialog";
 import RefundStatusBadge from "@/components/dashboard/RefundStatusBadge";
@@ -74,10 +74,7 @@ import {
   listMyPlanChanges,
 } from "@/lib/plan-change";
 import { refreshAccessAfterEntitlementChange } from "@/lib/refresh-access";
-import {
-  formatPackageEntitlementName,
-  formatPackageEntitlementUsageSummary,
-} from "@/lib/entitlement-display";
+import { describeEntitlement } from "@/lib/entitlement-display";
 import { isRefundInFlight, purchaseStatusLabel } from "@/lib/refund-display";
 import { ApiError } from "@/lib/api/errors";
 import { DASHBOARD_SURFACE } from "@/lib/dashboard-surface";
@@ -353,19 +350,123 @@ export default function SubscriptionSection({ onNotify }: SubscriptionSectionPro
     );
   }
 
+  const expiresAt = summary?.expiresAt ?? activePurchase?.expiresAt;
+  const daysLeft = summary?.daysUntilExpiry ?? activePurchase?.daysUntilExpiry;
+  const renewalOff = !!(summary?.cancelAtPeriodEnd ?? activePurchase?.cancelAtPeriodEnd);
+  const nextPaymentAt = summary?.nextPaymentDueAt ?? activePurchase?.nextPaymentDueAt;
+  const statusLabel = isActiveTrial
+    ? "Deneme"
+    : purchaseStatusLabel(summary?.status ?? activePurchase?.status);
+  const notice = pastDue
+    ? `Yenileme ödemesi alınamadı. ${
+        graceEndsAt
+          ? `Erişiminiz ${formatPackageDate(graceEndsAt)} tarihine kadar devam eder.`
+          : "Erişiminiz kısa süre daha devam eder."
+      }`
+    : refundPending
+      ? "İade işlemi sürüyor. Lütfen bekleyin; tekrar denemeyin."
+      : renewalOff
+        ? `Yenileme kapalı. Erişiminiz ${formatPackageDate(expiresAt)} tarihine kadar devam eder.`
+        : (summary?.expiryApproaching ?? activePurchase?.expiryApproaching)
+          ? isActiveTrial
+            ? "Deneme süreniz 7 gün içinde bitiyor. Ücretli pakete geçerek erişiminizi sürdürebilirsiniz."
+            : "Paketinizin bitmesine 7 günden az kaldı."
+          : (summary?.paymentApproaching || activePurchase?.paymentApproaching)
+            ? "Ödeme tarihiniz yaklaşıyor."
+            : isSubscription && !hasSavedCard
+              ? "Kayıtlı kart yok; otomatik yenileme çalışmaz."
+              : null;
+
+  const facts: Array<{ label: string; value: string }> = [
+    { label: "Başlangıç", value: formatPackageDate(summary?.startsAt ?? activePurchase?.startsAt) },
+    { label: "Bitiş", value: formatPackageDate(expiresAt) },
+    {
+      label: "Yenileme",
+      value: isActiveTrial
+        ? "Deneme"
+        : renewalOff
+          ? "Kapalı"
+          : isSubscription
+            ? "Otomatik"
+            : "Tek seferlik",
+    },
+    nextPaymentAt
+      ? { label: "Sonraki ödeme", value: formatPackageDate(nextPaymentAt) }
+      : summary?.cardLastFour
+        ? {
+            label: "Kart",
+            value: [summary.cardBrand, `•••• ${summary.cardLastFour}`].filter(Boolean).join(" "),
+          }
+        : null,
+  ].filter((fact): fact is { label: string; value: string } => fact !== null);
+
+  const described = products.map((product) => ({ product, ...describeEntitlement(product) }));
+  const limits: LimitRow[] = described
+    .filter((item) => item.kind === "limit")
+    .map((item) => {
+      if (item.product.productCode === "QR_BRANCH" && data?.branchQuota) {
+        return {
+          key: item.product.id,
+          name: item.name,
+          description: item.description,
+          used: data.branchQuota.used,
+          total: data.branchQuota.allowed,
+          unlimited: false,
+        };
+      }
+      return {
+        key: item.product.id,
+        name: item.name,
+        description:
+          item.product.productCode === "QR_MENU" && data?.menuQuota
+            ? `${item.description ?? ""} Her şubenin ilk menüsü ücretsiz.`.trim()
+            : item.description,
+        used: item.product.usedQuantity,
+        total: item.product.totalQuantity,
+        unlimited: item.product.unlimited,
+      };
+    })
+    .reduce<LimitRow[]>((rows, row) => {
+      const same = rows.find((existing) => existing.name === row.name);
+      if (!same) return [...rows, row];
+      same.total += row.total;
+      same.used = Math.max(same.used, row.used);
+      same.unlimited = same.unlimited || row.unlimited;
+      return rows;
+    }, [])
+    .sort((a, b) => Number(a.unlimited) - Number(b.unlimited));
+  const features = described
+    .filter((item) => item.kind === "feature")
+    .filter(
+      (item, index, all) =>
+        all.findIndex((other) => other.name === item.name) === index,
+    )
+    .map((item) => {
+      const twins = described.filter((other) => other.kind === "feature" && other.name === item.name);
+      const active = twins.some((twin) => twin.product.usable && !twin.product.expired);
+      return { ...item, active };
+    });
+  const paidAddons = visibleAddonPurchases.filter(
+    (addon) => addon.purchaseId != null && addon.purchaseId > 0,
+  );
+  const hasManageActions =
+    showImmediateCancel ||
+    showCancelAtPeriodEnd ||
+    showCancelWithRefund ||
+    showResumeRenewal ||
+    showPayDebt;
+
   return (
-    <div className="space-y-4 animate-fade-in">
+    <div className="space-y-5 animate-fade-in">
       <div className="flex items-center gap-3">
         <Link
           href={DASHBOARD_ROUTES.account}
+          aria-label="Hesaba dön"
           className="h-8 w-8 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
         </Link>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Abonelik</h1>
-          <p className="text-sm text-muted-foreground">Aktif paket ve abonelik detayları</p>
-        </div>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Abonelik</h1>
       </div>
 
       {isLoading ? (
@@ -423,28 +524,22 @@ export default function SubscriptionSection({ onNotify }: SubscriptionSectionPro
           ) : null}
 
           <Card className={DASHBOARD_SURFACE}>
-            <CardContent className="space-y-4 p-5">
-              <div className="flex items-start gap-3">
-                <div className="min-w-0 flex-1">
+            <CardContent className="space-y-5 p-5 sm:p-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Zap className="h-4 w-4 text-primary" />
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      {isActiveTrial ? "Aktif deneme" : "Aktif abonelik"}
-                    </p>
-                    {(summary?.purchaseType ?? activePurchase?.purchaseType) ? (
+                    <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                      {packageName}
+                    </h2>
+                    {statusLabel ? (
                       <span
                         className={
-                          isActiveTrial
-                            ? "rounded-md bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400"
-                            : "rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
+                          pastDue
+                            ? "rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400"
+                            : "rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400"
                         }
                       >
-                        {purchaseTypeLabel(summary?.purchaseType ?? activePurchase?.purchaseType)}
-                      </span>
-                    ) : null}
-                    {(summary?.status ?? activePurchase?.status) ? (
-                      <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                        {purchaseStatusLabel(summary?.status ?? activePurchase?.status)}
+                        {statusLabel}
                       </span>
                     ) : null}
                     {summary && !isActiveTrial ? (
@@ -454,243 +549,56 @@ export default function SubscriptionSection({ onNotify }: SubscriptionSectionPro
                       />
                     ) : null}
                   </div>
-                  <h2 className="mt-1 text-xl font-semibold text-foreground">{packageName}</h2>
-                  {isActiveTrial ? (
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Deneme süreniz aktif. Tüm paket özelliklerini kullanabilir, dilediğinizde
-                      ücretli plana geçebilirsiniz.
-                    </p>
-                  ) : null}
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {expiresAt ? `${formatPackageDate(expiresAt)} tarihine kadar geçerli` : "Süresiz"}
+                    {daysLeft != null ? ` · ${formatDaysUntilExpiry(daysLeft)}` : ""}
+                  </p>
                 </div>
                 {summary || isActiveTrial ? (
-                  <div className="shrink-0 text-right">
-                    <p className="text-xl font-semibold text-foreground">
-                      {isActiveTrial
-                        ? "Ücretsiz"
-                        : formatPackagePrice(summary!.price, summary!.currency)}
-                    </p>
-                    {(summary?.purchasedAt ?? activePurchase?.purchasedAt) ? (
-                      <p className="text-xs text-muted-foreground">
-                        {isActiveTrial ? "Başladı" : "Satın alma"}:{" "}
-                        {formatPackageDate(summary?.purchasedAt ?? activePurchase?.purchasedAt)}
-                      </p>
-                    ) : null}
-                  </div>
+                  <p className="text-2xl font-semibold tracking-tight text-foreground">
+                    {isActiveTrial || !summary || Number(summary.price) === 0
+                      ? "Ücretsiz"
+                      : formatPackagePrice(summary.price, summary.currency)}
+                  </p>
                 ) : null}
               </div>
 
-              <dl className="overflow-hidden rounded-2xl border border-border bg-muted divide-y divide-border">
-                <div className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
-                  <dt className="text-muted-foreground">Başlangıç</dt>
-                  <dd className="text-right font-medium text-foreground">
-                    {formatPackageDate(summary?.startsAt ?? activePurchase?.startsAt)}
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
-                  <dt className="text-muted-foreground">Bitiş</dt>
-                  <dd className="text-right font-medium text-foreground">
-                    {formatPackageDate(summary?.expiresAt ?? activePurchase?.expiresAt)}
-                    {(summary?.daysUntilExpiry ?? activePurchase?.daysUntilExpiry) != null ? (
-                      <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
-                        {formatDaysUntilExpiry(
-                          summary?.daysUntilExpiry ?? activePurchase?.daysUntilExpiry,
-                        )}
-                      </span>
-                    ) : null}
-                  </dd>
-                </div>
-                {isActiveTrial ? (
-                  <div className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
-                    <dt className="text-muted-foreground">Tür</dt>
-                    <dd className="text-right font-medium text-foreground">Ücretsiz deneme</dd>
-                  </div>
-                ) : null}
-                {!isActiveTrial && (isSubscription || summary?.paymentStyle) ? (
-                  <div className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
-                    <dt className="text-muted-foreground">Yenileme</dt>
-                    <dd className="text-right font-medium text-foreground">
-                      {summary?.cancelAtPeriodEnd || activePurchase?.cancelAtPeriodEnd
-                        ? "Kapalı"
-                        : isSubscription
-                          ? "Otomatik"
-                          : "Tek seferlik"}
+              {notice ? (
+                <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
+                  {notice}
+                </p>
+              ) : null}
+
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+                {facts.map((fact) => (
+                  <div key={fact.label} className="min-w-0">
+                    <dt className="text-xs text-muted-foreground">{fact.label}</dt>
+                    <dd className="mt-0.5 truncate text-sm font-medium text-foreground">
+                      {fact.value}
                     </dd>
                   </div>
-                ) : null}
-                {(summary?.nextPaymentDueAt ?? activePurchase?.nextPaymentDueAt) ? (
-                  <div className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
-                    <dt className="text-muted-foreground">Sonraki ödeme</dt>
-                    <dd className="text-right font-medium text-foreground">
-                      {formatPackageDate(
-                        summary?.nextPaymentDueAt ?? activePurchase?.nextPaymentDueAt,
-                      )}
-                    </dd>
-                  </div>
-                ) : null}
-                {summary?.cardLastFour ? (
-                  <div className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
-                    <dt className="text-muted-foreground">Kart</dt>
-                    <dd className="text-right font-medium text-foreground">
-                      {[summary.cardBrand, `•••• ${summary.cardLastFour}`]
-                        .filter(Boolean)
-                        .join(" ")}
-                    </dd>
-                  </div>
-                ) : isSubscription ? (
-                  <div className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
-                    <dt className="text-muted-foreground">Kart</dt>
-                    <dd className="text-right font-medium text-foreground">Kayıtlı değil</dd>
-                  </div>
-                ) : null}
-                {graceEndsAt && pastDue ? (
-                  <div className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
-                    <dt className="text-muted-foreground">Ödeme süresi</dt>
-                    <dd className="text-right font-medium text-foreground">
-                      {formatPackageDate(graceEndsAt)}
-                    </dd>
-                  </div>
-                ) : null}
+                ))}
               </dl>
 
-              {(summary?.paymentApproaching || activePurchase?.paymentApproaching) ? (
-                <p className="text-xs text-amber-600 dark:text-amber-400">
-                  Ödeme tarihiniz yaklaşıyor.
-                </p>
-              ) : null}
-              {(summary?.expiryApproaching ?? activePurchase?.expiryApproaching) ? (
-                <p className="text-xs text-amber-600 dark:text-amber-400">
-                  {isActiveTrial
-                    ? "Deneme süreniz 7 gün içinde bitiyor. Ücretli pakete geçerek erişiminizi sürdürebilirsiniz."
-                    : "Paket bitiş tarihiniz 7 gün içinde."}
-                </p>
-              ) : null}
-              {pastDue ? (
-                <p className="text-sm text-amber-700 dark:text-amber-400">
-                  Yenileme ödemesi alınamadı.{" "}
-                  {graceEndsAt
-                    ? `Erişiminiz ${formatPackageDate(graceEndsAt)} tarihine kadar devam eder.`
-                    : "Erişiminiz kısa süre daha devam eder."}{" "}
-                  Dönem ücretini Checkout Form ile ödeyebilirsiniz.
-                </p>
-              ) : null}
-              {!pastDue && isSubscription && !hasSavedCard ? (
-                <p className="text-sm text-muted-foreground">
-                  Kayıtlı kart yok; otomatik yenileme çalışmaz. PayTR ödemesinde kart kaydı
-                  açabilir veya dönem gelince borcu manuel ödeyebilirsiniz.
-                </p>
-              ) : null}
-              {(summary?.cancelAtPeriodEnd ?? activePurchase?.cancelAtPeriodEnd) ? (
-                <p className="text-sm text-amber-700 dark:text-amber-400">
-                  Yenileme kapalı. Erişiminiz{" "}
-                  {formatPackageDate(summary?.expiresAt ?? activePurchase?.expiresAt)} tarihine
-                  kadar devam eder.
-                </p>
-              ) : null}
-              {refundPending ? (
-                <p className="text-sm text-amber-700 dark:text-amber-400">
-                  İade işlemi sürüyor. Lütfen bekleyin; tekrar denemeyin.
-                </p>
-              ) : null}
-
-              {products.length > 0 ? (
-                <div className="space-y-2 border-t border-border/60 pt-4">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Paketteki ürünler
-                  </p>
-                  <div className="overflow-hidden rounded-2xl border border-border bg-muted divide-y divide-border">
-                    {products.map((product) => (
-                      <div
-                        key={product.id}
-                        className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate font-medium text-foreground">
-                            {formatPackageEntitlementName(product)}
-                          </p>
-                        </div>
-                        <p className="shrink-0 text-xs text-muted-foreground">
-                          {formatPackageEntitlementUsageSummary(product)}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {branchQuotaLabel || menuQuotaLabel || visibleAddonPurchases.length > 0 ? (
-                <div className="space-y-2 border-t border-border/60 pt-4">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Şube ve menü hakları
-                  </p>
-                  <div className="overflow-hidden rounded-2xl border border-border bg-muted divide-y divide-border">
-                    {data?.branchQuota ? (
-                      <div className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-                        <div className="min-w-0">
-                          <p className="font-medium text-foreground">Şube hakkı</p>
-                          <p className="text-xs text-muted-foreground">
-                            {formatBranchQuotaSubtitle(data.branchQuota)}
-                          </p>
-                        </div>
-                        <p className="shrink-0 text-xs text-muted-foreground">
-                          {formatBranchQuotaUsageFraction(data.branchQuota)}
-                        </p>
-                      </div>
-                    ) : null}
-                    {data?.menuQuota ? (
-                      <div className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-                        <div className="min-w-0">
-                          <p className="font-medium text-foreground">Ek menü hakkı</p>
-                          <p className="text-xs text-muted-foreground">
-                            Her şubenin ilk menüsü ücretsizdir
-                          </p>
-                        </div>
-                        <p className="shrink-0 text-xs text-muted-foreground">
-                          {data.menuQuota.extraUsed}/{data.menuQuota.extraAllowed} ·{" "}
-                          {data.menuQuota.extraRemaining} kalan
-                        </p>
-                      </div>
-                    ) : null}
-                    {visibleAddonPurchases
-                      .filter((addon) => addon.purchaseId != null && addon.purchaseId > 0)
-                      .map((addon) => (
-                      <Link
-                        key={addon.purchaseId}
-                        href={DASHBOARD_ROUTES.accountPaymentHistoryDetail(addon.purchaseId!)}
-                        className="flex items-center justify-between gap-3 px-3 py-2 text-sm transition-colors hover:bg-muted/50"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate font-medium text-foreground">
-                            {addonProductLabel(addon.packageCode, addon.packageName)}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {addon.installmentCount && addon.installmentCount > 0
-                              ? `${addon.installmentCount} adet`
-                              : "1 adet"}
-                            {addon.purchasedAt ? ` · ${formatPackageDate(addon.purchasedAt)}` : ""}
-                          </p>
-                        </div>
-                        <p className="shrink-0 text-xs text-muted-foreground">
-                          {formatPackagePrice(addon.price, addon.currency)}
-                        </p>
-                      </Link>
-                    ))}
-                  </div>
-                  {branchQuotaLabel || menuQuotaLabel ? (
-                    <p className="text-xs text-muted-foreground">
-                      {[branchQuotaLabel, menuQuotaLabel].filter(Boolean).join(" · ")}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {showImmediateCancel ||
-              showCancelAtPeriodEnd ||
-              showCancelWithRefund ||
-              showResumeRenewal ||
-              showPayDebt ? (
-                <div className="space-y-2 border-t border-border/60 pt-4">
-                  {cancelError ? <p className="text-sm text-destructive">{cancelError}</p> : null}
-                  <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-4">
+                <Button variant="hero" size="sm" asChild>
+                  <Link
+                    href={DASHBOARD_ROUTES.accountPackages}
+                    onMouseEnter={() => prefetchActivePackages(queryClient)}
+                  >
+                    {isActiveTrial ? "Ücretli pakete geç" : "Paketleri gör"}
+                  </Link>
+                </Button>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={DASHBOARD_ROUTES.modules}>Modüller</Link>
+                </Button>
+                {isSubscription && !hasSavedCard ? (
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={DASHBOARD_ROUTES.accountPaymentMethods}>Kayıtlı kartlar</Link>
+                  </Button>
+                ) : null}
+                {hasManageActions ? (
+                  <div className="flex flex-wrap gap-2 sm:ml-auto">
                     {showPayDebt ? (
                       <Button
                         type="button"
@@ -700,6 +608,17 @@ export default function SubscriptionSection({ onNotify }: SubscriptionSectionPro
                         onClick={() => payDebtMutation.mutate()}
                       >
                         {payDebtMutation.isPending ? "Ödeme açılıyor…" : "Borcu öde"}
+                      </Button>
+                    ) : null}
+                    {showResumeRenewal ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={resumeRenewalMutation.isPending}
+                        onClick={() => resumeRenewalMutation.mutate()}
+                      >
+                        {resumeRenewalMutation.isPending ? "Açılıyor…" : "Yenilemeyi tekrar aç"}
                       </Button>
                     ) : null}
                     {showCancelWithRefund || showCancelAtPeriodEnd ? (
@@ -729,23 +648,12 @@ export default function SubscriptionSection({ onNotify }: SubscriptionSectionPro
                         }
                       />
                     ) : null}
-                    {showResumeRenewal ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={resumeRenewalMutation.isPending}
-                        onClick={() => resumeRenewalMutation.mutate()}
-                      >
-                        {resumeRenewalMutation.isPending ? "Açılıyor…" : "Yenilemeyi tekrar aç"}
-                      </Button>
-                    ) : null}
                     {showImmediateCancel ? (
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button
                             type="button"
-                            variant="destructive"
+                            variant="hero"
                             size="sm"
                             disabled={cancelMutation.isPending}
                           >
@@ -763,7 +671,7 @@ export default function SubscriptionSection({ onNotify }: SubscriptionSectionPro
                             <AlertDialogCancel>Vazgeç</AlertDialogCancel>
                             <AlertDialogAction
                               onClick={() => cancelMutation.mutate()}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              className="bg-primary text-primary-foreground hover:bg-primary/90"
                             >
                               Evet, iptal et
                             </AlertDialogAction>
@@ -772,37 +680,96 @@ export default function SubscriptionSection({ onNotify }: SubscriptionSectionPro
                       </AlertDialog>
                     ) : null}
                   </div>
-                </div>
-              ) : null}
-
-              <div className="flex flex-wrap gap-2 border-t border-border/60 pt-4">
-                <Button variant="hero" size="sm" asChild>
-                  <Link
-                    href={DASHBOARD_ROUTES.accountPackages}
-                    onMouseEnter={() => prefetchActivePackages(queryClient)}
-                  >
-                    {isActiveTrial ? "Ücretli pakete geç" : "Paketleri gör"}
-                  </Link>
-                </Button>
-                <Button variant="outline" size="sm" asChild>
-                  <Link href={DASHBOARD_ROUTES.modules}>Modüller</Link>
-                </Button>
-                {isSubscription && !hasSavedCard ? (
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href={DASHBOARD_ROUTES.accountPaymentMethods}>Kayıtlı kartlar</Link>
-                  </Button>
                 ) : null}
               </div>
+              {cancelError ? <p className="text-sm text-destructive">{cancelError}</p> : null}
             </CardContent>
           </Card>
+
+          {limits.length > 0 || features.length > 0 || paidAddons.length > 0 ? (
+            <Card className={DASHBOARD_SURFACE}>
+              <CardContent className="space-y-5 p-5 sm:p-6">
+                <h3 className="text-base font-semibold text-foreground">Paketinizde neler var</h3>
+
+                {limits.length > 0 ? (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {limits.map((limit) => (
+                      <LimitTile key={limit.key} limit={limit} />
+                    ))}
+                  </div>
+                ) : null}
+
+                {features.length > 0 ? (
+                  <ul className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+                    {features.map((item) => {
+                      const active = item.active;
+                      return (
+                        <li key={item.product.id} className="flex items-start gap-2.5">
+                          <span
+                            className={
+                              active
+                                ? "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                : "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"
+                            }
+                          >
+                            <Check className="h-3 w-3" />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-foreground">
+                              {item.name}
+                              {active ? null : (
+                                <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                                  (pasif)
+                                </span>
+                              )}
+                            </p>
+                            {item.description ? (
+                              <p className="text-xs leading-relaxed text-muted-foreground">
+                                {item.description}
+                              </p>
+                            ) : null}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : null}
+
+                {paidAddons.length > 0 ? (
+                  <div className="space-y-2 border-t border-border/60 pt-4">
+                    <p className="text-xs font-medium text-muted-foreground">Ek satın alımlar</p>
+                    <div className="divide-y divide-border/60">
+                      {paidAddons.map((addon) => (
+                        <Link
+                          key={addon.purchaseId}
+                          href={DASHBOARD_ROUTES.accountPaymentHistoryDetail(addon.purchaseId!)}
+                          className="flex items-center justify-between gap-3 py-2 text-sm hover:text-primary"
+                        >
+                          <span className="truncate font-medium">
+                            {addonProductLabel(addon.packageCode, addon.packageName)}
+                            <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                              {addon.installmentCount && addon.installmentCount > 0
+                                ? `${addon.installmentCount} adet`
+                                : "1 adet"}
+                            </span>
+                          </span>
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            {formatPackagePrice(addon.price, addon.currency)}
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
 
           {scheduledChange && (
             <Card className={DASHBOARD_SURFACE}>
               <CardContent className="p-5 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Planlanan paket gecisi
-                  </p>
+                  <p className="text-xs font-medium text-muted-foreground">Planlanan paket geçişi</p>
                   <p className="mt-1 text-sm font-medium text-foreground">
                     {directionLabel(scheduledChange.direction)}:{" "}
                     {scheduledChange.fromPackageName} → {scheduledChange.toPackageName}
@@ -820,7 +787,7 @@ export default function SubscriptionSection({ onNotify }: SubscriptionSectionPro
                   disabled={cancelPlanChangeMutation.isPending}
                   onClick={() => cancelPlanChangeMutation.mutate(scheduledChange.id)}
                 >
-                  {cancelPlanChangeMutation.isPending ? "Iptal..." : "Planlamayi iptal et"}
+                  {cancelPlanChangeMutation.isPending ? "İptal ediliyor…" : "Planlamayı iptal et"}
                 </Button>
               </CardContent>
             </Card>
@@ -828,6 +795,48 @@ export default function SubscriptionSection({ onNotify }: SubscriptionSectionPro
 
           <SubscriptionHistoryCard />
         </>
+      ) : null}
+    </div>
+  );
+}
+
+type LimitRow = {
+  key: number;
+  name: string;
+  description: string | null;
+  used: number;
+  total: number;
+  unlimited: boolean;
+};
+
+function LimitTile({ limit }: { limit: LimitRow }) {
+  const ratio = limit.unlimited || limit.total <= 0 ? 0 : Math.min(1, limit.used / limit.total);
+  const full = !limit.unlimited && limit.total > 0 && limit.used >= limit.total;
+  return (
+    <div className="rounded-xl border border-border/70 p-3.5">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-sm font-medium text-foreground">{limit.name}</p>
+        <p className="shrink-0 text-sm tabular-nums text-foreground">
+          {limit.unlimited ? (
+            "Sınırsız"
+          ) : (
+            <>
+              <span className="font-semibold">{limit.used}</span>
+              <span className="text-muted-foreground"> / {limit.total}</span>
+            </>
+          )}
+        </p>
+      </div>
+      {limit.unlimited ? null : (
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+          <div
+            className={full ? "h-full rounded-full bg-amber-500" : "h-full rounded-full bg-primary"}
+            style={{ width: `${Math.max(ratio * 100, limit.used > 0 ? 4 : 0)}%` }}
+          />
+        </div>
+      )}
+      {limit.description ? (
+        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{limit.description}</p>
       ) : null}
     </div>
   );

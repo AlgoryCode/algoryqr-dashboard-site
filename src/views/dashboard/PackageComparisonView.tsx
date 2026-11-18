@@ -1,5 +1,6 @@
 "use client";
 
+import { useSubscriptionOverview } from "@/hooks/use-subscription-overview";
 import Link from "next/link";
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -100,7 +101,15 @@ export default function PackageComparisonView() {
     usePackageCatalog();
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("MONTHLY");
 
-  const current = subscription.data?.activePurchase ?? null;
+  // Same source as the subscription page, so a package granted by an admin (which has no
+  // purchase row) is shown here too; the purchase list is only a fallback.
+  const overview = useSubscriptionOverview();
+  const current =
+    overview.data?.activePackage ??
+    overview.data?.activePurchase ??
+    subscription.data?.activePurchase ??
+    null;
+  const currentLoading = overview.isLoading && subscription.isLoading;
   const isPaidActive =
     !!current &&
     current.usable &&
@@ -166,7 +175,7 @@ export default function PackageComparisonView() {
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Şu an bunu kullanıyorsunuz
             </p>
-            {subscription.isLoading ? (
+            {currentLoading ? (
               <div className="mt-2 h-10 animate-pulse rounded-md bg-muted" />
             ) : current ? (
               <>

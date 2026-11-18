@@ -449,7 +449,7 @@ export default function PurchaseDetailView({ purchaseId }: PurchaseDetailViewPro
                         <AlertDialogTrigger asChild>
                           <Button
                             type="button"
-                            variant="destructive"
+                            variant="hero"
                             disabled={cancelMutation.isPending}
                           >
                             {cancelMutation.isPending ? "İptal ediliyor…" : "Paketi iptal et"}

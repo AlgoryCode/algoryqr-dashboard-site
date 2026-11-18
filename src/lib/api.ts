@@ -187,6 +187,8 @@ export interface UserEntitlementApiItem {
   productId: number;
   productCode: string;
   productName: string;
+  /** Catalog description of the feature; absent on older backends. */
+  productDescription?: string | null;
   purchaseId: number;
   totalQuantity: number;
   remainingQuantity: number;
