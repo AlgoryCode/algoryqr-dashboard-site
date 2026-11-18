@@ -5,14 +5,30 @@ import { DASHBOARD_METRIC_LABEL, DASHBOARD_METRIC_VALUE, DASHBOARD_STAT_TILE } f
 import { cn } from "@/lib/utils";
 
 import type { SparkKpi } from "../shadcn-spark";
-import { MiniLineSpark } from "./FadeLineSpark";
+import { FadeLineSpark, MiniLineSpark } from "./FadeLineSpark";
 import { DeltaText } from "./DeltaPill";
 
-export function SparkKpiStrip({ items, className }: { items: SparkKpi[]; className?: string }) {
+/** Card line style: "line" is the plain dark trend line, "fade" the colored line that fades in from the left. */
+export type SparkStyle = "line" | "fade";
+
+export function SparkKpiStrip({
+  items,
+  className,
+  spark = "line",
+}: {
+  items: SparkKpi[];
+  className?: string;
+  spark?: SparkStyle;
+}) {
   return (
     <div className={cn("grid grid-cols-2 gap-3 xl:grid-cols-4", className)}>
-      {items.map((item) => (
-        <SparkKpiCard key={item.title} item={item} />
+      {items.map((item, index) => (
+        <SparkKpiCard
+          key={item.title}
+          item={item}
+          spark={spark}
+          color={item.color ?? `hsl(var(--chart-${(index % 5) + 1}))`}
+        />
       ))}
     </div>
   );
@@ -32,7 +48,7 @@ function SplitList({ splits }: { splits?: SparkKpi["splits"] }) {
   );
 }
 
-function SparkKpiCard({ item }: { item: SparkKpi }) {
+function SparkKpiCard({ item, spark, color }: { item: SparkKpi; spark: SparkStyle; color: string }) {
   return (
     <Card className={DASHBOARD_STAT_TILE}>
       <CardContent className="space-y-3 p-0">
@@ -41,7 +57,11 @@ function SparkKpiCard({ item }: { item: SparkKpi }) {
           <p className={`truncate ${DASHBOARD_METRIC_VALUE}`}>{item.value}</p>
           <DeltaText value={item.delta} />
         </div>
-        <MiniLineSpark values={item.series} className="-mx-1 h-12 w-[calc(100%+0.5rem)]" />
+        {spark === "fade" ? (
+          <FadeLineSpark values={item.series} color={color} className="-mx-1 h-12 w-[calc(100%+0.5rem)]" />
+        ) : (
+          <MiniLineSpark values={item.series} className="-mx-1 h-12 w-[calc(100%+0.5rem)]" />
+        )}
         <SplitList splits={item.splits} />
       </CardContent>
     </Card>
