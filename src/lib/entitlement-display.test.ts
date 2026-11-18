@@ -5,6 +5,7 @@ import {
   formatEntitlementRemaining,
   formatEntitlementUsageSummary,
   formatEntitlementUsed,
+  describeEntitlement,
   formatPackageEntitlementName,
   formatPackageEntitlementUsageSummary,
   formatMenuQuotaLabel,
@@ -131,5 +132,29 @@ describe("entitlement-display", () => {
     });
     expect(formatQrCreateQuotaLabel(remaining)).toBe("2 QR oluşturma hakkınız kaldı");
     expect(hasQrCreateQuotaRemaining(remaining)).toBe(true);
+  });
+
+  it("shows a readable name and description instead of a feature code", () => {
+    expect(
+      describeEntitlement({ productCode: "WAITER_PANEL", productName: "WAITER_PANEL", unlimited: true }),
+    ).toEqual({
+      name: "Garson paneli",
+      description: "Garsonlarınız masadan sipariş alır, adisyon açar ve hesabı kapatır.",
+      kind: "feature",
+    });
+    expect(
+      describeEntitlement({
+        productCode: "WAITER_PANEL",
+        productName: "Garson modülü",
+        productDescription: "Katalogdaki açıklama",
+        unlimited: true,
+      }),
+    ).toEqual({ name: "Garson modülü", description: "Katalogdaki açıklama", kind: "feature" });
+    expect(
+      describeEntitlement({ productCode: "QR_BRANCH_ADDON", productName: "QR_BRANCH_ADDON", unlimited: false }).name,
+    ).toBe("Şube");
+    expect(
+      describeEntitlement({ productCode: "NEW_THING", productName: "NEW_THING", unlimited: false }),
+    ).toEqual({ name: "New thing", description: null, kind: "feature" });
   });
 });
