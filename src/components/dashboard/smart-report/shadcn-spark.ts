@@ -24,6 +24,8 @@ export type SparkKpi = {
   icon: "users" | "userPlus" | "repeat" | "wallet" | "card";
   series: number[];
   splits?: SparkSplit[];
+  /** Line color for the "fade" style; defaults to the chart palette by position. */
+  color?: string;
 };
 
 export type CategorySlice = {

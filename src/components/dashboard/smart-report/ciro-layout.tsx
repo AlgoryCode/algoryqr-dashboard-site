@@ -80,6 +80,7 @@ export function CiroPage({
           </div>
           {metrics.orders > 0 ? (
             <SparkKpiStrip
+              spark="fade"
               className="sm:grid-cols-2 lg:col-span-5 lg:grid-cols-1 xl:grid-cols-1"
               items={buildCiroSparkKpis(revenue, compareQuery.data, formatMoney)}
             />
