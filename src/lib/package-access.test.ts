@@ -61,6 +61,17 @@ describe("readPackageAccess", () => {
     expect(profile?.products).toEqual(["QR_MENU", "ONLINE_ORDER"]);
   });
 
+  it("keeps the console rental add-on so its page can be shown", () => {
+    const profile = readPackageAccess({
+      packageCode: "ULTIMATE_PACKAGE",
+      products: ["QR_MENU", "CONSOLE_RENTAL"],
+      scopes: ["QR_MENU_OWNER", "CONSOLE_RENTAL_OWNER"],
+    });
+
+    expect(profile?.products).toContain("CONSOLE_RENTAL");
+    expect(profile?.scopes).toContain("CONSOLE_RENTAL_OWNER");
+  });
+
   it("merges token products and scopes into an empty package payload", () => {
     const tokenProfile: AccessProfile = {
       activePackage: "ULTIMATE_PACKAGE",

@@ -29,7 +29,8 @@ export type ProductCode =
   | "QR_AGENT"
   | "QR_ANALYTICS"
   | "AI_MENU_IMPORT"
-  | "ONLINE_ORDER";
+  | "ONLINE_ORDER"
+  | "CONSOLE_RENTAL";
 
 export type ProductScope =
   | "QR_CREATE_OWNER"
@@ -43,7 +44,8 @@ export type ProductScope =
   | "CUSTOM_DESIGN_OWNER"
   | "QR_ANALYTICS_OWNER"
   | "AI_MENU_IMPORT_OWNER"
-  | "ONLINE_ORDER_OWNER";
+  | "ONLINE_ORDER_OWNER"
+  | "CONSOLE_RENTAL_OWNER";
 
 export type AuthProvider = "GOOGLE" | "BASIC" | "MOBILE_GOOGLE";
 
@@ -69,6 +71,7 @@ const KNOWN_PRODUCT_CODES = new Set<string>([
   "QR_ANALYTICS",
   "AI_MENU_IMPORT",
   "ONLINE_ORDER",
+  "CONSOLE_RENTAL",
 ]);
 
 const KNOWN_PRODUCT_SCOPES = new Set<string>([
@@ -84,6 +87,7 @@ const KNOWN_PRODUCT_SCOPES = new Set<string>([
   "QR_ANALYTICS_OWNER",
   "AI_MENU_IMPORT_OWNER",
   "ONLINE_ORDER_OWNER",
+  "CONSOLE_RENTAL_OWNER",
 ]);
 
 const PACKAGE_CODES = new Set<string>([
