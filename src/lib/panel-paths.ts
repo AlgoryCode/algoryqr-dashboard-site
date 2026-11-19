@@ -12,6 +12,7 @@ const PANEL_ROOT_SEGMENTS = new Set([
   "kampanyalar",
   "karsilama",
   "kategoriler",
+  "konsol-takip",
   "kullanicilar",
   "menu-yonetimi",
   "menuler",

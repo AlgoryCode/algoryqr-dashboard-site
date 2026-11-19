@@ -116,6 +116,7 @@ export const DASHBOARD_ROUTES = {
   muhasebe: "/muhasebe",
   stock: "/stok",
   stockForBranch: (branchId: number | string) => `/stok?branch=${branchId}`,
+  consoleRental: "/konsol-takip",
   waiter: "/garson",
   waiterForQr: (qrId: number | string) =>
     `/garson?qr=${qrId}`,
@@ -200,6 +201,7 @@ export type DashboardNavKey =
   | "reservations"
   | "restaurantLayout"
   | "stock"
+  | "consoleRental"
   | "staff"
   | "reports"
   | "smartReports"
@@ -249,7 +251,7 @@ export const DASHBOARD_NAV_GROUPS: DashboardNavGroup[] = [
   {
     id: "operations",
     label: "Operasyon",
-    items: ["liveOrders", "reservations", "restaurantLayout", "stock"],
+    items: ["liveOrders", "reservations", "restaurantLayout", "stock", "consoleRental"],
   },
   { id: "menu", label: "Menü", items: ["myMenus", "products", "qrCodes"] },
   {
@@ -392,6 +394,13 @@ export const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
     label: "Stok",
     mobileLabel: "Stok",
     href: DASHBOARD_ROUTES.stock,
+    requiredScope: "QR_MENU_OWNER",
+  },
+  {
+    key: "consoleRental",
+    label: "Konsol takip",
+    mobileLabel: "Konsol",
+    href: DASHBOARD_ROUTES.consoleRental,
     requiredScope: "QR_MENU_OWNER",
   },
   {
@@ -696,6 +705,11 @@ export function buildDashboardBreadcrumbs(
 
   if (pathname === DASHBOARD_ROUTES.stock) {
     crumbs.push({ label: "Stok" });
+    return crumbs;
+  }
+
+  if (pathname === DASHBOARD_ROUTES.consoleRental) {
+    crumbs.push({ label: "Konsol takip" });
     return crumbs;
   }
 
