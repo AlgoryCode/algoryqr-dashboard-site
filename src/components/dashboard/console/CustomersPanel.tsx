@@ -46,6 +46,7 @@ import {
   type PaymentMethod,
 } from "@/lib/console-api";
 import { DASHBOARD_PANEL } from "@/lib/dashboard-surface";
+import { CONSOLE_DIALOG } from "@/components/dashboard/console/console-ui";
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof ApiError ? error.message : fallback;
@@ -107,8 +108,8 @@ function CustomerInsightsView() {
             <TableHeader>
               <TableRow>
                 <TableHead>Ad</TableHead>
-                <TableHead>Telefon</TableHead>
-                <TableHead className="text-right">Ziyaret</TableHead>
+                <TableHead className="hidden md:table-cell">Telefon</TableHead>
+                <TableHead className="hidden md:table-cell text-right">Ziyaret</TableHead>
                 <TableHead className="text-right">Harcama</TableHead>
               </TableRow>
             </TableHeader>
@@ -119,8 +120,8 @@ function CustomerInsightsView() {
                     <span className="font-medium">{c.name}</span>
                     {c.tierName ? <span className="ml-2 text-xs text-muted-foreground">{c.tierName}</span> : null}
                   </TableCell>
-                  <TableCell>{c.phone ?? "—"}</TableCell>
-                  <TableCell className="text-right tabular-nums">{c.visits ?? 0}</TableCell>
+                  <TableCell className="hidden md:table-cell">{c.phone ?? "—"}</TableCell>
+                  <TableCell className="hidden md:table-cell text-right tabular-nums">{c.visits ?? 0}</TableCell>
                   <TableCell className="text-right font-semibold tabular-nums">{formatTl(c.totalSpent)}</TableCell>
                 </TableRow>
               ))}
@@ -147,7 +148,7 @@ function CustomerInsightsView() {
                 <TableHead>Ad</TableHead>
                 <TableHead>Telefon</TableHead>
                 <TableHead>Son gelme</TableHead>
-                <TableHead className="text-right">Harcama</TableHead>
+                <TableHead className="hidden md:table-cell text-right">Harcama</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -156,7 +157,7 @@ function CustomerInsightsView() {
                   <TableCell className="font-medium">{c.name}</TableCell>
                   <TableCell>{c.phone ? <a className="underline-offset-2 hover:underline" href={`tel:${c.phone}`}>{c.phone}</a> : "—"}</TableCell>
                   <TableCell>{lastVisitText(c, now)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatTl(c.totalSpent)}</TableCell>
+                  <TableCell className="hidden md:table-cell text-right tabular-nums">{formatTl(c.totalSpent)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -233,13 +234,13 @@ function CustomerCards({ branchId, loyaltyText }: { branchId: number; loyaltyTex
               <TableHeader>
                 <TableRow>
                   <TableHead>Ad</TableHead>
-                  <TableHead>Telefon</TableHead>
-                  <TableHead>Seviye</TableHead>
+                  <TableHead className="hidden md:table-cell">Telefon</TableHead>
+                  <TableHead className="hidden md:table-cell">Seviye</TableHead>
                   <TableHead className="text-right">Bakiye</TableHead>
-                  <TableHead className="text-right">Hediye</TableHead>
-                  <TableHead className="text-right">Ücretsiz</TableHead>
-                  <TableHead className="text-right">Ziyaret</TableHead>
-                  <TableHead className="text-right">Toplam süre</TableHead>
+                  <TableHead className="hidden md:table-cell text-right">Hediye</TableHead>
+                  <TableHead className="hidden md:table-cell text-right">Ücretsiz</TableHead>
+                  <TableHead className="hidden md:table-cell text-right">Ziyaret</TableHead>
+                  <TableHead className="hidden md:table-cell text-right">Toplam süre</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -249,16 +250,23 @@ function CustomerCards({ branchId, loyaltyText }: { branchId: number; loyaltyTex
                     className={`cursor-pointer ${selected?.id === c.id ? "bg-muted" : ""}`}
                     onClick={() => setSelected(c)}
                   >
-                    <TableCell className="font-medium">{c.name}</TableCell>
-                    <TableCell>{c.phone ?? "—"}</TableCell>
-                    <TableCell>{c.tierName ?? "—"}</TableCell>
+                    <TableCell>
+                      <span className="font-medium">{c.name}</span>
+                      {c.phone || c.tierName ? (
+                        <span className="block text-xs text-muted-foreground md:hidden">
+                          {[c.phone, c.tierName].filter(Boolean).join(" · ")}
+                        </span>
+                      ) : null}
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">{c.phone ?? "—"}</TableCell>
+                    <TableCell className="hidden md:table-cell">{c.tierName ?? "—"}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatTl(c.balance)}</TableCell>
-                    <TableCell className="text-right tabular-nums">
+                    <TableCell className="hidden md:table-cell text-right tabular-nums">
                       {toNumber(c.bonusBalance) > 0 ? formatTl(c.bonusBalance) : "—"}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{c.freeMinutes} dk</TableCell>
-                    <TableCell className="text-right tabular-nums">{c.visits ?? 0}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatDuration(c.totalMinutes)}</TableCell>
+                    <TableCell className="hidden md:table-cell text-right tabular-nums">{c.freeMinutes} dk</TableCell>
+                    <TableCell className="hidden md:table-cell text-right tabular-nums">{c.visits ?? 0}</TableCell>
+                    <TableCell className="hidden md:table-cell text-right tabular-nums">{formatDuration(c.totalMinutes)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -290,7 +298,7 @@ function CustomerCards({ branchId, loyaltyText }: { branchId: number; loyaltyTex
       )}
 
       <Dialog open={editing != null} onOpenChange={(open) => !open && setEditing(null)}>
-        <DialogContent>
+        <DialogContent className={CONSOLE_DIALOG}>
           <DialogHeader>
             <DialogTitle>{editing === "new" ? "Müşteri ekle" : "Müşteriyi düzenle"}</DialogTitle>
             <DialogDescription>Telefon aynı işletmede tek bir karta ait olabilir.</DialogDescription>

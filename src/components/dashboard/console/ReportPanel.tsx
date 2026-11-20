@@ -45,16 +45,16 @@ export function ReportPanel({ branchId }: { branchId: number }) {
 
   return (
     <div className="space-y-4">
-      <div className={`${DASHBOARD_PANEL} flex flex-wrap items-end gap-3`}>
-        <div className="space-y-1">
+      <div className={`${DASHBOARD_PANEL} grid grid-cols-2 items-end gap-3 sm:flex sm:flex-wrap`}>
+        <div className="min-w-0 space-y-1">
           <Label htmlFor="report-from">Başlangıç</Label>
           <Input id="report-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
         </div>
-        <div className="space-y-1">
+        <div className="min-w-0 space-y-1">
           <Label htmlFor="report-to">Bitiş</Label>
           <Input id="report-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         </div>
-        <p className="text-xs text-muted-foreground">Seçilen günlerde biten oturumlar sayılır.</p>
+        <p className="col-span-2 text-xs text-muted-foreground">Seçilen günlerde biten oturumlar sayılır.</p>
       </div>
 
       {report.isLoading || !data ? (
@@ -86,9 +86,9 @@ export function ReportPanel({ branchId }: { branchId: number }) {
               <TableHeader>
                 <TableRow>
                   <TableHead>Cihaz</TableHead>
-                  <TableHead className="text-right">Oturum</TableHead>
+                  <TableHead className="hidden md:table-cell text-right">Oturum</TableHead>
                   <TableHead className="text-right">Süre</TableHead>
-                  <TableHead>Doluluk</TableHead>
+                  <TableHead className="hidden md:table-cell">Doluluk</TableHead>
                   <TableHead className="text-right">Ciro</TableHead>
                 </TableRow>
               </TableHeader>
@@ -103,9 +103,9 @@ export function ReportPanel({ branchId }: { branchId: number }) {
                           <span className="ml-2 text-xs text-muted-foreground">{DEVICE_TYPE_LABELS[d.deviceType]}</span>
                         ) : null}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums">{d.sessions}</TableCell>
+                      <TableCell className="hidden md:table-cell text-right tabular-nums">{d.sessions}</TableCell>
                       <TableCell className="text-right tabular-nums">{formatDuration(d.playedMinutes)}</TableCell>
-                      <TableCell>
+                      <TableCell className="hidden md:table-cell">
                         <div className="flex items-center gap-2">
                           <div className="h-2 w-24 overflow-hidden rounded-full bg-muted">
                             <div className="h-full rounded-full bg-violet-500" style={{ width: `${occupancy}%` }} />
@@ -226,12 +226,12 @@ function ProfitabilitySection({ branchId }: { branchId: number }) {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Cihaz</TableHead>
-                    <TableHead className="text-right">Alış</TableHead>
-                    <TableHead className="text-right">Ciro</TableHead>
-                    <TableHead className="text-right">Masraf</TableHead>
+                    <TableHead className="hidden md:table-cell text-right">Alış</TableHead>
+                    <TableHead className="hidden md:table-cell text-right">Ciro</TableHead>
+                    <TableHead className="hidden md:table-cell text-right">Masraf</TableHead>
                     <TableHead className="text-right">Net</TableHead>
                     <TableHead>Geri ödeme</TableHead>
-                    <TableHead className="text-right">Tahmini kalan</TableHead>
+                    <TableHead className="hidden md:table-cell text-right">Tahmini kalan</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -253,9 +253,9 @@ function ProfitabilitySection({ branchId }: { branchId: number }) {
                             </span>
                           ) : null}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">{hasCost ? formatTl(d.purchaseCost) : "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums">{formatTl(d.revenue)}</TableCell>
-                        <TableCell className="text-right tabular-nums">
+                        <TableCell className="hidden md:table-cell text-right tabular-nums">{hasCost ? formatTl(d.purchaseCost) : "—"}</TableCell>
+                        <TableCell className="hidden md:table-cell text-right tabular-nums">{formatTl(d.revenue)}</TableCell>
+                        <TableCell className="hidden md:table-cell text-right tabular-nums">
                           {toNumber(d.maintenanceCost) > 0 ? formatTl(d.maintenanceCost) : "—"}
                         </TableCell>
                         <TableCell className={`text-right font-semibold tabular-nums ${net < 0 ? "text-red-600" : ""}`}>
@@ -278,7 +278,7 @@ function ProfitabilitySection({ branchId }: { branchId: number }) {
                             <span className="text-xs text-muted-foreground">Alış fiyatı yok</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-right text-xs tabular-nums">
+                        <TableCell className="hidden md:table-cell text-right text-xs tabular-nums">
                           {d.paidBack
                             ? "Kendini ödedi"
                             : d.estimatedPaybackDays != null

@@ -38,6 +38,7 @@ import {
   type ProgramPayload,
 } from "@/lib/console-api";
 import { DASHBOARD_PANEL } from "@/lib/dashboard-surface";
+import { CONSOLE_DIALOG } from "@/components/dashboard/console/console-ui";
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof ApiError ? error.message : fallback;
@@ -284,7 +285,7 @@ function PlansSection() {
         </ul>
       )}
       <Dialog open={editing != null} onOpenChange={(open) => !open && setEditing(null)}>
-        <DialogContent>
+        <DialogContent className={CONSOLE_DIALOG}>
           <DialogHeader>
             <DialogTitle>{editing === "new" ? "Üyelik planı ekle" : "Planı düzenle"}</DialogTitle>
             <DialogDescription>Satılmış üyelikler satıldıkları koşulla devam eder.</DialogDescription>

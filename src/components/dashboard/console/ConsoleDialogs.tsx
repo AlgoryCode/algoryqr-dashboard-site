@@ -48,6 +48,7 @@ import {
   type QuoteOptions,
   type StartSessionPayload,
 } from "@/lib/console-api";
+import { CONSOLE_DIALOG } from "@/components/dashboard/console/console-ui";
 
 /** The value after it has stopped changing for `delayMs`. */
 export function useDebouncedValue<T>(value: T, delayMs = 350): T {
@@ -118,7 +119,7 @@ export function ConsoleEditorDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <DialogContent className={CONSOLE_DIALOG}>
         <DialogHeader>
           <DialogTitle>{editing ? "Cihazı düzenle" : "Cihaz ekle"}</DialogTitle>
           <DialogDescription>
@@ -313,7 +314,7 @@ export function StartSessionDialog({
 }) {
   return (
     <Dialog open={target != null} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className={CONSOLE_DIALOG}>
         <DialogHeader>
           <DialogTitle>{target?.name} için oturum başlat</DialogTitle>
           <DialogDescription>
@@ -513,7 +514,7 @@ export function FinishSessionDialog({
 }) {
   return (
     <Dialog open={session != null} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className={CONSOLE_DIALOG}>
         <DialogHeader>
           <DialogTitle>Oturumu bitir</DialogTitle>
           <DialogDescription>
@@ -729,7 +730,7 @@ export function FinishedSessionDialog({
 }) {
   return (
     <Dialog open={session != null} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className={CONSOLE_DIALOG}>
         <DialogHeader>
           <DialogTitle>Oturum bitti</DialogTitle>
           <DialogDescription>
@@ -863,7 +864,7 @@ export function TransferDialog({
         }
       }}
     >
-      <DialogContent>
+      <DialogContent className={CONSOLE_DIALOG}>
         <DialogHeader>
           <DialogTitle>Cihaz / kol değiştir</DialogTitle>
           <DialogDescription>
@@ -963,7 +964,7 @@ export function ItemsDialog({
 
   return (
     <Dialog open={session != null} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className={`${CONSOLE_DIALOG} sm:max-w-2xl`}>
         <DialogHeader>
           <DialogTitle>Ürünler · {session?.consoleName}</DialogTitle>
           <DialogDescription>Eklenen ürünler oturum bitince süre ücretiyle birlikte tahsil edilir.</DialogDescription>

@@ -71,11 +71,11 @@ export function ShiftPanel({ branchId }: { branchId: number }) {
                 <TableRow>
                   <TableHead>Kişi</TableHead>
                   <TableHead>Açılış</TableHead>
-                  <TableHead>Kapanış</TableHead>
-                  <TableHead className="text-right">Oturum</TableHead>
+                  <TableHead className="hidden md:table-cell">Kapanış</TableHead>
+                  <TableHead className="hidden md:table-cell text-right">Oturum</TableHead>
                   <TableHead className="text-right">Tahsilat</TableHead>
-                  <TableHead className="text-right">Beklenen nakit</TableHead>
-                  <TableHead className="text-right">Sayılan</TableHead>
+                  <TableHead className="hidden md:table-cell text-right">Beklenen nakit</TableHead>
+                  <TableHead className="hidden md:table-cell text-right">Sayılan</TableHead>
                   <TableHead className="text-right">Fark</TableHead>
                 </TableRow>
               </TableHeader>
@@ -86,11 +86,11 @@ export function ShiftPanel({ branchId }: { branchId: number }) {
                     <TableRow key={shift.id}>
                       <TableCell className="font-medium">{shift.staffName ?? "—"}</TableCell>
                       <TableCell className="tabular-nums">{formatClock(shift.openedAt)}</TableCell>
-                      <TableCell className="tabular-nums">{shift.closedAt ? formatClock(shift.closedAt) : "Açık"}</TableCell>
-                      <TableCell className="text-right tabular-nums">{shift.sessions}</TableCell>
+                      <TableCell className="hidden md:table-cell tabular-nums">{shift.closedAt ? formatClock(shift.closedAt) : "Açık"}</TableCell>
+                      <TableCell className="hidden md:table-cell text-right tabular-nums">{shift.sessions}</TableCell>
                       <TableCell className="text-right tabular-nums">{formatTl(totalTaken(shift))}</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatTl(shift.expectedCash)}</TableCell>
-                      <TableCell className="text-right tabular-nums">
+                      <TableCell className="hidden md:table-cell text-right tabular-nums">{formatTl(shift.expectedCash)}</TableCell>
+                      <TableCell className="hidden md:table-cell text-right tabular-nums">
                         {shift.countedCash != null ? formatTl(shift.countedCash) : "—"}
                       </TableCell>
                       <TableCell className={`text-right font-medium tabular-nums ${diff != null ? differenceClass(diff) : ""}`}>

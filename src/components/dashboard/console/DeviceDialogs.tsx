@@ -44,6 +44,7 @@ import {
   type GameConsole,
   type MaintenanceKind,
 } from "@/lib/console-api";
+import { CONSOLE_DIALOG } from "@/components/dashboard/console/console-ui";
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof ApiError ? error.message : fallback;
@@ -66,7 +67,7 @@ export function MaintenanceStartDialog({
 }) {
   return (
     <Dialog open={device != null} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className={CONSOLE_DIALOG}>
         <DialogHeader>
           <DialogTitle>{device?.name} bakıma alınsın</DialogTitle>
           <DialogDescription>Bakımdaki cihazda oturum başlatılamaz ve oturum ona taşınamaz.</DialogDescription>
@@ -129,7 +130,7 @@ export function MaintenanceEndDialog({
 }) {
   return (
     <Dialog open={device != null} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className={CONSOLE_DIALOG}>
         <DialogHeader>
           <DialogTitle>{device?.name} bakımı bitsin</DialogTitle>
           <DialogDescription>
@@ -223,7 +224,7 @@ export function DeviceQrDialog({
   return (
     <>
       <Dialog open={device != null} onOpenChange={onOpenChange}>
-        <DialogContent>
+        <DialogContent className={CONSOLE_DIALOG}>
           <DialogHeader>
             <DialogTitle>{device?.name} · QR kodu</DialogTitle>
             <DialogDescription>

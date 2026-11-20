@@ -1,8 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+
+import { MoreHorizontal } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   CONTROLLER_TYPES,
   DEVICE_TYPE_LABELS,
@@ -115,7 +125,7 @@ export function DeviceBoard({
 
   const visible = consoles.filter((c) => typeFilter === "ALL" || c.deviceType === typeFilter);
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
       {visible.map((item) => (
         <DeviceCard
           key={item.id}
@@ -158,15 +168,15 @@ function DeviceCard({
     : !session
     ? ""
     : overdue
-      ? "ring-2 ring-red-500 bg-red-50 dark:bg-red-950/30"
+      ? "ring-1 ring-red-500 bg-red-50/60 dark:bg-red-950/20"
       : session.paused
-        ? "ring-2 ring-amber-400/70"
+        ? "ring-1 ring-amber-400"
         : soon
-          ? "ring-2 ring-amber-500"
-          : "ring-2 ring-emerald-500/60";
+          ? "ring-1 ring-amber-500"
+          : "ring-1 ring-emerald-500/50";
 
   return (
-    <div className={`${DASHBOARD_SURFACE} flex flex-col gap-3 p-4 ${ring}`}>
+    <div className={`${DASHBOARD_SURFACE} flex min-w-0 flex-col gap-3 p-4 ${ring}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate font-semibold text-foreground">
@@ -199,19 +209,23 @@ function DeviceCard({
       </div>
 
       {extensionMinutes != null && session ? (
-        <div className="space-y-2 rounded-md border border-violet-300 bg-violet-50 px-3 py-2 text-xs dark:border-violet-800 dark:bg-violet-950/30">
-          <p className="font-medium text-violet-900 dark:text-violet-200">
-            QR&apos;dan +{extensionMinutes} dk uzatma isteği
-            {session.extensionRequestedAt ? ` · ${formatTime(session.extensionRequestedAt)}` : ""}
-          </p>
-          <div className="flex gap-2">
-            <Button type="button" size="sm" disabled={working} onClick={() => handlers.onApproveExtension(session)}>
+        <div className="flex items-center justify-between gap-2 rounded-md bg-violet-50 px-3 py-2 text-xs dark:bg-violet-950/30">
+          <p className="min-w-0 font-medium text-violet-900 dark:text-violet-200">QR: +{extensionMinutes} dk istendi</p>
+          <div className="flex shrink-0 gap-1">
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 px-2"
+              disabled={working}
+              onClick={() => handlers.onApproveExtension(session)}
+            >
               Onayla
             </Button>
             <Button
               type="button"
               size="sm"
-              variant="outline"
+              variant="ghost"
+              className="h-7 px-2"
               disabled={working}
               onClick={() => handlers.onDismissExtension(session)}
             >
@@ -228,18 +242,20 @@ function DeviceCard({
         </div>
       ) : session ? (
         <div className="space-y-1 text-sm">
-          {session.customerName ? <p className="font-medium text-foreground">{session.customerName}</p> : null}
+          <p className="truncate text-xs text-muted-foreground">
+            {session.customerName ? <span className="font-medium text-foreground">{session.customerName} · </span> : null}
+            {formatTime(session.startedAt)}&apos;de başladı
+          </p>
           {session.packageName || session.gameName ? (
-            <p className="text-xs text-muted-foreground">
+            <p className="truncate text-xs text-muted-foreground">
               {[session.packageName ? `Paket: ${session.packageName}` : null, session.gameName]
                 .filter(Boolean)
                 .join(" · ")}
             </p>
           ) : null}
-          <p className="text-xs text-muted-foreground">Başlangıç {formatTime(session.startedAt)}</p>
-          <div className="flex items-baseline justify-between">
-            <span className="text-lg tabular-nums text-foreground">{formatStopwatch(played)}</span>
-            <span className="text-lg font-semibold tabular-nums text-foreground">{formatTl(session.amount)}</span>
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+            <span className="text-xl font-medium tabular-nums text-foreground">{formatStopwatch(played)}</span>
+            <span className="text-xl font-semibold tabular-nums text-foreground">{formatTl(session.amount)}</span>
           </div>
           {left != null ? (
             <p className={`text-xs font-medium tabular-nums ${overdue ? "text-red-600" : soon ? "text-amber-600" : "text-muted-foreground"}`}>
@@ -258,81 +274,105 @@ function DeviceCard({
         </p>
       ) : null}
 
-      <div className="mt-auto flex flex-wrap gap-2">
+      <div className="mt-auto flex items-center gap-2">
         {session ? (
           <>
-            <Button type="button" size="sm" variant="destructive" disabled={working} onClick={() => handlers.onFinish(session)}>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              className="flex-1"
+              disabled={working}
+              onClick={() => handlers.onFinish(session)}
+            >
               Bitir
             </Button>
             {session.paused ? (
-              <Button type="button" size="sm" disabled={working} onClick={() => handlers.onResume(session)}>
+              <Button type="button" size="sm" className="flex-1" disabled={working} onClick={() => handlers.onResume(session)}>
                 Devam
               </Button>
             ) : (
-              <Button type="button" size="sm" variant="outline" disabled={working} onClick={() => handlers.onPause(session)}>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="flex-1"
+                disabled={working}
+                onClick={() => handlers.onPause(session)}
+              >
                 Duraklat
               </Button>
             )}
-            <Button type="button" size="sm" variant="outline" disabled={working} onClick={() => handlers.onItems(session)}>
-              Ürün
-            </Button>
-            <Button type="button" size="sm" variant="outline" disabled={working} onClick={() => handlers.onTransfer(session)}>
-              {CONTROLLER_TYPES.has(item.deviceType) ? "Cihaz / kol" : "Cihaz değiştir"}
-            </Button>
-            {[15, 30, 60].map((minutes) => (
-              <Button
-                key={minutes}
-                type="button"
-                size="sm"
-                variant="ghost"
-                disabled={working}
-                onClick={() => handlers.onExtend(session, minutes)}
-              >
-                +{minutes} dk
-              </Button>
-            ))}
+            <MoreMenu disabled={working}>
+              <DropdownMenuItem onSelect={() => handlers.onItems(session)}>Ürün ekle</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => handlers.onTransfer(session)}>
+                {CONTROLLER_TYPES.has(item.deviceType) ? "Cihaz / kol değiştir" : "Cihaz değiştir"}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Süre ekle</DropdownMenuLabel>
+              {[15, 30, 60].map((minutes) => (
+                <DropdownMenuItem key={minutes} onSelect={() => handlers.onExtend(session, minutes)}>
+                  +{minutes} dk
+                </DropdownMenuItem>
+              ))}
+            </MoreMenu>
           </>
         ) : inMaintenance ? (
           <>
             {handlers.onMaintenanceEnd ? (
-              <Button type="button" size="sm" onClick={() => handlers.onMaintenanceEnd?.(item)}>
+              <Button type="button" size="sm" className="flex-1" onClick={() => handlers.onMaintenanceEnd?.(item)}>
                 Bakımı bitir
               </Button>
             ) : null}
             {handlers.onEdit ? (
-              <Button type="button" size="sm" variant="outline" onClick={() => handlers.onEdit?.(item)}>
-                Düzenle
-              </Button>
+              <MoreMenu>
+                <DropdownMenuItem onSelect={() => handlers.onEdit?.(item)}>Düzenle</DropdownMenuItem>
+              </MoreMenu>
             ) : null}
           </>
         ) : (
           <>
-            <Button type="button" size="sm" disabled={noRate} onClick={() => handlers.onStart(item)}>
+            <Button type="button" size="sm" className="flex-1" disabled={noRate} onClick={() => handlers.onStart(item)}>
               Başlat
             </Button>
-            {handlers.onMaintenanceStart ? (
-              <Button type="button" size="sm" variant="outline" onClick={() => handlers.onMaintenanceStart?.(item)}>
-                Bakıma al
-              </Button>
-            ) : null}
-            {handlers.onQr ? (
-              <Button type="button" size="sm" variant="outline" onClick={() => handlers.onQr?.(item)}>
-                QR kodu
-              </Button>
-            ) : null}
-            {handlers.onEdit ? (
-              <Button type="button" size="sm" variant="outline" onClick={() => handlers.onEdit?.(item)}>
-                Düzenle
-              </Button>
-            ) : null}
-            {handlers.onDelete ? (
-              <Button type="button" size="sm" variant="outline" onClick={() => handlers.onDelete?.(item)}>
-                Sil
-              </Button>
+            {handlers.onQr || handlers.onMaintenanceStart || handlers.onEdit || handlers.onDelete ? (
+              <MoreMenu>
+                {handlers.onQr ? <DropdownMenuItem onSelect={() => handlers.onQr?.(item)}>QR kodu</DropdownMenuItem> : null}
+                {handlers.onMaintenanceStart ? (
+                  <DropdownMenuItem onSelect={() => handlers.onMaintenanceStart?.(item)}>Bakıma al</DropdownMenuItem>
+                ) : null}
+                {handlers.onEdit ? <DropdownMenuItem onSelect={() => handlers.onEdit?.(item)}>Düzenle</DropdownMenuItem> : null}
+                {handlers.onDelete ? (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onSelect={() => handlers.onDelete?.(item)}
+                    >
+                      Sil
+                    </DropdownMenuItem>
+                  </>
+                ) : null}
+              </MoreMenu>
             ) : null}
           </>
         )}
       </div>
     </div>
+  );
+}
+
+function MoreMenu({ children, disabled }: { children: ReactNode; disabled?: boolean }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" size="sm" variant="outline" className="px-2" disabled={disabled} aria-label="Diğer işlemler">
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48">
+        {children}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
