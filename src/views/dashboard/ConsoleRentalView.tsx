@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -9,9 +9,27 @@ import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader"
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import {
   ConsoleEditorDialog,
+  FinishSessionDialog,
   FinishedSessionDialog,
+  ItemsDialog,
   StartSessionDialog,
+  TransferDialog,
 } from "@/components/dashboard/console/ConsoleDialogs";
+import { CustomersPanel } from "@/components/dashboard/console/CustomersPanel";
+import { DeviceBoard } from "@/components/dashboard/console/DeviceBoard";
+import {
+  DeviceQrDialog,
+  MaintenanceEndDialog,
+  MaintenanceLogSection,
+  MaintenanceStartDialog,
+} from "@/components/dashboard/console/DeviceDialogs";
+import { GamesPackagesPanel } from "@/components/dashboard/console/GamesPackagesPanel";
+import { ProgramPanel } from "@/components/dashboard/console/ProgramPanel";
+import { ReportPanel } from "@/components/dashboard/console/ReportPanel";
+import { ReservationsPanel } from "@/components/dashboard/console/ReservationsPanel";
+import { SettingsPanel } from "@/components/dashboard/console/SettingsPanel";
+import { ShiftPanel } from "@/components/dashboard/console/ShiftPanel";
+import { TournamentsPanel } from "@/components/dashboard/console/TournamentsPanel";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,20 +41,20 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
 import { ApiError } from "@/lib/api/errors";
 import {
+  DEVICE_TYPE_LABELS,
+  PAYMENT_LABELS,
+  addSessionItem,
+  approveExtensionRequest,
   createConsole,
   deleteConsole,
+  dismissExtensionRequest,
+  endMaintenance,
+  extendSession,
   finishSession,
   formatClock,
   formatDuration,
@@ -45,22 +63,62 @@ import {
   listActiveSessions,
   listConsoles,
   listSessionHistory,
-  parseRateInput,
+  pauseSession,
+  removeSessionItem,
+  resumeSession,
+  setConsoleGames,
+  startMaintenance,
   startSession,
+  transferSession,
   updateConsole,
-  updateRate,
+  type AddItemPayload,
   type ConsolePayload,
   type ConsoleSession,
+  type DeviceType,
+  type FinishPayload,
   type GameConsole,
+  type MaintenanceKind,
   type StartSessionPayload,
 } from "@/lib/console-api";
-import { DASHBOARD_PANEL, DASHBOARD_SURFACE } from "@/lib/dashboard-surface";
+import { DASHBOARD_PANEL } from "@/lib/dashboard-surface";
 
-/** Running totals come from the server; refresh them often enough that the minute counter feels live. */
+/** Amounts come from the server; the clocks tick locally in between. */
 const ACTIVE_REFRESH_MS = 30_000;
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof ApiError ? error.message : fallback;
+}
+
+type SessionAction =
+  | { kind: "pause" | "resume"; session: ConsoleSession }
+  | { kind: "extend"; session: ConsoleSession; minutes: number }
+  | { kind: "transfer"; session: ConsoleSession; consoleId?: number; controllerCount?: number }
+  | { kind: "addItem"; session: ConsoleSession; payload: AddItemPayload }
+  | { kind: "removeItem"; session: ConsoleSession; itemId: number }
+  | { kind: "approveExtension" | "dismissExtension"; session: ConsoleSession };
+
+function runAction(action: SessionAction): Promise<ConsoleSession> {
+  switch (action.kind) {
+    case "pause":
+      return pauseSession(action.session.id);
+    case "resume":
+      return resumeSession(action.session.id);
+    case "extend":
+      return extendSession(action.session.id, action.minutes);
+    case "transfer":
+      return transferSession(action.session.id, {
+        consoleId: action.consoleId,
+        controllerCount: action.controllerCount,
+      });
+    case "addItem":
+      return addSessionItem(action.session.id, action.payload);
+    case "removeItem":
+      return removeSessionItem(action.session.id, action.itemId);
+    case "approveExtension":
+      return approveExtensionRequest(action.session.id);
+    case "dismissExtension":
+      return dismissExtensionRequest(action.session.id);
+  }
 }
 
 export default function ConsoleRentalView() {
@@ -74,17 +132,27 @@ export default function ConsoleRentalView() {
   const queryClient = useQueryClient();
   const { notify } = useDashboardBanners();
 
+  const [tab, setTab] = useState("devices");
+  const [typeFilter, setTypeFilter] = useState<DeviceType | "ALL">("ALL");
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<GameConsole | null>(null);
   const [pendingDelete, setPendingDelete] = useState<GameConsole | null>(null);
   const [starting, setStarting] = useState<GameConsole | null>(null);
+  const [finishing, setFinishing] = useState<ConsoleSession | null>(null);
   const [finished, setFinished] = useState<ConsoleSession | null>(null);
+  const [transferring, setTransferring] = useState<ConsoleSession | null>(null);
+  const [itemsFor, setItemsFor] = useState<number | null>(null);
   const [historyPage, setHistoryPage] = useState(0);
+  const [settingsTab, setSettingsTab] = useState("rates");
+  const [qrFor, setQrFor] = useState<GameConsole | null>(null);
+  const [maintenanceStartFor, setMaintenanceStartFor] = useState<GameConsole | null>(null);
+  const [maintenanceEndFor, setMaintenanceEndFor] = useState<GameConsole | null>(null);
 
   const consoles = useQuery({
     queryKey: ["console-list", branchId],
     queryFn: () => listConsoles(branchId as number),
     enabled: branchId != null,
+    refetchInterval: ACTIVE_REFRESH_MS,
   });
   const rate = useQuery({
     queryKey: ["console-rate", branchId],
@@ -100,7 +168,7 @@ export default function ConsoleRentalView() {
   const history = useQuery({
     queryKey: ["console-history", branchId, historyPage],
     queryFn: () => listSessionHistory(branchId as number, historyPage),
-    enabled: branchId != null,
+    enabled: branchId != null && tab === "history",
   });
 
   const activeByConsole = useMemo(() => {
@@ -108,6 +176,12 @@ export default function ConsoleRentalView() {
     for (const session of active.data ?? []) map.set(session.consoleId, session);
     return map;
   }, [active.data]);
+  const busyIds = useMemo(() => new Set(activeByConsole.keys()), [activeByConsole]);
+  const itemsSession = itemsFor != null ? ((active.data ?? []).find((s) => s.id === itemsFor) ?? null) : null;
+  const typesInUse = useMemo(
+    () => Array.from(new Set((consoles.data ?? []).map((c) => c.deviceType))),
+    [consoles.data],
+  );
 
   function invalidateAll() {
     return Promise.all([
@@ -115,40 +189,44 @@ export default function ConsoleRentalView() {
       queryClient.invalidateQueries({ queryKey: ["console-active"] }),
       queryClient.invalidateQueries({ queryKey: ["console-history"] }),
       queryClient.invalidateQueries({ queryKey: ["console-rate"] }),
+      queryClient.invalidateQueries({ queryKey: ["console-report"] }),
+      queryClient.invalidateQueries({ queryKey: ["device-customers"] }),
+      queryClient.invalidateQueries({ queryKey: ["console-games"] }),
+      queryClient.invalidateQueries({ queryKey: ["console-profitability"] }),
+      queryClient.invalidateQueries({ queryKey: ["console-shift"] }),
     ]);
   }
 
   const saveConsole = useMutation({
-    mutationFn: (payload: ConsolePayload) =>
-      editing ? updateConsole(editing.id, payload) : createConsole(branchId as number, payload),
+    mutationFn: async ({ payload, gameIds }: { payload: ConsolePayload; gameIds: number[] }) => {
+      const saved = editing ? await updateConsole(editing.id, payload) : await createConsole(branchId as number, payload);
+      const before = (editing?.games ?? []).map((g) => g.id).sort((a, b) => a - b);
+      const after = [...gameIds].sort((a, b) => a - b);
+      if (before.join(",") !== after.join(",")) {
+        return setConsoleGames(saved.id, after);
+      }
+      return saved;
+    },
     onSuccess: async () => {
       const wasEditing = editing != null;
       setEditorOpen(false);
       setEditing(null);
       await invalidateAll();
-      notify("info", wasEditing ? "Konsol güncellendi" : "Konsol eklendi");
+      notify("info", wasEditing ? "Cihaz güncellendi" : "Cihaz eklendi");
     },
-    onError: (error) => notify("danger", errorMessage(error, "Konsol kaydedilemedi")),
+    onError: (error) => notify("danger", errorMessage(error, "Cihaz kaydedilemedi")),
   });
   const removeConsole = useMutation({
     mutationFn: (consoleId: number) => deleteConsole(consoleId),
     onSuccess: async () => {
       setPendingDelete(null);
       await invalidateAll();
-      notify("info", "Konsol silindi");
+      notify("info", "Cihaz silindi");
     },
     onError: (error) => {
       setPendingDelete(null);
-      notify("danger", errorMessage(error, "Konsol silinemedi"));
+      notify("danger", errorMessage(error, "Cihaz silinemedi"));
     },
-  });
-  const saveRate = useMutation({
-    mutationFn: (value: string | null) => updateRate(branchId as number, value),
-    onSuccess: async () => {
-      await invalidateAll();
-      notify("info", "Şube saatlik ücreti kaydedildi");
-    },
-    onError: (error) => notify("danger", errorMessage(error, "Ücret kaydedilemedi")),
   });
   const start = useMutation({
     mutationFn: ({ consoleId, payload }: { consoleId: number; payload: StartSessionPayload }) =>
@@ -156,24 +234,56 @@ export default function ConsoleRentalView() {
     onSuccess: async (session) => {
       setStarting(null);
       await invalidateAll();
-      notify("info", `${session.consoleName ?? "Konsol"} oturumu başladı`);
+      notify("info", `${session.consoleName ?? "Cihaz"} oturumu başladı`);
     },
     onError: (error) => notify("danger", errorMessage(error, "Oturum başlatılamadı")),
   });
   const finish = useMutation({
-    mutationFn: (sessionId: number) => finishSession(sessionId),
+    mutationFn: ({ sessionId, payload }: { sessionId: number; payload: FinishPayload }) =>
+      finishSession(sessionId, payload),
     onSuccess: async (session) => {
+      setFinishing(null);
       setFinished(session);
       await invalidateAll();
     },
     onError: (error) => notify("danger", errorMessage(error, "Oturum bitirilemedi")),
   });
+  const maintenance = useMutation({
+    mutationFn: (
+      input:
+        | { kind: "start"; consoleId: number; payload: { kind: MaintenanceKind; note?: string } }
+        | { kind: "end"; consoleId: number; payload: { cost?: string; note?: string } },
+    ) => (input.kind === "start" ? startMaintenance(input.consoleId, input.payload) : endMaintenance(input.consoleId, input.payload)),
+    onSuccess: async (device, input) => {
+      setMaintenanceStartFor(null);
+      setMaintenanceEndFor(null);
+      await invalidateAll();
+      notify("info", input.kind === "start" ? `${device.name} bakıma alındı` : `${device.name} tekrar kullanımda`);
+    },
+    onError: (error) => notify("danger", errorMessage(error, "Bakım durumu değiştirilemedi")),
+  });
+  const act = useMutation({
+    mutationFn: runAction,
+    onSuccess: async (_, action) => {
+      if (action.kind === "transfer") setTransferring(null);
+      await invalidateAll();
+      if (action.kind === "extend") notify("info", `+${action.minutes} dk eklendi`);
+      if (action.kind === "approveExtension") notify("info", "Uzatma isteği onaylandı");
+      if (action.kind === "dismissExtension") notify("info", "Uzatma isteği reddedildi");
+    },
+    onError: (error) => notify("danger", errorMessage(error, "İşlem yapılamadı")),
+  });
+
+  const loyaltyText =
+    rate.data?.loyaltyEveryMinutes != null && rate.data.loyaltyRewardMinutes != null
+      ? `${formatDuration(rate.data.loyaltyEveryMinutes)} ücretli oyuna ${rate.data.loyaltyRewardMinutes} dk ücretsiz`
+      : null;
 
   return (
     <div className="space-y-4">
       <DashboardPageHeader
-        title="Konsol takip"
-        hint="Saatlik konsol kiralama: oturum başlat, bitir, tutarı gör."
+        title="Oyun & cihaz takip"
+        hint="Konsol, PC, VR, simülatör, bilardo… saatlik kiralama: oturum, rezervasyon, müşteri kartı ve rapor."
         action={
           <Button
             onClick={() => {
@@ -182,7 +292,7 @@ export default function ConsoleRentalView() {
             }}
             disabled={branchId == null}
           >
-            Konsol ekle
+            Cihaz ekle
           </Button>
         }
       />
@@ -195,64 +305,166 @@ export default function ConsoleRentalView() {
             branch.select(next);
           }}
         />
-        {branchId != null ? (
-          <BranchRateForm
-            key={`${branchId}-${rate.data?.defaultHourlyRate ?? ""}`}
-            initial={rate.data?.defaultHourlyRate ?? null}
-            pending={saveRate.isPending}
-            onSave={(value) => saveRate.mutate(value)}
-          />
+        {active.data && active.data.length > 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {active.data.length} açık oturum ·{" "}
+            {formatTl(active.data.reduce((sum, s) => sum + Number(s.amount ?? 0), 0))} birikmiş
+          </p>
         ) : null}
       </div>
 
       {branch.empty ? (
-        <EmptyState title="Şube yok" description="Konsol takibi için önce bir şube oluşturun." />
-      ) : consoles.isLoading || branch.loading ? (
+        <EmptyState title="Şube yok" description="Cihaz takibi için önce bir şube oluşturun." />
+      ) : branchId == null || branch.loading ? (
         <p className="text-sm text-muted-foreground">Yükleniyor…</p>
-      ) : (consoles.data ?? []).length === 0 ? (
-        <EmptyState
-          title="Konsol yok"
-          description="Kiraladığınız konsolları veya masaları ekleyin; her birine ayrı saatlik ücret verebilirsiniz."
-        />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {(consoles.data ?? []).map((item) => (
-            <ConsoleCard
-              key={item.id}
-              item={item}
-              session={activeByConsole.get(item.id) ?? null}
-              finishing={finish.isPending && finish.variables === activeByConsole.get(item.id)?.id}
-              onStart={() => setStarting(item)}
-              onFinish={(sessionId) => finish.mutate(sessionId)}
-              onEdit={() => {
-                setEditing(item);
-                setEditorOpen(true);
-              }}
-              onDelete={() => setPendingDelete(item)}
-            />
-          ))}
-        </div>
-      )}
+        <Tabs value={tab} onValueChange={setTab}>
+          <TabsList className="flex-wrap">
+            <TabsTrigger value="devices">Cihazlar</TabsTrigger>
+            <TabsTrigger value="reservations">Rezervasyonlar</TabsTrigger>
+            <TabsTrigger value="customers">Müşteriler</TabsTrigger>
+            <TabsTrigger value="tournaments">Turnuvalar</TabsTrigger>
+            <TabsTrigger value="shift">Vardiya</TabsTrigger>
+            <TabsTrigger value="history">Geçmiş</TabsTrigger>
+            <TabsTrigger value="report">Rapor</TabsTrigger>
+            <TabsTrigger value="settings">Ayarlar</TabsTrigger>
+          </TabsList>
 
-      {branchId != null ? (
-        <HistoryTable
-          rows={history.data?.content ?? []}
-          loading={history.isLoading}
-          page={history.data?.page ?? 0}
-          hasNext={history.data?.hasNext ?? false}
-          onPage={setHistoryPage}
-        />
-      ) : null}
+          <TabsContent value="devices" className="space-y-3">
+            {typesInUse.length > 1 ? (
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant={typeFilter === "ALL" ? "default" : "outline"} onClick={() => setTypeFilter("ALL")}>
+                  Tümü
+                </Button>
+                {typesInUse.map((type) => (
+                  <Button
+                    key={type}
+                    size="sm"
+                    variant={typeFilter === type ? "default" : "outline"}
+                    onClick={() => setTypeFilter(type)}
+                  >
+                    {DEVICE_TYPE_LABELS[type]}
+                  </Button>
+                ))}
+              </div>
+            ) : null}
+            {consoles.isLoading ? (
+              <p className="text-sm text-muted-foreground">Yükleniyor…</p>
+            ) : (consoles.data ?? []).length === 0 ? (
+              <EmptyState
+                title="Cihaz yok"
+                description="Kiraladığınız konsol, PC, VR veya masaları ekleyin; ücretleri Ücret ve kurallar sekmesinden yönetin."
+              />
+            ) : (
+              <DeviceBoard
+                consoles={consoles.data ?? []}
+                sessions={activeByConsole}
+                fetchedAt={active.dataUpdatedAt}
+                busySessionId={act.isPending ? act.variables.session.id : null}
+                typeFilter={typeFilter}
+                handlers={{
+                  onStart: setStarting,
+                  onFinish: setFinishing,
+                  onPause: (session) => act.mutate({ kind: "pause", session }),
+                  onResume: (session) => act.mutate({ kind: "resume", session }),
+                  onExtend: (session, minutes) => act.mutate({ kind: "extend", session, minutes }),
+                  onTransfer: setTransferring,
+                  onItems: (session) => setItemsFor(session.id),
+                  onApproveExtension: (session) => act.mutate({ kind: "approveExtension", session }),
+                  onDismissExtension: (session) => act.mutate({ kind: "dismissExtension", session }),
+                  onEdit: (item) => {
+                    setEditing(item);
+                    setEditorOpen(true);
+                  },
+                  onDelete: setPendingDelete,
+                  onQr: setQrFor,
+                  onMaintenanceStart: setMaintenanceStartFor,
+                  onMaintenanceEnd: setMaintenanceEndFor,
+                }}
+              />
+            )}
+          </TabsContent>
+
+          <TabsContent value="reservations">
+            <ReservationsPanel branchId={branchId} consoles={consoles.data ?? []} onChanged={invalidateAll} />
+          </TabsContent>
+
+          <TabsContent value="customers">
+            <CustomersPanel branchId={branchId} loyaltyText={loyaltyText} />
+          </TabsContent>
+
+          <TabsContent value="tournaments">
+            <TournamentsPanel branchId={branchId} />
+          </TabsContent>
+
+          <TabsContent value="shift">
+            <ShiftPanel branchId={branchId} />
+          </TabsContent>
+
+          <TabsContent value="history">
+            <HistoryTable
+              rows={history.data?.content ?? []}
+              loading={history.isLoading}
+              page={history.data?.page ?? 0}
+              hasNext={history.data?.hasNext ?? false}
+              onPage={setHistoryPage}
+              onOpen={setFinished}
+            />
+          </TabsContent>
+
+          <TabsContent value="report">
+            <ReportPanel branchId={branchId} />
+          </TabsContent>
+
+          <TabsContent value="settings">
+            <Tabs value={settingsTab} onValueChange={setSettingsTab}>
+              <TabsList className="flex-wrap">
+                <TabsTrigger value="rates">Ücret ve kurallar</TabsTrigger>
+                <TabsTrigger value="library">Oyunlar ve paketler</TabsTrigger>
+                <TabsTrigger value="program">Program</TabsTrigger>
+              </TabsList>
+              <TabsContent value="rates">
+                <SettingsPanel branchId={branchId} onChanged={invalidateAll} />
+              </TabsContent>
+              <TabsContent value="library">
+                <GamesPackagesPanel branchId={branchId} onChanged={invalidateAll} />
+              </TabsContent>
+              <TabsContent value="program">
+                <ProgramPanel />
+              </TabsContent>
+            </Tabs>
+          </TabsContent>
+        </Tabs>
+      )}
 
       <ConsoleEditorDialog
         open={editorOpen}
+        branchId={branchId ?? 0}
         console={editing}
         pending={saveConsole.isPending}
         onOpenChange={(open) => {
           setEditorOpen(open);
           if (!open) setEditing(null);
         }}
-        onSubmit={(payload) => saveConsole.mutate(payload)}
+        onSubmit={(payload, gameIds) => saveConsole.mutate({ payload, gameIds })}
+        extra={editing ? <MaintenanceLogSection device={editing} onChanged={invalidateAll} /> : null}
+      />
+      <DeviceQrDialog device={qrFor} onOpenChange={(open) => !open && setQrFor(null)} onRotated={invalidateAll} />
+      <MaintenanceStartDialog
+        device={maintenanceStartFor}
+        pending={maintenance.isPending}
+        onOpenChange={(open) => !open && setMaintenanceStartFor(null)}
+        onSubmit={(payload) =>
+          maintenanceStartFor && maintenance.mutate({ kind: "start", consoleId: maintenanceStartFor.id, payload })
+        }
+      />
+      <MaintenanceEndDialog
+        device={maintenanceEndFor}
+        pending={maintenance.isPending}
+        onOpenChange={(open) => !open && setMaintenanceEndFor(null)}
+        onSubmit={(payload) =>
+          maintenanceEndFor && maintenance.mutate({ kind: "end", consoleId: maintenanceEndFor.id, payload })
+        }
       />
       <StartSessionDialog
         console={starting}
@@ -260,11 +472,34 @@ export default function ConsoleRentalView() {
         onOpenChange={(open) => !open && setStarting(null)}
         onSubmit={(payload) => starting && start.mutate({ consoleId: starting.id, payload })}
       />
+      <FinishSessionDialog
+        session={finishing}
+        pending={finish.isPending}
+        onOpenChange={(open) => !open && setFinishing(null)}
+        onSubmit={(payload) => finishing && finish.mutate({ sessionId: finishing.id, payload })}
+      />
       <FinishedSessionDialog session={finished} onOpenChange={(open) => !open && setFinished(null)} />
+      <TransferDialog
+        key={transferring?.id ?? "none"}
+        session={transferring}
+        consoles={consoles.data ?? []}
+        busyIds={busyIds}
+        pending={act.isPending}
+        onOpenChange={(open) => !open && setTransferring(null)}
+        onSubmit={(payload) => transferring && act.mutate({ kind: "transfer", session: transferring, ...payload })}
+      />
+      <ItemsDialog
+        session={itemsSession}
+        branchId={branchId}
+        pending={act.isPending}
+        onOpenChange={(open) => !open && setItemsFor(null)}
+        onAdd={(payload) => itemsSession && act.mutate({ kind: "addItem", session: itemsSession, payload })}
+        onRemove={(itemId) => itemsSession && act.mutate({ kind: "removeItem", session: itemsSession, itemId })}
+      />
       <AlertDialog open={pendingDelete != null} onOpenChange={(open) => !open && setPendingDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Konsol silinsin mi?</AlertDialogTitle>
+            <AlertDialogTitle>Cihaz silinsin mi?</AlertDialogTitle>
             <AlertDialogDescription>
               {pendingDelete?.name} listeden kalkar. Geçmiş oturumlar raporda kalır.
             </AlertDialogDescription>
@@ -281,134 +516,23 @@ export default function ConsoleRentalView() {
   );
 }
 
-function BranchRateForm({
-  initial,
-  pending,
-  onSave,
-}: {
-  initial: number | string | null;
-  pending: boolean;
-  onSave: (value: string | null) => void;
-}) {
-  const [value, setValue] = useState(initial != null ? String(initial).replace(".", ",") : "");
-  const parsed = parseRateInput(value);
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    if (parsed === undefined) return;
-    onSave(parsed);
-  }
-
-  return (
-    <form className="flex items-end gap-2" onSubmit={submit}>
-      <label className="space-y-1 text-sm">
-        <span className="block text-muted-foreground">Şube saatlik ücreti (₺)</span>
-        <Input
-          className="w-36"
-          inputMode="decimal"
-          value={value}
-          placeholder="Ör. 120"
-          aria-invalid={parsed === undefined}
-          onChange={(event) => setValue(event.target.value)}
-        />
-      </label>
-      <Button type="submit" variant="outline" disabled={pending || parsed === undefined}>
-        Kaydet
-      </Button>
-    </form>
-  );
-}
-
-function ConsoleCard({
-  item,
-  session,
-  finishing,
-  onStart,
-  onFinish,
-  onEdit,
-  onDelete,
-}: {
-  item: GameConsole;
-  session: ConsoleSession | null;
-  finishing: boolean;
-  onStart: () => void;
-  onFinish: (sessionId: number) => void;
-  onEdit: () => void;
-  onDelete: () => void;
-}) {
-  const noRate = item.effectiveHourlyRate == null;
-  return (
-    <div
-      className={`${DASHBOARD_SURFACE} flex flex-col gap-3 p-4 ${session ? "ring-2 ring-emerald-500/60" : ""}`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="font-semibold text-foreground">{item.name}</p>
-          <p className="text-xs text-muted-foreground">
-            {noRate
-              ? "Ücret tanımlı değil"
-              : `${formatTl(item.effectiveHourlyRate)} / saat${item.hourlyRate == null ? " (şube)" : ""}`}
-          </p>
-        </div>
-        <span
-          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-            session
-              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200"
-              : "bg-muted text-muted-foreground"
-          }`}
-        >
-          {session ? "Kullanımda" : "Boş"}
-        </span>
-      </div>
-
-      {session ? (
-        <div className="space-y-1 text-sm">
-          {session.customerName ? <p className="text-foreground">{session.customerName}</p> : null}
-          <p className="text-muted-foreground">Başlangıç: {formatClock(session.startedAt)}</p>
-          <div className="flex items-baseline justify-between">
-            <span className="tabular-nums text-foreground">{formatDuration(session.durationMinutes)}</span>
-            <span className="text-lg font-semibold tabular-nums text-foreground">{formatTl(session.amount)}</span>
-          </div>
-        </div>
-      ) : null}
-
-      <div className="mt-auto flex flex-wrap gap-2">
-        {session ? (
-          <Button type="button" variant="destructive" disabled={finishing} onClick={() => onFinish(session.id)}>
-            {finishing ? "Bitiriliyor…" : "Bitir"}
-          </Button>
-        ) : (
-          <Button type="button" disabled={noRate} onClick={onStart}>
-            Başlat
-          </Button>
-        )}
-        <Button type="button" variant="outline" size="sm" onClick={onEdit}>
-          Düzenle
-        </Button>
-        <Button type="button" variant="outline" size="sm" disabled={session != null} onClick={onDelete}>
-          Sil
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 function HistoryTable({
   rows,
   loading,
   page,
   hasNext,
   onPage,
+  onOpen,
 }: {
   rows: ConsoleSession[];
   loading: boolean;
   page: number;
   hasNext: boolean;
   onPage: (page: number) => void;
+  onOpen: (session: ConsoleSession) => void;
 }) {
   return (
     <div className={DASHBOARD_PANEL}>
-      <h2 className="mb-3 text-sm font-semibold text-foreground">Geçmiş oturumlar</h2>
       {loading ? (
         <p className="text-sm text-muted-foreground">Yükleniyor…</p>
       ) : rows.length === 0 ? (
@@ -418,24 +542,32 @@ function HistoryTable({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Konsol</TableHead>
+                <TableHead>Cihaz</TableHead>
                 <TableHead>Müşteri</TableHead>
                 <TableHead>Başlangıç</TableHead>
                 <TableHead>Bitiş</TableHead>
                 <TableHead className="text-right">Süre</TableHead>
-                <TableHead className="text-right">Ücret / saat</TableHead>
+                <TableHead className="text-right">Ürün</TableHead>
+                <TableHead className="text-right">İndirim</TableHead>
+                <TableHead>Ödeme</TableHead>
                 <TableHead className="text-right">Tutar</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.map((row) => (
-                <TableRow key={row.id}>
+                <TableRow key={row.id} className="cursor-pointer" onClick={() => onOpen(row)}>
                   <TableCell className="font-medium">{row.consoleName ?? `#${row.consoleId}`}</TableCell>
                   <TableCell>{row.customerName ?? "—"}</TableCell>
                   <TableCell className="tabular-nums">{formatClock(row.startedAt)}</TableCell>
                   <TableCell className="tabular-nums">{formatClock(row.endedAt)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatDuration(row.durationMinutes)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatTl(row.hourlyRate)}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {Number(row.itemsAmount ?? 0) > 0 ? formatTl(row.itemsAmount) : "—"}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {Number(row.discountAmount ?? 0) > 0 ? formatTl(row.discountAmount) : "—"}
+                  </TableCell>
+                  <TableCell>{row.paymentMethod ? PAYMENT_LABELS[row.paymentMethod] : "—"}</TableCell>
                   <TableCell className="text-right font-semibold tabular-nums">{formatTl(row.amount)}</TableCell>
                 </TableRow>
               ))}

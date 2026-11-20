@@ -65,7 +65,8 @@ describe("labels and amounts", () => {
     expect(entryTypeLabel("GELIR")).toBe("Gelir");
     expect(entryTypeLabel("BORC")).toBe("Borç");
     expect(sourceTypeLabel("BILL_TIP")).toBe("Bahşiş");
-    expect(sourceTypeLabel("CONSOLE_SESSION")).toBe("Konsol kiralama");
+    expect(sourceTypeLabel("CONSOLE_SESSION")).toBe("Cihaz kiralama");
+    expect(sourceTypeLabel("DEVICE_SALE")).toBe("Cihaz satışı");
     expect(sourceTypeLabel("OTHER")).toBe("OTHER");
   });
 

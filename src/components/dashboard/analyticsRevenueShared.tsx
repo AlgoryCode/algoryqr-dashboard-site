@@ -99,7 +99,7 @@ export function buildBreakdownItems(breakdown: {
       color: REVENUE_COLORS.orange,
     },
     ...(consoleRevenue > 0
-      ? [{ label: "Konsol", value: consoleRevenue, icon: Gamepad2, color: REVENUE_COLORS.violet }]
+      ? [{ label: "Oyun & cihaz", value: consoleRevenue, icon: Gamepad2, color: REVENUE_COLORS.violet }]
       : []),
     { label: "Brüt ciro", value: n(breakdown.grossRevenue), icon: Wallet, color: REVENUE_COLORS.teal },
     {

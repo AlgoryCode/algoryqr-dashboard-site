@@ -24,6 +24,7 @@ export const ENTRY_SOURCE_TONE = {
   BILL_SALE: "blue",
   ORDER_SALE: "violet",
   CONSOLE_SESSION: "orange",
+  DEVICE_SALE: "orange",
   BILL_TIP: "teal",
   MANUAL: "muted",
 } as const satisfies Record<string, BadgeTone>;
