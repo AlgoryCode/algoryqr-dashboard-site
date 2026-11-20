@@ -398,8 +398,8 @@ export const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
   },
   {
     key: "consoleRental",
-    label: "Konsol takip",
-    mobileLabel: "Konsol",
+    label: "Oyun & cihaz takip",
+    mobileLabel: "Cihazlar",
     href: DASHBOARD_ROUTES.consoleRental,
     requiredScope: "CONSOLE_RENTAL_OWNER",
   },
@@ -709,7 +709,7 @@ export function buildDashboardBreadcrumbs(
   }
 
   if (pathname === DASHBOARD_ROUTES.consoleRental) {
-    crumbs.push({ label: "Konsol takip" });
+    crumbs.push({ label: "Oyun & cihaz takip" });
     return crumbs;
   }
 
