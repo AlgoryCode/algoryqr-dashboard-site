@@ -175,6 +175,9 @@ function MaintenanceEndForm({
   );
 }
 
+/** Fade and slide used when the QR dialog switches between the QR and the renew question. */
+const VIEW_ENTER = "animate-in fade-in-0 duration-300 ease-out motion-reduce:animate-none";
+
 // ---- QR code ---------------------------------------------------------------------------------------------------
 
 /**
@@ -194,7 +197,13 @@ export function DeviceQrDialog({
   const queryClient = useQueryClient();
   const [view, setView] = useState<"qr" | "confirm">("qr");
   const [renewed, setRenewed] = useState(false);
+  // The first QR view opens with the dialog; only coming back from the question slides in.
+  const [entered, setEntered] = useState(false);
   const consoleId = device?.id ?? null;
+  const show = (next: "qr" | "confirm") => {
+    setEntered(true);
+    setView(next);
+  };
 
   const qr = useQuery({
     queryKey: ["console", "qr", consoleId],
@@ -206,7 +215,7 @@ export function DeviceQrDialog({
   const rotate = useMutation({
     mutationFn: (id: number) => rotateConsoleToken(id),
     onSuccess: async () => {
-      setView("qr");
+      show("qr");
       setRenewed(true);
       await queryClient.invalidateQueries({ queryKey: ["console", "qr", consoleId] });
       await onRotated();
@@ -218,6 +227,7 @@ export function DeviceQrDialog({
     if (!open) {
       setView("qr");
       setRenewed(false);
+      setEntered(false);
     }
     onOpenChange(open);
   };
@@ -229,7 +239,7 @@ export function DeviceQrDialog({
     <Dialog open={device != null} onOpenChange={close}>
       <DialogContent className={`${CONSOLE_DIALOG} sm:max-w-sm`}>
         {view === "confirm" ? (
-          <>
+          <div key="confirm" className={`grid gap-4 ${VIEW_ENTER} slide-in-from-left-8`}>
             <DialogHeader>
               <DialogTitle>Bağlantı yenilensin mi?</DialogTitle>
               <DialogDescription>
@@ -237,7 +247,7 @@ export function DeviceQrDialog({
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="gap-2 sm:gap-0">
-              <Button type="button" variant="outline" disabled={rotate.isPending} onClick={() => setView("qr")}>
+              <Button type="button" variant="outline" disabled={rotate.isPending} onClick={() => show("qr")}>
                 Vazgeç
               </Button>
               <Button
@@ -249,9 +259,9 @@ export function DeviceQrDialog({
                 {rotate.isPending ? "Yenileniyor…" : "Yenile"}
               </Button>
             </DialogFooter>
-          </>
+          </div>
         ) : (
-          <>
+          <div key="qr" className={`grid gap-4 ${VIEW_ENTER} ${view === "qr" && entered ? "slide-in-from-right-8" : ""}`}>
             <DialogHeader>
               <DialogTitle>{device?.name}</DialogTitle>
               <DialogDescription>Müşteri okutunca kalan süreyi ve tutarı görür, ek süre isteyebilir.</DialogDescription>
@@ -327,12 +337,12 @@ export function DeviceQrDialog({
               variant="ghost"
               className="mx-auto text-muted-foreground"
               disabled={consoleId == null}
-              onClick={() => setView("confirm")}
+              onClick={() => show("confirm")}
             >
               <RefreshCw className="mr-1 h-4 w-4" aria-hidden />
               Bağlantıyı yenile
             </Button>
-          </>
+          </div>
         )}
       </DialogContent>
     </Dialog>
