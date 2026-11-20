@@ -1650,6 +1650,7 @@ export interface MenuRevenuePaymentBreakdown {
   cardRevenue?: number | string | null;
   tipRevenue?: number | string | null;
   uberEatsRevenue?: number | string | null;
+  consoleRevenue?: number | string | null;
   grossRevenue?: number | string | null;
   fixedExpenseTotal?: number | string | null;
   netRevenue?: number | string | null;
@@ -2458,7 +2459,7 @@ export async function getMyPlatformFeedbackRequest(
 }
 
 export type AccountingEntryType = "GELIR" | "GIDER" | "BORC";
-export type AccountingSourceType = "MANUAL" | "BILL_SALE" | "BILL_TIP" | "ORDER_SALE";
+export type AccountingSourceType = "MANUAL" | "BILL_SALE" | "BILL_TIP" | "ORDER_SALE" | "CONSOLE_SESSION";
 
 export interface AccountingEntryApiItem {
   id: number;

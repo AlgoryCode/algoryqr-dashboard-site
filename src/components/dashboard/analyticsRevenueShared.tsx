@@ -6,6 +6,7 @@ import {
   Banknote,
   CreditCard,
   Coins,
+  Gamepad2,
   PackageX,
   Receipt,
   ShoppingBag,
@@ -80,11 +81,14 @@ export function buildBreakdownItems(breakdown: {
   cardRevenue?: number | string | null;
   tipRevenue?: number | string | null;
   uberEatsRevenue?: number | string | null;
+  consoleRevenue?: number | string | null;
   grossRevenue?: number | string | null;
   fixedExpenseTotal?: number | string | null;
   netRevenue?: number | string | null;
 }): BreakdownItem[] {
   const n = (v: number | string | null | undefined) => Number(v ?? 0);
+  // Console rentals are in the gross; listed only for merchants that earned from them.
+  const consoleRevenue = n(breakdown.consoleRevenue);
   return [
     { label: "Nakit", value: n(breakdown.cashRevenue), icon: Banknote, color: REVENUE_COLORS.green },
     { label: "Kart", value: n(breakdown.cardRevenue), icon: CreditCard, color: REVENUE_COLORS.indigo },
@@ -94,6 +98,9 @@ export function buildBreakdownItems(breakdown: {
       icon: Coins,
       color: REVENUE_COLORS.orange,
     },
+    ...(consoleRevenue > 0
+      ? [{ label: "Konsol", value: consoleRevenue, icon: Gamepad2, color: REVENUE_COLORS.violet }]
+      : []),
     { label: "Brüt ciro", value: n(breakdown.grossRevenue), icon: Wallet, color: REVENUE_COLORS.teal },
     {
       label: "Sabit gider",
