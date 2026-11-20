@@ -283,7 +283,7 @@ export default function ConsoleRentalView() {
     <div className="space-y-4">
       <DashboardPageHeader
         title="Oyun & cihaz takip"
-        hint="Konsol, PC, VR, simülatör, bilardo… saatlik kiralama: oturum, rezervasyon, müşteri kartı ve rapor."
+        hint="Konsol, PC, VR ve masaların saatlik kiralaması."
         action={
           <Button
             onClick={() => {
@@ -319,7 +319,8 @@ export default function ConsoleRentalView() {
         <p className="text-sm text-muted-foreground">Yükleniyor…</p>
       ) : (
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="flex-wrap">
+          <div className="no-scrollbar -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+            <TabsList className="w-max">
             <TabsTrigger value="devices">Cihazlar</TabsTrigger>
             <TabsTrigger value="reservations">Rezervasyonlar</TabsTrigger>
             <TabsTrigger value="customers">Müşteriler</TabsTrigger>
@@ -328,18 +329,20 @@ export default function ConsoleRentalView() {
             <TabsTrigger value="history">Geçmiş</TabsTrigger>
             <TabsTrigger value="report">Rapor</TabsTrigger>
             <TabsTrigger value="settings">Ayarlar</TabsTrigger>
-          </TabsList>
+            </TabsList>
+          </div>
 
           <TabsContent value="devices" className="space-y-3">
             {typesInUse.length > 1 ? (
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant={typeFilter === "ALL" ? "default" : "outline"} onClick={() => setTypeFilter("ALL")}>
+              <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0">
+                <Button size="sm" className="shrink-0 rounded-full" variant={typeFilter === "ALL" ? "default" : "outline"} onClick={() => setTypeFilter("ALL")}>
                   Tümü
                 </Button>
                 {typesInUse.map((type) => (
                   <Button
                     key={type}
                     size="sm"
+                    className="shrink-0 rounded-full"
                     variant={typeFilter === type ? "default" : "outline"}
                     onClick={() => setTypeFilter(type)}
                   >
@@ -418,11 +421,13 @@ export default function ConsoleRentalView() {
 
           <TabsContent value="settings">
             <Tabs value={settingsTab} onValueChange={setSettingsTab}>
-              <TabsList className="flex-wrap">
+              <div className="no-scrollbar -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+                <TabsList className="w-max">
                 <TabsTrigger value="rates">Ücret ve kurallar</TabsTrigger>
                 <TabsTrigger value="library">Oyunlar ve paketler</TabsTrigger>
                 <TabsTrigger value="program">Program</TabsTrigger>
-              </TabsList>
+                </TabsList>
+              </div>
               <TabsContent value="rates">
                 <SettingsPanel branchId={branchId} onChanged={invalidateAll} />
               </TabsContent>
@@ -543,13 +548,13 @@ function HistoryTable({
             <TableHeader>
               <TableRow>
                 <TableHead>Cihaz</TableHead>
-                <TableHead>Müşteri</TableHead>
+                <TableHead className="hidden md:table-cell">Müşteri</TableHead>
                 <TableHead>Başlangıç</TableHead>
-                <TableHead>Bitiş</TableHead>
+                <TableHead className="hidden md:table-cell">Bitiş</TableHead>
                 <TableHead className="text-right">Süre</TableHead>
-                <TableHead className="text-right">Ürün</TableHead>
-                <TableHead className="text-right">İndirim</TableHead>
-                <TableHead>Ödeme</TableHead>
+                <TableHead className="hidden md:table-cell text-right">Ürün</TableHead>
+                <TableHead className="hidden md:table-cell text-right">İndirim</TableHead>
+                <TableHead className="hidden md:table-cell">Ödeme</TableHead>
                 <TableHead className="text-right">Tutar</TableHead>
               </TableRow>
             </TableHeader>
@@ -557,17 +562,17 @@ function HistoryTable({
               {rows.map((row) => (
                 <TableRow key={row.id} className="cursor-pointer" onClick={() => onOpen(row)}>
                   <TableCell className="font-medium">{row.consoleName ?? `#${row.consoleId}`}</TableCell>
-                  <TableCell>{row.customerName ?? "—"}</TableCell>
+                  <TableCell className="hidden md:table-cell">{row.customerName ?? "—"}</TableCell>
                   <TableCell className="tabular-nums">{formatClock(row.startedAt)}</TableCell>
-                  <TableCell className="tabular-nums">{formatClock(row.endedAt)}</TableCell>
+                  <TableCell className="hidden md:table-cell tabular-nums">{formatClock(row.endedAt)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatDuration(row.durationMinutes)}</TableCell>
-                  <TableCell className="text-right tabular-nums">
+                  <TableCell className="hidden md:table-cell text-right tabular-nums">
                     {Number(row.itemsAmount ?? 0) > 0 ? formatTl(row.itemsAmount) : "—"}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">
+                  <TableCell className="hidden md:table-cell text-right tabular-nums">
                     {Number(row.discountAmount ?? 0) > 0 ? formatTl(row.discountAmount) : "—"}
                   </TableCell>
-                  <TableCell>{row.paymentMethod ? PAYMENT_LABELS[row.paymentMethod] : "—"}</TableCell>
+                  <TableCell className="hidden md:table-cell">{row.paymentMethod ? PAYMENT_LABELS[row.paymentMethod] : "—"}</TableCell>
                   <TableCell className="text-right font-semibold tabular-nums">{formatTl(row.amount)}</TableCell>
                 </TableRow>
               ))}

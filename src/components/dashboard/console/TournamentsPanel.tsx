@@ -57,6 +57,7 @@ import {
   type TournamentStatus,
 } from "@/lib/console-api";
 import { DASHBOARD_PANEL } from "@/lib/dashboard-surface";
+import { CONSOLE_DIALOG } from "@/components/dashboard/console/console-ui";
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof ApiError ? error.message : fallback;
@@ -149,7 +150,7 @@ export function TournamentsPanel({ branchId }: { branchId: number }) {
       )}
 
       <Dialog open={editing != null} onOpenChange={(open) => !open && setEditing(null)}>
-        <DialogContent>
+        <DialogContent className={CONSOLE_DIALOG}>
           <DialogHeader>
             <DialogTitle>{editing === "new" ? "Turnuva ekle" : "Turnuvayı düzenle"}</DialogTitle>
             <DialogDescription>Katılım ücreti alınınca muhasebeye “Turnuva katılımı” geliri yazılır.</DialogDescription>
@@ -581,7 +582,7 @@ function MatchCard({
             key={index}
             className={`flex items-center justify-between px-2 py-1 ${won ? "font-semibold text-foreground" : "text-muted-foreground"}`}
           >
-            <span>{slot.name ?? (slot.id == null ? "Bekleniyor" : "—")}</span>
+            <span>{slot.name ?? (slot.id == null ? (match.score === "Bay" ? "Bay" : "Bekleniyor") : "—")}</span>
             {won ? <span aria-label="Kazanan">✓</span> : null}
           </p>
         );

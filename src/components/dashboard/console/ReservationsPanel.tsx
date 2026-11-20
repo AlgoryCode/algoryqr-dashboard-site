@@ -36,6 +36,7 @@ import {
   type ReservationPayload,
 } from "@/lib/console-api";
 import { DASHBOARD_PANEL } from "@/lib/dashboard-surface";
+import { CONSOLE_DIALOG } from "@/components/dashboard/console/console-ui";
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof ApiError ? error.message : fallback;
@@ -123,7 +124,7 @@ export function ReservationsPanel({
               <TableHead>Saat</TableHead>
               <TableHead>Cihaz</TableHead>
               <TableHead>Müşteri</TableHead>
-              <TableHead>Durum</TableHead>
+              <TableHead className="hidden md:table-cell">Durum</TableHead>
               <TableHead className="text-right">İşlem</TableHead>
             </TableRow>
           </TableHeader>
@@ -138,7 +139,7 @@ export function ReservationsPanel({
                   {row.customerName}
                   {row.phone ? <span className="block text-xs text-muted-foreground">{row.phone}</span> : null}
                 </TableCell>
-                <TableCell>{RESERVATION_STATUS_LABELS[row.status]}</TableCell>
+                <TableCell className="hidden md:table-cell">{RESERVATION_STATUS_LABELS[row.status]}</TableCell>
                 <TableCell className="text-right">
                   {row.status === "BOOKED" ? (
                     <div className="flex justify-end gap-1">
@@ -170,7 +171,7 @@ export function ReservationsPanel({
         </Table>
       )}
       <Dialog open={creating} onOpenChange={setCreating}>
-        <DialogContent>
+        <DialogContent className={CONSOLE_DIALOG}>
           <DialogHeader>
             <DialogTitle>Rezervasyon ekle</DialogTitle>
             <DialogDescription>Aynı cihazda çakışan rezervasyon kabul edilmez.</DialogDescription>

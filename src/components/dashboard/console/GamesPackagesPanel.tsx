@@ -44,6 +44,7 @@ import {
   type PackagePayload,
 } from "@/lib/console-api";
 import { DASHBOARD_PANEL } from "@/lib/dashboard-surface";
+import { CONSOLE_DIALOG } from "@/components/dashboard/console/console-ui";
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof ApiError ? error.message : fallback;
@@ -108,8 +109,8 @@ function GamesSection({ branchId, onChanged }: { branchId: number; onChanged: ()
           <TableHeader>
             <TableRow>
               <TableHead>Oyun</TableHead>
-              <TableHead>Tür</TableHead>
-              <TableHead className="text-right">Oyuncu</TableHead>
+              <TableHead className="hidden md:table-cell">Tür</TableHead>
+              <TableHead className="hidden md:table-cell text-right">Oyuncu</TableHead>
               <TableHead className="text-right">Cihaz</TableHead>
               <TableHead />
             </TableRow>
@@ -118,8 +119,8 @@ function GamesSection({ branchId, onChanged }: { branchId: number; onChanged: ()
             {(games.data ?? []).map((game) => (
               <TableRow key={game.id}>
                 <TableCell className="font-medium">{game.name}</TableCell>
-                <TableCell>{game.genre ?? "—"}</TableCell>
-                <TableCell className="text-right tabular-nums">{game.maxPlayers ?? "—"}</TableCell>
+                <TableCell className="hidden md:table-cell">{game.genre ?? "—"}</TableCell>
+                <TableCell className="hidden md:table-cell text-right tabular-nums">{game.maxPlayers ?? "—"}</TableCell>
                 <TableCell className="text-right tabular-nums">{game.consoleIds.length}</TableCell>
                 <TableCell className="text-right">
                   <Button size="sm" variant="ghost" onClick={() => setEditing(game)}>
@@ -135,7 +136,7 @@ function GamesSection({ branchId, onChanged }: { branchId: number; onChanged: ()
         </Table>
       )}
       <Dialog open={editing != null} onOpenChange={(open) => !open && setEditing(null)}>
-        <DialogContent>
+        <DialogContent className={CONSOLE_DIALOG}>
           <DialogHeader>
             <DialogTitle>{editing === "new" ? "Oyun ekle" : "Oyunu düzenle"}</DialogTitle>
             <DialogDescription>Tür ve oyuncu sayısı isteğe bağlıdır.</DialogDescription>
@@ -277,7 +278,7 @@ function PackagesSection({ branchId, onChanged }: { branchId: number; onChanged:
         </ul>
       )}
       <Dialog open={editing != null} onOpenChange={(open) => !open && setEditing(null)}>
-        <DialogContent>
+        <DialogContent className={CONSOLE_DIALOG}>
           <DialogHeader>
             <DialogTitle>{editing === "new" ? "Paket ekle" : "Paketi düzenle"}</DialogTitle>
             <DialogDescription>Gün ve saat aralığı boş kalırsa paket her zaman başlatılabilir.</DialogDescription>
