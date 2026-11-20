@@ -29,6 +29,7 @@ import { REVENUE_COLORS, REVENUE_PIE_FILLS } from "./analyticsRevenueShared";
 const CHANNEL_COLORS: Record<string, string> = {
   IN_HOUSE: REVENUE_COLORS.green,
   UBER_EATS: REVENUE_COLORS.indigo,
+  CONSOLE: REVENUE_COLORS.violet,
 };
 
 function n(value: number | string | null | undefined): number {
