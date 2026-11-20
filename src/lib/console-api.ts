@@ -82,6 +82,17 @@ const consoleSchema = z.object({
   effectiveMultiHourlyRate: nullableMoney,
   busy: z.boolean(),
   nextReservation: reservationSchema.nullable().optional(),
+  publicToken: z.string().nullable().optional(),
+  maintenance: z.boolean().nullable().optional().transform((value) => value === true),
+  maintenanceNote: z.string().nullable().optional(),
+  maintenanceSince: z.string().nullable().optional(),
+  purchaseCost: nullableMoney,
+  purchasedOn: z.string().nullable().optional(),
+  games: z
+    .array(z.object({ id: z.number(), name: z.string() }))
+    .nullable()
+    .optional()
+    .transform((value) => value ?? []),
 });
 
 const rateSchema = z.object({
@@ -159,6 +170,17 @@ const sessionSchema = z.object({
   reservationId: z.number().nullable().optional(),
   items: z.array(itemSchema).default([]),
   segments: z.array(segmentSchema).default([]),
+  packageId: z.number().nullable().optional(),
+  packageName: z.string().nullable().optional(),
+  packageMinutes: z.number().nullable().optional(),
+  packagePrice: nullableMoney,
+  gameId: z.number().nullable().optional(),
+  gameName: z.string().nullable().optional(),
+  membershipMinutesUsed: z.number().nullable().optional(),
+  tierDiscountAmount: nullableMoney,
+  bonusUsed: nullableMoney,
+  extensionRequestMinutes: z.number().nullable().optional(),
+  extensionRequestedAt: z.string().nullable().optional(),
 });
 
 const pageOf = <T extends z.ZodType>(item: T) =>
@@ -186,6 +208,20 @@ const quoteSchema = z.object({
   loyaltyMinutesAvailable: z.number(),
   loyaltyMinutesUsable: z.number(),
   loyaltyValue: moneySchema,
+  packageName: z.string().nullable().optional(),
+  membershipMinutesAvailable: z.number().nullable().optional(),
+  membershipMinutesUsed: z.number().nullable().optional(),
+  membershipValue: nullableMoney,
+  tierName: z.string().nullable().optional(),
+  tierDiscountPercent: nullableMoney,
+  tierDiscountAmount: nullableMoney,
+  bonusBalance: nullableMoney,
+  bonusUsed: nullableMoney,
+  manualDiscount: nullableMoney,
+  loyaltyMinutesUsed: z.number().nullable().optional(),
+  loyaltyDiscount: nullableMoney,
+  totalDiscount: nullableMoney,
+  amount: nullableMoney,
 });
 
 const productSchema = z.object({
@@ -206,12 +242,21 @@ const customerSchema = z.object({
   loyaltyProgressMinutes: z.number(),
   totalMinutes: z.number(),
   totalSpent: moneySchema,
+  bonusBalance: nullableMoney,
+  referralCode: z.string().nullable().optional(),
+  referredById: z.number().nullable().optional(),
+  visits: z.number().nullable().optional(),
+  lastVisitAt: z.string().nullable().optional(),
+  tierName: z.string().nullable().optional(),
+  tierDiscountPercent: nullableMoney,
+  membershipMinutes: z.number().nullable().optional(),
 });
 const customerPageSchema = pageOf(customerSchema);
 
 const txnSchema = z.object({
   id: z.number(),
-  type: z.enum(["TOPUP", "SPEND", "ADJUST"]),
+  /** TOPUP, SPEND, ADJUST (paid balance) or GIFT, REFERRAL (bonus balance); unknown kinds still parse. */
+  type: z.string(),
   amount: moneySchema,
   paymentMethod: paymentSchema.nullable().optional(),
   sessionId: z.number().nullable().optional(),
@@ -248,6 +293,237 @@ const reportSchema = z.object({
     z.object({ hour: z.number(), playedMinutes: z.number(), sessionsStarted: z.number(), revenue: moneySchema }),
   ),
   payments: z.array(z.object({ paymentMethod: paymentSchema, sessions: z.number(), amount: moneySchema })),
+  games: z
+    .array(
+      z.object({
+        gameId: z.number().nullable().optional(),
+        gameName: z.string().nullable().optional(),
+        sessions: z.number(),
+        playedMinutes: z.number(),
+      }),
+    )
+    .nullable()
+    .optional()
+    .transform((value) => value ?? []),
+});
+
+// ---- v3: games, packages, maintenance, programme, shifts, tournaments, profitability -----------------------
+
+export const MAINTENANCE_KINDS = ["REPAIR", "CONTROLLER", "EXPENSE", "OTHER"] as const;
+export type MaintenanceKind = (typeof MAINTENANCE_KINDS)[number];
+export const MAINTENANCE_KIND_LABELS: Record<MaintenanceKind, string> = {
+  REPAIR: "Onarım",
+  CONTROLLER: "Kol",
+  EXPENSE: "Masraf",
+  OTHER: "Diğer",
+};
+
+const gameSchema = z.object({
+  id: z.number(),
+  branchId: z.number(),
+  name: z.string(),
+  genre: z.string().nullable().optional(),
+  maxPlayers: z.number().nullable().optional(),
+  consoleIds: z
+    .array(z.number())
+    .nullable()
+    .optional()
+    .transform((value) => value ?? []),
+});
+
+const packageSchema = z.object({
+  id: z.number(),
+  branchId: z.number(),
+  name: z.string(),
+  deviceType: deviceTypeSchema.nullable().optional().catch(null),
+  minutes: z.number(),
+  price: moneySchema,
+  days: z
+    .array(z.number())
+    .nullable()
+    .optional()
+    .transform((value) => value ?? []),
+  startTime: z.string().nullable().optional(),
+  endTime: z.string().nullable().optional(),
+  active: z.boolean(),
+  availableNow: z.boolean().nullable().optional().transform((value) => value !== false),
+});
+
+const maintenanceLogSchema = z.object({
+  id: z.number(),
+  consoleId: z.number(),
+  kind: z.string().nullable().optional(),
+  note: z.string().nullable().optional(),
+  cost: nullableMoney,
+  startedAt: z.string().nullable().optional(),
+  endedAt: z.string().nullable().optional(),
+});
+
+const insightsSchema = z.object({
+  lapsedDays: z.number(),
+  top: z.array(customerSchema),
+  lapsed: z.array(customerSchema),
+});
+
+const tierSchema = z.object({
+  id: z.number().nullable().optional(),
+  name: z.string(),
+  minSpent: moneySchema,
+  discountPercent: moneySchema,
+});
+
+const programSchema = z.object({
+  referralRewardAmount: nullableMoney,
+  referralWelcomeAmount: nullableMoney,
+  tiers: z
+    .array(tierSchema)
+    .nullable()
+    .optional()
+    .transform((value) => value ?? []),
+});
+
+const planSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  price: moneySchema,
+  minutes: z.number(),
+  periodDays: z.number(),
+  deviceType: deviceTypeSchema.nullable().optional().catch(null),
+  active: z.boolean(),
+});
+
+const membershipSchema = z.object({
+  id: z.number(),
+  customerId: z.number(),
+  planId: z.number().nullable().optional(),
+  planName: z.string().nullable().optional(),
+  deviceType: deviceTypeSchema.nullable().optional().catch(null),
+  minutesTotal: z.number(),
+  minutesLeft: z.number(),
+  price: nullableMoney,
+  paymentMethod: paymentSchema.nullable().optional().catch(null),
+  startsAt: z.string().nullable().optional(),
+  endsAt: z.string().nullable().optional(),
+  cancelled: z.boolean(),
+  usable: z.boolean(),
+});
+
+const paymentTotalSchema = z.object({
+  paymentMethod: paymentSchema.nullable().optional().catch(null),
+  count: z.number(),
+  amount: moneySchema,
+});
+const paymentTotals = z
+  .array(paymentTotalSchema)
+  .nullable()
+  .optional()
+  .transform((value) => value ?? []);
+
+const shiftSchema = z.object({
+  id: z.number(),
+  branchId: z.number(),
+  staffId: z.number().nullable().optional(),
+  staffName: z.string().nullable().optional(),
+  openedAt: z.string(),
+  closedAt: z.string().nullable().optional(),
+  openingCash: nullableMoney,
+  sessions: z.number(),
+  sessionsTotal: nullableMoney,
+  sessionPayments: paymentTotals,
+  topUps: paymentTotals,
+  memberships: paymentTotals,
+  tournamentFees: paymentTotals,
+  cashIn: nullableMoney,
+  expectedCash: nullableMoney,
+  countedCash: nullableMoney,
+  difference: nullableMoney,
+  note: z.string().nullable().optional(),
+});
+const shiftPageSchema = pageOf(shiftSchema);
+
+export const TOURNAMENT_STATUSES = ["REGISTRATION", "RUNNING", "FINISHED", "CANCELLED"] as const;
+export type TournamentStatus = (typeof TOURNAMENT_STATUSES)[number];
+export const TOURNAMENT_STATUS_LABELS: Record<TournamentStatus, string> = {
+  REGISTRATION: "Kayıt açık",
+  RUNNING: "Sürüyor",
+  FINISHED: "Bitti",
+  CANCELLED: "İptal",
+};
+
+const tournamentPlayerSchema = z.object({
+  id: z.number(),
+  customerId: z.number().nullable().optional(),
+  name: z.string(),
+  phone: z.string().nullable().optional(),
+  paid: z.boolean(),
+  paymentMethod: paymentSchema.nullable().optional().catch(null),
+  paidAt: z.string().nullable().optional(),
+});
+
+const tournamentMatchSchema = z.object({
+  id: z.number(),
+  round: z.number(),
+  position: z.number(),
+  player1Id: z.number().nullable().optional(),
+  player1Name: z.string().nullable().optional(),
+  player2Id: z.number().nullable().optional(),
+  player2Name: z.string().nullable().optional(),
+  winnerId: z.number().nullable().optional(),
+  score: z.string().nullable().optional(),
+  ready: z.boolean(),
+});
+
+const tournamentSchema = z.object({
+  id: z.number(),
+  branchId: z.number(),
+  name: z.string(),
+  gameName: z.string().nullable().optional(),
+  startsAt: z.string(),
+  entryFee: nullableMoney,
+  prizeNote: z.string().nullable().optional(),
+  maxPlayers: z.number(),
+  status: z.enum(TOURNAMENT_STATUSES),
+  winnerPlayerId: z.number().nullable().optional(),
+  winnerName: z.string().nullable().optional(),
+  playerCount: z.number(),
+  paidCount: z.number(),
+  collected: nullableMoney,
+  rounds: z.number(),
+  players: z
+    .array(tournamentPlayerSchema)
+    .nullable()
+    .optional()
+    .transform((value) => value ?? []),
+  matches: z
+    .array(tournamentMatchSchema)
+    .nullable()
+    .optional()
+    .transform((value) => value ?? []),
+});
+
+const profitRowSchema = z.object({
+  consoleId: z.number(),
+  consoleName: z.string().nullable().optional(),
+  deviceType: deviceTypeSchema.nullable().optional().catch(null),
+  purchaseCost: nullableMoney,
+  purchasedOn: z.string().nullable().optional(),
+  playedMinutes: z.number(),
+  revenue: moneySchema,
+  maintenanceCost: moneySchema,
+  net: moneySchema,
+  paybackPercent: nullableMoney,
+  paidBack: z.boolean(),
+  last30Revenue: nullableMoney,
+  estimatedPaybackDays: z.number().nullable().optional(),
+});
+
+const profitabilitySchema = z.object({
+  branchId: z.number(),
+  purchaseCost: moneySchema,
+  revenue: moneySchema,
+  maintenanceCost: moneySchema,
+  net: moneySchema,
+  devices: z.array(profitRowSchema),
 });
 
 export type GameConsole = z.infer<typeof consoleSchema>;
@@ -265,12 +541,30 @@ export type CustomerTxn = z.infer<typeof txnSchema>;
 export type CustomerTxnPage = z.infer<typeof txnPageSchema>;
 export type Reservation = z.infer<typeof reservationSchema>;
 export type DeviceReport = z.infer<typeof reportSchema>;
+export type DeviceGame = z.infer<typeof gameSchema>;
+export type DevicePackage = z.infer<typeof packageSchema>;
+export type MaintenanceLog = z.infer<typeof maintenanceLogSchema>;
+export type CustomerInsights = z.infer<typeof insightsSchema>;
+export type LoyaltyProgram = z.infer<typeof programSchema>;
+export type MembershipPlan = z.infer<typeof planSchema>;
+export type Membership = z.infer<typeof membershipSchema>;
+export type PaymentTotal = z.infer<typeof paymentTotalSchema>;
+export type Shift = z.infer<typeof shiftSchema>;
+export type ShiftPage = z.infer<typeof shiftPageSchema>;
+export type Tournament = z.infer<typeof tournamentSchema>;
+export type TournamentPlayer = z.infer<typeof tournamentPlayerSchema>;
+export type TournamentMatch = z.infer<typeof tournamentMatchSchema>;
+export type Profitability = z.infer<typeof profitabilitySchema>;
+export type DeviceProfitRow = z.infer<typeof profitRowSchema>;
 
 export type ConsolePayload = {
   name: string;
   deviceType: DeviceType;
   hourlyRate: string | null;
   multiHourlyRate: string | null;
+  purchaseCost?: string | null;
+  /** yyyy-MM-dd */
+  purchasedOn?: string | null;
 };
 export type RatePayload = {
   defaultHourlyRate: string | null;
@@ -295,17 +589,62 @@ export type StartSessionPayload = {
   customerId?: number;
   plannedMinutes?: number;
   controllerCount?: number;
+  packageId?: number;
+  gameId?: number;
 };
 export type FinishPayload = {
   paymentMethod: PaymentMethod;
   discountAmount?: string;
   discountPercent?: string;
   useLoyaltyMinutes?: boolean;
+  useMembershipMinutes?: boolean;
+  useBonusBalance?: boolean;
 };
+/** Options the quote is asked for; the same ones go to finish. */
+export type QuoteOptions = Omit<FinishPayload, "paymentMethod">;
 export type AddItemPayload =
   | { menuProductId: number; quantity: number }
   | { name: string; unitPrice: string; quantity: number };
-export type CustomerPayload = { name: string; phone?: string; note?: string };
+export type CustomerPayload = { name: string; phone?: string; note?: string; referralCode?: string };
+export type GamePayload = { name: string; genre?: string | null; maxPlayers?: number | null };
+export type PackagePayload = {
+  name: string;
+  deviceType: DeviceType | null;
+  minutes: number;
+  price: string;
+  days: number[] | null;
+  startTime: string | null;
+  endTime: string | null;
+  active: boolean;
+};
+export type ProgramPayload = {
+  referralRewardAmount: string | null;
+  referralWelcomeAmount: string | null;
+  tiers: { name: string; minSpent: string; discountPercent: string }[];
+};
+export type MembershipPlanPayload = {
+  name: string;
+  price: string;
+  minutes: number;
+  periodDays: number;
+  deviceType: DeviceType | null;
+  active: boolean;
+};
+export type TournamentPayload = {
+  name: string;
+  gameName?: string | null;
+  /** Local date-time, yyyy-MM-ddTHH:mm:ss */
+  startsAt: string;
+  entryFee?: string | null;
+  prizeNote?: string | null;
+  maxPlayers: number;
+};
+export type TournamentPlayerPayload = {
+  customerId?: number;
+  name?: string;
+  phone?: string;
+  paymentMethod?: PaymentMethod;
+};
 export type ReservationPayload = {
   consoleId: number;
   customerId?: number;
@@ -400,7 +739,12 @@ export const addSessionItem = (sessionId: number, payload: AddItemPayload) =>
   request(`${BASE}/sessions/${sessionId}/items`, sessionSchema, post(payload));
 export const removeSessionItem = (sessionId: number, itemId: number) =>
   request(`${BASE}/sessions/${sessionId}/items/${itemId}`, sessionSchema, { method: "DELETE" });
-export const quoteSession = (sessionId: number) => request(`${BASE}/sessions/${sessionId}/quote`, quoteSchema);
+export const quoteSession = (sessionId: number, options: QuoteOptions = {}) =>
+  request(`${BASE}/sessions/${sessionId}/quote${quoteQuery(options)}`, quoteSchema);
+export const approveExtensionRequest = (sessionId: number) =>
+  request(`${BASE}/sessions/${sessionId}/extension-request/approve`, sessionSchema, post());
+export const dismissExtensionRequest = (sessionId: number) =>
+  request(`${BASE}/sessions/${sessionId}/extension-request/dismiss`, sessionSchema, post());
 export const finishSession = (sessionId: number, payload?: FinishPayload) =>
   request(`${BASE}/sessions/${sessionId}/finish`, sessionSchema, post(payload));
 export const listActiveSessions = (branchId: number) =>
@@ -414,13 +758,17 @@ export const listProducts = (branchId: number) =>
 
 export const searchCustomers = (q: string, page = 0, size = 20) =>
   request(`${BASE}/customers?q=${encodeURIComponent(q)}&page=${page}&size=${size}`, customerPageSchema);
+export const getCustomer = (customerId: number) => request(`${BASE}/customers/${customerId}`, customerSchema);
 export const createCustomer = (payload: CustomerPayload) => request(`${BASE}/customers`, customerSchema, post(payload));
 export const updateCustomer = (customerId: number, payload: CustomerPayload) =>
   request(`${BASE}/customers/${customerId}`, customerSchema, put(payload));
 export async function deleteCustomer(customerId: number): Promise<void> {
   await request(`${BASE}/customers/${customerId}`, z.unknown(), { method: "DELETE" });
 }
-export const topUpCustomer = (customerId: number, payload: { amount: string; paymentMethod: PaymentMethod; note?: string }) =>
+export const topUpCustomer = (
+  customerId: number,
+  payload: { amount: string; paymentMethod: PaymentMethod; note?: string; branchId?: number },
+) =>
   request(`${BASE}/customers/${customerId}/top-up`, customerSchema, post(payload));
 export const adjustCustomer = (
   customerId: number,
@@ -446,6 +794,111 @@ export const startReservation = (reservationId: number, controllerCount?: number
 
 export const getReport = (branchId: number, from: string, to: string) =>
   request(`${BASE}/branches/${branchId}/report?from=${from}&to=${to}`, reportSchema);
+
+// ---- Devices: QR, games, maintenance ------------------------------------------------------------------------
+
+export const rotateConsoleToken = (consoleId: number) =>
+  request(`${BASE}/consoles/${consoleId}/public-token/rotate`, consoleSchema, post());
+export const setConsoleGames = (consoleId: number, gameIds: number[]) =>
+  request(`${BASE}/consoles/${consoleId}/games`, consoleSchema, put({ gameIds }));
+export const startMaintenance = (consoleId: number, payload: { kind?: MaintenanceKind; note?: string }) =>
+  request(`${BASE}/consoles/${consoleId}/maintenance`, consoleSchema, post(payload));
+export const endMaintenance = (consoleId: number, payload: { cost?: string; note?: string }) =>
+  request(`${BASE}/consoles/${consoleId}/maintenance/end`, consoleSchema, post(payload));
+export const addConsoleExpense = (consoleId: number, payload: { kind?: MaintenanceKind; cost: string; note?: string }) =>
+  request(`${BASE}/consoles/${consoleId}/expenses`, maintenanceLogSchema, post(payload));
+export const listMaintenanceLogs = (consoleId: number) =>
+  request(`${BASE}/consoles/${consoleId}/maintenance-logs`, z.array(maintenanceLogSchema));
+
+// ---- Game library and packages ------------------------------------------------------------------------------
+
+export const listGames = (branchId: number) => request(`${BASE}/branches/${branchId}/games`, z.array(gameSchema));
+export const createGame = (branchId: number, payload: GamePayload) =>
+  request(`${BASE}/branches/${branchId}/games`, gameSchema, post(payload));
+export const updateGame = (gameId: number, payload: GamePayload) =>
+  request(`${BASE}/games/${gameId}`, gameSchema, put(payload));
+export async function deleteGame(gameId: number): Promise<void> {
+  await request(`${BASE}/games/${gameId}`, z.unknown(), { method: "DELETE" });
+}
+
+export const listPackages = (branchId: number, activeOnly = false) =>
+  request(`${BASE}/branches/${branchId}/packages?activeOnly=${activeOnly}`, z.array(packageSchema));
+export const createPackage = (branchId: number, payload: PackagePayload) =>
+  request(`${BASE}/branches/${branchId}/packages`, packageSchema, post(payload));
+export const updatePackage = (packageId: number, payload: PackagePayload) =>
+  request(`${BASE}/packages/${packageId}`, packageSchema, put(payload));
+export async function deletePackage(packageId: number): Promise<void> {
+  await request(`${BASE}/packages/${packageId}`, z.unknown(), { method: "DELETE" });
+}
+
+// ---- Customer programme -------------------------------------------------------------------------------------
+
+export const customerInsights = (lapsedDays = 30, limit = 20) =>
+  request(`${BASE}/customers/insights?lapsedDays=${lapsedDays}&limit=${limit}`, insightsSchema);
+export const giftCustomer = (customerId: number, payload: { amount: string; note?: string }) =>
+  request(`${BASE}/customers/${customerId}/gift`, customerSchema, post(payload));
+export const listMemberships = (customerId: number) =>
+  request(`${BASE}/customers/${customerId}/memberships`, z.array(membershipSchema));
+export const sellMembership = (
+  customerId: number,
+  payload: { planId: number; paymentMethod?: PaymentMethod; branchId?: number },
+) => request(`${BASE}/customers/${customerId}/memberships`, membershipSchema, post(payload));
+export const cancelMembership = (membershipId: number) =>
+  request(`${BASE}/memberships/${membershipId}/cancel`, membershipSchema, post());
+
+export const getProgram = () => request(`${BASE}/program`, programSchema);
+export const updateProgram = (payload: ProgramPayload) => request(`${BASE}/program`, programSchema, put(payload));
+
+export const listMembershipPlans = (activeOnly = false) =>
+  request(`${BASE}/membership-plans?activeOnly=${activeOnly}`, z.array(planSchema));
+export const createMembershipPlan = (payload: MembershipPlanPayload) =>
+  request(`${BASE}/membership-plans`, planSchema, post(payload));
+export const updateMembershipPlan = (planId: number, payload: MembershipPlanPayload) =>
+  request(`${BASE}/membership-plans/${planId}`, planSchema, put(payload));
+export async function deleteMembershipPlan(planId: number): Promise<void> {
+  await request(`${BASE}/membership-plans/${planId}`, z.unknown(), { method: "DELETE" });
+}
+
+// ---- Shifts -------------------------------------------------------------------------------------------------
+
+export const openShift = (branchId: number, openingCash: string | null) =>
+  request(`${BASE}/branches/${branchId}/shifts`, shiftSchema, post({ openingCash }));
+/** The open shift of the signed-in person at the branch, or null (the server answers 204). */
+export async function getCurrentShift(branchId: number): Promise<Shift | null> {
+  const shift = await request(`${BASE}/branches/${branchId}/shifts/current`, shiftSchema);
+  return shift ?? null;
+}
+export const listShifts = (branchId: number, page = 0) =>
+  request(`${BASE}/branches/${branchId}/shifts?page=${page}&size=20`, shiftPageSchema);
+export const closeShift = (shiftId: number, payload: { countedCash: string; note?: string }) =>
+  request(`${BASE}/shifts/${shiftId}/close`, shiftSchema, post(payload));
+
+// ---- Tournaments --------------------------------------------------------------------------------------------
+
+export const listTournaments = (branchId: number) =>
+  request(`${BASE}/branches/${branchId}/tournaments`, z.array(tournamentSchema));
+export const getTournament = (tournamentId: number) => request(`${BASE}/tournaments/${tournamentId}`, tournamentSchema);
+export const createTournament = (branchId: number, payload: TournamentPayload) =>
+  request(`${BASE}/branches/${branchId}/tournaments`, tournamentSchema, post(payload));
+export const updateTournament = (tournamentId: number, payload: TournamentPayload) =>
+  request(`${BASE}/tournaments/${tournamentId}`, tournamentSchema, put(payload));
+export const cancelTournament = (tournamentId: number) =>
+  request(`${BASE}/tournaments/${tournamentId}/cancel`, tournamentSchema, post());
+export const addTournamentPlayer = (tournamentId: number, payload: TournamentPlayerPayload) =>
+  request(`${BASE}/tournaments/${tournamentId}/players`, tournamentSchema, post(payload));
+export const removeTournamentPlayer = (tournamentId: number, playerId: number) =>
+  request(`${BASE}/tournaments/${tournamentId}/players/${playerId}`, tournamentSchema, { method: "DELETE" });
+export const payTournamentPlayer = (tournamentId: number, playerId: number, paymentMethod: PaymentMethod) =>
+  request(`${BASE}/tournaments/${tournamentId}/players/${playerId}/pay`, tournamentSchema, post({ paymentMethod }));
+export const startTournament = (tournamentId: number) =>
+  request(`${BASE}/tournaments/${tournamentId}/start`, tournamentSchema, post());
+export const reportMatch = (tournamentId: number, matchId: number, payload: { winnerPlayerId: number; score?: string }) =>
+  request(`${BASE}/tournaments/${tournamentId}/matches/${matchId}/result`, tournamentSchema, post(payload));
+
+// ---- Profitability ------------------------------------------------------------------------------------------
+
+export const getProfitability = (branchId: number) =>
+  request(`${BASE}/branches/${branchId}/profitability`, profitabilitySchema);
 
 // ---- Formatting helpers -------------------------------------------------------------------------------------
 
@@ -567,4 +1020,75 @@ export function applyDiscount(base: number, kind: "amount" | "percent", raw: str
   const value = Number(parsed);
   const discount = kind === "percent" ? Math.round(base * Math.min(value, 100)) / 100 : value;
   return Math.max(Math.round((base - Math.min(discount, base)) * 100) / 100, 0);
+}
+
+/** Query string for the quote endpoint; options left out (or false/empty) are not sent. */
+export function quoteQuery(options: QuoteOptions): string {
+  const params = new URLSearchParams();
+  if (options.useMembershipMinutes) params.set("useMembershipMinutes", "true");
+  if (options.useLoyaltyMinutes) params.set("useLoyaltyMinutes", "true");
+  if (options.useBonusBalance) params.set("useBonusBalance", "true");
+  if (options.discountAmount) params.set("discountAmount", options.discountAmount);
+  else if (options.discountPercent) params.set("discountPercent", options.discountPercent);
+  const text = params.toString();
+  return text ? `?${text}` : "";
+}
+
+/** The public page a device's QR code opens. */
+export function deviceQrLink(menuOrigin: string, publicToken: string): string {
+  return `${menuOrigin.replace(/\/+$/, "")}/cihaz/${encodeURIComponent(publicToken)}`;
+}
+
+/**
+ * Packages that can be started on a device: active, for its type or for every type. Ones usable right now come
+ * first, then by price.
+ */
+export function packagesForDevice(packages: DevicePackage[], deviceType: DeviceType): DevicePackage[] {
+  return packages
+    .filter((p) => p.active && (p.deviceType == null || p.deviceType === deviceType))
+    .sort((a, b) => Number(b.availableNow) - Number(a.availableNow) || toNumber(a.price) - toNumber(b.price));
+}
+
+/** The branch's games with those installed on the device first, each part by name. */
+export function gamesForDevice(games: DeviceGame[], consoleId: number): { game: DeviceGame; installed: boolean }[] {
+  return games
+    .map((game) => ({ game, installed: game.consoleIds.includes(consoleId) }))
+    .sort((a, b) => Number(b.installed) - Number(a.installed) || a.game.name.localeCompare(b.game.name, "tr"));
+}
+
+/** Matches grouped by round, rounds in order, matches by position. */
+export function matchesByRound(matches: TournamentMatch[]): { round: number; matches: TournamentMatch[] }[] {
+  const byRound = new Map<number, TournamentMatch[]>();
+  for (const match of matches) {
+    const list = byRound.get(match.round) ?? [];
+    list.push(match);
+    byRound.set(match.round, list);
+  }
+  return Array.from(byRound.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([round, list]) => ({ round, matches: [...list].sort((a, b) => a.position - b.position) }));
+}
+
+/** "Final", "Yarı final", "Çeyrek final" for the last rounds, otherwise "1. tur". */
+export function roundLabel(round: number, rounds: number): string {
+  const fromEnd = rounds - round;
+  if (fromEnd === 0) return "Final";
+  if (fromEnd === 1) return "Yarı final";
+  if (fromEnd === 2) return "Çeyrek final";
+  return `${round}. tur`;
+}
+
+/** Counted minus expected cash; positive is a surplus. Null when the count is not a valid amount. */
+export function cashDifference(expected: number | string | null | undefined, counted: string): number | null {
+  const parsed = parseRateInput(counted);
+  if (parsed == null) return null;
+  return Math.round((Number(parsed) - toNumber(expected)) * 100) / 100;
+}
+
+/** Whole days since a local date-time, or null without one. */
+export function daysSince(value: string | null | undefined, now: Date): number | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return Math.max(0, Math.floor((now.getTime() - date.getTime()) / 86_400_000));
 }

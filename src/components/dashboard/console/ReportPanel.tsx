@@ -11,6 +11,7 @@ import {
   PAYMENT_LABELS,
   formatDuration,
   formatTl,
+  getProfitability,
   getReport,
   isoDay,
   toNumber,
@@ -159,6 +160,139 @@ export function ReportPanel({ branchId }: { branchId: number }) {
                 </ul>
               )}
             </div>
+          </div>
+          {data.games.length > 0 ? (
+            <div className={DASHBOARD_PANEL}>
+              <h3 className="mb-3 text-sm font-semibold text-foreground">Oyunlar</h3>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Oyun</TableHead>
+                    <TableHead className="text-right">Oturum</TableHead>
+                    <TableHead className="text-right">Süre</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.games.map((g, index) => (
+                    <TableRow key={g.gameId ?? `none-${index}`}>
+                      <TableCell className="font-medium">{g.gameName ?? "Seçilmedi"}</TableCell>
+                      <TableCell className="text-right tabular-nums">{g.sessions}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatDuration(g.playedMinutes)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : null}
+        </>
+      )}
+
+      <ProfitabilitySection branchId={branchId} />
+    </div>
+  );
+}
+
+function ProfitabilitySection({ branchId }: { branchId: number }) {
+  const profit = useQuery({
+    queryKey: ["console-profitability", branchId],
+    queryFn: () => getProfitability(branchId),
+  });
+  const data = profit.data;
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <h3 className="text-sm font-semibold text-foreground">Kârlılık</h3>
+        <p className="text-xs text-muted-foreground">
+          Cihaz başına tüm zamanların cirosu, bakım ve masrafları. Geri ödeme: (ciro − masraf) / alış fiyatı. Tahmin son 30
+          günün cirosuna göredir.
+        </p>
+      </div>
+      {!data ? (
+        <p className="text-sm text-muted-foreground">{profit.isError ? "Kârlılık yüklenemedi." : "Yükleniyor…"}</p>
+      ) : (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Tile label="Alış maliyeti" value={formatTl(data.purchaseCost)} />
+            <Tile label="Ciro" value={formatTl(data.revenue)} />
+            <Tile label="Bakım ve masraf" value={formatTl(data.maintenanceCost)} />
+            <Tile label="Net" value={formatTl(data.net)} hint="Ciro − masraf − alış" />
+          </div>
+          <div className={DASHBOARD_PANEL}>
+            {data.devices.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Cihaz yok.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Cihaz</TableHead>
+                    <TableHead className="text-right">Alış</TableHead>
+                    <TableHead className="text-right">Ciro</TableHead>
+                    <TableHead className="text-right">Masraf</TableHead>
+                    <TableHead className="text-right">Net</TableHead>
+                    <TableHead>Geri ödeme</TableHead>
+                    <TableHead className="text-right">Tahmini kalan</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.devices.map((d) => {
+                    const hasCost = toNumber(d.purchaseCost) > 0;
+                    const percent = toNumber(d.paybackPercent);
+                    const bar = Math.max(0, Math.min(100, percent));
+                    const net = toNumber(d.net);
+                    return (
+                      <TableRow key={d.consoleId}>
+                        <TableCell>
+                          <span className="font-medium">{d.consoleName ?? `#${d.consoleId}`}</span>
+                          {d.deviceType ? (
+                            <span className="ml-2 text-xs text-muted-foreground">{DEVICE_TYPE_LABELS[d.deviceType]}</span>
+                          ) : null}
+                          {d.purchasedOn ? (
+                            <span className="block text-xs text-muted-foreground">
+                              {d.purchasedOn.split("-").reverse().join(".")} alındı · {formatDuration(d.playedMinutes)} oynandı
+                            </span>
+                          ) : null}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{hasCost ? formatTl(d.purchaseCost) : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatTl(d.revenue)}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {toNumber(d.maintenanceCost) > 0 ? formatTl(d.maintenanceCost) : "—"}
+                        </TableCell>
+                        <TableCell className={`text-right font-semibold tabular-nums ${net < 0 ? "text-red-600" : ""}`}>
+                          {formatTl(d.net)}
+                        </TableCell>
+                        <TableCell>
+                          {hasCost ? (
+                            <div className="flex items-center gap-2">
+                              <div className="h-2 w-24 overflow-hidden rounded-full bg-muted">
+                                <div
+                                  className={`h-full rounded-full ${d.paidBack ? "bg-emerald-500" : "bg-violet-500"}`}
+                                  style={{ width: `${bar}%` }}
+                                />
+                              </div>
+                              <span className="text-xs tabular-nums text-muted-foreground">
+                                %{percent.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Alış fiyatı yok</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right text-xs tabular-nums">
+                          {d.paidBack
+                            ? "Kendini ödedi"
+                            : d.estimatedPaybackDays != null
+                              ? `~${d.estimatedPaybackDays} gün`
+                              : hasCost
+                                ? "Tahmin yok"
+                                : "—"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
           </div>
         </>
       )}

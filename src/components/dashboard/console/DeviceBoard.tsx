@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
   CONTROLLER_TYPES,
   DEVICE_TYPE_LABELS,
+  formatClock,
   formatRemaining,
   formatStopwatch,
   formatTime,
@@ -70,8 +71,13 @@ export type DeviceBoardHandlers = {
   onExtend: (session: ConsoleSession, minutes: number) => void;
   onTransfer: (session: ConsoleSession) => void;
   onItems: (session: ConsoleSession) => void;
+  onApproveExtension: (session: ConsoleSession) => void;
+  onDismissExtension: (session: ConsoleSession) => void;
   onEdit?: (item: GameConsole) => void;
   onDelete?: (item: GameConsole) => void;
+  onQr?: (item: GameConsole) => void;
+  onMaintenanceStart?: (item: GameConsole) => void;
+  onMaintenanceEnd?: (item: GameConsole) => void;
 };
 
 export function DeviceBoard({
@@ -141,11 +147,15 @@ function DeviceCard({
   handlers: DeviceBoardHandlers;
 }) {
   const noRate = item.effectiveHourlyRate == null;
+  const inMaintenance = item.maintenance && !session;
+  const extensionMinutes = session?.extensionRequestMinutes ?? null;
   const played = session ? livePlayedSeconds(session, fetchedAt, now) : 0;
   const left = session ? remainingSeconds(session.plannedMinutes, played) : null;
   const overdue = left != null && left <= 0;
   const soon = left != null && left > 0 && left <= 5 * 60;
-  const ring = !session
+  const ring = inMaintenance
+    ? "bg-muted/60 opacity-80"
+    : !session
     ? ""
     : overdue
       ? "ring-2 ring-red-500 bg-red-50 dark:bg-red-950/30"
@@ -173,7 +183,9 @@ function DeviceCard({
         </div>
         <span
           className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
-            !session
+            inMaintenance
+              ? "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+              : !session
               ? "bg-muted text-muted-foreground"
               : session.paused
                 ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
@@ -182,13 +194,48 @@ function DeviceCard({
                   : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200"
           }`}
         >
-          {!session ? "Boş" : session.paused ? "Duraklatıldı" : overdue ? "Süre doldu" : "Kullanımda"}
+          {inMaintenance ? "Bakımda" : !session ? "Boş" : session.paused ? "Duraklatıldı" : overdue ? "Süre doldu" : "Kullanımda"}
         </span>
       </div>
 
-      {session ? (
+      {extensionMinutes != null && session ? (
+        <div className="space-y-2 rounded-md border border-violet-300 bg-violet-50 px-3 py-2 text-xs dark:border-violet-800 dark:bg-violet-950/30">
+          <p className="font-medium text-violet-900 dark:text-violet-200">
+            QR&apos;dan +{extensionMinutes} dk uzatma isteği
+            {session.extensionRequestedAt ? ` · ${formatTime(session.extensionRequestedAt)}` : ""}
+          </p>
+          <div className="flex gap-2">
+            <Button type="button" size="sm" disabled={working} onClick={() => handlers.onApproveExtension(session)}>
+              Onayla
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={working}
+              onClick={() => handlers.onDismissExtension(session)}
+            >
+              Reddet
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {inMaintenance ? (
+        <div className="space-y-0.5 text-xs text-muted-foreground">
+          {item.maintenanceNote ? <p className="text-sm text-foreground">{item.maintenanceNote}</p> : null}
+          {item.maintenanceSince ? <p>{formatClock(item.maintenanceSince)} beri</p> : null}
+        </div>
+      ) : session ? (
         <div className="space-y-1 text-sm">
           {session.customerName ? <p className="font-medium text-foreground">{session.customerName}</p> : null}
+          {session.packageName || session.gameName ? (
+            <p className="text-xs text-muted-foreground">
+              {[session.packageName ? `Paket: ${session.packageName}` : null, session.gameName]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          ) : null}
           <p className="text-xs text-muted-foreground">Başlangıç {formatTime(session.startedAt)}</p>
           <div className="flex items-baseline justify-between">
             <span className="text-lg tabular-nums text-foreground">{formatStopwatch(played)}</span>
@@ -245,11 +292,34 @@ function DeviceCard({
               </Button>
             ))}
           </>
+        ) : inMaintenance ? (
+          <>
+            {handlers.onMaintenanceEnd ? (
+              <Button type="button" size="sm" onClick={() => handlers.onMaintenanceEnd?.(item)}>
+                Bakımı bitir
+              </Button>
+            ) : null}
+            {handlers.onEdit ? (
+              <Button type="button" size="sm" variant="outline" onClick={() => handlers.onEdit?.(item)}>
+                Düzenle
+              </Button>
+            ) : null}
+          </>
         ) : (
           <>
             <Button type="button" size="sm" disabled={noRate} onClick={() => handlers.onStart(item)}>
               Başlat
             </Button>
+            {handlers.onMaintenanceStart ? (
+              <Button type="button" size="sm" variant="outline" onClick={() => handlers.onMaintenanceStart?.(item)}>
+                Bakıma al
+              </Button>
+            ) : null}
+            {handlers.onQr ? (
+              <Button type="button" size="sm" variant="outline" onClick={() => handlers.onQr?.(item)}>
+                QR kodu
+              </Button>
+            ) : null}
             {handlers.onEdit ? (
               <Button type="button" size="sm" variant="outline" onClick={() => handlers.onEdit?.(item)}>
                 Düzenle

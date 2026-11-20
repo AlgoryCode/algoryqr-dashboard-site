@@ -44,6 +44,8 @@ export function sourceTypeLabel(type: AccountingSourceType | string): string {
       return "Sipariş satışı";
     case "CONSOLE_SESSION":
       return "Cihaz kiralama";
+    case "DEVICE_SALE":
+      return "Cihaz satışı";
     case "MANUAL":
       return "Manuel kayıt";
     default:

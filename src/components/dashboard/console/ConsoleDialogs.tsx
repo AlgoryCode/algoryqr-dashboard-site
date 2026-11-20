@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { CustomerPicker } from "@/components/dashboard/console/CustomerPicker";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,11 @@ import {
   formatDuration,
   formatStopwatch,
   formatTl,
+  gamesForDevice,
+  listGames,
+  listPackages,
   listProducts,
+  packagesForDevice,
   parseRateInput,
   quoteSession,
   rateInputValue,
@@ -41,8 +45,19 @@ import {
   type FinishPayload,
   type GameConsole,
   type PaymentMethod,
+  type QuoteOptions,
   type StartSessionPayload,
 } from "@/lib/console-api";
+
+/** The value after it has stopped changing for `delayMs`. */
+export function useDebouncedValue<T>(value: T, delayMs = 350): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(timer);
+  }, [value, delayMs]);
+  return debounced;
+}
 
 export function Field({ label, htmlFor, children }: { label: string; htmlFor: string; children: ReactNode }) {
   return (
@@ -84,59 +99,96 @@ export function Choice<T extends string | number>({
 
 export function ConsoleEditorDialog({
   open,
+  branchId,
   console: editing,
   pending,
   onOpenChange,
   onSubmit,
+  extra,
 }: {
   open: boolean;
+  branchId: number;
   console: GameConsole | null;
   pending: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (payload: ConsolePayload) => void;
+  /** `gameIds` is the full list of games installed on the device. */
+  onSubmit: (payload: ConsolePayload, gameIds: number[]) => void;
+  /** Shown under the form when editing, e.g. the maintenance log. */
+  extra?: ReactNode;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editing ? "Cihazı düzenle" : "Cihaz ekle"}</DialogTitle>
           <DialogDescription>
             Ücret boş kalırsa önce cihaz türünün, sonra şubenin ücreti kullanılır.
           </DialogDescription>
         </DialogHeader>
-        <ConsoleForm key={editing?.id ?? "new"} editing={editing} pending={pending} onSubmit={onSubmit} />
+        <ConsoleForm
+          key={editing?.id ?? "new"}
+          branchId={branchId}
+          editing={editing}
+          pending={pending}
+          onSubmit={onSubmit}
+        />
+        {editing ? extra : null}
       </DialogContent>
     </Dialog>
   );
 }
 
 function ConsoleForm({
+  branchId,
   editing,
   pending,
   onSubmit,
 }: {
+  branchId: number;
   editing: GameConsole | null;
   pending: boolean;
-  onSubmit: (payload: ConsolePayload) => void;
+  onSubmit: (payload: ConsolePayload, gameIds: number[]) => void;
 }) {
   const [name, setName] = useState(editing?.name ?? "");
   const [type, setType] = useState<DeviceType>(editing?.deviceType ?? "PLAYSTATION");
   const [rate, setRate] = useState(rateInputValue(editing?.hourlyRate));
   const [multiRate, setMultiRate] = useState(rateInputValue(editing?.multiHourlyRate));
+  const [cost, setCost] = useState(rateInputValue(editing?.purchaseCost));
+  const [purchasedOn, setPurchasedOn] = useState(editing?.purchasedOn ?? "");
+  const [gameIds, setGameIds] = useState<number[]>(() => (editing?.games ?? []).map((g) => g.id));
+  const games = useQuery({
+    queryKey: ["console-games", branchId],
+    queryFn: () => listGames(branchId),
+    staleTime: 60_000,
+  });
   const parsedRate = parseRateInput(rate);
   const parsedMulti = parseRateInput(multiRate);
+  const parsedCost = parseRateInput(cost);
   const showMulti = CONTROLLER_TYPES.has(type);
-  const invalid = name.trim() === "" || parsedRate === undefined || (showMulti && parsedMulti === undefined);
+  const invalid =
+    name.trim() === "" ||
+    parsedRate === undefined ||
+    parsedCost === undefined ||
+    (showMulti && parsedMulti === undefined);
+
+  function toggleGame(id: number, checked: boolean) {
+    setGameIds((current) => (checked ? [...current.filter((g) => g !== id), id] : current.filter((g) => g !== id)));
+  }
 
   function submit(event: FormEvent) {
     event.preventDefault();
     if (invalid) return;
-    onSubmit({
-      name: name.trim(),
-      deviceType: type,
-      hourlyRate: parsedRate ?? null,
-      multiHourlyRate: showMulti ? (parsedMulti ?? null) : null,
-    });
+    onSubmit(
+      {
+        name: name.trim(),
+        deviceType: type,
+        hourlyRate: parsedRate ?? null,
+        multiHourlyRate: showMulti ? (parsedMulti ?? null) : null,
+        purchaseCost: parsedCost ?? null,
+        purchasedOn: purchasedOn || null,
+      },
+      gameIds,
+    );
   }
 
   return (
@@ -188,6 +240,46 @@ function ConsoleForm({
             {parsedMulti === undefined ? <p className="text-xs text-destructive">Geçerli bir tutar girin.</p> : null}
           </Field>
         ) : null}
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Alış fiyatı (₺)" htmlFor="device-cost">
+          <Input
+            id="device-cost"
+            inputMode="decimal"
+            value={cost}
+            placeholder="Kârlılık raporu için"
+            onChange={(event) => setCost(event.target.value)}
+          />
+          {parsedCost === undefined ? <p className="text-xs text-destructive">Geçerli bir tutar girin.</p> : null}
+        </Field>
+        <Field label="Alış tarihi" htmlFor="device-purchased">
+          <Input
+            id="device-purchased"
+            type="date"
+            value={purchasedOn}
+            onChange={(event) => setPurchasedOn(event.target.value)}
+          />
+        </Field>
+      </div>
+      <div className="space-y-1.5">
+        <Label>Yüklü oyunlar</Label>
+        {(games.data ?? []).length === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            {games.isLoading ? "Yükleniyor…" : "Oyun kütüphanesi boş; Ayarlar › Oyunlar ve paketler'den ekleyin."}
+          </p>
+        ) : (
+          <div className="grid max-h-40 gap-1.5 overflow-y-auto rounded-md border border-border p-2 sm:grid-cols-2">
+            {(games.data ?? []).map((game) => (
+              <label key={game.id} className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={gameIds.includes(game.id)}
+                  onCheckedChange={(checked) => toggleGame(game.id, checked === true)}
+                />
+                <span className="truncate">{game.name}</span>
+              </label>
+            ))}
+          </div>
+        )}
       </div>
       <DialogFooter>
         <Button type="submit" disabled={pending || invalid}>
@@ -260,6 +352,24 @@ function StartForm({
   const [plan, setPlan] = useState(0);
   const [customPlan, setCustomPlan] = useState("");
   const [controllers, setControllers] = useState(2);
+  const [packageId, setPackageId] = useState<number | null>(null);
+  const [gameId, setGameId] = useState<number | null>(null);
+  const packagesQuery = useQuery({
+    queryKey: ["console-packages", target.branchId, "active"],
+    queryFn: () => listPackages(target.branchId, true),
+    staleTime: 30_000,
+  });
+  const gamesQuery = useQuery({
+    queryKey: ["console-games", target.branchId],
+    queryFn: () => listGames(target.branchId),
+    staleTime: 60_000,
+  });
+  const packages = useMemo(
+    () => packagesForDevice(packagesQuery.data ?? [], target.deviceType),
+    [packagesQuery.data, target.deviceType],
+  );
+  const games = useMemo(() => gamesForDevice(gamesQuery.data ?? [], target.id), [gamesQuery.data, target.id]);
+  const chosenPackage = packages.find((p) => p.id === packageId) ?? null;
   const showControllers = CONTROLLER_TYPES.has(target.deviceType);
   const customMinutes = Number(customPlan);
   const customInvalid = plan === -1 && !(Number.isInteger(customMinutes) && customMinutes > 0 && customMinutes <= 1440);
@@ -274,7 +384,21 @@ function StartForm({
       note: note.trim() || undefined,
       plannedMinutes,
       controllerCount: showControllers ? controllers : undefined,
+      packageId: chosenPackage?.id,
+      gameId: gameId ?? undefined,
     });
+  }
+
+  function pickPackage(raw: string) {
+    const next = raw === "none" ? null : (packages.find((p) => String(p.id) === raw) ?? null);
+    setPackageId(next?.id ?? null);
+    if (!next) return;
+    if (PLAN_OPTIONS.some((option) => option.value === next.minutes)) {
+      setPlan(next.minutes);
+    } else {
+      setPlan(-1);
+      setCustomPlan(String(next.minutes));
+    }
   }
 
   return (
@@ -293,6 +417,47 @@ function StartForm({
           />
         </Field>
       )}
+      {packages.length > 0 ? (
+        <Field label="Paket (isteğe bağlı)" htmlFor="session-package">
+          <Select value={packageId != null ? String(packageId) : "none"} onValueChange={pickPackage}>
+            <SelectTrigger id="session-package">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Paket yok · saatlik ücret</SelectItem>
+              {packages.map((p) => (
+                <SelectItem key={p.id} value={String(p.id)} disabled={!p.availableNow}>
+                  {p.name} · {formatDuration(p.minutes)} · {formatTl(p.price)}
+                  {p.availableNow ? "" : " (şu an geçerli değil)"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {chosenPackage ? (
+            <p className="text-xs text-muted-foreground">
+              Paket süresi bitince aşan süre saatlik ücretle eklenir.
+            </p>
+          ) : null}
+        </Field>
+      ) : null}
+      {games.length > 0 ? (
+        <Field label="Oyun (isteğe bağlı)" htmlFor="session-game">
+          <Select value={gameId != null ? String(gameId) : "none"} onValueChange={(raw) => setGameId(raw === "none" ? null : Number(raw))}>
+            <SelectTrigger id="session-game">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Seçilmedi</SelectItem>
+              {games.map(({ game, installed }) => (
+                <SelectItem key={game.id} value={String(game.id)}>
+                  {game.name}
+                  {installed ? "" : " (bu cihazda yüklü değil)"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      ) : null}
       <div className="space-y-1.5">
         <Label>Süre</Label>
         <Choice<number> options={PLAN_OPTIONS} value={plan} onChange={setPlan} />
@@ -362,6 +527,18 @@ export function FinishSessionDialog({
   );
 }
 
+function BreakdownLine({ label, value, minus }: { label: string; value: number | string | null | undefined; minus?: boolean }) {
+  return (
+    <>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="text-right tabular-nums">
+        {minus ? "−" : ""}
+        {formatTl(value)}
+      </dd>
+    </>
+  );
+}
+
 function FinishForm({
   session,
   pending,
@@ -371,41 +548,69 @@ function FinishForm({
   pending: boolean;
   onSubmit: (payload: FinishPayload) => void;
 }) {
-  const quote = useQuery({
-    queryKey: ["console-quote", session.id],
-    queryFn: () => quoteSession(session.id),
-    refetchInterval: 30_000,
-  });
   const [method, setMethod] = useState<PaymentMethod>("CASH");
   const [discountKind, setDiscountKind] = useState<"amount" | "percent">("amount");
   const [discount, setDiscount] = useState("");
   const [useLoyalty, setUseLoyalty] = useState(false);
+  const [useMembership, setUseMembership] = useState(false);
+  const [useBonus, setUseBonus] = useState(false);
   const parsedDiscount = parseRateInput(discount);
   const percentTooHigh = discountKind === "percent" && parsedDiscount != null && Number(parsedDiscount) > 100;
+  const discountValid = parsedDiscount !== undefined && !percentTooHigh;
+
+  const options: QuoteOptions = {
+    useLoyaltyMinutes: useLoyalty,
+    useMembershipMinutes: useMembership,
+    useBonusBalance: useBonus,
+    discountAmount: discountValid && discountKind === "amount" && parsedDiscount ? parsedDiscount : undefined,
+    discountPercent: discountValid && discountKind === "percent" && parsedDiscount ? parsedDiscount : undefined,
+  };
+  const optionsKey = JSON.stringify(options);
+  const debouncedKey = useDebouncedValue(optionsKey);
+  const settled = debouncedKey === optionsKey;
+  const quote = useQuery({
+    queryKey: ["console-quote", session.id, debouncedKey],
+    queryFn: () => quoteSession(session.id, JSON.parse(debouncedKey) as QuoteOptions),
+    refetchInterval: 30_000,
+    placeholderData: keepPreviousData,
+  });
 
   const q = quote.data;
   const hasCustomer = q?.customerId != null;
-  const loyaltyValue = useLoyalty ? toNumber(q?.loyaltyValue) : 0;
-  const afterLoyalty = toNumber(q?.grossAmount) - loyaltyValue;
-  const total = applyDiscount(afterLoyalty, discountKind, discount);
+  // An older server has no final amount in the quote; work it out like before.
+  const total =
+    q?.amount != null
+      ? toNumber(q.amount)
+      : applyDiscount(toNumber(q?.grossAmount) - (useLoyalty ? toNumber(q?.loyaltyValue) : 0), discountKind, discount);
   const balance = toNumber(q?.customerBalance);
   const balanceShort = method === "BALANCE" && (!hasCustomer || balance < total);
-  const invalid = parsedDiscount === undefined || percentTooHigh || balanceShort || !q;
+  const calculating = !settled || quote.isFetching;
+  const invalid = !discountValid || balanceShort || !q || calculating;
 
   function submit(event: FormEvent) {
     event.preventDefault();
     if (invalid) return;
     onSubmit({
       paymentMethod: method,
-      discountAmount: discountKind === "amount" && parsedDiscount ? parsedDiscount : undefined,
-      discountPercent: discountKind === "percent" && parsedDiscount ? parsedDiscount : undefined,
+      discountAmount: options.discountAmount,
+      discountPercent: options.discountPercent,
       useLoyaltyMinutes: useLoyalty || undefined,
+      useMembershipMinutes: useMembership || undefined,
+      useBonusBalance: useBonus || undefined,
     });
   }
 
-  if (quote.isLoading || !q) {
-    return <p className="text-sm text-muted-foreground">Tutar hesaplanıyor…</p>;
+  if (!q) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        {quote.isError ? "Tutar alınamadı. Tekrar deneyin." : "Tutar hesaplanıyor…"}
+      </p>
+    );
   }
+
+  const membershipAvailable = q.membershipMinutesAvailable ?? 0;
+  const bonusBalance = toNumber(q.bonusBalance);
+  const tierPercent = toNumber(q.tierDiscountPercent);
 
   return (
     <form className="space-y-4" onSubmit={submit}>
@@ -414,28 +619,55 @@ function FinishForm({
         <dd className="text-right tabular-nums">{formatStopwatch(q.playedSeconds)}</dd>
         <dt className="text-muted-foreground">Ücretlenen</dt>
         <dd className="text-right tabular-nums">{formatDuration(q.durationMinutes)}</dd>
-        <dt className="text-muted-foreground">Süre ücreti</dt>
-        <dd className="text-right tabular-nums">{formatTl(q.timeAmount)}</dd>
-        {toNumber(q.itemsAmount) > 0 ? (
-          <>
-            <dt className="text-muted-foreground">Ürünler</dt>
-            <dd className="text-right tabular-nums">{formatTl(q.itemsAmount)}</dd>
-          </>
+        <BreakdownLine label={q.packageName ? `Süre ücreti (paket: ${q.packageName})` : "Süre ücreti"} value={q.timeAmount} />
+        {toNumber(q.itemsAmount) > 0 ? <BreakdownLine label="Ürünler" value={q.itemsAmount} /> : null}
+        {toNumber(q.membershipValue) > 0 && (q.membershipMinutesUsed ?? 0) > 0 ? (
+          <BreakdownLine label={`Üyelik (${q.membershipMinutesUsed} dk)`} value={q.membershipValue} minus />
         ) : null}
-        {loyaltyValue > 0 ? (
-          <>
-            <dt className="text-muted-foreground">Ücretsiz dakikalar</dt>
-            <dd className="text-right tabular-nums">−{formatTl(loyaltyValue)}</dd>
-          </>
+        {q.loyaltyDiscount != null ? (
+          toNumber(q.loyaltyDiscount) > 0 ? (
+            <BreakdownLine label={`Ücretsiz dakikalar (${q.loyaltyMinutesUsed ?? 0} dk)`} value={q.loyaltyDiscount} minus />
+          ) : null
+        ) : useLoyalty && toNumber(q.loyaltyValue) > 0 ? (
+          <BreakdownLine label="Ücretsiz dakikalar" value={q.loyaltyValue} minus />
         ) : null}
+        {toNumber(q.tierDiscountAmount) > 0 ? (
+          <BreakdownLine
+            label={`Seviye indirimi${q.tierName ? ` · ${q.tierName}` : ""} (%${tierPercent.toLocaleString("tr-TR")})`}
+            value={q.tierDiscountAmount}
+            minus
+          />
+        ) : null}
+        {toNumber(q.bonusUsed) > 0 ? <BreakdownLine label="Hediye bakiye" value={q.bonusUsed} minus /> : null}
+        {toNumber(q.manualDiscount) > 0 ? <BreakdownLine label="İndirim" value={q.manualDiscount} minus /> : null}
       </dl>
-
-      {q.loyaltyMinutesUsable > 0 ? (
-        <label className="flex items-center gap-2 text-sm">
-          <Checkbox checked={useLoyalty} onCheckedChange={(checked) => setUseLoyalty(checked === true)} />
-          {q.loyaltyMinutesUsable} ücretsiz dakikayı kullan ({formatTl(q.loyaltyValue)})
-        </label>
+      {q.tierName && toNumber(q.tierDiscountAmount) <= 0 && tierPercent > 0 ? (
+        <p className="text-xs text-muted-foreground">
+          Seviye: {q.tierName} (%{tierPercent.toLocaleString("tr-TR")})
+          {q.packageName ? " · paketli oturumda seviye indirimi uygulanmaz" : ""}
+        </p>
       ) : null}
+
+      <div className="space-y-2">
+        {membershipAvailable > 0 ? (
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={useMembership} onCheckedChange={(checked) => setUseMembership(checked === true)} />
+            Üyelik dakikası kullan ({membershipAvailable} dk var)
+          </label>
+        ) : null}
+        {q.loyaltyMinutesUsable > 0 ? (
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={useLoyalty} onCheckedChange={(checked) => setUseLoyalty(checked === true)} />
+            {q.loyaltyMinutesUsable} ücretsiz dakikayı kullan ({formatTl(q.loyaltyValue)})
+          </label>
+        ) : null}
+        {bonusBalance > 0 ? (
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={useBonus} onCheckedChange={(checked) => setUseBonus(checked === true)} />
+            Hediye bakiye kullan ({formatTl(bonusBalance)} var)
+          </label>
+        ) : null}
+      </div>
 
       <div className="space-y-1.5">
         <Label htmlFor="finish-discount">İndirim</Label>
@@ -446,7 +678,7 @@ function FinishForm({
             className="w-32"
             placeholder="0"
             value={discount}
-            aria-invalid={parsedDiscount === undefined || percentTooHigh}
+            aria-invalid={!discountValid}
             onChange={(event) => setDiscount(event.target.value)}
           />
           <Choice<"amount" | "percent">
@@ -475,11 +707,13 @@ function FinishForm({
 
       <div className="flex items-baseline justify-between border-t border-border pt-3">
         <span className="text-base font-semibold text-foreground">Ödenecek</span>
-        <span className="text-2xl font-semibold tabular-nums text-foreground">{formatTl(total)}</span>
+        <span className={`text-2xl font-semibold tabular-nums text-foreground ${calculating ? "opacity-50" : ""}`}>
+          {formatTl(total)}
+        </span>
       </div>
       <DialogFooter>
         <Button type="submit" variant="destructive" disabled={pending || invalid}>
-          {pending ? "Bitiriliyor…" : "Bitir ve tahsil et"}
+          {pending ? "Bitiriliyor…" : calculating ? "Hesaplanıyor…" : "Bitir ve tahsil et"}
         </Button>
       </DialogFooter>
     </form>
@@ -530,6 +764,36 @@ export function SessionSummary({ session }: { session: ConsoleSession }) {
           <>
             <dt className="text-muted-foreground">Ürünler</dt>
             <dd className="text-right tabular-nums">{formatTl(session.itemsAmount)}</dd>
+          </>
+        ) : null}
+        {session.packageName ? (
+          <>
+            <dt className="text-muted-foreground">Paket</dt>
+            <dd className="text-right">{session.packageName}</dd>
+          </>
+        ) : null}
+        {session.gameName ? (
+          <>
+            <dt className="text-muted-foreground">Oyun</dt>
+            <dd className="text-right">{session.gameName}</dd>
+          </>
+        ) : null}
+        {(session.membershipMinutesUsed ?? 0) > 0 ? (
+          <>
+            <dt className="text-muted-foreground">Üyelikten düşülen</dt>
+            <dd className="text-right tabular-nums">{session.membershipMinutesUsed} dk</dd>
+          </>
+        ) : null}
+        {toNumber(session.tierDiscountAmount) > 0 ? (
+          <>
+            <dt className="text-muted-foreground">Seviye indirimi</dt>
+            <dd className="text-right tabular-nums">−{formatTl(session.tierDiscountAmount)}</dd>
+          </>
+        ) : null}
+        {toNumber(session.bonusUsed) > 0 ? (
+          <>
+            <dt className="text-muted-foreground">Hediye bakiye</dt>
+            <dd className="text-right tabular-nums">−{formatTl(session.bonusUsed)}</dd>
           </>
         ) : null}
         {toNumber(session.discountAmount) > 0 ? (

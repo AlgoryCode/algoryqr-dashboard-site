@@ -17,9 +17,19 @@ import {
 } from "@/components/dashboard/console/ConsoleDialogs";
 import { CustomersPanel } from "@/components/dashboard/console/CustomersPanel";
 import { DeviceBoard } from "@/components/dashboard/console/DeviceBoard";
+import {
+  DeviceQrDialog,
+  MaintenanceEndDialog,
+  MaintenanceLogSection,
+  MaintenanceStartDialog,
+} from "@/components/dashboard/console/DeviceDialogs";
+import { GamesPackagesPanel } from "@/components/dashboard/console/GamesPackagesPanel";
+import { ProgramPanel } from "@/components/dashboard/console/ProgramPanel";
 import { ReportPanel } from "@/components/dashboard/console/ReportPanel";
 import { ReservationsPanel } from "@/components/dashboard/console/ReservationsPanel";
 import { SettingsPanel } from "@/components/dashboard/console/SettingsPanel";
+import { ShiftPanel } from "@/components/dashboard/console/ShiftPanel";
+import { TournamentsPanel } from "@/components/dashboard/console/TournamentsPanel";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,8 +49,11 @@ import {
   DEVICE_TYPE_LABELS,
   PAYMENT_LABELS,
   addSessionItem,
+  approveExtensionRequest,
   createConsole,
   deleteConsole,
+  dismissExtensionRequest,
+  endMaintenance,
   extendSession,
   finishSession,
   formatClock,
@@ -53,6 +66,8 @@ import {
   pauseSession,
   removeSessionItem,
   resumeSession,
+  setConsoleGames,
+  startMaintenance,
   startSession,
   transferSession,
   updateConsole,
@@ -62,6 +77,7 @@ import {
   type DeviceType,
   type FinishPayload,
   type GameConsole,
+  type MaintenanceKind,
   type StartSessionPayload,
 } from "@/lib/console-api";
 import { DASHBOARD_PANEL } from "@/lib/dashboard-surface";
@@ -78,7 +94,8 @@ type SessionAction =
   | { kind: "extend"; session: ConsoleSession; minutes: number }
   | { kind: "transfer"; session: ConsoleSession; consoleId?: number; controllerCount?: number }
   | { kind: "addItem"; session: ConsoleSession; payload: AddItemPayload }
-  | { kind: "removeItem"; session: ConsoleSession; itemId: number };
+  | { kind: "removeItem"; session: ConsoleSession; itemId: number }
+  | { kind: "approveExtension" | "dismissExtension"; session: ConsoleSession };
 
 function runAction(action: SessionAction): Promise<ConsoleSession> {
   switch (action.kind) {
@@ -97,6 +114,10 @@ function runAction(action: SessionAction): Promise<ConsoleSession> {
       return addSessionItem(action.session.id, action.payload);
     case "removeItem":
       return removeSessionItem(action.session.id, action.itemId);
+    case "approveExtension":
+      return approveExtensionRequest(action.session.id);
+    case "dismissExtension":
+      return dismissExtensionRequest(action.session.id);
   }
 }
 
@@ -122,6 +143,10 @@ export default function ConsoleRentalView() {
   const [transferring, setTransferring] = useState<ConsoleSession | null>(null);
   const [itemsFor, setItemsFor] = useState<number | null>(null);
   const [historyPage, setHistoryPage] = useState(0);
+  const [settingsTab, setSettingsTab] = useState("rates");
+  const [qrFor, setQrFor] = useState<GameConsole | null>(null);
+  const [maintenanceStartFor, setMaintenanceStartFor] = useState<GameConsole | null>(null);
+  const [maintenanceEndFor, setMaintenanceEndFor] = useState<GameConsole | null>(null);
 
   const consoles = useQuery({
     queryKey: ["console-list", branchId],
@@ -166,12 +191,22 @@ export default function ConsoleRentalView() {
       queryClient.invalidateQueries({ queryKey: ["console-rate"] }),
       queryClient.invalidateQueries({ queryKey: ["console-report"] }),
       queryClient.invalidateQueries({ queryKey: ["device-customers"] }),
+      queryClient.invalidateQueries({ queryKey: ["console-games"] }),
+      queryClient.invalidateQueries({ queryKey: ["console-profitability"] }),
+      queryClient.invalidateQueries({ queryKey: ["console-shift"] }),
     ]);
   }
 
   const saveConsole = useMutation({
-    mutationFn: (payload: ConsolePayload) =>
-      editing ? updateConsole(editing.id, payload) : createConsole(branchId as number, payload),
+    mutationFn: async ({ payload, gameIds }: { payload: ConsolePayload; gameIds: number[] }) => {
+      const saved = editing ? await updateConsole(editing.id, payload) : await createConsole(branchId as number, payload);
+      const before = (editing?.games ?? []).map((g) => g.id).sort((a, b) => a - b);
+      const after = [...gameIds].sort((a, b) => a - b);
+      if (before.join(",") !== after.join(",")) {
+        return setConsoleGames(saved.id, after);
+      }
+      return saved;
+    },
     onSuccess: async () => {
       const wasEditing = editing != null;
       setEditorOpen(false);
@@ -213,12 +248,28 @@ export default function ConsoleRentalView() {
     },
     onError: (error) => notify("danger", errorMessage(error, "Oturum bitirilemedi")),
   });
+  const maintenance = useMutation({
+    mutationFn: (
+      input:
+        | { kind: "start"; consoleId: number; payload: { kind: MaintenanceKind; note?: string } }
+        | { kind: "end"; consoleId: number; payload: { cost?: string; note?: string } },
+    ) => (input.kind === "start" ? startMaintenance(input.consoleId, input.payload) : endMaintenance(input.consoleId, input.payload)),
+    onSuccess: async (device, input) => {
+      setMaintenanceStartFor(null);
+      setMaintenanceEndFor(null);
+      await invalidateAll();
+      notify("info", input.kind === "start" ? `${device.name} bakıma alındı` : `${device.name} tekrar kullanımda`);
+    },
+    onError: (error) => notify("danger", errorMessage(error, "Bakım durumu değiştirilemedi")),
+  });
   const act = useMutation({
     mutationFn: runAction,
     onSuccess: async (_, action) => {
       if (action.kind === "transfer") setTransferring(null);
       await invalidateAll();
       if (action.kind === "extend") notify("info", `+${action.minutes} dk eklendi`);
+      if (action.kind === "approveExtension") notify("info", "Uzatma isteği onaylandı");
+      if (action.kind === "dismissExtension") notify("info", "Uzatma isteği reddedildi");
     },
     onError: (error) => notify("danger", errorMessage(error, "İşlem yapılamadı")),
   });
@@ -272,9 +323,11 @@ export default function ConsoleRentalView() {
             <TabsTrigger value="devices">Cihazlar</TabsTrigger>
             <TabsTrigger value="reservations">Rezervasyonlar</TabsTrigger>
             <TabsTrigger value="customers">Müşteriler</TabsTrigger>
+            <TabsTrigger value="tournaments">Turnuvalar</TabsTrigger>
+            <TabsTrigger value="shift">Vardiya</TabsTrigger>
             <TabsTrigger value="history">Geçmiş</TabsTrigger>
             <TabsTrigger value="report">Rapor</TabsTrigger>
-            <TabsTrigger value="settings">Ücret ve kurallar</TabsTrigger>
+            <TabsTrigger value="settings">Ayarlar</TabsTrigger>
           </TabsList>
 
           <TabsContent value="devices" className="space-y-3">
@@ -317,11 +370,16 @@ export default function ConsoleRentalView() {
                   onExtend: (session, minutes) => act.mutate({ kind: "extend", session, minutes }),
                   onTransfer: setTransferring,
                   onItems: (session) => setItemsFor(session.id),
+                  onApproveExtension: (session) => act.mutate({ kind: "approveExtension", session }),
+                  onDismissExtension: (session) => act.mutate({ kind: "dismissExtension", session }),
                   onEdit: (item) => {
                     setEditing(item);
                     setEditorOpen(true);
                   },
                   onDelete: setPendingDelete,
+                  onQr: setQrFor,
+                  onMaintenanceStart: setMaintenanceStartFor,
+                  onMaintenanceEnd: setMaintenanceEndFor,
                 }}
               />
             )}
@@ -332,7 +390,15 @@ export default function ConsoleRentalView() {
           </TabsContent>
 
           <TabsContent value="customers">
-            <CustomersPanel loyaltyText={loyaltyText} />
+            <CustomersPanel branchId={branchId} loyaltyText={loyaltyText} />
+          </TabsContent>
+
+          <TabsContent value="tournaments">
+            <TournamentsPanel branchId={branchId} />
+          </TabsContent>
+
+          <TabsContent value="shift">
+            <ShiftPanel branchId={branchId} />
           </TabsContent>
 
           <TabsContent value="history">
@@ -351,20 +417,54 @@ export default function ConsoleRentalView() {
           </TabsContent>
 
           <TabsContent value="settings">
-            <SettingsPanel branchId={branchId} onChanged={invalidateAll} />
+            <Tabs value={settingsTab} onValueChange={setSettingsTab}>
+              <TabsList className="flex-wrap">
+                <TabsTrigger value="rates">Ücret ve kurallar</TabsTrigger>
+                <TabsTrigger value="library">Oyunlar ve paketler</TabsTrigger>
+                <TabsTrigger value="program">Program</TabsTrigger>
+              </TabsList>
+              <TabsContent value="rates">
+                <SettingsPanel branchId={branchId} onChanged={invalidateAll} />
+              </TabsContent>
+              <TabsContent value="library">
+                <GamesPackagesPanel branchId={branchId} onChanged={invalidateAll} />
+              </TabsContent>
+              <TabsContent value="program">
+                <ProgramPanel />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
         </Tabs>
       )}
 
       <ConsoleEditorDialog
         open={editorOpen}
+        branchId={branchId ?? 0}
         console={editing}
         pending={saveConsole.isPending}
         onOpenChange={(open) => {
           setEditorOpen(open);
           if (!open) setEditing(null);
         }}
-        onSubmit={(payload) => saveConsole.mutate(payload)}
+        onSubmit={(payload, gameIds) => saveConsole.mutate({ payload, gameIds })}
+        extra={editing ? <MaintenanceLogSection device={editing} onChanged={invalidateAll} /> : null}
+      />
+      <DeviceQrDialog device={qrFor} onOpenChange={(open) => !open && setQrFor(null)} onRotated={invalidateAll} />
+      <MaintenanceStartDialog
+        device={maintenanceStartFor}
+        pending={maintenance.isPending}
+        onOpenChange={(open) => !open && setMaintenanceStartFor(null)}
+        onSubmit={(payload) =>
+          maintenanceStartFor && maintenance.mutate({ kind: "start", consoleId: maintenanceStartFor.id, payload })
+        }
+      />
+      <MaintenanceEndDialog
+        device={maintenanceEndFor}
+        pending={maintenance.isPending}
+        onOpenChange={(open) => !open && setMaintenanceEndFor(null)}
+        onSubmit={(payload) =>
+          maintenanceEndFor && maintenance.mutate({ kind: "end", consoleId: maintenanceEndFor.id, payload })
+        }
       />
       <StartSessionDialog
         console={starting}

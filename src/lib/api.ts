@@ -2459,7 +2459,13 @@ export async function getMyPlatformFeedbackRequest(
 }
 
 export type AccountingEntryType = "GELIR" | "GIDER" | "BORC";
-export type AccountingSourceType = "MANUAL" | "BILL_SALE" | "BILL_TIP" | "ORDER_SALE" | "CONSOLE_SESSION";
+export type AccountingSourceType =
+  | "MANUAL"
+  | "BILL_SALE"
+  | "BILL_TIP"
+  | "ORDER_SALE"
+  | "CONSOLE_SESSION"
+  | "DEVICE_SALE";
 
 export interface AccountingEntryApiItem {
   id: number;
