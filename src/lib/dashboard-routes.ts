@@ -401,7 +401,7 @@ export const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
     label: "Konsol takip",
     mobileLabel: "Konsol",
     href: DASHBOARD_ROUTES.consoleRental,
-    requiredScope: "QR_MENU_OWNER",
+    requiredScope: "CONSOLE_RENTAL_OWNER",
   },
   {
     key: "staff",

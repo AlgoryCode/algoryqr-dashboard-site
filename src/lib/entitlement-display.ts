@@ -43,6 +43,7 @@ export const FEATURE_COPY: Record<string, FeatureCopy> = {
   ASSISTANT_QUESTION: { name: "Günlük asistan sorusu", kind: "limit", description: "Günde sorulabilecek asistan sorusu." },
   WAITER_PANEL: { name: "Garson paneli", kind: "feature", description: "Garsonlarınız masadan sipariş alır, adisyon açar ve hesabı kapatır." },
   ONLINE_ORDER: { name: "Online sipariş", kind: "feature", description: "Paket servis için online sipariş mağazası, sipariş paneli ve kurye takibi." },
+  CONSOLE_RENTAL: { name: "Konsol takip", kind: "feature", description: "Oyun konsollarını saatlik kiralayın: oturum başlatın, bitirin, ödenecek tutarı görün." },
   CUSTOM_DESIGN: { name: "Özel tasarım", kind: "feature", description: "Menünüz markanıza özel renk ve tasarımla hazırlanır." },
   AI_MENU_IMPORT: { name: "AI ile menü aktarımı", kind: "feature", description: "Menü fotoğrafından ürünleri yapay zekâ ile otomatik çıkarır." },
   SMART_ASSISTANT: { name: "Akıllı asistan", kind: "feature", description: "Müşterileriniz menüde yapay zekâ asistanına soru sorup öneri alır." },
