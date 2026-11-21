@@ -2,20 +2,10 @@
 
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, ExternalLink, RefreshCw } from "lucide-react";
+import { Copy, Download, ExternalLink, Printer, RefreshCw } from "lucide-react";
 
 import { Choice, Field } from "@/components/dashboard/console/ConsoleDialogs";
-import { copyTextToClipboard } from "@/components/dashboard/qr/qr-actions";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { copyTextToClipboard, downloadQrImage, getQrDataUrl } from "@/components/dashboard/qr/qr-actions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -29,13 +19,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
 import { ApiError } from "@/lib/api/errors";
-import { MENU_APP_ORIGIN } from "@/lib/config";
 import {
   MAINTENANCE_KINDS,
   MAINTENANCE_KIND_LABELS,
   addConsoleExpense,
-  deviceQrLink,
   formatClock,
+  getConsoleQr,
   formatTl,
   listMaintenanceLogs,
   parseRateInput,
@@ -186,11 +175,14 @@ function MaintenanceEndForm({
   );
 }
 
-// ---- QR link -------------------------------------------------------------------------------------------------
+/** Fade and slide used when the QR dialog switches between the QR and the renew question. */
+const VIEW_ENTER = "animate-in fade-in-0 duration-300 ease-out motion-reduce:animate-none";
+
+// ---- QR code ---------------------------------------------------------------------------------------------------
 
 /**
- * The device's public page (status, remaining time, extension request). The dashboard has no QR image generator,
- * so the link is shown to copy or open; any QR tool can print it.
+ * The device's QR: the customer scans it to see the remaining time and amount and to ask for more time. Shown,
+ * downloaded and printed from here; renewing the link is confirmed inside the same dialog.
  */
 export function DeviceQrDialog({
   device,
@@ -202,104 +194,206 @@ export function DeviceQrDialog({
   onRotated: () => Promise<unknown>;
 }) {
   const { notify } = useDashboardBanners();
-  const [confirmRotate, setConfirmRotate] = useState(false);
-  const [token, setToken] = useState<{ id: number; value: string | null } | null>(null);
-  const publicToken = device ? (token?.id === device.id ? token.value : device.publicToken) : null;
-  const link = publicToken ? deviceQrLink(MENU_APP_ORIGIN, publicToken) : null;
+  const queryClient = useQueryClient();
+  const [view, setView] = useState<"qr" | "confirm">("qr");
+  const [renewed, setRenewed] = useState(false);
+  // The first QR view opens with the dialog; only coming back from the question slides in.
+  const [entered, setEntered] = useState(false);
+  const consoleId = device?.id ?? null;
+  const show = (next: "qr" | "confirm") => {
+    setEntered(true);
+    setView(next);
+  };
 
-  const rotate = useMutation({
-    mutationFn: (consoleId: number) => rotateConsoleToken(consoleId),
-    onSuccess: async (updated) => {
-      setConfirmRotate(false);
-      setToken({ id: updated.id, value: updated.publicToken ?? null });
-      await onRotated();
-      notify("info", "Yeni bağlantı oluşturuldu; eski QR artık açılmaz.");
-    },
-    onError: (error) => {
-      setConfirmRotate(false);
-      notify("danger", errorMessage(error, "Bağlantı yenilenemedi"));
-    },
+  const qr = useQuery({
+    queryKey: ["console", "qr", consoleId],
+    queryFn: () => getConsoleQr(consoleId as number),
+    enabled: consoleId != null,
+    staleTime: 60_000,
   });
 
+  const rotate = useMutation({
+    mutationFn: (id: number) => rotateConsoleToken(id),
+    onSuccess: async () => {
+      show("qr");
+      setRenewed(true);
+      await queryClient.invalidateQueries({ queryKey: ["console", "qr", consoleId] });
+      await onRotated();
+    },
+    onError: (error) => notify("danger", errorMessage(error, "Bağlantı yenilenemedi")),
+  });
+
+  const close = (open: boolean) => {
+    if (!open) {
+      setView("qr");
+      setRenewed(false);
+      setEntered(false);
+    }
+    onOpenChange(open);
+  };
+
+  const data = qr.data;
+  const imageUrl = data ? getQrDataUrl(data.imageBase64) : null;
+
   return (
-    <>
-      <Dialog open={device != null} onOpenChange={onOpenChange}>
-        <DialogContent className={CONSOLE_DIALOG}>
-          <DialogHeader>
-            <DialogTitle>{device?.name} · QR kodu</DialogTitle>
-            <DialogDescription>
-              Müşteri cihazın üstündeki QR&apos;ı okutunca kalan süreyi, tutarı görür ve süre uzatma isteyebilir.
-            </DialogDescription>
-          </DialogHeader>
-          {link ? (
-            <div className="space-y-3">
-              <div className="break-all rounded-md border border-border bg-muted/40 px-3 py-2 font-mono text-xs">{link}</div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={async () => {
-                    const ok = await copyTextToClipboard(link);
-                    notify(ok ? "info" : "warning", ok ? "Bağlantı kopyalandı" : "Kopyalanamadı");
-                  }}
-                >
-                  <Copy className="mr-1 h-4 w-4" aria-hidden />
-                  Kopyala
-                </Button>
-                <Button type="button" size="sm" variant="outline" asChild>
-                  <a href={link} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="mr-1 h-4 w-4" aria-hidden />
-                    Aç
-                  </a>
-                </Button>
+    <Dialog open={device != null} onOpenChange={close}>
+      <DialogContent className={`${CONSOLE_DIALOG} sm:max-w-sm`}>
+        {view === "confirm" ? (
+          <div key="confirm" className={`grid gap-4 ${VIEW_ENTER} slide-in-from-left-8`}>
+            <DialogHeader>
+              <DialogTitle>Bağlantı yenilensin mi?</DialogTitle>
+              <DialogDescription>
+                Cihazdaki eski QR artık açılmaz. Yeni QR&apos;ı yazdırıp eskisinin yerine yapıştırmanız gerekir.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button type="button" variant="outline" disabled={rotate.isPending} onClick={() => show("qr")}>
+                Vazgeç
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={rotate.isPending || consoleId == null}
+                onClick={() => consoleId != null && rotate.mutate(consoleId)}
+              >
+                {rotate.isPending ? "Yenileniyor…" : "Yenile"}
+              </Button>
+            </DialogFooter>
+          </div>
+        ) : (
+          <div key="qr" className={`grid gap-4 ${VIEW_ENTER} ${view === "qr" && entered ? "slide-in-from-right-8" : ""}`}>
+            <DialogHeader>
+              <DialogTitle>{device?.name}</DialogTitle>
+              <DialogDescription>Müşteri okutunca kalan süreyi ve tutarı görür, ek süre isteyebilir.</DialogDescription>
+            </DialogHeader>
+
+            <div className="mx-auto flex aspect-square w-full max-w-[240px] items-center justify-center rounded-lg border border-border bg-white p-3">
+              {imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- a generated data URL, nothing to optimise
+                <img src={imageUrl} alt={`${device?.name ?? "Cihaz"} QR kodu`} className="h-full w-full" />
+              ) : qr.isError ? (
+                <p className="px-4 text-center text-sm text-muted-foreground">QR yüklenemedi.</p>
+              ) : (
+                <div className="h-full w-full animate-pulse rounded bg-muted" />
+              )}
+            </div>
+
+            {renewed ? (
+              <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                Yeni bağlantı oluşturuldu. Eski QR artık açılmaz; bunu yazdırıp değiştirin.
+              </p>
+            ) : null}
+
+            {data ? (
+              <div className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5">
+                <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">{data.url}</span>
                 <Button
                   type="button"
                   size="sm"
                   variant="ghost"
-                  disabled={rotate.isPending}
-                  onClick={() => setConfirmRotate(true)}
+                  className="h-7 px-2"
+                  aria-label="Bağlantıyı kopyala"
+                  onClick={async () => {
+                    const ok = await copyTextToClipboard(data.url);
+                    notify(ok ? "info" : "warning", ok ? "Bağlantı kopyalandı" : "Kopyalanamadı");
+                  }}
                 >
-                  <RefreshCw className="mr-1 h-4 w-4" aria-hidden />
-                  Bağlantıyı yenile
+                  <Copy className="h-4 w-4" aria-hidden />
+                </Button>
+                <Button type="button" size="sm" variant="ghost" className="h-7 px-2" asChild>
+                  <a href={data.url} target="_blank" rel="noopener noreferrer" aria-label="Sayfayı aç">
+                    <ExternalLink className="h-4 w-4" aria-hidden />
+                  </a>
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                QR görselini bu bağlantıyla herhangi bir QR oluşturucudan basabilirsiniz. Bağlantıyı yenilerseniz
-                eski QR çalışmaz; yenisini basmanız gerekir.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3 text-sm text-muted-foreground">
-              <p>Bu cihazın henüz bir bağlantısı yok.</p>
+            ) : null}
+
+            <div className="grid grid-cols-2 gap-2">
               <Button
                 type="button"
-                size="sm"
-                disabled={rotate.isPending || device == null}
-                onClick={() => device && rotate.mutate(device.id)}
+                disabled={!data}
+                onClick={() => {
+                  if (data && !printDeviceQr(data.imageBase64, data.consoleName)) {
+                    notify("warning", "Yazdırma başlatılamadı");
+                  }
+                }}
               >
-                Bağlantı oluştur
+                <Printer className="mr-1 h-4 w-4" aria-hidden />
+                Yazdır
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!data}
+                onClick={() => data && downloadQrImage(data.imageBase64, `${data.consoleName} QR`)}
+              >
+                <Download className="mr-1 h-4 w-4" aria-hidden />
+                İndir
               </Button>
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
-      <AlertDialog open={confirmRotate} onOpenChange={setConfirmRotate}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Bağlantı yenilensin mi?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Cihaza yapıştırılmış eski QR kod artık açılmaz. Yeni QR&apos;ı basıp değiştirmeniz gerekir.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Vazgeç</AlertDialogCancel>
-            <AlertDialogAction onClick={() => device && rotate.mutate(device.id)}>Yenile</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="mx-auto text-muted-foreground"
+              disabled={consoleId == null}
+              onClick={() => show("confirm")}
+            >
+              <RefreshCw className="mr-1 h-4 w-4" aria-hidden />
+              Bağlantıyı yenile
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
+}
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
+}
+
+/** Prints the QR card through a hidden frame, so no extra window or tab opens. */
+function printDeviceQr(imageBase64: string, deviceName: string) {
+  const dataUrl = getQrDataUrl(imageBase64);
+  if (!dataUrl) return false;
+  const frame = document.createElement("iframe");
+  frame.setAttribute("aria-hidden", "true");
+  frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+  document.body.appendChild(frame);
+  const doc = frame.contentDocument;
+  const win = frame.contentWindow;
+  if (!doc || !win) {
+    frame.remove();
+    return false;
+  }
+  const name = escapeHtml(deviceName);
+  doc.open();
+  doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>${name} QR</title>
+<style>
+@page{size:A6;margin:10mm}
+html,body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#111}
+.card{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:100vh;text-align:center}
+h1{margin:0;font-size:22px}
+img{width:60mm;height:60mm}
+p{margin:0;font-size:13px;color:#444}
+</style></head><body><div class="card"><h1>${name}</h1><img src="${dataUrl}" alt="QR"><p>Kalan süreni gör, ek süre iste</p></div></body></html>`);
+  doc.close();
+  const cleanup = () => window.setTimeout(() => frame.remove(), 500);
+  const image = doc.querySelector("img");
+  const go = () => {
+    win.focus();
+    win.addEventListener("afterprint", cleanup, { once: true });
+    win.print();
+    // Some browsers never fire afterprint; drop the frame anyway after a while.
+    window.setTimeout(() => frame.remove(), 60_000);
+  };
+  if (image && !image.complete) {
+    image.addEventListener("load", go, { once: true });
+  } else {
+    go();
+  }
+  return true;
 }
 
 // ---- Maintenance log and expenses (inside the device editor) -------------------------------------------------

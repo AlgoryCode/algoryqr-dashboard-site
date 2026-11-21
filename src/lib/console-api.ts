@@ -797,6 +797,16 @@ export const getReport = (branchId: number, from: string, to: string) =>
 
 // ---- Devices: QR, games, maintenance ------------------------------------------------------------------------
 
+const deviceQrSchema = z.object({
+  consoleId: z.number(),
+  consoleName: z.string(),
+  url: z.string(),
+  imageBase64: z.string(),
+});
+export type DeviceQr = z.infer<typeof deviceQrSchema>;
+
+/** The device page link and its QR as a base64 PNG. */
+export const getConsoleQr = (consoleId: number) => request(`${BASE}/consoles/${consoleId}/qr`, deviceQrSchema);
 export const rotateConsoleToken = (consoleId: number) =>
   request(`${BASE}/consoles/${consoleId}/public-token/rotate`, consoleSchema, post());
 export const setConsoleGames = (consoleId: number, gameIds: number[]) =>
