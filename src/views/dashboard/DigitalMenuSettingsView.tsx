@@ -44,6 +44,20 @@ import {
   useChefChatSettings,
 } from "@/components/dashboard/menu/ChefQuickOptionsEditor";
 import { createEmptyChefChatSettings, type ChefChatSettings } from "@/lib/chef/chef-quick-option";
+import { MenuSocialSection, type MenuSocialState } from "@/components/dashboard/social/MenuSocialSection";
+import { SOCIAL_PLATFORMS, socialDraftFrom, socialPayloadFrom, type SocialVisibility } from "@/lib/social-links";
+
+function socialStateFrom(profile: {
+  socialLinks?: Parameters<typeof socialDraftFrom>[0];
+  socialVisibility?: SocialVisibility | null;
+} | null): MenuSocialState {
+  return {
+    links: socialDraftFrom(profile?.socialLinks),
+    shown: Object.fromEntries(
+      SOCIAL_PLATFORMS.map((p) => [p, profile?.socialVisibility?.[p] ?? true]),
+    ) as MenuSocialState["shown"],
+  };
+}
 
 type DigitalMenuSettingsViewProps = {
   qrId: number;
@@ -62,11 +76,14 @@ export default function DigitalMenuSettingsView({ qrId }: DigitalMenuSettingsVie
   const [menuHydratedFor, setMenuHydratedFor] = useState<number | null>(null);
   const [chefSettings, setChefSettings] = useState<ChefChatSettings>(createEmptyChefChatSettings());
   const [chefSaving, setChefSaving] = useState(false);
+  const [social, setSocial] = useState<MenuSocialState>(socialStateFrom(null));
 
   const branchesQuery = useBranches(canUseDigitalMenu);
   const profile = menuQuery.data ?? null;
   const menuId = profile?.menuId ?? null;
   const chefSettingsQuery = useChefChatSettings(menuId);
+  const selectedBranch =
+    branchId != null ? (branchesQuery.data?.content ?? []).find((branch) => branch.id === branchId) ?? null : null;
   const backHref =
     profile?.branchId != null
       ? DASHBOARD_ROUTES.branchDetail(profile.branchId)
@@ -90,6 +107,7 @@ export default function DigitalMenuSettingsView({ qrId }: DigitalMenuSettingsVie
       coverUrl: profile.coverUrl ?? "",
     });
     setBranchId(profile.branchId ?? null);
+    setSocial(socialStateFrom(profile));
     setMenuHydratedFor(profile.menuId ?? null);
   }, [menuHydratedFor, profile]);
 
@@ -146,7 +164,10 @@ export default function DigitalMenuSettingsView({ qrId }: DigitalMenuSettingsVie
         phone: menu.phone.trim(),
         email: menu.email.trim(),
         address: menu.address.trim(),
-        googleReviewsUrl: menu.googleReviewsUrl.trim() || null,
+        // An empty string clears the saved link; null would keep it.
+        googleReviewsUrl: menu.googleReviewsUrl.trim(),
+        socialLinks: socialPayloadFrom(social.links),
+        socialVisibility: social.shown,
         themeId: menu.themeId,
         chefName: menu.chefName.trim(),
         chefAvatarKey: menu.chefAvatarKey.trim() || "default",
@@ -279,6 +300,21 @@ export default function DigitalMenuSettingsView({ qrId }: DigitalMenuSettingsVie
                       : null
                   }
                 />
+                {section === "info" ? (
+                  <MenuSocialSection
+                    value={social}
+                    onChange={setSocial}
+                    branchId={branchId}
+                    branchName={selectedBranch?.name}
+                    branchLinks={
+                      selectedBranch
+                        ? selectedBranch.socialLinks
+                        : branchId != null && branchId === profile?.branchId
+                          ? profile?.branchSocialLinks
+                          : null
+                    }
+                  />
+                ) : null}
                 <div className="flex justify-end">
                   <Button type="button" disabled={saving} onClick={() => void saveProfile()}>
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Kaydet"}

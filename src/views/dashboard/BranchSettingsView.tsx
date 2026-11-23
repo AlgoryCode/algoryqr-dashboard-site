@@ -63,6 +63,8 @@ import { DASHBOARD_BACK, DASHBOARD_SURFACE } from "@/lib/dashboard-surface";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { cn } from "@/lib/utils";
 import { createMenuWaiter, WaiterApiError } from "@/lib/personnel-management-api";
+import { SocialLinksFields } from "@/components/dashboard/social/SocialLinksFields";
+import { isSocialDraftDirty, socialDraftFrom, socialPayloadFrom, type SocialDraft } from "@/lib/social-links";
 
 const ACCEPTED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -143,6 +145,9 @@ export default function BranchSettingsView({ branchId }: BranchSettingsViewProps
   const [applying, setApplying] = useState<"branches" | "menus" | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [infoOpen, setInfoOpen] = useState(true);
+  const [socialOpen, setSocialOpen] = useState(true);
+  const [social, setSocial] = useState<SocialDraft>(socialDraftFrom(null));
+  const [savingSocial, setSavingSocial] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
   const [menusOpen, setMenusOpen] = useState(true);
   const [layoutOpen, setLayoutOpen] = useState(true);
@@ -248,6 +253,7 @@ export default function BranchSettingsView({ branchId }: BranchSettingsViewProps
     setAddress(branch.address ?? "");
     setPhone(branch.phone ?? "");
     setEmail(branch.email ?? "");
+    setSocial(socialDraftFrom(branch.socialLinks));
     setHydratedFor(branch.id);
     setMenusOpen(branch.menus.length > 0);
     setKitchenOpen(true);
@@ -290,6 +296,26 @@ export default function BranchSettingsView({ branchId }: BranchSettingsViewProps
       notify("danger", error instanceof ApiError ? error.message : "Şube güncellenemedi.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const socialDirty = isSocialDraftDirty(social, branch?.socialLinks);
+
+  const saveSocial = async () => {
+    if (!branch) return;
+    setSavingSocial(true);
+    try {
+      const updated = await updateBranchRequest(branchId, {
+        name: branch.name,
+        socialLinks: socialPayloadFrom(social),
+      });
+      setSocial(socialDraftFrom(updated.socialLinks));
+      await invalidateBranches(queryClient);
+      notify("info", "Sosyal medya hesapları güncellendi.");
+    } catch (error) {
+      notify("danger", error instanceof ApiError ? error.message : "Sosyal medya hesapları kaydedilemedi.");
+    } finally {
+      setSavingSocial(false);
     }
   };
 
@@ -464,6 +490,24 @@ export default function BranchSettingsView({ branchId }: BranchSettingsViewProps
         <div className="flex justify-end pt-1">
           <Button disabled={saving} onClick={() => void save()}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Kaydet"}
+          </Button>
+        </div>
+      </SettingsSection>
+
+      <SettingsSection
+        title="Sosyal medya"
+        description="Doldurduğunuz hesaplar bu şubenin menülerinde ikon olarak görünür"
+        open={socialOpen}
+        onOpenChange={setSocialOpen}
+      >
+        <SocialLinksFields idPrefix="branch-social" value={social} onChange={setSocial} disabled={savingSocial} />
+        <p className="text-xs text-muted-foreground">
+          Tam bağlantı, alan adı (instagram.com/…) veya @kullanıcıadı yazabilirsiniz. Hangi hesabın hangi menüde
+          görüneceğini menü ayarlarından seçersiniz.
+        </p>
+        <div className="flex justify-end pt-1">
+          <Button disabled={savingSocial || !socialDirty} onClick={() => void saveSocial()}>
+            {savingSocial ? <Loader2 className="h-4 w-4 animate-spin" /> : "Kaydet"}
           </Button>
         </div>
       </SettingsSection>

@@ -1,6 +1,7 @@
 "use client";
 
 import { api } from "@/lib/api/client";
+import type { SocialLinks, SocialVisibility } from "@/lib/social-links";
 import { ApiError } from "@/lib/api/errors";
 import { MENU_APP_ORIGIN } from "@/lib/config";
 import { isDateUsablePurchase, pickActivePurchase } from "@/lib/product-access";
@@ -571,6 +572,11 @@ export interface MenuProfileApiItem {
   email?: string;
   address?: string;
   googleReviewsUrl?: string | null;
+  /** The menu's own social links. */
+  socialLinks?: SocialLinks | null;
+  /** The branch's social links; on the public menu they win over the menu's own. */
+  branchSocialLinks?: SocialLinks | null;
+  socialVisibility?: SocialVisibility | null;
   publicUrl: string;
   active: boolean;
   ratingAvg?: number | string | null;
@@ -1353,6 +1359,9 @@ export interface MenuUpdateRequestBody {
   email?: string;
   address?: string;
   googleReviewsUrl?: string | null;
+  /** A field set to an empty string clears that link; a missing field keeps it. */
+  socialLinks?: Partial<Record<keyof SocialLinks, string>>;
+  socialVisibility?: Partial<Record<keyof SocialLinks, boolean>>;
   active?: boolean;
 }
 
