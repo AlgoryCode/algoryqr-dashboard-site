@@ -1,4 +1,5 @@
 import { api } from "@/lib/api/client";
+import type { SocialLinks } from "@/lib/social-links";
 
 export type BranchMenuSummary = {
   menuId: number;
@@ -25,6 +26,7 @@ export type BranchItem = {
   receiptHeader?: string | null;
   receiptIntro?: string | null;
   receiptFooter?: string | null;
+  socialLinks?: SocialLinks | null;
   menus: BranchMenuSummary[];
 };
 
@@ -63,6 +65,8 @@ export type BranchWritePayload = {
   receiptHeader?: string;
   receiptIntro?: string;
   receiptFooter?: string;
+  /** A field set to an empty string clears that link; a missing field keeps it. */
+  socialLinks?: Partial<Record<keyof SocialLinks, string>>;
 };
 
 function normalizeBranchItem(raw: BranchItem & { userId?: number }): BranchItem {
