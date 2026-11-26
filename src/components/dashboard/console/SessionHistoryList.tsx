@@ -226,8 +226,11 @@ function HistoryRow({ row, onOpen }: { row: ConsoleSession; onOpen: (session: Co
         <span className="min-w-0 flex-1">
           <span className={`flex items-center gap-1.5 truncate font-medium ${row.cancelled ? "text-muted-foreground" : ""}`}>
             <span className="truncate">{row.consoleName ?? `#${row.consoleId}`}</span>
-            {row.customerName ? <span className="truncate font-normal text-muted-foreground">· {row.customerName}</span> : null}
+            {row.customerName ? (
+              <span className="hidden truncate font-normal text-muted-foreground sm:inline">· {row.customerName}</span>
+            ) : null}
           </span>
+          {row.customerName ? <span className="block truncate text-xs text-muted-foreground sm:hidden">{row.customerName}</span> : null}
           <span className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
             <span className="tabular-nums">
               {formatTime(row.startedAt)} – {formatTime(row.endedAt)}
@@ -247,7 +250,7 @@ function HistoryRow({ row, onOpen }: { row: ConsoleSession; onOpen: (session: Co
             ) : null}
           </span>
         </span>
-        <span className="flex shrink-0 flex-col items-end gap-1">
+        <span className="flex max-w-[40%] shrink-0 flex-col items-end gap-1">
           {row.cancelled ? (
             <Pill className="bg-destructive/10 text-destructive">İptal</Pill>
           ) : (
@@ -257,7 +260,7 @@ function HistoryRow({ row, onOpen }: { row: ConsoleSession; onOpen: (session: Co
             </>
           )}
         </span>
-        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+        <ChevronRight className="hidden h-4 w-4 shrink-0 text-muted-foreground sm:block" aria-hidden />
       </button>
     </li>
   );

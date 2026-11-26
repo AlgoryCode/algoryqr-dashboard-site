@@ -340,6 +340,7 @@ export default function ConsoleRentalView() {
               branch.select(next);
             }}
             stats={liveStats}
+            tab={tab}
             onAddDevice={() => {
               setEditing(null);
               setEditorOpen(true);

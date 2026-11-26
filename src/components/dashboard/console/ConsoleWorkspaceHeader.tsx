@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import {
   BarChart3,
   Building2,
@@ -61,28 +62,36 @@ export function ConsoleWorkspaceHeader({
   branchId,
   onBranch,
   stats,
+  tab,
   onAddDevice,
 }: {
   branches: BranchItem[];
   branchId: number | null;
   onBranch: (branchId: number) => void;
   stats: ConsoleLiveStats | null;
+  tab: ConsoleTab;
   onAddDevice: () => void;
 }) {
+  // On a narrow screen the open section may be scrolled out of the tab bar (e.g. opened from ?tab=history).
+  const tabBar = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const active = tabBar.current?.querySelector<HTMLElement>('[data-state="active"]');
+    active?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [tab]);
   return (
     <div className="sticky top-14 z-20 -mx-6 border-b border-border bg-background/90 px-6 pt-3 backdrop-blur supports-[backdrop-filter]:bg-background/75 lg:top-0 lg:-mx-8 lg:px-8">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <h1 className="order-1 text-lg font-semibold tracking-tight sm:text-xl">Oyun &amp; cihaz takip</h1>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 sm:flex-nowrap">
+        <h1 className="order-1 shrink-0 text-lg font-semibold tracking-tight sm:text-xl">Oyun &amp; cihaz takip</h1>
 
         {/* Phones: branch and status share the second line; wider screens: branch sits next to the title. */}
-        <div className="order-3 flex w-full min-w-0 items-center gap-1.5 sm:order-2 sm:w-auto">
+        <div className="order-3 flex w-full min-w-0 items-center gap-1.5 sm:order-2 sm:w-auto sm:flex-1">
           {branches.length > 0 ? (
             // Same control as the other filter bars (Personeller, Rezervasyonlar). A branch is always chosen, so the
             // current one is passed as the "empty" value: the button stays neutral and shows it as "Şube: …".
             <FilterMenu
               label="Şube"
               icon={Building2}
-              className="min-w-0 max-w-[16rem] sm:max-w-[20rem]"
+              className="min-w-0 max-w-[15rem] sm:max-w-[13rem] lg:max-w-[16rem] 2xl:max-w-[20rem]"
               options={branches.map((item) => ({ value: String(item.id), label: formatBranchListLabel(item) }))}
               value={branchId != null ? String(branchId) : ""}
               emptyValue={branchId != null ? String(branchId) : ""}
@@ -94,29 +103,29 @@ export function ConsoleWorkspaceHeader({
             />
           ) : null}
           {stats ? (
-            <div className="no-scrollbar ml-auto flex shrink-0 items-center gap-1.5 overflow-x-auto text-xs sm:hidden">
+            <div className="no-scrollbar ml-auto flex shrink-0 items-center gap-1.5 overflow-x-auto text-xs xl:hidden">
               <StatusChip tone={stats.busy > 0 ? "live" : "muted"} label={`${stats.busy}/${stats.devices}`} />
               {stats.late > 0 ? <StatusChip tone="danger" label={`${stats.late}`} /> : null}
             </div>
           ) : null}
         </div>
 
-        <div className="order-2 ml-auto flex items-center gap-2 sm:order-3">
+        <div className="order-2 ml-auto flex shrink-0 items-center gap-2 sm:order-3">
           {stats ? (
-            <div className="hidden items-center gap-1.5 text-xs sm:flex">
+            <div className="hidden items-center gap-1.5 text-xs xl:flex">
               <StatusChip tone={stats.busy > 0 ? "live" : "muted"} label={`${stats.busy}/${stats.devices} dolu`} />
               {stats.late > 0 ? <StatusChip tone="danger" label={`${stats.late} süre aşımı`} /> : null}
               {stats.accrued > 0 ? <StatusChip tone="muted" label={`${formatTl(stats.accrued)} birikmiş`} /> : null}
             </div>
           ) : null}
-          <Button size="sm" onClick={onAddDevice} disabled={branchId == null}>
-            <Plus className="h-4 w-4 sm:mr-1" aria-hidden />
-            <span className="sr-only sm:not-sr-only">Cihaz ekle</span>
+          <Button size="sm" onClick={onAddDevice} disabled={branchId == null} title="Cihaz ekle">
+            <Plus className="h-4 w-4 xl:mr-1" aria-hidden />
+            <span className="sr-only xl:not-sr-only">Cihaz ekle</span>
           </Button>
         </div>
       </div>
 
-      <div className="no-scrollbar -mx-6 mt-2 overflow-x-auto px-6 lg:mx-0 lg:px-0">
+      <div ref={tabBar} className="no-scrollbar -mx-6 mt-2 overflow-x-auto scroll-px-6 px-6 lg:mx-0 lg:px-0">
         <TabsList className="h-auto w-max gap-1 rounded-none bg-transparent p-0">
           {CONSOLE_TABS.map((value) => {
             const { label, icon: Icon } = TAB_META[value];
