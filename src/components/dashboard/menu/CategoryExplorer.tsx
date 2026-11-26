@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -122,7 +122,6 @@ function CoverThumb({ imageUrl, className }: { imageUrl?: string | null; classNa
  * category (all of its sub categories) or sub category.
  */
 export function useCategoryExplorer(): ExplorerParts {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -133,20 +132,19 @@ export function useCategoryExplorer(): ExplorerParts {
     return Number.isSafeInteger(value) && value > 0 ? value : null;
   };
 
-  // Selection lives here (seeded from the address) and is mirrored back into the address,
-  // so a reload or a shared link reopens the same menu and category.
-  const [selection, setSelection] = useState(() => ({
+  // The address is the selection: a reload or a shared link reopens the same menu and category, and the
+  // browser's back button steps back one level (sub category → category → list) instead of leaving the page.
+  const selection = {
     branch: parseExplorerBranch(searchParams.get("sube")),
     menuId: readNumber("menu"),
     qrId: readNumber("qr"),
     mainId: readNumber("kategori"),
     subId: readNumber("alt"),
-  }));
+  };
   const { branch, menuId: requestedMenuId, qrId: requestedQrId, mainId: selectedMainId, subId: selectedSubId } = selection;
 
-  const select = (patch: Partial<typeof selection>) => {
+  const urlFor = (patch: Partial<typeof selection>) => {
     const next = { ...selection, ...patch };
-    setSelection(next);
     const params = new URLSearchParams(searchParams.toString());
     const write = (key: string, value: string | null) => (value == null ? params.delete(key) : params.set(key, value));
     write("sube", serializeExplorerBranch(next.branch));
@@ -155,7 +153,27 @@ export function useCategoryExplorer(): ExplorerParts {
     write("kategori", next.mainId != null ? String(next.mainId) : null);
     write("alt", next.subId != null ? String(next.subId) : null);
     const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    return query ? `${pathname}?${query}` : pathname;
+  };
+  // Which address each pushed one was opened from, so the in-page "up" arrow can simply go back when that is
+  // where it leads (keeping the history clean), and only replaces the address otherwise (e.g. a shared link).
+  const openedFrom = useRef(new Map<string, string>());
+  /** Category picks are pushed (so "back" undoes them); branch and menu switches replace. */
+  const select = (patch: Partial<typeof selection>, mode: "push" | "replace" = "push") => {
+    const url = urlFor(patch);
+    const current = `${pathname}${window.location.search}`;
+    if (url === current) return;
+    if (mode === "push") {
+      openedFrom.current.set(url, current);
+      window.history.pushState(null, "", url);
+    } else {
+      window.history.replaceState(null, "", url);
+    }
+  };
+  const goUp = (patch: Partial<typeof selection>) => {
+    const target = urlFor(patch);
+    if (openedFrom.current.get(`${pathname}${window.location.search}`) === target) window.history.back();
+    else select(patch, "replace");
   };
 
   const menusQuery = useQuery({ queryKey: ["myMenus"], queryFn: getMyMenusRequest });
@@ -208,6 +226,14 @@ export function useCategoryExplorer(): ExplorerParts {
   const [nameValue, setNameValue] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
   const [busy, setBusy] = useState(false);
+  // Sub category groups in the category view that are folded shut ("sub-12", "loose"); all start open.
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+  const toggleGroup = (key: string) =>
+    setCollapsed((current) => {
+      const next = new Set(current);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
 
   const selectMain = (category: MainCategoryApiItem) => {
     setOpenId(category.id);
@@ -217,14 +243,17 @@ export function useCategoryExplorer(): ExplorerParts {
     setOpenId(sub.mainCategoryId);
     select({ mainId: sub.mainCategoryId, subId: sub.id });
   };
-  const clearSelection = () => select({ mainId: null, subId: null });
+  /** One level up: sub category → its category → the list (phones). */
+  const goToList = () => goUp({ mainId: null, subId: null });
+  const goToMain = () => goUp({ subId: null });
 
   const changeBranch = (value: string) => {
     const next: ExplorerBranch = value === NO_BRANCH ? "none" : Number(value);
     const first = menusForBranch(allMenus, next)[0];
-    select({ branch: next, menuId: first?.menuId ?? null, qrId: null, mainId: null, subId: null });
+    select({ branch: next, menuId: first?.menuId ?? null, qrId: null, mainId: null, subId: null }, "replace");
   };
-  const changeMenu = (value: string) => select({ menuId: Number(value), qrId: null, mainId: null, subId: null });
+  const changeMenu = (value: string) =>
+    select({ menuId: Number(value), qrId: null, mainId: null, subId: null }, "replace");
 
   const refresh = async () => {
     await Promise.all([
@@ -279,11 +308,11 @@ export function useCategoryExplorer(): ExplorerParts {
     try {
       if (deleteTarget.kind === "main") {
         await deleteMenuCategoryRequest(menuId, deleteTarget.id);
-        if (deleteTarget.id === selectedMainId) clearSelection();
+        if (deleteTarget.id === selectedMainId) select({ mainId: null, subId: null }, "replace");
         notify("info", "Kategori silindi.");
       } else if (deleteTarget.kind === "sub") {
         await deleteMenuSubCategoryRequest(menuId, deleteTarget.id);
-        if (deleteTarget.id === selectedSubId) select({ subId: null });
+        if (deleteTarget.id === selectedSubId) select({ subId: null }, "replace");
         notify("info", "Alt kategori silindi.");
       } else {
         await deleteMenuProductRequest(deleteTarget.id);
@@ -510,26 +539,30 @@ export function useCategoryExplorer(): ExplorerParts {
     ) : (
       <>
         <ProductListHead showPlacement={false} />
-        <ul className="divide-y divide-border">
-          {items.map((product) => (
-            <ProductRow
-              key={product.productId}
-              name={product.name}
-              imageUrl={product.imageUrl}
-              href={DASHBOARD_ROUTES.digitalMenuProductDetailForMenu(product.productId, menuId ?? 0)}
-              category={subNameById.get(product.subCategoryId) ?? product.subCategoryName ?? null}
-              price={formatProductPrice(product.price, product.currency)}
-              available={product.available !== false}
-              onDelete={() => setDeleteTarget({ kind: "product", id: product.productId, name: product.name })}
-            />
-          ))}
-        </ul>
+        {productRows(items)}
       </>
     );
 
+  const productRows = (items: MenuProductApiItem[]) => (
+    <ul className="divide-y divide-border border-b border-border">
+      {items.map((product) => (
+        <ProductRow
+          key={product.productId}
+          name={product.name}
+          imageUrl={product.imageUrl}
+          href={DASHBOARD_ROUTES.digitalMenuProductDetailForMenu(product.productId, menuId ?? 0)}
+          category={subNameById.get(product.subCategoryId) ?? product.subCategoryName ?? null}
+          price={formatProductPrice(product.price, product.currency)}
+          available={product.available !== false}
+          onDelete={() => setDeleteTarget({ kind: "product", id: product.productId, name: product.name })}
+        />
+      ))}
+    </ul>
+  );
+
   const detailHeader = (props: {
+    level: "main" | "sub";
     title: string;
-    parent?: { label: string; onClick: () => void };
     subtitle: string;
     imageUrl?: string | null;
     actions: React.ReactNode;
@@ -537,29 +570,93 @@ export function useCategoryExplorer(): ExplorerParts {
     <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border p-3 sm:p-4">
       <button
         type="button"
-        onClick={props.parent?.onClick ?? clearSelection}
-        className={cn(QUIET_BUTTON, "w-9 px-0", !props.parent && "lg:hidden")}
-        aria-label={props.parent ? `${props.parent.label} kategorisine dön` : "Kategorilere dön"}
+        onClick={props.level === "sub" ? goToMain : goToList}
+        className={cn(QUIET_BUTTON, "w-9 px-0", props.level === "main" && "lg:hidden")}
+        aria-label={props.level === "sub" ? `${selectedMain?.name ?? "Kategori"} kategorisine dön` : "Kategorilere dön"}
       >
         <ArrowLeft className="size-4" />
       </button>
       <CoverThumb key={props.imageUrl ?? "none"} imageUrl={props.imageUrl} className="size-11 rounded-xl" />
-      <div className="min-w-0 flex-1">
-        {props.parent ? (
-          <button
-            type="button"
-            onClick={props.parent.onClick}
-            className="block max-w-full truncate text-xs text-muted-foreground hover:text-[#F03245]"
-          >
-            {props.parent.label}
+      {/* At least ~11rem for the name, so on phones the actions drop to their own line instead of squeezing it. */}
+      <div className="min-w-[11rem] flex-1">
+        {/* Where this is in the tree: Kategoriler › Çorbalar (› the sub category in the title). */}
+        <nav aria-label="Konum" className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+          <button type="button" onClick={goToList} className="shrink-0 hover:text-[#F03245]">
+            Kategoriler
           </button>
-        ) : null}
-        <h2 className="truncate text-base font-semibold text-foreground">{props.title}</h2>
+          {props.level === "sub" && selectedMain ? (
+            <>
+              <ChevronRight className="size-3 shrink-0" aria-hidden />
+              <button type="button" onClick={goToMain} className="min-w-0 truncate hover:text-[#F03245]">
+                {selectedMain.name}
+              </button>
+            </>
+          ) : null}
+        </nav>
+        <div className="flex min-w-0 items-center gap-2">
+          <h2 className="truncate text-base font-semibold text-foreground">{props.title}</h2>
+          <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            {props.level === "sub" ? "Alt kategori" : "Kategori"}
+          </span>
+        </div>
         <p className="truncate text-xs text-muted-foreground">{props.subtitle}</p>
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-0.5">{props.actions}</div>
     </header>
   );
+
+  /**
+   * One sub category inside the category view: a heading that folds its products open or shut, so it is clear where
+   * each product lives, plus a shortcut that opens the sub category on its own.
+   */
+  const productGroup = (props: {
+    groupKey: string;
+    title: string;
+    count: number;
+    onOpen?: () => void;
+    children: React.ReactNode;
+  }) => {
+    const open = !collapsed.has(props.groupKey);
+    return (
+      <section key={props.groupKey} aria-label={props.title}>
+        <div className="flex items-center gap-1 border-b border-border bg-muted/40 pl-1.5 pr-3 sm:pr-4">
+          <button
+            type="button"
+            onClick={() => toggleGroup(props.groupKey)}
+            aria-expanded={open}
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-md py-2 pl-1 pr-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ChevronRight
+              className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-200", open && "rotate-90")}
+              aria-hidden
+            />
+            <span className="min-w-0 truncate text-sm font-semibold text-foreground">{props.title}</span>
+            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{props.count} ürün</span>
+          </button>
+          {props.onOpen ? (
+            <button
+              type="button"
+              onClick={props.onOpen}
+              aria-label={`${props.title} alt kategorisini aç`}
+              className="inline-flex shrink-0 items-center gap-0.5 rounded-md px-1.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              Aç
+              <ChevronRight className="size-3.5" aria-hidden />
+            </button>
+          ) : null}
+        </div>
+        <div
+          className={cn(
+            "grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none",
+            open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+          )}
+          inert={!open}
+        >
+          <div className="min-h-0 overflow-hidden">{props.children}</div>
+        </div>
+      </section>
+    );
+  };
 
   let detail: React.ReactNode;
   if (!menu || !selectedMain) {
@@ -604,8 +701,8 @@ export function useCategoryExplorer(): ExplorerParts {
     detail = (
       <>
         {detailHeader({
+          level: "sub",
           title: selectedSub.name,
-          parent: { label: selectedMain.name, onClick: () => selectMain(selectedMain) },
           subtitle: `${items.length} ürün`,
           imageUrl: selectedMain.imageUrl,
           actions: (
@@ -643,6 +740,8 @@ export function useCategoryExplorer(): ExplorerParts {
   } else {
     const subs = selectedMain.subs;
     const mainProducts = productsForMainCategory(products, selectedMain);
+    const subIds = new Set(subs.map((sub) => sub.id));
+    const looseProducts = mainProducts.filter((product) => !subIds.has(product.subCategoryId));
     const editActions = (
       <>
         <button
@@ -669,6 +768,7 @@ export function useCategoryExplorer(): ExplorerParts {
     detail = (
       <>
         {detailHeader({
+          level: "main",
           title: selectedMain.name,
           subtitle:
             subs.length > 0 ? `${subs.length} alt kategori · ${mainProducts.length} ürün` : `Alt kategori yok · ${mainProducts.length} ürün`,
@@ -682,10 +782,64 @@ export function useCategoryExplorer(): ExplorerParts {
             </>
           ),
         })}
-        {productList(
-          mainProducts,
-          "Bu kategoride ürün yok",
-          DASHBOARD_ROUTES.digitalMenuProductCreateForMenu(menu.menuId, subs[0]?.id ?? null),
+        {subs.length === 0 || productsQuery.isPending || mainProducts.length === 0 ? (
+          productList(
+            mainProducts,
+            "Bu kategoride ürün yok",
+            DASHBOARD_ROUTES.digitalMenuProductCreateForMenu(menu.menuId, subs[0]?.id ?? null),
+          )
+        ) : (
+          <>
+            <ProductListHead showPlacement={false} />
+            {subs.length > 1 ? (
+              <div className="flex justify-end border-b border-border px-3 py-1.5 sm:px-4">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCollapsed(
+                      collapsed.size > 0
+                        ? new Set()
+                        : new Set([...subs.map((sub) => `sub-${sub.id}`), "loose"]),
+                    )
+                  }
+                  className="text-xs font-medium text-muted-foreground hover:text-foreground"
+                >
+                  {collapsed.size > 0 ? "Tümünü aç" : "Tümünü kapat"}
+                </button>
+              </div>
+            ) : null}
+            {subs.map((sub) => {
+              const items = mainProducts.filter((product) => product.subCategoryId === sub.id);
+              return productGroup({
+                groupKey: `sub-${sub.id}`,
+                title: sub.name,
+                count: items.length,
+                onOpen: () => selectSub(sub),
+                children:
+                  items.length > 0 ? (
+                    productRows(items)
+                  ) : (
+                    <p className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
+                      Henüz ürün yok ·{" "}
+                      <Link
+                        href={DASHBOARD_ROUTES.digitalMenuProductCreateForMenu(menu.menuId, sub.id)}
+                        className="font-medium text-[#F03245] hover:underline"
+                      >
+                        Ürün ekle
+                      </Link>
+                    </p>
+                  ),
+              });
+            })}
+            {looseProducts.length > 0
+              ? productGroup({
+                  groupKey: "loose",
+                  title: "Alt kategorisiz",
+                  count: looseProducts.length,
+                  children: productRows(looseProducts),
+                })
+              : null}
+          </>
         )}
       </>
     );

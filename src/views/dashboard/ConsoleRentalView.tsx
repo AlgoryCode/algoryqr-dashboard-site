@@ -4,14 +4,12 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { BranchPicker, useBranchSelection } from "@/components/dashboard/BranchPicker";
-import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { useBranchSelection } from "@/components/dashboard/BranchPicker";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import {
   CancelSessionDialog,
   ConsoleEditorDialog,
   FinishSessionDialog,
-  FinishedSessionDialog,
   ItemsDialog,
   StartSessionDialog,
   TransferDialog,
@@ -29,7 +27,15 @@ import { ProgramPanel } from "@/components/dashboard/console/ProgramPanel";
 import { ReportPanel } from "@/components/dashboard/console/ReportPanel";
 import { ReservationsPanel } from "@/components/dashboard/console/ReservationsPanel";
 import { SettingsPanel } from "@/components/dashboard/console/SettingsPanel";
+import { SessionDetailDialog } from "@/components/dashboard/console/SessionDetailDialog";
+import { SessionHistoryList } from "@/components/dashboard/console/SessionHistoryList";
 import { ShiftPanel } from "@/components/dashboard/console/ShiftPanel";
+import {
+  CONSOLE_TABS,
+  ConsoleWorkspaceHeader,
+  type ConsoleLiveStats,
+  type ConsoleTab,
+} from "@/components/dashboard/console/ConsoleWorkspaceHeader";
 import { TournamentsPanel } from "@/components/dashboard/console/TournamentsPanel";
 import {
   AlertDialog,
@@ -42,13 +48,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
 import { ApiError } from "@/lib/api/errors";
 import {
   DEVICE_TYPE_LABELS,
-  PAYMENT_LABELS,
   addSessionItem,
   approveExtensionRequest,
   createConsole,
@@ -58,9 +62,7 @@ import {
   extendSession,
   cancelSession,
   finishSession,
-  formatClock,
   formatDuration,
-  formatTl,
   getRate,
   listActiveSessions,
   listConsoles,
@@ -82,7 +84,6 @@ import {
   type MaintenanceKind,
   type StartSessionPayload,
 } from "@/lib/console-api";
-import { DASHBOARD_PANEL } from "@/lib/dashboard-surface";
 
 /** Amounts come from the server; the clocks tick locally in between. */
 const ACTIVE_REFRESH_MS = 30_000;
@@ -134,7 +135,19 @@ export default function ConsoleRentalView() {
   const queryClient = useQueryClient();
   const { notify } = useDashboardBanners();
 
-  const [tab, setTab] = useState("devices");
+  const [tab, setTab] = useState<ConsoleTab>(() => {
+    const fromUrl = searchParams.get("tab");
+    return (CONSOLE_TABS as readonly string[]).includes(fromUrl ?? "") ? (fromUrl as ConsoleTab) : "devices";
+  });
+  /** Keeps the section in the address, so a refresh or a shared link opens the same one. */
+  const changeTab = (next: string) => {
+    if (!(CONSOLE_TABS as readonly string[]).includes(next)) return;
+    setTab(next as ConsoleTab);
+    const url = new URL(window.location.href);
+    if (next === "devices") url.searchParams.delete("tab");
+    else url.searchParams.set("tab", next);
+    window.history.replaceState(window.history.state, "", url);
+  };
   const [typeFilter, setTypeFilter] = useState<DeviceType | "ALL">("ALL");
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<GameConsole | null>(null);
@@ -181,6 +194,16 @@ export default function ConsoleRentalView() {
   }, [active.data]);
   const busyIds = useMemo(() => new Set(activeByConsole.keys()), [activeByConsole]);
   const itemsSession = itemsFor != null ? ((active.data ?? []).find((s) => s.id === itemsFor) ?? null) : null;
+  const liveStats = useMemo<ConsoleLiveStats | null>(() => {
+    if (!consoles.data) return null;
+    const sessions = active.data ?? [];
+    return {
+      devices: consoles.data.length,
+      busy: sessions.length,
+      late: sessions.filter((s) => s.plannedMinutes != null && s.playedSeconds > s.plannedMinutes * 60).length,
+      accrued: sessions.reduce((sum, s) => sum + Number(s.amount ?? 0), 0),
+    };
+  }, [consoles.data, active.data]);
   const typesInUse = useMemo(
     () => Array.from(new Set((consoles.data ?? []).map((c) => c.deviceType))),
     [consoles.data],
@@ -293,56 +316,36 @@ export default function ConsoleRentalView() {
 
   return (
     <div className="space-y-4">
-      <DashboardPageHeader
-        title="Oyun & cihaz takip"
-        hint="Konsol, PC, VR ve masaların saatlik kiralaması."
-        action={
-          <Button
-            onClick={() => {
+      {branch.empty ? (
+        <>
+          <h1 className="text-xl font-semibold tracking-tight">Oyun &amp; cihaz takip</h1>
+          <EmptyState title="Şube yok" description="Cihaz takibi için önce bir şube oluşturun." />
+        </>
+      ) : branchId == null || branch.loading ? (
+        <div className="space-y-3">
+          <div className="h-24 animate-pulse rounded-lg bg-muted" />
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="h-40 animate-pulse rounded-lg bg-muted" />
+            ))}
+          </div>
+        </div>
+      ) : (
+        <Tabs value={tab} onValueChange={changeTab} className="space-y-4">
+          <ConsoleWorkspaceHeader
+            branches={branch.branches}
+            branchId={branchId}
+            onBranch={(next) => {
+              setHistoryPage(0);
+              branch.select(next);
+            }}
+            stats={liveStats}
+            tab={tab}
+            onAddDevice={() => {
               setEditing(null);
               setEditorOpen(true);
             }}
-            disabled={branchId == null}
-          >
-            Cihaz ekle
-          </Button>
-        }
-      />
-      <div className={`${DASHBOARD_PANEL} flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between`}>
-        <BranchPicker
-          branches={branch.branches}
-          selectedBranchId={branchId}
-          onSelect={(next) => {
-            setHistoryPage(0);
-            branch.select(next);
-          }}
-        />
-        {active.data && active.data.length > 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {active.data.length} açık oturum ·{" "}
-            {formatTl(active.data.reduce((sum, s) => sum + Number(s.amount ?? 0), 0))} birikmiş
-          </p>
-        ) : null}
-      </div>
-
-      {branch.empty ? (
-        <EmptyState title="Şube yok" description="Cihaz takibi için önce bir şube oluşturun." />
-      ) : branchId == null || branch.loading ? (
-        <p className="text-sm text-muted-foreground">Yükleniyor…</p>
-      ) : (
-        <Tabs value={tab} onValueChange={setTab}>
-          <div className="no-scrollbar -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-            <TabsList className="w-max">
-            <TabsTrigger value="devices">Cihazlar</TabsTrigger>
-            <TabsTrigger value="reservations">Rezervasyonlar</TabsTrigger>
-            <TabsTrigger value="customers">Müşteriler</TabsTrigger>
-            <TabsTrigger value="tournaments">Turnuvalar</TabsTrigger>
-            <TabsTrigger value="shift">Vardiya</TabsTrigger>
-            <TabsTrigger value="history">Geçmiş</TabsTrigger>
-            <TabsTrigger value="report">Rapor</TabsTrigger>
-            <TabsTrigger value="settings">Ayarlar</TabsTrigger>
-            </TabsList>
-          </div>
+          />
 
           <TabsContent value="devices" className="space-y-3">
             {typesInUse.length > 1 ? (
@@ -418,7 +421,7 @@ export default function ConsoleRentalView() {
           </TabsContent>
 
           <TabsContent value="history">
-            <HistoryTable
+            <SessionHistoryList
               rows={history.data?.content ?? []}
               loading={history.isLoading}
               page={history.data?.page ?? 0}
@@ -434,11 +437,11 @@ export default function ConsoleRentalView() {
 
           <TabsContent value="settings">
             <Tabs value={settingsTab} onValueChange={setSettingsTab}>
-              <div className="no-scrollbar -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-                <TabsList className="w-max">
-                <TabsTrigger value="rates">Ücret ve kurallar</TabsTrigger>
-                <TabsTrigger value="library">Oyunlar ve paketler</TabsTrigger>
-                <TabsTrigger value="program">Program</TabsTrigger>
+              <div className="no-scrollbar -mx-6 overflow-x-auto px-6 lg:mx-0 lg:px-0">
+                <TabsList className="h-9 w-max rounded-full p-1">
+                <TabsTrigger value="rates" className="rounded-full px-3 text-xs">Ücret ve kurallar</TabsTrigger>
+                <TabsTrigger value="library" className="rounded-full px-3 text-xs">Oyunlar ve paketler</TabsTrigger>
+                <TabsTrigger value="program" className="rounded-full px-3 text-xs">Sadakat programı</TabsTrigger>
                 </TabsList>
               </div>
               <TabsContent value="rates">
@@ -502,7 +505,12 @@ export default function ConsoleRentalView() {
         onOpenChange={(open) => !open && setCancelling(null)}
         onSubmit={(reason) => cancelling && cancel.mutate({ sessionId: cancelling.id, reason })}
       />
-      <FinishedSessionDialog session={finished} onOpenChange={(open) => !open && setFinished(null)} />
+      <SessionDetailDialog
+        session={finished}
+        branchId={branchId}
+        onOpenChange={(open) => !open && setFinished(null)}
+        onChanged={setFinished}
+      />
       <TransferDialog
         key={transferring?.id ?? "none"}
         session={transferring}
@@ -536,89 +544,6 @@ export default function ConsoleRentalView() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
-  );
-}
-
-function HistoryTable({
-  rows,
-  loading,
-  page,
-  hasNext,
-  onPage,
-  onOpen,
-}: {
-  rows: ConsoleSession[];
-  loading: boolean;
-  page: number;
-  hasNext: boolean;
-  onPage: (page: number) => void;
-  onOpen: (session: ConsoleSession) => void;
-}) {
-  return (
-    <div className={DASHBOARD_PANEL}>
-      {loading ? (
-        <p className="text-sm text-muted-foreground">Yükleniyor…</p>
-      ) : rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Henüz biten oturum yok.</p>
-      ) : (
-        <>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Cihaz</TableHead>
-                <TableHead className="hidden md:table-cell">Müşteri</TableHead>
-                <TableHead>Başlangıç</TableHead>
-                <TableHead className="hidden md:table-cell">Bitiş</TableHead>
-                <TableHead className="text-right">Süre</TableHead>
-                <TableHead className="hidden md:table-cell text-right">Ürün</TableHead>
-                <TableHead className="hidden md:table-cell text-right">İndirim</TableHead>
-                <TableHead className="hidden md:table-cell">Ödeme</TableHead>
-                <TableHead className="text-right">Tutar</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  className={`cursor-pointer ${row.cancelled ? "text-muted-foreground" : ""}`}
-                  onClick={() => onOpen(row)}
-                >
-                  <TableCell className="font-medium">{row.consoleName ?? `#${row.consoleId}`}</TableCell>
-                  <TableCell className="hidden md:table-cell">{row.customerName ?? "—"}</TableCell>
-                  <TableCell className="tabular-nums">{formatClock(row.startedAt)}</TableCell>
-                  <TableCell className="hidden md:table-cell tabular-nums">{formatClock(row.endedAt)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatDuration(row.durationMinutes)}</TableCell>
-                  <TableCell className="hidden md:table-cell text-right tabular-nums">
-                    {Number(row.itemsAmount ?? 0) > 0 ? formatTl(row.itemsAmount) : "—"}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell text-right tabular-nums">
-                    {Number(row.discountAmount ?? 0) > 0 ? formatTl(row.discountAmount) : "—"}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    {row.cancelled ? "—" : row.paymentMethod ? PAYMENT_LABELS[row.paymentMethod] : "—"}
-                  </TableCell>
-                  <TableCell className="text-right font-semibold tabular-nums">
-                    {row.cancelled ? (
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">İptal</span>
-                    ) : (
-                      formatTl(row.amount)
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <div className="mt-3 flex justify-end gap-2">
-            <Button type="button" variant="outline" size="sm" disabled={page <= 0} onClick={() => onPage(page - 1)}>
-              Önceki
-            </Button>
-            <Button type="button" variant="outline" size="sm" disabled={!hasNext} onClick={() => onPage(page + 1)}>
-              Sonraki
-            </Button>
-          </div>
-        </>
-      )}
     </div>
   );
 }

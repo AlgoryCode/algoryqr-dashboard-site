@@ -121,7 +121,7 @@ export function ReportPanel({ branchId }: { branchId: number }) {
             </Table>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
             <div className={DASHBOARD_PANEL}>
               <h3 className="mb-3 text-sm font-semibold text-foreground">Saatlere göre oynanan süre</h3>
               <div className="flex h-40 items-end gap-1" role="img" aria-label="Saatlere göre oynanan süre">

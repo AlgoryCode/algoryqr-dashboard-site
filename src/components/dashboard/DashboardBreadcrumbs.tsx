@@ -23,7 +23,7 @@ export function DashboardBreadcrumbs({ pathname, currentLabel }: DashboardBreadc
   if (items.length <= 1) return null;
 
   return (
-    <Breadcrumb className="mb-4 flex lg:justify-end">
+    <Breadcrumb className="mb-4 flex">
       <BreadcrumbList className="rounded-xl border border-border/70 bg-card px-3 py-1.5 text-xs sm:text-[13px]">
         {items.map((item, index) => {
           const isLast = index === items.length - 1;

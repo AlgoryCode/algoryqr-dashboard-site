@@ -783,40 +783,6 @@ function CancelSessionForm({ pending, onSubmit }: { pending: boolean; onSubmit: 
   );
 }
 
-export function FinishedSessionDialog({
-  session,
-  onOpenChange,
-}: {
-  session: ConsoleSession | null;
-  onOpenChange: (open: boolean) => void;
-}) {
-  return (
-    <Dialog open={session != null} onOpenChange={onOpenChange}>
-      <DialogContent className={CONSOLE_DIALOG}>
-        <DialogHeader>
-          <DialogTitle>{session?.cancelled ? "Oturum iptal edildi" : "Oturum bitti"}</DialogTitle>
-          <DialogDescription>
-            {session?.consoleName}
-            {session?.customerName ? ` · ${session.customerName}` : ""}
-          </DialogDescription>
-        </DialogHeader>
-        {session?.cancelled ? (
-          <p className="text-sm text-muted-foreground">
-            Ücret alınmadı; ciroya ve raporlara katılmıyor.
-            {session.cancelReason ? ` Neden: ${session.cancelReason}` : ""}
-          </p>
-        ) : null}
-        {session ? <SessionSummary session={session} /> : null}
-        <DialogFooter>
-          <Button type="button" onClick={() => onOpenChange(false)}>
-            Tamam
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 export function SessionSummary({ session }: { session: ConsoleSession }) {
   return (
     <div className="space-y-3 text-sm">

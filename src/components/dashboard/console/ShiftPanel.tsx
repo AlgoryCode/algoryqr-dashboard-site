@@ -220,7 +220,7 @@ function OpenShift({ shift }: { shift: Shift }) {
   });
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
       <div className={`${DASHBOARD_PANEL} space-y-4`}>
         <div>
           <h3 className="text-sm font-semibold text-foreground">Açık vardiya</h3>

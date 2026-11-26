@@ -105,9 +105,11 @@ const MOBILE_HEADER_ICON_BUTTON =
 function DashboardShellInner({ children, initialSession, initialUser }: DashboardShellProps) {
   const pathname = usePathname();
   const isOnlineBoard = pathname === DASHBOARD_ROUTES.onlineOrderOrders;
-  // Pages that lay out their own full-height panes (the Ürünler explorer's second sidebar).
+  // Pages that lay out their own full-height panes (the Ürünler and Yorumlar explorers' second sidebar).
   const isFullBleed =
-    pathname === DASHBOARD_ROUTES.digitalMenuCategories || pathname === DASHBOARD_ROUTES.digitalMenuOptions;
+    pathname === DASHBOARD_ROUTES.digitalMenuCategories ||
+    pathname === DASHBOARD_ROUTES.digitalMenuOptions ||
+    pathname === DASHBOARD_ROUTES.feedback;
   const { banners, addBanner, removeBanner } = useDashboardBannerState();
   const [portalReady, setPortalReady] = useState(false);
   const [collapsed, setCollapsed] = useState(false);

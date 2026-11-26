@@ -104,7 +104,7 @@ export function TournamentsPanel({ branchId }: { branchId: number }) {
   const tournaments = list.data ?? [];
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
+    <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
       <div className={`${DASHBOARD_PANEL} space-y-3`}>
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-foreground">Turnuvalar</h3>
