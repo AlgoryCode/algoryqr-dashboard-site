@@ -226,6 +226,14 @@ export function useCategoryExplorer(): ExplorerParts {
   const [nameValue, setNameValue] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
   const [busy, setBusy] = useState(false);
+  // Sub category groups in the category view that are folded shut ("sub-12", "loose"); all start open.
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+  const toggleGroup = (key: string) =>
+    setCollapsed((current) => {
+      const next = new Set(current);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
 
   const selectMain = (category: MainCategoryApiItem) => {
     setOpenId(category.id);
@@ -597,34 +605,58 @@ export function useCategoryExplorer(): ExplorerParts {
     </header>
   );
 
-  /** A labelled block inside the category view, one per sub category, so it is clear where each product lives. */
-  const sectionHeading = (props: { title: string; count: number; onOpen?: () => void }) => (
-    <div className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-2 sm:px-4">
-      <FolderTree className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-      {props.onOpen ? (
-        <button
-          type="button"
-          onClick={props.onOpen}
-          className="min-w-0 truncate text-sm font-semibold text-foreground hover:text-[#F03245]"
+  /**
+   * One sub category inside the category view: a heading that folds its products open or shut, so it is clear where
+   * each product lives, plus a shortcut that opens the sub category on its own.
+   */
+  const productGroup = (props: {
+    groupKey: string;
+    title: string;
+    count: number;
+    onOpen?: () => void;
+    children: React.ReactNode;
+  }) => {
+    const open = !collapsed.has(props.groupKey);
+    return (
+      <section key={props.groupKey} aria-label={props.title}>
+        <div className="flex items-center gap-1 border-b border-border bg-muted/40 pl-1.5 pr-3 sm:pr-4">
+          <button
+            type="button"
+            onClick={() => toggleGroup(props.groupKey)}
+            aria-expanded={open}
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-md py-2 pl-1 pr-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ChevronRight
+              className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-200", open && "rotate-90")}
+              aria-hidden
+            />
+            <span className="min-w-0 truncate text-sm font-semibold text-foreground">{props.title}</span>
+            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{props.count} ürün</span>
+          </button>
+          {props.onOpen ? (
+            <button
+              type="button"
+              onClick={props.onOpen}
+              aria-label={`${props.title} alt kategorisini aç`}
+              className="inline-flex shrink-0 items-center gap-0.5 rounded-md px-1.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              Aç
+              <ChevronRight className="size-3.5" aria-hidden />
+            </button>
+          ) : null}
+        </div>
+        <div
+          className={cn(
+            "grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none",
+            open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+          )}
+          inert={!open}
         >
-          {props.title}
-        </button>
-      ) : (
-        <span className="min-w-0 truncate text-sm font-semibold text-foreground">{props.title}</span>
-      )}
-      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{props.count} ürün</span>
-      {props.onOpen ? (
-        <button
-          type="button"
-          onClick={props.onOpen}
-          className="ml-auto inline-flex shrink-0 items-center gap-0.5 rounded-md px-1.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          Aç
-          <ChevronRight className="size-3.5" aria-hidden />
-        </button>
-      ) : null}
-    </div>
-  );
+          <div className="min-h-0 overflow-hidden">{props.children}</div>
+        </div>
+      </section>
+    );
+  };
 
   let detail: React.ReactNode;
   if (!menu || !selectedMain) {
@@ -759,12 +791,32 @@ export function useCategoryExplorer(): ExplorerParts {
         ) : (
           <>
             <ProductListHead showPlacement={false} />
+            {subs.length > 1 ? (
+              <div className="flex justify-end border-b border-border px-3 py-1.5 sm:px-4">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCollapsed(
+                      collapsed.size > 0
+                        ? new Set()
+                        : new Set([...subs.map((sub) => `sub-${sub.id}`), "loose"]),
+                    )
+                  }
+                  className="text-xs font-medium text-muted-foreground hover:text-foreground"
+                >
+                  {collapsed.size > 0 ? "Tümünü aç" : "Tümünü kapat"}
+                </button>
+              </div>
+            ) : null}
             {subs.map((sub) => {
               const items = mainProducts.filter((product) => product.subCategoryId === sub.id);
-              return (
-                <section key={sub.id} aria-label={sub.name}>
-                  {sectionHeading({ title: sub.name, count: items.length, onOpen: () => selectSub(sub) })}
-                  {items.length > 0 ? (
+              return productGroup({
+                groupKey: `sub-${sub.id}`,
+                title: sub.name,
+                count: items.length,
+                onOpen: () => selectSub(sub),
+                children:
+                  items.length > 0 ? (
                     productRows(items)
                   ) : (
                     <p className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
@@ -776,16 +828,17 @@ export function useCategoryExplorer(): ExplorerParts {
                         Ürün ekle
                       </Link>
                     </p>
-                  )}
-                </section>
-              );
+                  ),
+              });
             })}
-            {looseProducts.length > 0 ? (
-              <section aria-label="Alt kategorisiz">
-                {sectionHeading({ title: "Alt kategorisiz", count: looseProducts.length })}
-                {productRows(looseProducts)}
-              </section>
-            ) : null}
+            {looseProducts.length > 0
+              ? productGroup({
+                  groupKey: "loose",
+                  title: "Alt kategorisiz",
+                  count: looseProducts.length,
+                  children: productRows(looseProducts),
+                })
+              : null}
           </>
         )}
       </>
