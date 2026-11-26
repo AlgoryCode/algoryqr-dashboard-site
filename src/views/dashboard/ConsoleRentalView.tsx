@@ -8,6 +8,7 @@ import { BranchPicker, useBranchSelection } from "@/components/dashboard/BranchP
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import {
+  CancelSessionDialog,
   ConsoleEditorDialog,
   FinishSessionDialog,
   FinishedSessionDialog,
@@ -55,6 +56,7 @@ import {
   dismissExtensionRequest,
   endMaintenance,
   extendSession,
+  cancelSession,
   finishSession,
   formatClock,
   formatDuration,
@@ -140,6 +142,7 @@ export default function ConsoleRentalView() {
   const [starting, setStarting] = useState<GameConsole | null>(null);
   const [finishing, setFinishing] = useState<ConsoleSession | null>(null);
   const [finished, setFinished] = useState<ConsoleSession | null>(null);
+  const [cancelling, setCancelling] = useState<ConsoleSession | null>(null);
   const [transferring, setTransferring] = useState<ConsoleSession | null>(null);
   const [itemsFor, setItemsFor] = useState<number | null>(null);
   const [historyPage, setHistoryPage] = useState(0);
@@ -247,6 +250,15 @@ export default function ConsoleRentalView() {
       await invalidateAll();
     },
     onError: (error) => notify("danger", errorMessage(error, "Oturum bitirilemedi")),
+  });
+  const cancel = useMutation({
+    mutationFn: ({ sessionId, reason }: { sessionId: number; reason?: string }) => cancelSession(sessionId, reason),
+    onSuccess: async (session) => {
+      setCancelling(null);
+      await invalidateAll();
+      notify("info", `${session.consoleName ?? "Cihaz"} oturumu iptal edildi`);
+    },
+    onError: (error) => notify("danger", errorMessage(error, "Oturum iptal edilemedi")),
   });
   const maintenance = useMutation({
     mutationFn: (
@@ -375,6 +387,7 @@ export default function ConsoleRentalView() {
                   onItems: (session) => setItemsFor(session.id),
                   onApproveExtension: (session) => act.mutate({ kind: "approveExtension", session }),
                   onDismissExtension: (session) => act.mutate({ kind: "dismissExtension", session }),
+                  onCancel: setCancelling,
                   onEdit: (item) => {
                     setEditing(item);
                     setEditorOpen(true);
@@ -483,6 +496,12 @@ export default function ConsoleRentalView() {
         onOpenChange={(open) => !open && setFinishing(null)}
         onSubmit={(payload) => finishing && finish.mutate({ sessionId: finishing.id, payload })}
       />
+      <CancelSessionDialog
+        session={cancelling}
+        pending={cancel.isPending}
+        onOpenChange={(open) => !open && setCancelling(null)}
+        onSubmit={(reason) => cancelling && cancel.mutate({ sessionId: cancelling.id, reason })}
+      />
       <FinishedSessionDialog session={finished} onOpenChange={(open) => !open && setFinished(null)} />
       <TransferDialog
         key={transferring?.id ?? "none"}
@@ -560,7 +579,11 @@ function HistoryTable({
             </TableHeader>
             <TableBody>
               {rows.map((row) => (
-                <TableRow key={row.id} className="cursor-pointer" onClick={() => onOpen(row)}>
+                <TableRow
+                  key={row.id}
+                  className={`cursor-pointer ${row.cancelled ? "text-muted-foreground" : ""}`}
+                  onClick={() => onOpen(row)}
+                >
                   <TableCell className="font-medium">{row.consoleName ?? `#${row.consoleId}`}</TableCell>
                   <TableCell className="hidden md:table-cell">{row.customerName ?? "—"}</TableCell>
                   <TableCell className="tabular-nums">{formatClock(row.startedAt)}</TableCell>
@@ -572,8 +595,16 @@ function HistoryTable({
                   <TableCell className="hidden md:table-cell text-right tabular-nums">
                     {Number(row.discountAmount ?? 0) > 0 ? formatTl(row.discountAmount) : "—"}
                   </TableCell>
-                  <TableCell className="hidden md:table-cell">{row.paymentMethod ? PAYMENT_LABELS[row.paymentMethod] : "—"}</TableCell>
-                  <TableCell className="text-right font-semibold tabular-nums">{formatTl(row.amount)}</TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    {row.cancelled ? "—" : row.paymentMethod ? PAYMENT_LABELS[row.paymentMethod] : "—"}
+                  </TableCell>
+                  <TableCell className="text-right font-semibold tabular-nums">
+                    {row.cancelled ? (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">İptal</span>
+                    ) : (
+                      formatTl(row.amount)
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
