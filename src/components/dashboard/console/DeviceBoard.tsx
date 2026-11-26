@@ -281,7 +281,6 @@ function DeviceCard({
             <Button
               type="button"
               size="sm"
-              variant="destructive"
               className="flex-1"
               disabled={working}
               onClick={() => handlers.onFinish(session)}
