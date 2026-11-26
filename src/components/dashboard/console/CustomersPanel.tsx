@@ -210,7 +210,7 @@ function CustomerCards({ branchId, loyaltyText }: { branchId: number; loyaltyTex
   });
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <div className={DASHBOARD_PANEL}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <Input
