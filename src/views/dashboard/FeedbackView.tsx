@@ -28,22 +28,24 @@ import {
   ExplorerListLoading,
 } from "@/components/dashboard/menu/ExplorerLayout";
 import { AccessLoadError } from "@/components/dashboard/AccessLoadError";
+import { DateFilterMenu, dateRangeLabel } from "@/components/dashboard/DateFilterMenu";
+import { ListPagination } from "@/components/dashboard/ListPagination";
+import type { DateRangeValue } from "@/components/ui/date-range-filter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useMenuProducts } from "@/hooks/use-menu-products";
-import {
-  getMenuFeedbackRequest,
-  getMenuFeedbackSummaryRequest,
-  type FeedbackItemApi,
-  type MenuProductApiItem,
-} from "@/lib/api";
+import { getMenuFeedbackRequest, type FeedbackItemApi, type MenuProductApiItem } from "@/lib/api";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 20;
-/** Product reviews are fetched in full for the product view (the API filters by type, not by product). */
-const PRODUCT_FETCH_SIZE = 100;
-const PRODUCT_FETCH_MAX_PAGES = 10;
+/**
+ * The reviews of the chosen dates are loaded together (up to FETCH_SIZE × FETCH_MAX_PAGES), so the list, the score
+ * breakdown and the per-product numbers all follow the same date range; the API itself has no product filter.
+ */
+const FETCH_SIZE = 100;
+const FETCH_MAX_PAGES = 10;
+const ALL_TIME: DateRangeValue = { from: "", to: "" };
 
 type Selection = { kind: "all" } | { kind: "menu" } | { kind: "product"; productId: number };
 type Histogram = { score: number; count: number }[];
@@ -75,10 +77,6 @@ function formatDateTime(value?: string | null): string {
   return date.toLocaleString("tr-TR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-function toNumber(value?: number | string | null): number {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
-}
 
 function formatAvg(value: number): string {
   return value > 0 ? value.toFixed(1) : "–";
@@ -154,15 +152,28 @@ export default function FeedbackView() {
   const selection = parseSelection(searchParams.get("secim"));
   const shown: Selection = selection ?? { kind: "all" };
   const [minScore, setMinScore] = useState<number | null>(null);
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [range, setRange] = useState<DateRangeValue>(() => ({
+    from: searchParams.get("baslangic") ?? "",
+    to: searchParams.get("bitis") ?? "",
+  }));
 
-  const writeAddress = (next: Selection | null, mode: "push" | "replace", qrId = menuSelection?.qr.id ?? null) => {
+  const writeAddress = (
+    next: Selection | null,
+    mode: "push" | "replace",
+    qrId = menuSelection?.qr.id ?? null,
+    dates: DateRangeValue = range,
+  ) => {
     const params = new URLSearchParams(searchParams.toString());
     const value = serializeSelection(next);
     if (value) params.set("secim", value);
     else params.delete("secim");
     if (qrId != null) params.set("qr", String(qrId));
+    if (dates.from) params.set("baslangic", dates.from);
+    else params.delete("baslangic");
+    if (dates.to) params.set("bitis", dates.to);
+    else params.delete("bitis");
     params.delete("type");
     params.delete("minScore");
     const query = params.toString();
@@ -173,7 +184,7 @@ export default function FeedbackView() {
   };
   const open = (next: Selection) => {
     setMinScore(null);
-    setPage(0);
+    setPage(1);
     // Switching between items replaces, so "back" always leads to the list rather than through every pick.
     writeAddress(next, selection ? "replace" : "push");
   };
@@ -182,47 +193,60 @@ export default function FeedbackView() {
     if (openedHere) window.history.back();
     else writeAddress(null, "replace");
   };
+  const changeRange = (next: DateRangeValue) => {
+    setRange(next);
+    setPage(1);
+    writeAddress(selection, "replace", menuSelection?.qr.id ?? null, next);
+  };
 
-  const summaryQuery = useQuery({
-    queryKey: ["menu-feedback-summary", menuId],
-    enabled: menuId != null,
-    queryFn: () => getMenuFeedbackSummaryRequest(menuId!),
-  });
   const productsQuery = useMenuProducts(menuId);
-
-  const pagedType = shown.kind === "menu" ? "menu" : "all";
-  const listQuery = useQuery({
-    queryKey: ["menu-feedback", menuId, pagedType, minScore, page],
-    enabled: menuId != null && shown.kind !== "product",
-    queryFn: () =>
-      getMenuFeedbackRequest(menuId!, { type: pagedType, minScore: minScore ?? undefined, page, size: PAGE_SIZE }),
-  });
-
-  // Every product review of the menu, fetched once for the product view (its score breakdown and paging).
-  const productReviewsQuery = useQuery({
-    queryKey: ["menu-feedback-all-products", menuId],
-    enabled: menuId != null && shown.kind === "product",
-    staleTime: 60_000,
+  const reviewsQuery = useQuery({
+    queryKey: ["menu-feedback-range", menuId, range.from, range.to],
+    enabled: menuId != null,
+    staleTime: 30_000,
     queryFn: async () => {
       const all: FeedbackItemApi[] = [];
-      for (let index = 0; index < PRODUCT_FETCH_MAX_PAGES; index += 1) {
-        const result = await getMenuFeedbackRequest(menuId!, { type: "product", page: index, size: PRODUCT_FETCH_SIZE });
+      let capped = false;
+      for (let index = 0; index < FETCH_MAX_PAGES; index += 1) {
+        const result = await getMenuFeedbackRequest(menuId!, {
+          type: "all",
+          from: range.from || undefined,
+          to: range.to || undefined,
+          page: index,
+          size: FETCH_SIZE,
+        });
         all.push(...result.content);
         if (!result.hasNext) break;
+        if (index === FETCH_MAX_PAGES - 1) capped = true;
       }
-      return all;
+      return { items: all, capped };
     },
   });
 
   const products = useMemo(() => productsQuery.data ?? [], [productsQuery.data]);
   const productById = useMemo(() => new Map(products.map((product) => [product.productId, product])), [products]);
-  const ratedProducts = useMemo(
-    () =>
-      products
-        .filter((product) => toNumber(product.ratingCount) > 0)
-        .sort((a, b) => toNumber(b.ratingCount) - toNumber(a.ratingCount) || a.name.localeCompare(b.name, "tr-TR")),
-    [products],
-  );
+  const allReviews = useMemo(() => reviewsQuery.data?.items ?? [], [reviewsQuery.data]);
+  // Rated products in the chosen dates, with their average and count, most reviewed first.
+  const ratedProducts = useMemo(() => {
+    const byProduct = new Map<number, { productId: number; name: string; imageUrl?: string | null; sum: number; count: number }>();
+    for (const item of allReviews) {
+      if (item.type !== "product" || item.productId == null) continue;
+      const known = productById.get(item.productId);
+      const entry = byProduct.get(item.productId) ?? {
+        productId: item.productId,
+        name: known?.name ?? item.productName ?? `Ürün #${item.productId}`,
+        imageUrl: known?.imageUrl,
+        sum: 0,
+        count: 0,
+      };
+      entry.sum += item.score;
+      entry.count += 1;
+      byProduct.set(item.productId, entry);
+    }
+    return [...byProduct.values()]
+      .map((entry) => ({ ...entry, avg: entry.sum / entry.count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "tr-TR"));
+  }, [allReviews, productById]);
   const visibleProducts = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("tr-TR");
     return term ? ratedProducts.filter((product) => product.name.toLocaleLowerCase("tr-TR").includes(term)) : ratedProducts;
@@ -241,13 +265,14 @@ export default function FeedbackView() {
     );
   }
 
-  const summary = summaryQuery.data;
-  const menuAvg = toNumber(summary?.menu.ratingAvg);
-  const menuCount = summary?.menu.ratingCount ?? 0;
-  const productAvg = toNumber(summary?.products.ratingAvg);
-  const productCount = summary?.products.ratingCount ?? 0;
-  const totalCount = menuCount + productCount;
-  const totalAvg = totalCount > 0 ? (menuAvg * menuCount + productAvg * productCount) / totalCount : 0;
+  const stats = (items: FeedbackItemApi[]) => ({
+    avg: items.length > 0 ? items.reduce((sum, item) => sum + item.score, 0) / items.length : 0,
+    count: items.length,
+    histogram: histogramOf(items.map((item) => ({ score: item.score, count: 1 }))),
+  });
+  const menuReviews = allReviews.filter((item) => item.type !== "product");
+  const totals = stats(allReviews);
+  const menuStats = stats(menuReviews);
 
   /* ───────────────────────── Sidebar ───────────────────────── */
 
@@ -299,20 +324,20 @@ export default function FeedbackView() {
             target: { kind: "all" },
             icon: iconBox(<MessageSquareText className="size-3.5" aria-hidden />),
             label: "Tüm yorumlar",
-            avg: totalAvg,
-            count: totalCount,
+            avg: totals.avg,
+            count: totals.count,
           })}
           {row({
             target: { kind: "menu" },
             icon: iconBox(<UtensilsCrossed className="size-3.5" aria-hidden />),
             label: "Menü puanı",
-            avg: menuAvg,
-            count: menuCount,
+            avg: menuStats.avg,
+            count: menuStats.count,
           })}
         </ul>
 
         <p className="px-2 pb-1 pt-4 text-xs font-medium text-muted-foreground">
-          Puanlanan ürünler{productsQuery.data ? ` · ${ratedProducts.length}` : ""}
+          Puanlanan ürünler{reviewsQuery.data ? ` · ${ratedProducts.length}` : ""}
         </p>
         {ratedProducts.length > 6 ? (
           <div className="relative pb-1.5">
@@ -326,10 +351,12 @@ export default function FeedbackView() {
             />
           </div>
         ) : null}
-        {productsQuery.isPending && menuId != null ? (
-          <ExplorerListLoading label="Ürünler yükleniyor…" />
+        {reviewsQuery.isPending && menuId != null ? (
+          <ExplorerListLoading label="Yorumlar yükleniyor…" />
         ) : ratedProducts.length === 0 ? (
-          <p className="px-2 py-4 text-xs text-muted-foreground">Henüz puan alan ürün yok.</p>
+          <p className="px-2 py-4 text-xs text-muted-foreground">
+            {range.from || range.to ? "Bu tarihlerde puan alan ürün yok." : "Henüz puan alan ürün yok."}
+          </p>
         ) : visibleProducts.length === 0 ? (
           <p className="px-2 py-4 text-xs text-muted-foreground">Aramaya uyan ürün yok.</p>
         ) : (
@@ -346,8 +373,8 @@ export default function FeedbackView() {
                   />
                 ),
                 label: product.name,
-                avg: toNumber(product.ratingAvg),
-                count: toNumber(product.ratingCount),
+                avg: product.avg,
+                count: product.count,
               }),
             )}
           </ul>
@@ -365,58 +392,52 @@ export default function FeedbackView() {
     </span>
   );
 
-  // What the right pane shows for the open item: its reviews and the numbers above them.
-  let reviews: FeedbackItemApi[];
-  let totalPages: number;
-  let pending: boolean;
-  let failed: boolean;
-  let head: { title: string; subtitle: string; icon: React.ReactNode; avg: number; count: number; histogram: Histogram };
-  if (shown.kind === "product") {
-    const all = (productReviewsQuery.data ?? []).filter((item) => item.productId === shown.productId);
-    const filtered = minScore != null ? all.filter((item) => item.score >= minScore) : all;
-    totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-    reviews = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
-    pending = productReviewsQuery.isPending;
-    failed = productReviewsQuery.isError;
-    head = {
-      title: product?.name ?? "Ürün",
-      subtitle: [product?.mainCategoryName, product?.subCategoryName].filter(Boolean).join(" › ") || "Ürün yorumları",
-      icon: (
-        <ProductImage
-          key={product?.imageUrl ?? "none"}
-          imageUrl={product?.imageUrl}
-          className="size-11 rounded-xl"
-          iconClassName="size-4"
-        />
-      ),
-      avg: all.length > 0 ? all.reduce((sum, item) => sum + item.score, 0) / all.length : toNumber(product?.ratingAvg),
-      count: all.length || toNumber(product?.ratingCount),
-      histogram: histogramOf(all.map((item) => ({ score: item.score, count: 1 }))),
-    };
-  } else {
-    reviews = listQuery.data?.content ?? [];
-    totalPages = listQuery.data?.totalPages ?? 0;
-    pending = listQuery.isPending;
-    failed = listQuery.isError;
-    head =
-      shown.kind === "menu"
+  // What the right pane shows for the open item: its reviews in the chosen dates and the numbers above them.
+  const scoped =
+    shown.kind === "product"
+      ? allReviews.filter((item) => item.type === "product" && item.productId === shown.productId)
+      : shown.kind === "menu"
+        ? menuReviews
+        : allReviews;
+  const scopedStats = stats(scoped);
+  const filtered = minScore != null ? scoped.filter((item) => item.score >= minScore) : scoped;
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const reviews = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const pending = reviewsQuery.isPending;
+  const failed = reviewsQuery.isError;
+  const productName =
+    shown.kind === "product"
+      ? (product?.name ?? ratedProducts.find((entry) => entry.productId === shown.productId)?.name ?? "Ürün")
+      : "";
+  const head: { title: string; subtitle: string; icon: React.ReactNode; avg: number; count: number; histogram: Histogram } =
+    shown.kind === "product"
+      ? {
+          title: productName,
+          subtitle: [product?.mainCategoryName, product?.subCategoryName].filter(Boolean).join(" › ") || "Ürün yorumları",
+          icon: (
+            <ProductImage
+              key={product?.imageUrl ?? "none"}
+              imageUrl={product?.imageUrl}
+              className="size-11 rounded-xl"
+              iconClassName="size-4"
+            />
+          ),
+          ...scopedStats,
+        }
+      : shown.kind === "menu"
         ? {
             title: "Menü puanı",
             subtitle: "Müşterilerin menünün geneline verdiği puanlar",
             icon: bigIcon(<UtensilsCrossed className="size-5" aria-hidden />),
-            avg: menuAvg,
-            count: menuCount,
-            histogram: histogramOf(summary?.menu.scoreHistogram ?? []),
+            ...scopedStats,
           }
         : {
             title: "Tüm yorumlar",
-            subtitle: `Menüye ${menuCount}, ürünlere ${productCount} puan`,
+            subtitle: `Menüye ${menuStats.count}, ürünlere ${totals.count - menuStats.count} puan`,
             icon: bigIcon(<MessageSquareText className="size-5" aria-hidden />),
-            avg: totalAvg,
-            count: totalCount,
-            histogram: histogramOf([...(summary?.menu.scoreHistogram ?? []), ...(summary?.products.scoreHistogram ?? [])]),
+            ...scopedStats,
           };
-  }
   const maxBar = Math.max(1, ...head.histogram.map((bar) => bar.count));
 
   const detail =
@@ -445,7 +466,10 @@ export default function FeedbackView() {
                 </span>
               ) : null}
             </div>
-            <p className="truncate text-xs text-muted-foreground">{head.subtitle}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {head.subtitle}
+              {range.from || range.to ? ` · ${dateRangeLabel(range)}` : ""}
+            </p>
           </div>
           {product ? (
             <Link
@@ -496,7 +520,7 @@ export default function FeedbackView() {
                 aria-pressed={active}
                 onClick={() => {
                   setMinScore(filter.value);
-                  setPage(0);
+                  setPage(1);
                 }}
                 className={cn(
                   "inline-flex h-7 items-center gap-1 rounded-full border px-2.5 text-xs font-medium transition-colors",
@@ -523,7 +547,11 @@ export default function FeedbackView() {
           <div className="flex flex-col items-center gap-2 px-6 py-14 text-center">
             <MessageSquareText className="size-5 text-muted-foreground/60" aria-hidden />
             <p className="text-sm font-medium text-foreground">
-              {minScore != null ? "Bu puana uyan yorum yok" : "Henüz yorum yok"}
+              {minScore != null
+                ? "Bu puana uyan yorum yok"
+                : range.from || range.to
+                  ? "Bu tarihlerde yorum yok"
+                  : "Henüz yorum yok"}
             </p>
             {minScore != null ? (
               <button
@@ -581,18 +609,13 @@ export default function FeedbackView() {
           </ul>
         )}
 
-        {totalPages > 1 ? (
-          <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3 sm:px-5">
-            <Button variant="outline" size="sm" disabled={page <= 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>
-              Önceki
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              Sayfa {page + 1} / {totalPages}
-            </p>
-            <Button variant="outline" size="sm" disabled={page + 1 >= totalPages} onClick={() => setPage((p) => p + 1)}>
-              Sonraki
-            </Button>
-          </div>
+        {filtered.length > 0 ? (
+          <ListPagination page={currentPage} pageSize={PAGE_SIZE} total={filtered.length} unit="yorum" onPage={setPage} />
+        ) : null}
+        {reviewsQuery.data?.capped ? (
+          <p className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground sm:px-5">
+            Bu aralıktaki en yeni {FETCH_SIZE * FETCH_MAX_PAGES} yorum gösteriliyor; daha eskiler için tarih aralığını daraltın.
+          </p>
         ) : null}
       </>
     );
@@ -609,13 +632,14 @@ export default function FeedbackView() {
               selectedQrId={menuSelection?.qr.id ?? null}
               onSelectQrId={(qrId) => {
                 setMinScore(null);
-                setPage(0);
+                setPage(1);
                 setSearch("");
                 writeAddress(null, "replace", qrId);
                 void selectQrId(qrId);
               }}
             />
           </div>
+          <DateFilterMenu value={range} onChange={changeRange} emptyRange={ALL_TIME} tone="red" />
         </div>
       }
       sidebar={sidebar}
