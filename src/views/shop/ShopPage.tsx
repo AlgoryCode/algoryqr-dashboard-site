@@ -20,7 +20,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAccessSession } from "@/hooks/use-commerce";
 import { useActivePackages } from "@/hooks/use-subscription";
 import type { PlanPackageApiItem, PlanPackageModuleApi } from "@/lib/api";
-import { destinationForDecision } from "@/lib/access-session-gate";
+import { SHOP_PATH, destinationForDecision, needsPurchase } from "@/lib/access-session-gate";
 import type { BillingPeriod } from "@/lib/commerce";
 import { logout } from "@/lib/site-session";
 import {
@@ -46,8 +46,9 @@ import { cn } from "@/lib/utils";
 
 import ShopCheckout from "./ShopCheckout";
 
-const NO_PACKAGE_NOTICE =
-  "Şu an Aktif Paketiniz Bulunmamaktadır. Paketlerimize göz atabilirsiniz.";
+/** A new account starts here; an account whose package closed comes back here. */
+const WELCOME_NOTICE = "Hoş geldiniz! Paneli kullanmaya başlamak için paketinizi seçin.";
+const NO_PACKAGE_NOTICE = "Aktif paketiniz bulunmuyor. Devam etmek için bir paket seçin.";
 
 type ShopStep = "package" | "modules" | "pay";
 
@@ -131,7 +132,7 @@ export default function ShopPage() {
   useEffect(() => {
     if (session.isLoading || session.isError) return;
     const decision = session.data?.decision;
-    if (!decision || decision === "REQUIRE_PURCHASE") return;
+    if (!decision || needsPurchase(decision)) return;
     router.replace(destinationForDecision(decision, null));
   }, [router, session.data?.decision, session.isError, session.isLoading]);
 
@@ -177,6 +178,20 @@ export default function ShopPage() {
     : null;
   const stepIndex = STEPS.findIndex((item) => item.id === step);
 
+  // Back from saving a card (?adim=odeme): reopen the payment step with the cart as it was.
+  const resumedPayment = useRef(false);
+  useEffect(() => {
+    if (resumedPayment.current || !hydrated || packagesQuery.isLoading) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("adim") !== "odeme") return;
+    const timer = window.setTimeout(() => {
+      resumedPayment.current = true;
+      window.history.replaceState(window.history.state, "", SHOP_PATH);
+      if (selectedPackage) setStep("pay");
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [hydrated, packagesQuery.isLoading, selectedPackage]);
+
   const pickPackage = (packageId: number) => {
     selectPackage(packageId, cart.billingPeriod, "NEW_PACKAGE");
   };
@@ -219,7 +234,7 @@ export default function ShopPage() {
     await logout();
   };
 
-  if (session.isLoading || (session.data && session.data.decision !== "REQUIRE_PURCHASE")) {
+  if (session.isLoading || (session.data && !needsPurchase(session.data.decision))) {
     return (
       <div className="shop-store grid min-h-dvh place-items-center">
         <Skeleton className="h-8 w-8 rounded-full" />
@@ -293,7 +308,9 @@ export default function ShopPage() {
       >
         {step === "package" ? (
           <section>
-            <p className="text-sm text-zinc-900">{NO_PACKAGE_NOTICE}</p>
+            <p className="text-sm text-zinc-900">
+              {session.data?.decision === "START_PACKAGE" ? WELCOME_NOTICE : NO_PACKAGE_NOTICE}
+            </p>
             <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-[#8a8a86]">Adım 1 / 3</p>

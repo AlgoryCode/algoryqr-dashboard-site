@@ -139,7 +139,8 @@ export type SavedCardForm = z.infer<typeof savedCardSchema>;
 export const checkoutSchema = z.object({
   billingPeriod: z.enum(["MONTHLY", "YEARLY"]),
   billingAddressId: z.number().int().positive("Fatura adresi seçin"),
-  recurringConsent: z.boolean().default(false),
+  paymentMethodId: z.string().min(1, "Ödeme için bir kart seçin"),
+  recurringConsent: z.literal(true, { message: "Düzenli ödeme onayını işaretleyin" }),
 });
 
 export function formatCardNumber(value: string): string {

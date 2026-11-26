@@ -48,13 +48,13 @@ describe("resolveDashboardPathForRequest", () => {
     expect(next).toBe(SHOP_PATH);
   });
 
-  it("redirects to the trial wizard when START_PACKAGE", async () => {
+  it("sends a new account to the shop when START_PACKAGE", async () => {
     mockFetchOk({ decision: "START_PACKAGE" });
     const next = await resolveDashboardPathForRequest(
       DASHBOARD_ROUTES.overview,
       accessToken(),
     );
-    expect(next).toBe(DASHBOARD_ROUTES.trialStart);
+    expect(next).toBe(SHOP_PATH);
   });
 
   it("keeps overview when ALLOW", async () => {

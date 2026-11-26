@@ -20,7 +20,7 @@ type CardVerificationPanelProps = {
 
 export function CardVerificationPanel({
   title = "Kredi kartı ekle",
-  description = "Kart bilgileri doğrudan PayTR'ye iletilir ve orada saklanır. 1 TL doğrulama çekilir, ardından otomatik iade edilir. Deneme bitince aynı karttan paket bedeli alınır.",
+  description = "Kart bilgileri doğrudan PayTR'ye iletilir ve orada saklanır. 1 TL doğrulama çekilir, ardından otomatik iade edilir. Paket ödemeleri bu karttan alınır.",
   returnPath = DASHBOARD_ROUTES.accountPaymentMethods,
 }: CardVerificationPanelProps) {
   const { notify } = useDashboardBanners();

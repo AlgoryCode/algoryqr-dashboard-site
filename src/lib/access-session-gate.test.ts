@@ -5,7 +5,7 @@ import { DASHBOARD_ROUTES } from "./dashboard-routes";
 
 describe("access-session-gate", () => {
   it("maps decisions to dashboard paths", () => {
-    expect(destinationForDecision("START_PACKAGE", null)).toBe(DASHBOARD_ROUTES.trialStart);
+    expect(destinationForDecision("START_PACKAGE", null)).toBe(SHOP_PATH);
     expect(destinationForDecision("REQUIRE_PURCHASE", null)).toBe(SHOP_PATH);
     expect(destinationForDecision("REQUIRE_PAYMENT", null)).toBe(DASHBOARD_ROUTES.accountPackages);
     expect(destinationForDecision("ALLOW", "/menu-yonetimi")).toBe("/menu-yonetimi");
@@ -18,9 +18,7 @@ describe("access-session-gate", () => {
     expect(destinationForDecision("REQUIRE_PAYMENT", DASHBOARD_ROUTES.accountPackages)).toBe(
       DASHBOARD_ROUTES.accountPackages,
     );
-    expect(destinationForDecision("START_PACKAGE", DASHBOARD_ROUTES.trialStart)).toBe(
-      DASHBOARD_ROUTES.trialStart,
-    );
+    expect(destinationForDecision("START_PACKAGE", DASHBOARD_ROUTES.trialStart)).toBe(SHOP_PATH);
     expect(destinationForDecision("REQUIRE_PAYMENT", "/genel-bakis")).toBe(DASHBOARD_ROUTES.accountPackages);
   });
 
