@@ -15,7 +15,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { SearchableSelect } from "@/components/dashboard/menu/SearchableSelect";
+import { FilterMenu } from "@/components/dashboard/FilterMenu";
 import { Button } from "@/components/ui/button";
 import { TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { BranchItem } from "@/lib/branch";
@@ -69,7 +69,6 @@ export function ConsoleWorkspaceHeader({
   stats: ConsoleLiveStats | null;
   onAddDevice: () => void;
 }) {
-  const current = branches.find((item) => item.id === branchId);
   return (
     <div className="sticky top-14 z-20 -mx-6 border-b border-border bg-background/90 px-6 pt-3 backdrop-blur supports-[backdrop-filter]:bg-background/75 lg:top-0 lg:-mx-8 lg:px-8">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -77,24 +76,22 @@ export function ConsoleWorkspaceHeader({
 
         {/* Phones: branch and status share the second line; wider screens: branch sits next to the title. */}
         <div className="order-3 flex w-full min-w-0 items-center gap-1.5 sm:order-2 sm:w-auto">
-          <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-          {branches.length > 1 ? (
-            <SearchableSelect
-              className="h-8 w-auto min-w-0 max-w-[14rem] rounded-full px-3 text-xs font-medium sm:min-w-[9rem] sm:max-w-[16rem]"
+          {branches.length > 0 ? (
+            // Same control as the other filter bars (Personeller, Rezervasyonlar). A branch is always chosen, so the
+            // current one is passed as the "empty" value: the button stays neutral and shows it as "Şube: …".
+            <FilterMenu
+              label="Şube"
+              icon={Building2}
+              className="min-w-0 max-w-[16rem] sm:max-w-[20rem]"
+              options={branches.map((item) => ({ value: String(item.id), label: formatBranchListLabel(item) }))}
               value={branchId != null ? String(branchId) : ""}
-              onValueChange={(next) => {
+              emptyValue={branchId != null ? String(branchId) : ""}
+              showIdleValue
+              onChange={(next) => {
                 const id = Number(next);
                 if (Number.isFinite(id) && id > 0) onBranch(id);
               }}
-              options={branches.map((item) => ({ value: String(item.id), label: formatBranchListLabel(item) }))}
-              placeholder="Şube seçin"
-              searchPlaceholder="Şube ara..."
-              emptyText="Şube bulunamadı."
             />
-          ) : current ? (
-            <span className="truncate rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
-              {formatBranchListLabel(current)}
-            </span>
           ) : null}
           {stats ? (
             <div className="no-scrollbar ml-auto flex shrink-0 items-center gap-1.5 overflow-x-auto text-xs sm:hidden">
