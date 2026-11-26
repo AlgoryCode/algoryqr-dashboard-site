@@ -136,17 +136,11 @@ describe("commerce schemas and logic", () => {
     expect(result.success).toBe(false);
   });
 
-  it("allows checkout without recurring consent", () => {
-    const result = checkoutSchema.safeParse({
-      billingPeriod: "MONTHLY",
-      billingAddressId: 1,
-      recurringConsent: false,
-    });
-
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.recurringConsent).toBe(false);
-    }
+  it("requires a saved card and recurring consent at checkout", () => {
+    const base = { billingPeriod: "MONTHLY", billingAddressId: 1, paymentMethodId: "card-1" };
+    expect(checkoutSchema.safeParse({ ...base, recurringConsent: true }).success).toBe(true);
+    expect(checkoutSchema.safeParse({ ...base, recurringConsent: false }).success).toBe(false);
+    expect(checkoutSchema.safeParse({ ...base, paymentMethodId: "", recurringConsent: true }).success).toBe(false);
   });
 
   it("formats cards and extracts BIN", () => {

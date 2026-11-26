@@ -33,10 +33,17 @@ const PURCHASE_ALLOWLIST_PREFIXES = [
 const START_ALLOWLIST_PREFIXES = [
   DASHBOARD_ROUTES.demoLanding,
   DASHBOARD_ROUTES.demoRegister,
-  DASHBOARD_ROUTES.trialStart,
 ] as const;
 
 export const SHOP_PATH = "/magaza";
+
+/**
+ * There is no free trial: an account that never had a package (START_PACKAGE) and one whose package closed
+ * (REQUIRE_PURCHASE) both buy one in the shop before they can use the panel.
+ */
+export function needsPurchase(decision: AccessDecision | null | undefined): boolean {
+  return decision === "START_PACKAGE" || decision === "REQUIRE_PURCHASE";
+}
 
 export function isPurchaseAllowlistedPath(pathname: string): boolean {
   return PURCHASE_ALLOWLIST_PREFIXES.some(
@@ -62,7 +69,7 @@ export function destinationForDecision(
     if (returnPath && isStartAllowlistedPath(pathname)) {
       return returnPath;
     }
-    return DASHBOARD_ROUTES.trialStart;
+    return SHOP_PATH;
   }
   if (decision === "REQUIRE_PURCHASE") {
     return SHOP_PATH;

@@ -3,22 +3,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Lock } from "lucide-react";
+import { ArrowLeft, CreditCard, Loader2, Lock } from "lucide-react";
 
 import BillingAddressForm from "@/components/dashboard/commerce/BillingAddressForm";
-import PaymentCheckoutOverlay, {
-  type PaymentCheckoutOverlayContent,
-} from "@/components/dashboard/PaymentCheckoutOverlay";
+import { CardVerificationPanel } from "@/components/dashboard/CardVerificationPanel";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { invalidateBillingAddresses, useBillingAddresses } from "@/hooks/use-commerce";
+import {
+  invalidateBillingAddresses,
+  invalidatePaymentMethods,
+  useBillingAddresses,
+  usePaymentMethods,
+} from "@/hooks/use-commerce";
 import { invalidatePackageUsage } from "@/hooks/use-package-usage";
 import { usePurchaseFulfillment } from "@/hooks/use-purchase-fulfillment";
 import { useActivePackages } from "@/hooks/use-subscription";
 import { toast } from "@/hooks/use-toast";
+import { SHOP_PATH } from "@/lib/access-session-gate";
 import { ApiError } from "@/lib/api";
 import {
   buildBillingAddressPayload,
@@ -32,9 +36,7 @@ import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
 import { ACCOUNT_CARD, ACCOUNT_MENU_LABEL, DASHBOARD_TYPE_TITLE } from "@/lib/dashboard-surface";
 import { buildPurchaseCart, cartPricing, formatCartMoney, usePackageCart } from "@/lib/package-cart";
 import { isPackageVisibleInCatalog } from "@/lib/package-display";
-import { isPaytrCheckout, paytrCheckoutHtml } from "@/lib/paytr-checkout";
 import {
-  abandonPendingPaymentAttempt,
   clearPendingPurchaseId,
   storePendingPurchaseId,
   type PurchaseInitiateResponse,
@@ -66,6 +68,8 @@ export default function ShopCheckout({ onBack }: { onBack: () => void }) {
   const queryClient = useQueryClient();
   const packages = useActivePackages();
   const addresses = useBillingAddresses();
+  const cards = usePaymentMethods({ refetchOnWindowFocus: true });
+  const [paymentMethodId, setPaymentMethodId] = useState<string | null>(null);
   const { cart, hydrated, setBillingPeriod, clear } = usePackageCart();
   const [recurringConsent, setRecurringConsent] = useState(false);
   const [billingAddressId, setBillingAddressId] = useState<number | null>(null);
@@ -75,11 +79,11 @@ export default function ShopCheckout({ onBack }: { onBack: () => void }) {
   const [appliedCoupon, setAppliedCoupon] = useState<CouponPreview | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
   const [couponBusy, setCouponBusy] = useState(false);
-  const [paymentOverlay, setPaymentOverlay] = useState<PaymentCheckoutOverlayContent | null>(null);
   const [purchaseId, setPurchaseId] = useState<number | null>(null);
   const [pollStartedAt, setPollStartedAt] = useState<number | null>(null);
   const finalizedPurchaseId = useRef<number | null>(null);
   const addressInitialized = useRef(false);
+  const selectedCardId = paymentMethodId ?? cards.data?.[0]?.id ?? null;
   const fulfillment = usePurchaseFulfillment(purchaseId, pollStartedAt);
 
   const pkg = useMemo(() => {
@@ -109,6 +113,11 @@ export default function ShopCheckout({ onBack }: { onBack: () => void }) {
     }
   }, [addresses.data]);
 
+  // A card saved a moment ago (returning from PayTR) is not in the cached list yet.
+  useEffect(() => {
+    void invalidatePaymentMethods(queryClient);
+  }, [queryClient]);
+
   const finalizeSuccess = useCallback(async () => {
     clear();
     await refreshAccessAfterEntitlementChange(queryClient);
@@ -124,30 +133,20 @@ export default function ShopCheckout({ onBack }: { onBack: () => void }) {
     if (summary.status === "ACTIVE") {
       finalizedPurchaseId.current = summary.purchaseId;
       clearPendingPurchaseId();
-      setPaymentOverlay(null);
       void finalizeSuccess();
     }
     if (summary.status === "FAILED" || summary.status === "CANCELLED") {
       finalizedPurchaseId.current = summary.purchaseId;
       clearPendingPurchaseId();
-      setPaymentOverlay(null);
       setPurchaseId(null);
       setPollStartedAt(null);
       toast({
         title: "Ödeme tamamlanamadı",
-        description: "Kart bilgilerinizi kontrol edip tekrar deneyin.",
+        description: "Kartınızdan ödeme alınamadı. Başka bir kart seçip tekrar deneyin.",
         variant: "destructive",
       });
     }
   }, [finalizeSuccess, fulfillment.summary.data]);
-
-  const cancelPaymentOverlay = () => {
-    setPaymentOverlay(null);
-    setPurchaseId(null);
-    setPollStartedAt(null);
-    finalizedPurchaseId.current = null;
-    void abandonPendingPaymentAttempt({ cancelIfPending: true });
-  };
 
   const createAddress = async (values: BillingAddressFormValues) => {
     try {
@@ -200,6 +199,7 @@ export default function ShopCheckout({ onBack }: { onBack: () => void }) {
     const checkout = checkoutSchema.safeParse({
       billingPeriod: cart.billingPeriod,
       billingAddressId,
+      paymentMethodId: selectedCardId ?? "",
       recurringConsent,
     });
     if (!checkout.success) {
@@ -218,7 +218,8 @@ export default function ShopCheckout({ onBack }: { onBack: () => void }) {
       const purchaseCart = buildPurchaseCart(pkg, cart.billingPeriod, pricing.lines);
       const response = await getSiteSameOriginAxios().post<PurchaseInitiateResponse>("/purchases", {
         packageId: pkg.id,
-        paymentMode: "CHECKOUT_FORM",
+        paymentMode: "DIRECT",
+        paymentMethodId: selectedCardId,
         paymentStyle: "SUBSCRIPTION",
         billingPeriod: cart.billingPeriod,
         billingAddressId,
@@ -237,19 +238,9 @@ export default function ShopCheckout({ onBack }: { onBack: () => void }) {
       storePendingPurchaseId(response.data.purchaseId);
       setPurchaseId(response.data.purchaseId);
       setPollStartedAt(Date.now());
-      if (response.data.paymentPageUrl) {
-        setPaymentOverlay({ kind: "url", content: response.data.paymentPageUrl });
-      } else if (response.data.checkoutFormContent) {
-        setPaymentOverlay({
-          kind: "html",
-          content: paytrCheckoutHtml(response.data.checkoutFormContent),
-        });
-      } else {
-        throw new Error("Güvenli ödeme sayfası alınamadı.");
-      }
     } catch (error) {
       toast({
-        title: "Ödeme başlatılamadı",
+        title: "Ödeme alınamadı",
         description: error instanceof ApiError ? error.message : "Ödeme işlemi tamamlanamadı.",
         variant: "destructive",
       });
@@ -257,17 +248,6 @@ export default function ShopCheckout({ onBack }: { onBack: () => void }) {
       setIsPaying(false);
     }
   };
-
-  if (paymentOverlay) {
-    return (
-      <PaymentCheckoutOverlay
-        overlay={paymentOverlay}
-        purchaseId={purchaseId}
-        title={isPaytrCheckout(paymentOverlay) ? "Güvenli Ödeme (PayTR)" : "Güvenli Ödeme"}
-        onClose={cancelPaymentOverlay}
-      />
-    );
-  }
 
   if (!hydrated || packages.isLoading) {
     return <Skeleton className="h-64 w-full" />;
@@ -287,6 +267,8 @@ export default function ShopCheckout({ onBack }: { onBack: () => void }) {
   const nextDue = new Date();
   nextDue.setMonth(nextDue.getMonth() + (cart.billingPeriod === "YEARLY" ? 12 : 1));
   const nextDueLabel = nextDue.toLocaleDateString("tr-TR");
+  const verifying = purchaseId != null && fulfillment.summary.data?.status === "PENDING";
+  const canPay = !isPaying && !verifying && selectedCardId != null && recurringConsent && billingAddressId != null;
 
   return (
     <div>
@@ -300,7 +282,7 @@ export default function ShopCheckout({ onBack }: { onBack: () => void }) {
       </button>
       <p className="mt-4 text-[11px] font-medium uppercase tracking-[0.16em] text-[#8a8a86]">Adım 3 / 3</p>
       <h1 className={cn(DASHBOARD_TYPE_TITLE, "mt-1")}>Ödeme</h1>
-      <p className="mt-1 text-sm text-[#8a8a86]">Kart bilgisi bir sonraki güvenli ödeme ekranında alınır.</p>
+      <p className="mt-1 text-sm text-[#8a8a86]">Ödeme kayıtlı kartınızdan alınır; paketiniz her dönem sonunda aynı karttan yenilenir.</p>
 
       <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className={cn(ACCOUNT_CARD, "divide-y divide-[#ececea]")}>
@@ -355,6 +337,59 @@ export default function ShopCheckout({ onBack }: { onBack: () => void }) {
           </section>
 
           <section className="p-4 sm:p-5">
+            <p className={ACCOUNT_MENU_LABEL}>Kart</p>
+            <div className="mt-3">
+              {cards.isLoading ? (
+                <Skeleton className="h-14 w-full" />
+              ) : cards.data?.length ? (
+                <div className="space-y-2" role="radiogroup" aria-label="Ödeme kartı">
+                  {cards.data.map((card) => {
+                    const active = card.id === selectedCardId;
+                    return (
+                      <button
+                        key={card.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        onClick={() => setPaymentMethodId(card.id)}
+                        className={cn(
+                          "flex w-full items-center gap-3 rounded-lg border bg-white px-3 py-2.5 text-left transition-colors",
+                          active ? "border-zinc-900 ring-1 ring-zinc-900" : "border-[#e5e5e3] hover:border-zinc-400",
+                        )}
+                      >
+                        <CreditCard className="h-5 w-5 shrink-0 text-[#8a8a86]" aria-hidden />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-zinc-900">
+                            {card.cardAlias || card.brand || "Kart"} •••• {card.lastFour}
+                          </span>
+                          {card.expiryMonth && card.expiryYear ? (
+                            <span className="block text-xs text-[#8a8a86]">
+                              Son kullanma {String(card.expiryMonth).padStart(2, "0")}/{String(card.expiryYear).slice(-2)}
+                            </span>
+                          ) : null}
+                        </span>
+                        <span
+                          className={cn(
+                            "h-4 w-4 shrink-0 rounded-full border",
+                            active ? "border-[5px] border-zinc-900" : "border-[#c8c8c5]",
+                          )}
+                          aria-hidden
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <CardVerificationPanel
+                  title="Ödeme için kart ekleyin"
+                  description="Kartınız PayTR'de güvenle saklanır. 1 TL doğrulama çekilip hemen iade edilir; ardından bu ekrana dönüp ödemeyi tamamlarsınız."
+                  returnPath={`${SHOP_PATH}?adim=odeme`}
+                />
+              )}
+            </div>
+          </section>
+
+          <section className="p-4 sm:p-5">
             <p className={ACCOUNT_MENU_LABEL}>Kupon</p>
             <div className="mt-3 flex flex-wrap gap-2">
               <Input
@@ -383,23 +418,24 @@ export default function ShopCheckout({ onBack }: { onBack: () => void }) {
                 onCheckedChange={(checked) => setRecurringConsent(checked === true)}
               />
               <span className="text-sm text-zinc-900">
-                Düzenli ödeme için kart bilgilerimin saklanmasını istiyorum.
+                Düzenli ödeme için onay veriyorum.
                 <span className="mt-1 block text-xs text-[#8a8a86]">
-                  Kart bilgileri AlgoryQR sunucularında saklanmaz. Dönem bitişi {nextDueLabel}. Yenileme{" "}
-                  {formatCartMoney(pricing.recurringPrice, pricing.currency)}.
+                  Paketim her dönem sonunda seçtiğim kayıtlı karttan otomatik olarak yenilenir. İlk yenileme{" "}
+                  {nextDueLabel}, tutar {formatCartMoney(pricing.recurringPrice, pricing.currency)}. Aboneliği
+                  istediğim zaman iptal edebilirim.
                 </span>
               </span>
             </label>
             <Button
               className="mt-5 w-full gap-2 lg:hidden"
               variant="hero"
-              disabled={isPaying || (purchaseId != null && fulfillment.summary.data?.status === "PENDING")}
+              disabled={!canPay}
               onClick={() => void pay()}
             >
               {isPaying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
               {isPaying ? "Ödeme işleniyor…" : `Ödemeyi tamamla · ${payableLabel}`}
             </Button>
-            {purchaseId && fulfillment.summary.data?.status === "PENDING" ? (
+            {verifying ? (
               <p className="mt-2 text-center text-xs text-[#8a8a86] lg:hidden">Ödeme sonucu doğrulanıyor…</p>
             ) : null}
           </section>
@@ -449,13 +485,13 @@ export default function ShopCheckout({ onBack }: { onBack: () => void }) {
           <Button
             className="mt-4 hidden w-full gap-2 lg:inline-flex"
             variant="hero"
-            disabled={isPaying || (purchaseId != null && fulfillment.summary.data?.status === "PENDING")}
+            disabled={!canPay}
             onClick={() => void pay()}
           >
             {isPaying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
             {isPaying ? "Ödeme işleniyor…" : "Ödemeyi tamamla"}
           </Button>
-          {purchaseId && fulfillment.summary.data?.status === "PENDING" ? (
+          {verifying ? (
             <p className="mt-2 text-center text-xs text-[#8a8a86]">Ödeme sonucu doğrulanıyor…</p>
           ) : null}
         </aside>

@@ -9,7 +9,7 @@ import {
   readDemoSetupDoneFromRequest,
   readDemoTrialAccountFromRequest,
 } from "@/lib/server/demo-onboarding-cookies";
-import { SHOP_PATH, destinationForDecision } from "@/lib/access-session-gate";
+import { SHOP_PATH, destinationForDecision, needsPurchase } from "@/lib/access-session-gate";
 import {
   fetchAccessSessionWithToken,
   resolveDashboardPathForRequest,
@@ -161,7 +161,7 @@ async function gateShop(request: NextRequest) {
   }
 
   const session = await fetchAccessSessionWithToken(accessToken);
-  if (!session || session.decision === "REQUIRE_PURCHASE") {
+  if (!session || needsPurchase(session.decision)) {
     const response = NextResponse.next();
     if (setupDoneFromDb) setDemoSetupDoneCookie(response);
     return response;

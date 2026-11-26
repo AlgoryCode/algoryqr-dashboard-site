@@ -3,14 +3,14 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
+import { SHOP_PATH } from "@/lib/access-session-gate";
 
-/** Legacy `/deneme/baslat` — Ultimate deneme kaldırıldı; demo kaydına yönlendir. */
+/** Legacy `/deneme/baslat`: there is no trial any more; a package is chosen and paid for in the shop. */
 export default function TrialStartRedirect() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace(DASHBOARD_ROUTES.demoRegister);
+    router.replace(SHOP_PATH);
   }, [router]);
 
   return null;
