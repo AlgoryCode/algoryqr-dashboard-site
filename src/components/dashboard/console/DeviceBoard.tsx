@@ -83,6 +83,7 @@ export type DeviceBoardHandlers = {
   onItems: (session: ConsoleSession) => void;
   onApproveExtension: (session: ConsoleSession) => void;
   onDismissExtension: (session: ConsoleSession) => void;
+  onCancel?: (session: ConsoleSession) => void;
   onEdit?: (item: GameConsole) => void;
   onDelete?: (item: GameConsole) => void;
   onQr?: (item: GameConsole) => void;
@@ -315,6 +316,17 @@ function DeviceCard({
                   +{minutes} dk
                 </DropdownMenuItem>
               ))}
+              {handlers.onCancel ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onSelect={() => handlers.onCancel?.(session)}
+                  >
+                    Oturumu iptal et
+                  </DropdownMenuItem>
+                </>
+              ) : null}
             </MoreMenu>
           </>
         ) : inMaintenance ? (

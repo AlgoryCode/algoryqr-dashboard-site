@@ -181,6 +181,9 @@ const sessionSchema = z.object({
   bonusUsed: nullableMoney,
   extensionRequestMinutes: z.number().nullable().optional(),
   extensionRequestedAt: z.string().nullable().optional(),
+  cancelled: z.boolean().default(false),
+  cancelledAt: z.string().nullable().optional(),
+  cancelReason: z.string().nullable().optional(),
 });
 
 const pageOf = <T extends z.ZodType>(item: T) =>
@@ -747,6 +750,9 @@ export const dismissExtensionRequest = (sessionId: number) =>
   request(`${BASE}/sessions/${sessionId}/extension-request/dismiss`, sessionSchema, post());
 export const finishSession = (sessionId: number, payload?: FinishPayload) =>
   request(`${BASE}/sessions/${sessionId}/finish`, sessionSchema, post(payload));
+/** Closes the session without charge; it is left out of revenue, shift and analytics totals. */
+export const cancelSession = (sessionId: number, reason?: string) =>
+  request(`${BASE}/sessions/${sessionId}/cancel`, sessionSchema, post({ reason }));
 export const listActiveSessions = (branchId: number) =>
   request(`${BASE}/branches/${branchId}/sessions/active`, z.array(sessionSchema));
 export const listSessionHistory = (branchId: number, page = 0) =>
