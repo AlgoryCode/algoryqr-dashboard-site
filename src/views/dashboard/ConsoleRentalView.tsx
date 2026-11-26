@@ -11,7 +11,6 @@ import {
   CancelSessionDialog,
   ConsoleEditorDialog,
   FinishSessionDialog,
-  FinishedSessionDialog,
   ItemsDialog,
   StartSessionDialog,
   TransferDialog,
@@ -29,6 +28,8 @@ import { ProgramPanel } from "@/components/dashboard/console/ProgramPanel";
 import { ReportPanel } from "@/components/dashboard/console/ReportPanel";
 import { ReservationsPanel } from "@/components/dashboard/console/ReservationsPanel";
 import { SettingsPanel } from "@/components/dashboard/console/SettingsPanel";
+import { SessionDetailDialog } from "@/components/dashboard/console/SessionDetailDialog";
+import { SessionHistoryList } from "@/components/dashboard/console/SessionHistoryList";
 import { ShiftPanel } from "@/components/dashboard/console/ShiftPanel";
 import { TournamentsPanel } from "@/components/dashboard/console/TournamentsPanel";
 import {
@@ -42,13 +43,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDashboardBanners } from "@/contexts/dashboard-banners";
 import { ApiError } from "@/lib/api/errors";
 import {
   DEVICE_TYPE_LABELS,
-  PAYMENT_LABELS,
   addSessionItem,
   approveExtensionRequest,
   createConsole,
@@ -58,7 +57,6 @@ import {
   extendSession,
   cancelSession,
   finishSession,
-  formatClock,
   formatDuration,
   formatTl,
   getRate,
@@ -418,7 +416,7 @@ export default function ConsoleRentalView() {
           </TabsContent>
 
           <TabsContent value="history">
-            <HistoryTable
+            <SessionHistoryList
               rows={history.data?.content ?? []}
               loading={history.isLoading}
               page={history.data?.page ?? 0}
@@ -502,7 +500,12 @@ export default function ConsoleRentalView() {
         onOpenChange={(open) => !open && setCancelling(null)}
         onSubmit={(reason) => cancelling && cancel.mutate({ sessionId: cancelling.id, reason })}
       />
-      <FinishedSessionDialog session={finished} onOpenChange={(open) => !open && setFinished(null)} />
+      <SessionDetailDialog
+        session={finished}
+        branchId={branchId}
+        onOpenChange={(open) => !open && setFinished(null)}
+        onChanged={setFinished}
+      />
       <TransferDialog
         key={transferring?.id ?? "none"}
         session={transferring}
@@ -536,89 +539,6 @@ export default function ConsoleRentalView() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
-  );
-}
-
-function HistoryTable({
-  rows,
-  loading,
-  page,
-  hasNext,
-  onPage,
-  onOpen,
-}: {
-  rows: ConsoleSession[];
-  loading: boolean;
-  page: number;
-  hasNext: boolean;
-  onPage: (page: number) => void;
-  onOpen: (session: ConsoleSession) => void;
-}) {
-  return (
-    <div className={DASHBOARD_PANEL}>
-      {loading ? (
-        <p className="text-sm text-muted-foreground">Yükleniyor…</p>
-      ) : rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Henüz biten oturum yok.</p>
-      ) : (
-        <>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Cihaz</TableHead>
-                <TableHead className="hidden md:table-cell">Müşteri</TableHead>
-                <TableHead>Başlangıç</TableHead>
-                <TableHead className="hidden md:table-cell">Bitiş</TableHead>
-                <TableHead className="text-right">Süre</TableHead>
-                <TableHead className="hidden md:table-cell text-right">Ürün</TableHead>
-                <TableHead className="hidden md:table-cell text-right">İndirim</TableHead>
-                <TableHead className="hidden md:table-cell">Ödeme</TableHead>
-                <TableHead className="text-right">Tutar</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  className={`cursor-pointer ${row.cancelled ? "text-muted-foreground" : ""}`}
-                  onClick={() => onOpen(row)}
-                >
-                  <TableCell className="font-medium">{row.consoleName ?? `#${row.consoleId}`}</TableCell>
-                  <TableCell className="hidden md:table-cell">{row.customerName ?? "—"}</TableCell>
-                  <TableCell className="tabular-nums">{formatClock(row.startedAt)}</TableCell>
-                  <TableCell className="hidden md:table-cell tabular-nums">{formatClock(row.endedAt)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatDuration(row.durationMinutes)}</TableCell>
-                  <TableCell className="hidden md:table-cell text-right tabular-nums">
-                    {Number(row.itemsAmount ?? 0) > 0 ? formatTl(row.itemsAmount) : "—"}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell text-right tabular-nums">
-                    {Number(row.discountAmount ?? 0) > 0 ? formatTl(row.discountAmount) : "—"}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    {row.cancelled ? "—" : row.paymentMethod ? PAYMENT_LABELS[row.paymentMethod] : "—"}
-                  </TableCell>
-                  <TableCell className="text-right font-semibold tabular-nums">
-                    {row.cancelled ? (
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">İptal</span>
-                    ) : (
-                      formatTl(row.amount)
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <div className="mt-3 flex justify-end gap-2">
-            <Button type="button" variant="outline" size="sm" disabled={page <= 0} onClick={() => onPage(page - 1)}>
-              Önceki
-            </Button>
-            <Button type="button" variant="outline" size="sm" disabled={!hasNext} onClick={() => onPage(page + 1)}>
-              Sonraki
-            </Button>
-          </div>
-        </>
-      )}
     </div>
   );
 }

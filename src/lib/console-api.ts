@@ -184,6 +184,41 @@ const sessionSchema = z.object({
   cancelled: z.boolean().default(false),
   cancelledAt: z.string().nullable().optional(),
   cancelReason: z.string().nullable().optional(),
+  overdueAt: z.string().nullable().optional(),
+  overdueReason: z.string().nullable().optional(),
+  editedAt: z.string().nullable().optional(),
+});
+
+export const OVERDUE_REASONS = ["PLANNED_EXCEEDED", "OPEN_TOO_LONG", "PAUSED_TOO_LONG"] as const;
+export type OverdueReason = (typeof OVERDUE_REASONS)[number];
+
+const overdueSessionSchema = z.object({
+  sessionId: z.number(),
+  branchId: z.number(),
+  branchName: z.string().nullable().optional(),
+  consoleId: z.number(),
+  consoleName: z.string().nullable().optional(),
+  deviceType: deviceTypeSchema.nullable().optional().catch(null),
+  customerName: z.string().nullable().optional(),
+  startedAt: z.string(),
+  plannedMinutes: z.number().nullable().optional(),
+  playedSeconds: z.number().default(0),
+  paused: z.boolean().default(false),
+  pausedAt: z.string().nullable().optional(),
+  reason: z.enum(OVERDUE_REASONS).catch("PLANNED_EXCEEDED"),
+  overMinutes: z.number().default(0),
+  currentAmount: nullableMoney,
+  overdueAt: z.string().nullable().optional(),
+});
+
+const sessionChangeSchema = z.object({
+  id: z.number(),
+  changedAt: z.string().nullable().optional(),
+  changedBy: z.string().nullable().optional(),
+  reason: z.string(),
+  lines: z.array(z.string()).default([]),
+  oldAmount: nullableMoney,
+  newAmount: nullableMoney,
 });
 
 const pageOf = <T extends z.ZodType>(item: T) =>
@@ -534,6 +569,8 @@ export type ConsoleRate = z.infer<typeof rateSchema>;
 export type TypeRate = z.infer<typeof typeRateSchema>;
 export type Tariff = z.infer<typeof tariffSchema>;
 export type ConsoleSession = z.infer<typeof sessionSchema>;
+export type OverdueSession = z.infer<typeof overdueSessionSchema>;
+export type SessionChange = z.infer<typeof sessionChangeSchema>;
 export type SessionItem = z.infer<typeof itemSchema>;
 export type ConsoleSessionPage = z.infer<typeof sessionPageSchema>;
 export type SessionQuote = z.infer<typeof quoteSchema>;
@@ -608,6 +645,17 @@ export type QuoteOptions = Omit<FinishPayload, "paymentMethod">;
 export type AddItemPayload =
   | { menuProductId: number; quantity: number }
   | { name: string; unitPrice: string; quantity: number };
+/** Correction of a finished session; only the fields given change. endedAt can only move earlier. */
+export type EditSessionPayload = {
+  reason: string;
+  customerName?: string;
+  note?: string;
+  paymentMethod?: PaymentMethod;
+  endedAt?: string;
+  discountAmount?: string;
+  addItems?: AddItemPayload[];
+  removeItemIds?: number[];
+};
 export type CustomerPayload = { name: string; phone?: string; note?: string; referralCode?: string };
 export type GamePayload = { name: string; genre?: string | null; maxPlayers?: number | null };
 export type PackagePayload = {
@@ -753,6 +801,13 @@ export const finishSession = (sessionId: number, payload?: FinishPayload) =>
 /** Closes the session without charge; it is left out of revenue, shift and analytics totals. */
 export const cancelSession = (sessionId: number, reason?: string) =>
   request(`${BASE}/sessions/${sessionId}/cancel`, sessionSchema, post({ reason }));
+/** Corrects a finished session; every change is logged with its reason. */
+export const editSession = (sessionId: number, payload: EditSessionPayload) =>
+  request(`${BASE}/sessions/${sessionId}`, sessionSchema, put(payload));
+export const listSessionChanges = (sessionId: number) =>
+  request(`${BASE}/sessions/${sessionId}/changes`, z.array(sessionChangeSchema));
+/** Open sessions past their time or left paused, across every branch (flagged by the backend job). */
+export const listOverdueSessions = () => request(`${BASE}/alerts/overdue`, z.array(overdueSessionSchema));
 export const listActiveSessions = (branchId: number) =>
   request(`${BASE}/branches/${branchId}/sessions/active`, z.array(sessionSchema));
 export const listSessionHistory = (branchId: number, page = 0) =>
