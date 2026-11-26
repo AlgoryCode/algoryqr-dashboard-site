@@ -18,19 +18,12 @@ import { hasProduct } from "@/lib/auth-user";
 import {
   AssistantLimitError,
   getDashboardAssistantAllowance,
+  getDashboardAssistantChips,
   postDashboardAssistantMessage,
 } from "@/lib/dashboard-assistant/client";
+import { BASE_QUICK_PROMPTS, type QuickPrompt } from "@/lib/dashboard-assistant/quick-answers";
 import { DASHBOARD_ROUTES } from "@/lib/dashboard-routes";
-import { prefetchAssistantSalesReports } from "@/lib/dashboard-assistant/prefetch-sales";
-import { readAssistantSalesCache } from "@/lib/dashboard-assistant/sales-cache";
 import { cn } from "@/lib/utils";
-
-const QUICK_PROMPTS = [
-  "Bugün ciro nasıl?",
-  "En çok satan ne?",
-  "Yoğun saat hangisi?",
-  "Son 7 gün özeti",
-] as const;
 
 type ChatMessage = {
   id: string;
@@ -83,35 +76,23 @@ export function DashboardAssistantChat({ open, onOpenChange }: DashboardAssistan
     select,
   } = useBranchReportSelection(null, null, open);
 
-  const [prefetching, setPrefetching] = useState(false);
-  const [prefetchError, setPrefetchError] = useState<string | null>(null);
+  // The server reads the branch's sales and returns the chips, data-driven ones first.
+  const chipsQuery = useQuery({
+    queryKey: ["dashboardAssistantChips", branchId, menuId],
+    queryFn: () => getDashboardAssistantChips(branchId!, menuId),
+    enabled: open && !branchLoading && branchId != null,
+    staleTime: 60_000,
+    retry: 1,
+  });
+  const prefetching = chipsQuery.isFetching;
+  const prefetchError = chipsQuery.error instanceof Error ? chipsQuery.error.message : null;
+  const quickPrompts: QuickPrompt[] = chipsQuery.data?.prompts.length ? chipsQuery.data.prompts : BASE_QUICK_PROMPTS;
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
   const previousBranchIdRef = useRef<number | null>(null);
-
-  const loadReports = useCallback(async () => {
-    if (branchId == null) {
-      setPrefetchError("Satış raporu için önce bir şube seçin.");
-      return;
-    }
-    setPrefetching(true);
-    setPrefetchError(null);
-    try {
-      await prefetchAssistantSalesReports({
-        branchId,
-        menuId,
-        branchName: selection?.branch.name ?? null,
-        menuName: selection?.menu?.businessName ?? null,
-      });
-    } catch (error) {
-      setPrefetchError(error instanceof Error ? error.message : "Satış raporları alınamadı");
-    } finally {
-      setPrefetching(false);
-    }
-  }, [branchId, menuId, selection?.branch.name, selection?.menu?.businessName]);
 
   useEffect(() => {
     if (branchId == null) return;
@@ -126,22 +107,18 @@ export function DashboardAssistantChat({ open, onOpenChange }: DashboardAssistan
   }, [branchId]);
 
   useEffect(() => {
-    if (!open || branchLoading || branchId == null) return;
-    void loadReports();
-  }, [open, branchLoading, branchId, menuId, loadReports]);
-
-  useEffect(() => {
     if (!open) return;
     const node = listRef.current;
     if (!node) return;
     node.scrollTop = node.scrollHeight;
   }, [messages, open]);
 
-  async function send(text: string) {
+  async function send(text: string, prompt?: QuickPrompt) {
     const value = text.trim();
     if (!value || sending) return;
 
-    if (limitReached) return;
+    // Ready chips are answered from the report and do not use up a free question.
+    if (limitReached && !prompt) return;
 
     if (branchId == null) {
       setMessages((prev) => [
@@ -166,13 +143,11 @@ export function DashboardAssistantChat({ open, onOpenChange }: DashboardAssistan
     ]);
 
     try {
-      if (!readAssistantSalesCache(branchId, menuId)) {
-        await loadReports();
-      }
       const result = await postDashboardAssistantMessage(value, branchId, menuId, {
         conversationId,
+        promptId: prompt?.id,
       });
-      setConversationId(result.conversationId);
+      if (result.conversationId) setConversationId(result.conversationId);
       if (!entitled) setAllowance(result.allowance);
       setMessages((prev) =>
         prev.map((message) =>
@@ -235,19 +210,25 @@ export function DashboardAssistantChat({ open, onOpenChange }: DashboardAssistan
           {messages.length === 0 ? (
             <div className="flex h-full min-h-[14rem] flex-col justify-center gap-3">
               <p className="text-sm text-muted-foreground">
-                Sohbet açıldığında bugün, son 7 ve 30 günlük satış özetleri tarayıcıda saklanır;
-                sorularınız bu veriye göre yanıtlanır.
+                Hazır sorular satış raporundan anında yanıtlanır. Kendi sorunuzu da yazabilirsiniz,
+                ör. “Geçen hafta baklava kaç adet sattı?”
               </p>
               <div className="flex flex-wrap gap-2">
-                {QUICK_PROMPTS.map((prompt) => (
+                {quickPrompts.map((prompt) => (
                   <button
-                    key={prompt}
+                    key={prompt.id}
                     type="button"
-                    disabled={sending || prefetching || limitReached}
-                    onClick={() => void send(prompt)}
-                    className="rounded-full border border-border bg-muted/40 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-50"
+                    disabled={sending || prefetching}
+                    onClick={() => void send(prompt.label, prompt)}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50",
+                      prompt.insight
+                        ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/15"
+                        : "border-border bg-muted/40 hover:bg-muted",
+                    )}
                   >
-                    {prompt}
+                    {prompt.insight ? <Sparkles className="h-3 w-3" /> : null}
+                    {prompt.label}
                   </button>
                 ))}
               </div>
